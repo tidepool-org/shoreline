@@ -15,3 +15,43 @@ func UpdateUser(res http.ResponseWriter, req *http.Request) {
 func GetUserInfo(res http.ResponseWriter, req *http.Request) {
 	res.WriteHeader(501)
 }
+
+func DeleteUser(res http.ResponseWriter, req *http.Request) {
+	res.WriteHeader(501)
+}
+
+func Login(res http.ResponseWriter, req *http.Request) {
+	res.WriteHeader(501)
+}
+
+func ServerLogin(res http.ResponseWriter, req *http.Request) {
+	res.WriteHeader(501)
+}
+
+func RefreshSession(res http.ResponseWriter, req *http.Request) {
+	res.WriteHeader(501)
+}
+
+func ValidateLongterm(res http.ResponseWriter, req *http.Request) {
+	res.WriteHeader(501)
+}
+
+func RequireServerToken(res http.ResponseWriter, req *http.Request) {
+	res.WriteHeader(501)
+}
+
+func ServerCheckToken(res http.ResponseWriter, req *http.Request) {
+	res.WriteHeader(501)
+}
+
+func Logout(res http.ResponseWriter, req *http.Request) {
+	res.WriteHeader(501)
+}
+
+func AnonymousIdHashPair(res http.ResponseWriter, req *http.Request) {
+	res.WriteHeader(501)
+}
+
+func ManageIdHashPair(res http.ResponseWriter, req *http.Request) {
+	res.WriteHeader(501)
+}
