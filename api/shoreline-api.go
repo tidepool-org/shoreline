@@ -17,6 +17,13 @@ func GetUserInfo(res http.ResponseWriter, req *http.Request) {
 }
 
 func DeleteUser(res http.ResponseWriter, req *http.Request) {
+
+	sessiontoken := req.Header.Get("x-tidepool-session-token")
+	if sessiontoken == "" {
+		res.WriteHeader(401)
+		return
+	}
+
 	res.WriteHeader(501)
 }
 

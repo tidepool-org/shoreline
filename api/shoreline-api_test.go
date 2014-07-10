@@ -41,12 +41,25 @@ func TestGetUserInfoReturnsWithStatus(t *testing.T) {
 
 func TestDeleteUserReturnsWithStatus(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
+	request.Header.Set("x-tidepool-session-token", "blah-blah-123-blah")
+
 	response := httptest.NewRecorder()
 
 	DeleteUser(response, request)
 
 	if response.Code != http.StatusNotImplemented {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "501", response.Code)
+	}
+}
+
+func TestDeleteUserReturns401WhenNoSessionTokenHeaderGiven(t *testing.T) {
+	request, _ := http.NewRequest("GET", "/", nil)
+	response := httptest.NewRecorder()
+
+	DeleteUser(response, request)
+
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "401", response.Code)
 	}
 }
 
