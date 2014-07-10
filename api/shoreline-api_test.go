@@ -6,14 +6,30 @@ import (
 	"testing"
 )
 
-func TestCreateUserReturnsWithStatus(t *testing.T) {
+func TestCreateUserReturnsWith400StatusWithNoParamsGiven(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	response := httptest.NewRecorder()
 
 	CreateUser(response, request)
 
-	if response.Code != http.StatusNotImplemented {
-		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "501", response.Code)
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "400", response.Code)
+	}
+}
+
+func TestCreateUserReturnsStatus(t *testing.T) {
+	request, _ := http.NewRequest("GET", "/", nil)
+
+	request.URL.Query().Add("username", "test")
+	request.URL.Query().Add("emails", "test@foo.bar")
+	request.URL.Query().Add("password", "123youknoWm3")
+
+	response := httptest.NewRecorder()
+
+	CreateUser(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "400", response.Code)
 	}
 }
 
@@ -63,8 +79,20 @@ func TestDeleteUserReturns401WhenNoSessionTokenHeaderGiven(t *testing.T) {
 	}
 }
 
-func TestLoginReturnsWithStatus(t *testing.T) {
+func TestLoginReturnsWithStatus400(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
+	response := httptest.NewRecorder()
+
+	Login(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "400", response.Code)
+	}
+}
+
+func TestLoginReturnsWithStatusWhenAuthorizationSet(t *testing.T) {
+	request, _ := http.NewRequest("GET", "/", nil)
+	request.SetBasicAuth("username", "password")
 	response := httptest.NewRecorder()
 
 	Login(response, request)

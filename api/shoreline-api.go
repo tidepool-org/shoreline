@@ -5,7 +5,13 @@ import (
 )
 
 func CreateUser(res http.ResponseWriter, req *http.Request) {
+
+	if HasParams(req.URL.Query(), []string{"username", "emails", "password"}) == false {
+		res.WriteHeader(400)
+		return
+	}
 	res.WriteHeader(501)
+
 }
 
 func UpdateUser(res http.ResponseWriter, req *http.Request) {
@@ -28,6 +34,11 @@ func DeleteUser(res http.ResponseWriter, req *http.Request) {
 }
 
 func Login(res http.ResponseWriter, req *http.Request) {
+
+	if req.Header.Get("Authorization") == "" {
+		res.WriteHeader(400)
+		return
+	}
 	res.WriteHeader(501)
 }
 
