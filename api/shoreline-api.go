@@ -16,7 +16,7 @@ func CreateUser(res http.ResponseWriter, req *http.Request) {
 
 func UpdateUser(res http.ResponseWriter, req *http.Request) {
 
-	sessiontoken := GetToken(req.Header)
+	sessiontoken := GetSessionToken(req.Header)
 	if sessiontoken == "" {
 		res.WriteHeader(401)
 		return
@@ -26,12 +26,19 @@ func UpdateUser(res http.ResponseWriter, req *http.Request) {
 }
 
 func GetUserInfo(res http.ResponseWriter, req *http.Request) {
+
+	sessiontoken := GetSessionToken(req.Header)
+	if sessiontoken == "" {
+		res.WriteHeader(401)
+		return
+	}
+
 	res.WriteHeader(501)
 }
 
 func DeleteUser(res http.ResponseWriter, req *http.Request) {
 
-	sessiontoken := GetToken(req.Header)
+	sessiontoken := GetSessionToken(req.Header)
 	if sessiontoken == "" {
 		res.WriteHeader(401)
 		return
@@ -62,6 +69,12 @@ func ValidateLongterm(res http.ResponseWriter, req *http.Request) {
 }
 
 func RequireServerToken(res http.ResponseWriter, req *http.Request) {
+	sessiontoken := GetSessionToken(req.Header)
+	if sessiontoken == "" {
+		res.WriteHeader(401)
+		return
+	}
+
 	res.WriteHeader(501)
 }
 

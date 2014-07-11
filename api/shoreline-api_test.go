@@ -68,6 +68,17 @@ func TestGetUserInfoReturnsWithStatus(t *testing.T) {
 	}
 }
 
+func TestGetUserInfoReturns401WithNoToken(t *testing.T) {
+	request, _ := http.NewRequest("GET", "/", nil)
+	response := httptest.NewRecorder()
+
+	GetUserInfo(response, request)
+
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "401", response.Code)
+	}
+}
+
 func TestDeleteUserReturnsWithStatus(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	request.Header.Set("x-tidepool-session-token", "blah-blah-123-blah")
@@ -149,12 +160,24 @@ func TestValidateLongtermReturnsWithStatus(t *testing.T) {
 
 func TestRequireServerTokenReturnsWithStatus(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
+	request.Header.Set("x-tidepool-session-token", "blah-blah-123-blah")
 	response := httptest.NewRecorder()
 
 	RequireServerToken(response, request)
 
 	if response.Code != http.StatusNotImplemented {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "501", response.Code)
+	}
+}
+
+func TestRequireServerToken401WhenNoSessionTokenHeaderGiven(t *testing.T) {
+	request, _ := http.NewRequest("GET", "/", nil)
+	response := httptest.NewRecorder()
+
+	RequireServerToken(response, request)
+
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "401", response.Code)
 	}
 }
 
