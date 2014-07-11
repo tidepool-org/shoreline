@@ -33,8 +33,20 @@ func TestCreateUserReturnsStatus(t *testing.T) {
 	}
 }
 
-func TestUpdateUserReturnsWithStatus(t *testing.T) {
+func TestUpdateUserReturns401WithNoToken(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
+	response := httptest.NewRecorder()
+
+	UpdateUser(response, request)
+
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "401", response.Code)
+	}
+}
+
+func TestUpdateUserRequiresWithStatus(t *testing.T) {
+	request, _ := http.NewRequest("GET", "/", nil)
+	request.Header.Set("x-tidepool-session-token", "blah-blah-123-blah")
 	response := httptest.NewRecorder()
 
 	UpdateUser(response, request)
@@ -46,6 +58,7 @@ func TestUpdateUserReturnsWithStatus(t *testing.T) {
 
 func TestGetUserInfoReturnsWithStatus(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
+	request.Header.Set("x-tidepool-session-token", "blah-blah-123-blah")
 	response := httptest.NewRecorder()
 
 	GetUserInfo(response, request)
@@ -58,7 +71,6 @@ func TestGetUserInfoReturnsWithStatus(t *testing.T) {
 func TestDeleteUserReturnsWithStatus(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	request.Header.Set("x-tidepool-session-token", "blah-blah-123-blah")
-
 	response := httptest.NewRecorder()
 
 	DeleteUser(response, request)

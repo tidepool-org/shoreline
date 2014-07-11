@@ -15,6 +15,13 @@ func CreateUser(res http.ResponseWriter, req *http.Request) {
 }
 
 func UpdateUser(res http.ResponseWriter, req *http.Request) {
+
+	sessiontoken := GetToken(req.Header)
+	if sessiontoken == "" {
+		res.WriteHeader(401)
+		return
+	}
+
 	res.WriteHeader(501)
 }
 
@@ -24,7 +31,7 @@ func GetUserInfo(res http.ResponseWriter, req *http.Request) {
 
 func DeleteUser(res http.ResponseWriter, req *http.Request) {
 
-	sessiontoken := req.Header.Get("x-tidepool-session-token")
+	sessiontoken := GetToken(req.Header)
 	if sessiontoken == "" {
 		res.WriteHeader(401)
 		return
