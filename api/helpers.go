@@ -1,7 +1,6 @@
 package api
 
 import (
-	"net/http"
 	"net/url"
 )
 
@@ -17,8 +16,4 @@ func HasParams(query url.Values, params []string) bool {
 		}
 	}
 	return ok
-}
-
-func GetSessionToken(header http.Header) string {
-	return header.Get("x-tidepool-session-token")
 }
