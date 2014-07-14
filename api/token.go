@@ -1,28 +1,42 @@
 package api
 
 import (
+	"errors"
 	jwt "github.com/dgrijalva/jwt-go"
 	"net/http"
 	"time"
 )
 
-type (
-	Token struct {
-		session string
+type SessionToken struct {
+	tokenString string
+}
+
+func (t *SessionToken) UnpackToken(secret string) (*jwt.Token, error) {
+
+	return jwt.Parse(t.tokenString, func(t *jwt.Token) ([]byte, error) { return []byte(secret), nil })
+
+}
+
+func (t *SessionToken) VerifyStoredToken(secret string) (bool, error) {
+
+	if t.tokenString == "" {
+		return false, errors.New("the token string is required")
 	}
-)
 
-func UnpackToken() *Token {
-	return &Token{}
+	token, err := t.UnpackToken(secret)
+	if err != nil {
+		return false, err
+	}
+	return token.Valid, nil
 }
 
-func GetSessionToken(header http.Header) *Token {
-	return &Token{session: header.Get("x-tidepool-session-token")}
+func GetSessionToken(header http.Header) SessionToken {
+	return SessionToken{tokenString: header.Get("x-tidepool-session-token")}
 }
 
-func GenerateSessionToken(userId string, secret string, durationSeconds float64, isServer bool) *Token {
+func GenerateSessionToken(userId string, secret string, durationSeconds float64, isServer bool) (SessionToken, error) {
 	if userId == "" {
-		return &Token{}
+		return SessionToken{}, errors.New("No userId was given for the token")
 	}
 
 	if durationSeconds == 0 {
@@ -46,16 +60,8 @@ func GenerateSessionToken(userId string, secret string, durationSeconds float64,
 		// Sign and get the complete encoded token as a string
 		tokenString, _ := token.SignedString([]byte(secret))
 
-		return &Token{session: tokenString}
+		return SessionToken{tokenString: tokenString}, nil
 	}
 
-	return &Token{}
-}
-
-func (t *Token) Verify() bool {
-	return false
-}
-
-func (t *Token) Upsert() {
-
+	return SessionToken{}, errors.New("The duration for the token was 0 seconds")
 }
