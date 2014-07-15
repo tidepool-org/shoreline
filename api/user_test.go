@@ -44,3 +44,15 @@ func TestPwHash(t *testing.T) {
 	log.Println("pw hash: ", user.pwhash)
 
 }
+
+func TestPwHashWithEmptyParams(t *testing.T) {
+	user := User{id: "123-user-id-you-know-me"}
+
+	user.HashPassword("", "")
+
+	if user.pwhash != "" {
+		t.Fatalf("there was no password to hash so it should fail")
+	}
+	log.Println("pw hash: ", user.pwhash)
+
+}

@@ -23,6 +23,11 @@ func (u *User) HasIdentifier() bool {
 }
 
 func (u *User) HashPassword(pw, salt string) {
+
+	if pw == "" || salt == "" {
+		return
+	}
+
 	hash := sha1.New()
 	hash.Sum([]byte(pw))
 	hash.Sum([]byte(salt))
