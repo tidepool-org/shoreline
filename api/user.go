@@ -2,6 +2,7 @@ package api
 
 import (
 	"crypto/sha1"
+	"encoding/hex"
 	"errors"
 	"strconv"
 	"time"
@@ -30,10 +31,10 @@ func (u *User) HashPassword(pw, salt string) error {
 	}
 
 	hash := sha1.New()
-	hash.Sum([]byte(pw))
-	hash.Sum([]byte(salt))
-	hash.Sum([]byte(u.id))
-	u.pwhash = string(hash.Sum(nil))
+	hash.Write([]byte(pw))
+	hash.Write([]byte(salt))
+	hash.Write([]byte(u.id))
+	u.pwhash = hex.EncodeToString(hash.Sum(nil))
 
 	return nil
 }
@@ -45,26 +46,17 @@ func generateUniqueHash(strings []string, length int) (string, error) {
 		hash := sha1.New()
 
 		for i := range strings {
-			hash.Sum([]byte(strings[i]))
+			hash.Write([]byte(strings[i]))
 		}
 
-		hash.Sum([]byte(strconv.FormatInt(time.Now().Unix(), 10)))
+		hash.Write([]byte(strconv.FormatInt(time.Now().Unix(), 10)))
 		//delay just a bit to make sure that we have move on in time
 		time.Sleep(1 * time.Millisecond)
-		hashString := string(hash.Sum(nil))
+		hashString := hex.EncodeToString(hash.Sum(nil))
+
 		return string([]rune(hashString)[0:length]), nil
 	}
 
 	return "", errors.New("both strings and length are required")
-
-	/*
-			var hash = crypto.algo.SHA1.create();
-		    _.each(strings, function(s) {
-		      if (s) hash.update(s);
-		    });
-		    hash.update(moment().valueOf().toString());  // this changes every millisecond so should give us a new value if we recur
-		    var id = hash.finalize().toString().substr(0, len);
-		    // we're going to delay just a bit to make sure that we overflow a moment() value
-	*/
 
 }
