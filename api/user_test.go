@@ -1,7 +1,6 @@
 package api
 
 import (
-	"log"
 	"testing"
 )
 
@@ -36,23 +35,34 @@ func TestHasIdentifierWhenNonSet(t *testing.T) {
 func TestPwHash(t *testing.T) {
 	user := User{id: "123-user-id-you-know-me"}
 
-	user.HashPassword("my pw", "the salt")
-
-	if user.pwhash == "" {
-		t.Fatalf("the password should have been hashed")
+	if err := user.HashPassword("my pw", "the salt"); err == nil {
+		if user.pwhash == "" {
+			t.Fatalf("the password should have been hashed")
+		}
+	} else {
+		t.Fatalf("there should not have been an error")
 	}
-	log.Println("pw hash: ", user.pwhash)
 
 }
 
 func TestPwHashWithEmptyParams(t *testing.T) {
 	user := User{id: "123-user-id-you-know-me"}
 
-	user.HashPassword("", "")
+	if err := user.HashPassword("", ""); err == nil {
+		t.Fatalf("there should be an error when the parameters are not passed")
+
+	}
 
 	if user.pwhash != "" {
 		t.Fatalf("there was no password to hash so it should fail")
 	}
-	log.Println("pw hash: ", user.pwhash)
+
+}
+
+func TestGenerateUniqueHash(t *testing.T) {
+
+	if _, err := generateUniqueHash([]string{}, 5); err == nil {
+		t.Fatalf("this should have thrown an error as no strings were given")
+	}
 
 }
