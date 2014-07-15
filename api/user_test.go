@@ -86,3 +86,44 @@ func TestGenerateUniqueHashLength(t *testing.T) {
 	}
 
 }
+
+func TestNewUserNoPw(t *testing.T) {
+
+	if _, err := NewUser("jamie", "", []string{}); err == nil {
+		t.Fatalf("should have given error as the password is not given")
+	}
+
+}
+
+func TestNewUserNoName(t *testing.T) {
+
+	if _, err := NewUser("", "3th3Hardw0y", []string{}); err == nil {
+		t.Fatalf("should have given error as the name is not given")
+	}
+
+}
+
+func TestNewUser(t *testing.T) {
+
+	if user, err := NewUser("", "3th3Hardw0y", []string{"test@foo.bar"}); err == nil {
+		if user.hash == "" {
+			t.Fatalf("the user hash should have been set")
+		}
+		if len(user.hash) != 24 {
+			t.Fatalf("the user hash should be 24 characters in length")
+		}
+		if user.id == "" {
+			t.Fatalf("the user id should have been set")
+		}
+		if len(user.id) != 10 {
+			t.Fatalf("the user id should be 10 characters in length")
+		}
+		if user.name == "" {
+			t.Fatalf("the user name should have been set")
+		}
+		if len(user.emails) != 1 {
+			t.Fatalf("the emails should have been set")
+		}
+	}
+
+}

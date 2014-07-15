@@ -16,8 +16,15 @@ type User struct {
 	hash   string
 }
 
-func NewUser(name string, emails []string) *User {
-	return &User{name: name, emails: emails}
+func NewUser(name, pw string, emails []string) (*User, error) {
+
+	if name == "" || pw == "" {
+		return &User{}, errors.New("both the name and pw are required")
+	}
+
+	id, _ := generateUniqueHash([]string{name, pw}, 10)
+	hash, _ := generateUniqueHash([]string{name, pw, id}, 24)
+	return &User{id: id, name: name, emails: emails, hash: hash}, nil
 }
 
 func (u *User) HasIdentifier() bool {
