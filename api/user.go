@@ -9,11 +9,11 @@ import (
 )
 
 type User struct {
-	id     string
-	name   string
-	emails []string
-	pwhash string
-	hash   string
+	Id     string
+	Name   string
+	Emails []string
+	PwHash string
+	Hash   string
 }
 
 func NewUser(name, pw string, emails []string) (*User, error) {
@@ -24,11 +24,11 @@ func NewUser(name, pw string, emails []string) (*User, error) {
 
 	id, _ := generateUniqueHash([]string{name, pw}, 10)
 	hash, _ := generateUniqueHash([]string{name, pw, id}, 24)
-	return &User{id: id, name: name, emails: emails, hash: hash}, nil
+	return &User{Id: id, Name: name, Emails: emails, Hash: hash}, nil
 }
 
 func (u *User) HasIdentifier() bool {
-	return u.name != "" || u.id != "" || len(u.emails) > 0
+	return u.Name != "" || u.Id != "" || len(u.Emails) > 0
 }
 
 func (u *User) HashPassword(pw, salt string) error {
@@ -40,8 +40,8 @@ func (u *User) HashPassword(pw, salt string) error {
 	hash := sha1.New()
 	hash.Write([]byte(pw))
 	hash.Write([]byte(salt))
-	hash.Write([]byte(u.id))
-	u.pwhash = hex.EncodeToString(hash.Sum(nil))
+	hash.Write([]byte(u.Id))
+	u.PwHash = hex.EncodeToString(hash.Sum(nil))
 
 	return nil
 }
