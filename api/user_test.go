@@ -33,7 +33,7 @@ func TestHasIdentifierWhenNonSet(t *testing.T) {
 }
 
 func TestPwHash(t *testing.T) {
-	user := User{id: "123-user-id-you-know-me"}
+	user := User{Id: "123-user-id-you-know-me"}
 
 	if err := user.HashPassword("my pw", "the salt"); err == nil {
 		if user.PwHash == "" {

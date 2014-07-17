@@ -19,41 +19,42 @@ type MongoStoreClient struct {
 	tokensC *mgo.Collection
 }
 
-func NewStoreClient(config *mongo.Config) *MongoStoreClient {
+func NewMongoStoreClient(config *mongo.Config) *MongoStoreClient {
 
-	mongoSession, err := mongo.Connect(config)
+	log.Println("creating client", config)
+
+	//TODO - replace this with common version
+	mongoSession, err := mgo.Dial("localhost")
+
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
-	defer mongoSession.Close()
 
-	return &MongoStoreClient{session: mongoSession,
-		usersC:  mongoSession.DB("").C(usersCollectionName),
-		tokensC: mongoSession.DB("").C(tokensCollectionName),
+	return &MongoStoreClient{
+		session: mongoSession,
+		usersC:  mongoSession.DB("shoreline").C(usersCollectionName),
+		tokensC: mongoSession.DB("shoreline").C(tokensCollectionName),
 	}
 }
 
 func (d MongoStoreClient) UpsertUser(user *api.User) error {
 
-	if _, err := d.usersC.UpsertId(user.Id, &user); err != nil {
-		panic(err)
+	if _, err := d.usersC.UpsertId(user.Id, user); err != nil {
+		return err
 	}
+
 	return nil
 }
 
 func (d MongoStoreClient) GetUser(user *api.User) (result api.User, err error) {
 
 	query := bson.M{
-		"$or": bson.M{
-			"id":     user.Id,
-			"name":   user.Name,
-			"emails": user.Emails,
-		},
+		"name": user.Name,
 	}
 
 	err = d.usersC.Find(query).One(&result)
 	if err != nil {
-		panic(err)
+		return result, err
 	}
 	return result, nil
 
