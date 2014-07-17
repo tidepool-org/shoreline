@@ -48,11 +48,19 @@ func (d MongoStoreClient) UpsertUser(user *api.User) error {
 
 func (d MongoStoreClient) GetUser(user *api.User) (result api.User, err error) {
 
-	query := bson.M{
-		"name": user.Name,
+	fieldsToMatch := []bson.M{}
+
+	if user.Id != "" {
+		fieldsToMatch = append(fieldsToMatch, bson.M{"_id": user.Id})
+	}
+	if user.Name != "" {
+		fieldsToMatch = append(fieldsToMatch, bson.M{"name": user.Name})
+	}
+	if len(user.Emails) > 0 {
+		fieldsToMatch = append(fieldsToMatch, bson.M{"emails": user.Emails})
 	}
 
-	err = d.usersC.Find(query).One(&result)
+	err = d.usersC.Find(bson.M{"$or": fieldsToMatch}).One(&result)
 	if err != nil {
 		return result, err
 	}
