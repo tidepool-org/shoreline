@@ -28,14 +28,14 @@ func TestGetSessionToken(t *testing.T) {
 
 func TestGenerateSessionTokenWhenNoUserId(t *testing.T) {
 
-	if _, err := GenerateSessionToken("", "my secret", 3600, false); err == nil {
+	if _, err := NewSessionToken("", "my secret", 3600, false); err == nil {
 		t.Fatalf("should not generate a session token if there is no userid")
 	}
 }
 
 func TestGenerateSessionToken(t *testing.T) {
 
-	if token, _ := GenerateSessionToken("2341", "my secret", 3600, false); token.tokenString == "" {
+	if token, _ := NewSessionToken("2341", "my secret", 3600, false); token.Token == "" || token.Time == "" {
 		t.Fatalf("should generate a session token")
 	}
 
@@ -43,7 +43,7 @@ func TestGenerateSessionToken(t *testing.T) {
 
 func TestGenerateSessionTokenForServer(t *testing.T) {
 
-	if token, _ := GenerateSessionToken("2341", "my secret", 3600, true); token.tokenString == "" {
+	if token, _ := NewSessionToken("2341", "my secret", 3600, true); token.Token == "" || token.Time == "" {
 		t.Fatalf("should generate a session token")
 	}
 
@@ -58,7 +58,7 @@ func TestUnpackToken(t *testing.T) {
 		isServer:   true,
 	}
 
-	token, _ := GenerateSessionToken(data.userid, data.secretUsed, data.duration, data.isServer)
+	token, _ := NewSessionToken(data.userid, data.secretUsed, data.duration, data.isServer)
 
 	jwtToken, _ := token.UnpackToken(data.secretUsed)
 
@@ -89,7 +89,7 @@ func TestUnpackTokenExpires(t *testing.T) {
 		isServer:   false,
 	}
 
-	token, _ := GenerateSessionToken(data.userid, data.secretUsed, data.duration, data.isServer)
+	token, _ := NewSessionToken(data.userid, data.secretUsed, data.duration, data.isServer)
 
 	time.Sleep(2 * time.Second) //ensure token expires
 
@@ -108,7 +108,7 @@ func TestVerifyStoredToken(t *testing.T) {
 		isServer:   false,
 	}
 
-	token, _ := GenerateSessionToken(data.userid, data.secretUsed, data.duration, data.isServer)
+	token, _ := NewSessionToken(data.userid, data.secretUsed, data.duration, data.isServer)
 
 	isValid, err := token.VerifyStoredToken(data.secretUsed)
 

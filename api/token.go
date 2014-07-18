@@ -8,18 +8,19 @@ import (
 )
 
 type SessionToken struct {
-	tokenString string
+	Token string `json:"token" bson:"_id,omitempty"`
+	Time  string `json:"-" bson:"time"`
 }
 
 func (t *SessionToken) UnpackToken(secret string) (*jwt.Token, error) {
 
-	return jwt.Parse(t.tokenString, func(t *jwt.Token) ([]byte, error) { return []byte(secret), nil })
+	return jwt.Parse(t.Token, func(t *jwt.Token) ([]byte, error) { return []byte(secret), nil })
 
 }
 
 func (t *SessionToken) VerifyStoredToken(secret string) (bool, error) {
 
-	if t.tokenString == "" {
+	if t.Token == "" {
 		return false, errors.New("the token string is required")
 	}
 
@@ -31,12 +32,12 @@ func (t *SessionToken) VerifyStoredToken(secret string) (bool, error) {
 }
 
 func GetSessionToken(header http.Header) SessionToken {
-	return SessionToken{tokenString: header.Get("x-tidepool-session-token")}
+	return SessionToken{Token: header.Get("x-tidepool-session-token")}
 }
 
-func GenerateSessionToken(userId string, secret string, durationSeconds float64, isServer bool) (SessionToken, error) {
+func NewSessionToken(userId string, secret string, durationSeconds float64, isServer bool) (token *SessionToken, err error) {
 	if userId == "" {
-		return SessionToken{}, errors.New("No userId was given for the token")
+		return nil, errors.New("No userId was given for the token")
 	}
 
 	if durationSeconds == 0 {
@@ -60,8 +61,8 @@ func GenerateSessionToken(userId string, secret string, durationSeconds float64,
 		// Sign and get the complete encoded token as a string
 		tokenString, _ := token.SignedString([]byte(secret))
 
-		return SessionToken{tokenString: tokenString}, nil
+		return &SessionToken{Token: tokenString, Time: time.Now().String()}, nil
 	}
 
-	return SessionToken{}, errors.New("The duration for the token was 0 seconds")
+	return nil, errors.New("The duration for the token was 0 seconds")
 }
