@@ -21,7 +21,7 @@ func TestGetSessionToken(t *testing.T) {
 
 	token := GetSessionToken(request.Header)
 
-	if token.tokenString != request.Header.Get(tokenKey) {
+	if token.Token != request.Header.Get(tokenKey) {
 		t.Fatalf("session value should have been set for token")
 	}
 }
