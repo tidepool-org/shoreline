@@ -62,10 +62,6 @@ func TestMongoStoreUserOperations(t *testing.T) {
 			if found.Name != toFindByName.Name {
 				t.Fatalf("the user we found doesn't match what we asked for %v", found)
 			}
-
-			//if found.PwHash != "" {
-			//	t.Fatalf("the PwHash should not be returned %v", found)
-			//}
 		}
 
 		toFindById := &api.User{Id: user.Id}
