@@ -47,7 +47,7 @@ func (d MongoStoreClient) UpsertUser(user *api.User) error {
 	return nil
 }
 
-func (d MongoStoreClient) GetUser(user *api.User) (result api.User, err error) {
+func (d MongoStoreClient) FindUser(user *api.User) (result api.User, err error) {
 
 	fieldsToMatch := []bson.M{}
 

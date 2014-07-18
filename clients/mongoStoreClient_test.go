@@ -56,7 +56,7 @@ func TestMongoStoreUserOperations(t *testing.T) {
 
 		toFindByName := &api.User{Name: user.Name}
 
-		if found, err := mc.GetUser(toFindByName); err != nil {
+		if found, err := mc.FindUser(toFindByName); err != nil {
 			t.Fatalf("we could not find the the user bu name %v", toFindByName)
 		} else {
 			if found.Name != toFindByName.Name {
@@ -66,7 +66,7 @@ func TestMongoStoreUserOperations(t *testing.T) {
 
 		toFindById := &api.User{Id: user.Id}
 
-		if found, err := mc.GetUser(toFindById); err != nil {
+		if found, err := mc.FindUser(toFindById); err != nil {
 			t.Fatalf("we could not find the the user by id %v", toFindById)
 		} else {
 			if found.Id != toFindById.Id {
@@ -76,7 +76,7 @@ func TestMongoStoreUserOperations(t *testing.T) {
 
 		toFindByEmails := &api.User{Emails: user.Emails}
 
-		if found, err := mc.GetUser(toFindByEmails); err != nil {
+		if found, err := mc.FindUser(toFindByEmails); err != nil {
 			t.Fatalf("we could not find the the user by emails %v", toFindByEmails)
 		} else {
 			if found.Emails[0] != toFindByEmails.Emails[0] {
@@ -84,7 +84,7 @@ func TestMongoStoreUserOperations(t *testing.T) {
 			}
 		}
 
-		if found, err := mc.GetUser(toFindByEmails); err != nil {
+		if found, err := mc.FindUser(toFindByEmails); err != nil {
 			t.Fatalf("we could not find the the user by emails %v", toFindByEmails)
 		} else {
 			if found.Emails[0] != toFindByEmails.Emails[0] {
