@@ -2,11 +2,26 @@ package api
 
 import (
 	"net/http"
+	"net/url"
 )
+
+func hasParams(query url.Values, params []string) bool {
+	var ok bool
+
+	for i := range params {
+
+		_, ok = query[params[i]]
+
+		if ok == false {
+			return ok
+		}
+	}
+	return ok
+}
 
 func CreateUser(res http.ResponseWriter, req *http.Request) {
 
-	if HasParams(req.URL.Query(), []string{"username", "emails", "password"}) == false {
+	if hasParams(req.URL.Query(), []string{"username", "emails", "password"}) == false {
 		res.WriteHeader(400)
 		return
 	}
