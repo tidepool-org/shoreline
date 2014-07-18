@@ -9,11 +9,11 @@ import (
 )
 
 type User struct {
-	Id     string   `bson:"_id,omitempty"`
-	Name   string   `bson:"name"`
-	Emails []string `bson:"emails"`
-	PwHash string   `bson:"pwhash"`
-	Hash   string   `bson:"hash"`
+	Id     string   `json:"id" bson:"_id,omitempty"` // map _id to id
+	Name   string   `json:"name" bson:"name"`
+	Emails []string `json:"emails" bson:"emails"`
+	PwHash string   `json:"-" bson:"pwhash"` //json:"-" is used to prevent the pwhash from being serialised to json
+	Hash   string   `json:"hash" bson:"hash"`
 }
 
 func NewUser(name, pw string, emails []string) (*User, error) {
