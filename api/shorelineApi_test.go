@@ -1,6 +1,7 @@
 package api
 
 import (
+	clients "github.com/tidepool-org/shoreline/clients"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -10,7 +11,11 @@ func TestCreateUserReturnsWith400StatusWithNoParamsGiven(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	response := httptest.NewRecorder()
 
-	CreateUser(response, request)
+	mockStore := clients.NewMockStoreClient()
+
+	shoreline := InitApi(mockStore)
+
+	shoreline.CreateUser(response, request)
 
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "400", response.Code)
@@ -25,8 +30,11 @@ func TestCreateUserReturnsStatus(t *testing.T) {
 	request.URL.Query().Add("password", "123youknoWm3")
 
 	response := httptest.NewRecorder()
+	mockStore := clients.NewMockStoreClient()
 
-	CreateUser(response, request)
+	shoreline := InitApi(mockStore)
+
+	shoreline.CreateUser(response, request)
 
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "400", response.Code)

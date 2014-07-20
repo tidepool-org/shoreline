@@ -1,7 +1,7 @@
 package clients
 
 import (
-	api "github.com/tidepool-org/shoreline/api"
+	models "github.com/tidepool-org/shoreline/models"
 )
 
 type MockStoreClient struct{}
@@ -10,15 +10,15 @@ func NewMockStoreClient() *MockStoreClient {
 	return &MockStoreClient{}
 }
 
-func (d MockStoreClient) AddUser(user api.User) {
+func (d MockStoreClient) AddUser(user models.User) {
 	//d.usersC
 }
 
-func (d MockStoreClient) GetUser(user api.User) {
+func (d MockStoreClient) GetUser(user models.User) {
 
 }
 
-func (d MockStoreClient) UpdateUser(user api.User) {
+func (d MockStoreClient) UpdateUser(user models.User) {
 
 }
 
@@ -26,14 +26,14 @@ func (d MockStoreClient) RemoveUser(userId string) {
 
 }
 
-func (d MockStoreClient) AddToken(token api.SessionToken) {
+func (d MockStoreClient) AddToken(token models.SessionToken) {
 
 }
 
-func (d MockStoreClient) UpdateToken(token api.SessionToken) {
+func (d MockStoreClient) UpdateToken(token models.SessionToken) {
 
 }
 
-func (d MockStoreClient) RemoveToken(token api.SessionToken) {
+func (d MockStoreClient) RemoveToken(token models.SessionToken) {
 
 }

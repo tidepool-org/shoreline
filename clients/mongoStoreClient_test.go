@@ -3,7 +3,7 @@ package clients
 import (
 	"encoding/json"
 	mongo "github.com/tidepool-org/go-common/clients/mongo"
-	api "github.com/tidepool-org/shoreline/api"
+	models "github.com/tidepool-org/shoreline/models"
 	"io/ioutil"
 	"labix.org/v2/mgo"
 	"log"
@@ -42,7 +42,7 @@ func TestMongoStoreUserOperations(t *testing.T) {
 		/*
 		 * THE TESTS
 		 */
-		user, _ := api.NewUser("test user", "myT35t", []string{"test@foo.bar"})
+		user, _ := models.NewUser("test user", "myT35t", []string{"test@foo.bar"})
 
 		if err := mc.UpsertUser(user); err != nil {
 			t.Fatalf("we could not create the user %v", err)
@@ -54,7 +54,7 @@ func TestMongoStoreUserOperations(t *testing.T) {
 			t.Fatalf("we could not update the user %v", err)
 		}
 
-		toFindByName := &api.User{Name: user.Name}
+		toFindByName := &models.User{Name: user.Name}
 
 		if found, err := mc.FindUser(toFindByName); err != nil {
 			t.Fatalf("we could not find the the user bu name %v", toFindByName)
@@ -64,7 +64,7 @@ func TestMongoStoreUserOperations(t *testing.T) {
 			}
 		}
 
-		toFindById := &api.User{Id: user.Id}
+		toFindById := &models.User{Id: user.Id}
 
 		if found, err := mc.FindUser(toFindById); err != nil {
 			t.Fatalf("we could not find the the user by id %v", toFindById)
@@ -74,7 +74,7 @@ func TestMongoStoreUserOperations(t *testing.T) {
 			}
 		}
 
-		toFindByEmails := &api.User{Emails: user.Emails}
+		toFindByEmails := &models.User{Emails: user.Emails}
 
 		if found, err := mc.FindUser(toFindByEmails); err != nil {
 			t.Fatalf("we could not find the the user by emails %v", toFindByEmails)
@@ -129,7 +129,7 @@ func TestMongoStoreTokenOperations(t *testing.T) {
 		/*
 		 * THE TESTS
 		 */
-		sessionToken, _ := api.NewSessionToken("2341", "my secret", 3600, true)
+		sessionToken, _ := models.NewSessionToken("2341", "my secret", 3600, true)
 
 		if err := mc.AddToken(sessionToken); err != nil {
 			t.Fatalf("we could not save the token %v", err)

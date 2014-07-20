@@ -1,9 +1,19 @@
 package api
 
 import (
+	clients "github.com/tidepool-org/shoreline/clients"
+	models "github.com/tidepool-org/shoreline/models"
 	"net/http"
 	"net/url"
 )
+
+type Api struct {
+	Store clients.StoreClient
+}
+
+func InitApi(store clients.StoreClient) *Api {
+	return &Api{Store: store}
+}
 
 func hasParams(query url.Values, params []string) bool {
 	var ok bool
@@ -19,7 +29,7 @@ func hasParams(query url.Values, params []string) bool {
 	return ok
 }
 
-func CreateUser(res http.ResponseWriter, req *http.Request) {
+func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 
 	if hasParams(req.URL.Query(), []string{"username", "emails", "password"}) == false {
 		res.WriteHeader(400)
@@ -31,7 +41,7 @@ func CreateUser(res http.ResponseWriter, req *http.Request) {
 
 func UpdateUser(res http.ResponseWriter, req *http.Request) {
 
-	token := GetSessionToken(req.Header)
+	token := models.GetSessionToken(req.Header)
 	if token.Token == "" {
 		res.WriteHeader(401)
 		return
@@ -42,7 +52,7 @@ func UpdateUser(res http.ResponseWriter, req *http.Request) {
 
 func GetUserInfo(res http.ResponseWriter, req *http.Request) {
 
-	token := GetSessionToken(req.Header)
+	token := models.GetSessionToken(req.Header)
 	if token.Token == "" {
 		res.WriteHeader(401)
 		return
@@ -53,7 +63,7 @@ func GetUserInfo(res http.ResponseWriter, req *http.Request) {
 
 func DeleteUser(res http.ResponseWriter, req *http.Request) {
 
-	token := GetSessionToken(req.Header)
+	token := models.GetSessionToken(req.Header)
 	if token.Token == "" {
 		res.WriteHeader(401)
 		return
@@ -84,7 +94,7 @@ func ValidateLongterm(res http.ResponseWriter, req *http.Request) {
 }
 
 func RequireServerToken(res http.ResponseWriter, req *http.Request) {
-	token := GetSessionToken(req.Header)
+	token := models.GetSessionToken(req.Header)
 	if token.Token == "" {
 		res.WriteHeader(401)
 		return

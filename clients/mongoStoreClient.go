@@ -2,7 +2,7 @@ package clients
 
 import (
 	mongo "github.com/tidepool-org/go-common/clients/mongo"
-	api "github.com/tidepool-org/shoreline/api"
+	models "github.com/tidepool-org/shoreline/models"
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
 	"log"
@@ -37,7 +37,7 @@ func NewMongoStoreClient(config *mongo.Config) *MongoStoreClient {
 	}
 }
 
-func (d MongoStoreClient) UpsertUser(user *api.User) error {
+func (d MongoStoreClient) UpsertUser(user *models.User) error {
 
 	// if the user already exists we update otherwise we add
 	if _, err := d.usersC.UpsertId(user.Id, user); err != nil {
@@ -47,7 +47,7 @@ func (d MongoStoreClient) UpsertUser(user *api.User) error {
 	return nil
 }
 
-func (d MongoStoreClient) FindUser(user *api.User) (result api.User, err error) {
+func (d MongoStoreClient) FindUser(user *models.User) (result models.User, err error) {
 
 	fieldsToMatch := []bson.M{}
 
@@ -91,7 +91,7 @@ func (d MongoStoreClient) RemoveUser(userId string) {
 
 }
 
-func (d MongoStoreClient) AddToken(st *api.SessionToken) error {
+func (d MongoStoreClient) AddToken(st *models.SessionToken) error {
 	//todo: safe mode ?? i.e. {w:1}
 	if err := d.tokensC.Insert(st); err != nil {
 		return err
@@ -99,7 +99,7 @@ func (d MongoStoreClient) AddToken(st *api.SessionToken) error {
 	return nil
 }
 
-func (d MongoStoreClient) FindToken(token string) (result *api.SessionToken, err error) {
+func (d MongoStoreClient) FindToken(token string) (result *models.SessionToken, err error) {
 	//todo: safe mode ?? i.e. {w:1}
 	if err = d.tokensC.Find(bson.M{"_id": token}).One(&result); err != nil {
 		return result, err

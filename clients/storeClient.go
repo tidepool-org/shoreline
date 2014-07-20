@@ -1,14 +1,14 @@
 package clients
 
 import (
-	api "github.com/tidepool-org/shoreline/api"
+	models "github.com/tidepool-org/shoreline/models"
 )
 
 type StoreClient interface {
-	AddUser(user api.User)
-	UpdateUser(user api.User)
+	AddUser(user models.User)
+	UpdateUser(user models.User)
 	RemoveUser(userId string)
-	AddToken(token api.SessionToken)
-	UpdateToken(token api.SessionToken)
-	RemoveToken(token api.SessionToken)
+	AddToken(token models.SessionToken)
+	UpdateToken(token models.SessionToken)
+	RemoveToken(token models.SessionToken)
 }
