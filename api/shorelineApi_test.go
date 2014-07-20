@@ -12,7 +12,6 @@ func TestCreateUserReturnsWith400StatusWithNoParamsGiven(t *testing.T) {
 	response := httptest.NewRecorder()
 
 	mockStore := clients.NewMockStoreClient()
-
 	shoreline := InitApi(mockStore)
 
 	shoreline.CreateUser(response, request)
@@ -30,8 +29,8 @@ func TestCreateUserReturnsStatus(t *testing.T) {
 	request.URL.Query().Add("password", "123youknoWm3")
 
 	response := httptest.NewRecorder()
-	mockStore := clients.NewMockStoreClient()
 
+	mockStore := clients.NewMockStoreClient()
 	shoreline := InitApi(mockStore)
 
 	shoreline.CreateUser(response, request)
@@ -44,8 +43,10 @@ func TestCreateUserReturnsStatus(t *testing.T) {
 func TestUpdateUserReturns401WithNoToken(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	response := httptest.NewRecorder()
+	mockStore := clients.NewMockStoreClient()
+	shoreline := InitApi(mockStore)
 
-	UpdateUser(response, request)
+	shoreline.UpdateUser(response, request)
 
 	if response.Code != http.StatusUnauthorized {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "401", response.Code)
@@ -56,8 +57,10 @@ func TestUpdateUserRequiresWithStatus(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	request.Header.Set("x-tidepool-session-token", "blah-blah-123-blah")
 	response := httptest.NewRecorder()
+	mockStore := clients.NewMockStoreClient()
+	shoreline := InitApi(mockStore)
 
-	UpdateUser(response, request)
+	shoreline.UpdateUser(response, request)
 
 	if response.Code != http.StatusNotImplemented {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "501", response.Code)
@@ -68,8 +71,10 @@ func TestGetUserInfoReturnsWithStatus(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	request.Header.Set("x-tidepool-session-token", "blah-blah-123-blah")
 	response := httptest.NewRecorder()
+	mockStore := clients.NewMockStoreClient()
+	shoreline := InitApi(mockStore)
 
-	GetUserInfo(response, request)
+	shoreline.GetUserInfo(response, request)
 
 	if response.Code != http.StatusNotImplemented {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "501", response.Code)
@@ -79,8 +84,10 @@ func TestGetUserInfoReturnsWithStatus(t *testing.T) {
 func TestGetUserInfoReturns401WithNoToken(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	response := httptest.NewRecorder()
+	mockStore := clients.NewMockStoreClient()
+	shoreline := InitApi(mockStore)
 
-	GetUserInfo(response, request)
+	shoreline.GetUserInfo(response, request)
 
 	if response.Code != http.StatusUnauthorized {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "401", response.Code)
@@ -91,8 +98,10 @@ func TestDeleteUserReturnsWithStatus(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	request.Header.Set("x-tidepool-session-token", "blah-blah-123-blah")
 	response := httptest.NewRecorder()
+	mockStore := clients.NewMockStoreClient()
+	shoreline := InitApi(mockStore)
 
-	DeleteUser(response, request)
+	shoreline.DeleteUser(response, request)
 
 	if response.Code != http.StatusNotImplemented {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "501", response.Code)
@@ -102,8 +111,10 @@ func TestDeleteUserReturnsWithStatus(t *testing.T) {
 func TestDeleteUserReturns401WhenNoSessionTokenHeaderGiven(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	response := httptest.NewRecorder()
+	mockStore := clients.NewMockStoreClient()
+	shoreline := InitApi(mockStore)
 
-	DeleteUser(response, request)
+	shoreline.DeleteUser(response, request)
 
 	if response.Code != http.StatusUnauthorized {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "401", response.Code)
@@ -113,8 +124,10 @@ func TestDeleteUserReturns401WhenNoSessionTokenHeaderGiven(t *testing.T) {
 func TestLoginReturnsWithStatus400(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	response := httptest.NewRecorder()
+	mockStore := clients.NewMockStoreClient()
+	shoreline := InitApi(mockStore)
 
-	Login(response, request)
+	shoreline.Login(response, request)
 
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "400", response.Code)
@@ -125,8 +138,10 @@ func TestLoginReturnsWithStatusWhenAuthorizationSet(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	request.SetBasicAuth("username", "password")
 	response := httptest.NewRecorder()
+	mockStore := clients.NewMockStoreClient()
+	shoreline := InitApi(mockStore)
 
-	Login(response, request)
+	shoreline.Login(response, request)
 
 	if response.Code != http.StatusNotImplemented {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "501", response.Code)
@@ -136,8 +151,10 @@ func TestLoginReturnsWithStatusWhenAuthorizationSet(t *testing.T) {
 func TestServerLoginReturnsWithStatus(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	response := httptest.NewRecorder()
+	mockStore := clients.NewMockStoreClient()
+	shoreline := InitApi(mockStore)
 
-	ServerLogin(response, request)
+	shoreline.ServerLogin(response, request)
 
 	if response.Code != http.StatusNotImplemented {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "501", response.Code)
@@ -147,8 +164,10 @@ func TestServerLoginReturnsWithStatus(t *testing.T) {
 func TestRefreshSessionReturnsWithStatus(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	response := httptest.NewRecorder()
+	mockStore := clients.NewMockStoreClient()
+	shoreline := InitApi(mockStore)
 
-	RefreshSession(response, request)
+	shoreline.RefreshSession(response, request)
 
 	if response.Code != http.StatusNotImplemented {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "501", response.Code)
@@ -158,8 +177,10 @@ func TestRefreshSessionReturnsWithStatus(t *testing.T) {
 func TestValidateLongtermReturnsWithStatus(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	response := httptest.NewRecorder()
+	mockStore := clients.NewMockStoreClient()
+	shoreline := InitApi(mockStore)
 
-	ValidateLongterm(response, request)
+	shoreline.ValidateLongterm(response, request)
 
 	if response.Code != http.StatusNotImplemented {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "501", response.Code)
@@ -170,8 +191,10 @@ func TestRequireServerTokenReturnsWithStatus(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	request.Header.Set("x-tidepool-session-token", "blah-blah-123-blah")
 	response := httptest.NewRecorder()
+	mockStore := clients.NewMockStoreClient()
+	shoreline := InitApi(mockStore)
 
-	RequireServerToken(response, request)
+	shoreline.RequireServerToken(response, request)
 
 	if response.Code != http.StatusNotImplemented {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "501", response.Code)
@@ -181,8 +204,10 @@ func TestRequireServerTokenReturnsWithStatus(t *testing.T) {
 func TestRequireServerToken401WhenNoSessionTokenHeaderGiven(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	response := httptest.NewRecorder()
+	mockStore := clients.NewMockStoreClient()
+	shoreline := InitApi(mockStore)
 
-	RequireServerToken(response, request)
+	shoreline.RequireServerToken(response, request)
 
 	if response.Code != http.StatusUnauthorized {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "401", response.Code)
@@ -192,8 +217,10 @@ func TestRequireServerToken401WhenNoSessionTokenHeaderGiven(t *testing.T) {
 func TestServerCheckTokenReturnsWithStatus(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	response := httptest.NewRecorder()
+	mockStore := clients.NewMockStoreClient()
+	shoreline := InitApi(mockStore)
 
-	ServerCheckToken(response, request)
+	shoreline.ServerCheckToken(response, request)
 
 	if response.Code != http.StatusNotImplemented {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "501", response.Code)
@@ -203,8 +230,10 @@ func TestServerCheckTokenReturnsWithStatus(t *testing.T) {
 func TestLogoutReturnsWithStatus(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	response := httptest.NewRecorder()
+	mockStore := clients.NewMockStoreClient()
+	shoreline := InitApi(mockStore)
 
-	Logout(response, request)
+	shoreline.Logout(response, request)
 
 	if response.Code != http.StatusNotImplemented {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "501", response.Code)
@@ -214,8 +243,10 @@ func TestLogoutReturnsWithStatus(t *testing.T) {
 func TestAnonymousIdHashPairReturnsWithStatus(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	response := httptest.NewRecorder()
+	mockStore := clients.NewMockStoreClient()
+	shoreline := InitApi(mockStore)
 
-	AnonymousIdHashPair(response, request)
+	shoreline.AnonymousIdHashPair(response, request)
 
 	if response.Code != http.StatusNotImplemented {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "501", response.Code)
@@ -225,8 +256,10 @@ func TestAnonymousIdHashPairReturnsWithStatus(t *testing.T) {
 func TestManageIdHashPairReturnsWithStatus(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	response := httptest.NewRecorder()
+	mockStore := clients.NewMockStoreClient()
+	shoreline := InitApi(mockStore)
 
-	ManageIdHashPair(response, request)
+	shoreline.ManageIdHashPair(response, request)
 
 	if response.Code != http.StatusNotImplemented {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "501", response.Code)

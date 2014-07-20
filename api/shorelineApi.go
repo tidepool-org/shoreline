@@ -39,7 +39,7 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 
 }
 
-func UpdateUser(res http.ResponseWriter, req *http.Request) {
+func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request) {
 
 	token := models.GetSessionToken(req.Header)
 	if token.Token == "" {
@@ -50,7 +50,7 @@ func UpdateUser(res http.ResponseWriter, req *http.Request) {
 	res.WriteHeader(501)
 }
 
-func GetUserInfo(res http.ResponseWriter, req *http.Request) {
+func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request) {
 
 	token := models.GetSessionToken(req.Header)
 	if token.Token == "" {
@@ -61,7 +61,7 @@ func GetUserInfo(res http.ResponseWriter, req *http.Request) {
 	res.WriteHeader(501)
 }
 
-func DeleteUser(res http.ResponseWriter, req *http.Request) {
+func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request) {
 
 	token := models.GetSessionToken(req.Header)
 	if token.Token == "" {
@@ -72,7 +72,7 @@ func DeleteUser(res http.ResponseWriter, req *http.Request) {
 	res.WriteHeader(501)
 }
 
-func Login(res http.ResponseWriter, req *http.Request) {
+func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 
 	if req.Header.Get("Authorization") == "" {
 		res.WriteHeader(400)
@@ -81,19 +81,19 @@ func Login(res http.ResponseWriter, req *http.Request) {
 	res.WriteHeader(501)
 }
 
-func ServerLogin(res http.ResponseWriter, req *http.Request) {
+func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 	res.WriteHeader(501)
 }
 
-func RefreshSession(res http.ResponseWriter, req *http.Request) {
+func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 	res.WriteHeader(501)
 }
 
-func ValidateLongterm(res http.ResponseWriter, req *http.Request) {
+func (a *Api) ValidateLongterm(res http.ResponseWriter, req *http.Request) {
 	res.WriteHeader(501)
 }
 
-func RequireServerToken(res http.ResponseWriter, req *http.Request) {
+func (a *Api) RequireServerToken(res http.ResponseWriter, req *http.Request) {
 	token := models.GetSessionToken(req.Header)
 	if token.Token == "" {
 		res.WriteHeader(401)
@@ -103,18 +103,18 @@ func RequireServerToken(res http.ResponseWriter, req *http.Request) {
 	res.WriteHeader(501)
 }
 
-func ServerCheckToken(res http.ResponseWriter, req *http.Request) {
+func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request) {
 	res.WriteHeader(501)
 }
 
-func Logout(res http.ResponseWriter, req *http.Request) {
+func (a *Api) Logout(res http.ResponseWriter, req *http.Request) {
 	res.WriteHeader(501)
 }
 
-func AnonymousIdHashPair(res http.ResponseWriter, req *http.Request) {
+func (a *Api) AnonymousIdHashPair(res http.ResponseWriter, req *http.Request) {
 	res.WriteHeader(501)
 }
 
-func ManageIdHashPair(res http.ResponseWriter, req *http.Request) {
+func (a *Api) ManageIdHashPair(res http.ResponseWriter, req *http.Request) {
 	res.WriteHeader(501)
 }
