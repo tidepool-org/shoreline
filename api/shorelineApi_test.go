@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	clients "github.com/tidepool-org/shoreline/clients"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -89,8 +90,10 @@ func TestUpdateUserReturns200(t *testing.T) {
 	}
 }
 
-func TestGetUserInfoReturnsWithStatus(t *testing.T) {
-	request, _ := http.NewRequest("GET", "/", nil)
+func TestGetUserInfoReturns200AndInfo(t *testing.T) {
+	var findData = []byte(`{"username": "test","emails":["test@foo.bar"]}`)
+
+	request, _ := http.NewRequest("GET", "/", bytes.NewBuffer(findData))
 	request.Header.Set("x-tidepool-session-token", "blah-blah-123-blah")
 	request.Header.Add("content-type", "application/json")
 	response := httptest.NewRecorder()
@@ -99,8 +102,10 @@ func TestGetUserInfoReturnsWithStatus(t *testing.T) {
 
 	shoreline.GetUserInfo(response, request)
 
-	if response.Code != http.StatusNotImplemented {
-		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "501", response.Code)
+	log.Printf("res %v", response.Body)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, response.Code)
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	clients "github.com/tidepool-org/shoreline/clients"
 	models "github.com/tidepool-org/shoreline/models"
+	"log"
 	"net/http"
 )
 
@@ -73,8 +74,23 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request) {
 func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request) {
 
 	tokenCheck(res, req)
+	usr := decodeBody(res, req)
 
-	res.WriteHeader(501)
+	results, err := a.Store.FindUser(usr)
+
+	onError(res, err)
+
+	res.WriteHeader(http.StatusOK)
+	res.Header().Add("content-type", "application/json")
+	res.Write([]byte("["))
+	bytes, err := json.Marshal(results)
+	if err != nil {
+		log.Fatal(err)
+	}
+	res.Write(bytes)
+	res.Write([]byte("]"))
+
+	return
 }
 
 func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request) {
