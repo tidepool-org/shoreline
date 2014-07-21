@@ -87,8 +87,8 @@ func (d MongoStoreClient) FindUser(user *models.User) (result models.User, err e
 	return result, nil
 }
 
-func (d MongoStoreClient) RemoveUser(userId string) {
-
+func (d MongoStoreClient) RemoveUser(userId string) (err error) {
+	return nil
 }
 
 func (d MongoStoreClient) AddToken(st *models.SessionToken) error {

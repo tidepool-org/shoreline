@@ -9,17 +9,18 @@ import (
 )
 
 type User struct {
-	Id     string   `json:"id" bson:"_id,omitempty"` // map _id to id
-	Name   string   `json:"name" bson:"name"`
+	Id     string   `json:"userid" bson:"_id,omitempty"` // map _id to id
+	Name   string   `json:"username" bson:"name"`
 	Emails []string `json:"emails" bson:"emails"`
+	Pw     string   `json:"password"`
 	PwHash string   `json:"-" bson:"pwhash"` //json:"-" is used to prevent the pwhash from being serialised to json
 	Hash   string   `json:"hash" bson:"hash"`
 }
 
-func NewUser(name, pw string, emails []string) (*User, error) {
+func NewUser(name, pw string, emails []string) (user *User, err error) {
 
 	if name == "" || pw == "" {
-		return &User{}, errors.New("both the name and pw are required")
+		return user, errors.New("both the name and pw are required")
 	}
 
 	id, _ := generateUniqueHash([]string{name, pw}, 10)

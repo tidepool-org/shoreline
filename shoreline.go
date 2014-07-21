@@ -1,10 +1,10 @@
 package main
 
 import (
+	"github.com/tidepool-org/go-common"
 	"github.com/tidepool-org/go-common/clients"
 	"github.com/tidepool-org/go-common/clients/disc"
 	"github.com/tidepool-org/go-common/clients/mongo"
-	"github.com/tidepool-org/go-common/utilities"
 	"log"
 )
 

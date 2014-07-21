@@ -5,10 +5,10 @@ import (
 )
 
 type StoreClient interface {
-	AddUser(user models.User)
-	UpdateUser(user models.User)
-	RemoveUser(userId string)
-	AddToken(token models.SessionToken)
-	UpdateToken(token models.SessionToken)
-	RemoveToken(token models.SessionToken)
+	UpsertUser(user *models.User) error
+	FindUser(user *models.User) (*models.User, error)
+	RemoveUser(userId string) error
+	AddToken(token *models.SessionToken) error
+	FindToken(tokenId string) (*models.SessionToken, error)
+	RemoveToken(tokenId string) error
 }

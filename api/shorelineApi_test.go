@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	clients "github.com/tidepool-org/shoreline/clients"
 	"net/http"
 	"net/http/httptest"
@@ -8,7 +9,7 @@ import (
 )
 
 func TestCreateUserReturnsWith400StatusWithNoParamsGiven(t *testing.T) {
-	request, _ := http.NewRequest("GET", "/", nil)
+	request, _ := http.NewRequest("POST", "/", nil)
 	response := httptest.NewRecorder()
 
 	mockStore := clients.NewMockStoreClient()
@@ -21,12 +22,12 @@ func TestCreateUserReturnsWith400StatusWithNoParamsGiven(t *testing.T) {
 	}
 }
 
-func TestCreateUserReturnsStatus(t *testing.T) {
-	request, _ := http.NewRequest("GET", "/", nil)
+func TestCreateUserReturns201Status(t *testing.T) {
 
-	request.URL.Query().Add("username", "test")
-	request.URL.Query().Add("emails", "test@foo.bar")
-	request.URL.Query().Add("password", "123youknoWm3")
+	var jsonData = []byte(`{"username": "test", "password": "123youknoWm3","emails":["test@foo.bar"]}`)
+
+	request, _ := http.NewRequest("POST", "/", bytes.NewBuffer(jsonData))
+	request.Header.Add("content-type", "application/json")
 
 	response := httptest.NewRecorder()
 
@@ -35,13 +36,13 @@ func TestCreateUserReturnsStatus(t *testing.T) {
 
 	shoreline.CreateUser(response, request)
 
-	if response.Code != http.StatusBadRequest {
-		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "400", response.Code)
+	if response.Code != http.StatusCreated {
+		t.Fatalf("Non-expected status code %v:\n\tbody: %v", "201", response.Code)
 	}
 }
 
 func TestUpdateUserReturns401WithNoToken(t *testing.T) {
-	request, _ := http.NewRequest("GET", "/", nil)
+	request, _ := http.NewRequest("PUT", "/", nil)
 	response := httptest.NewRecorder()
 	mockStore := clients.NewMockStoreClient()
 	shoreline := InitApi(mockStore)
@@ -53,8 +54,9 @@ func TestUpdateUserReturns401WithNoToken(t *testing.T) {
 	}
 }
 
-func TestUpdateUserRequiresWithStatus(t *testing.T) {
-	request, _ := http.NewRequest("GET", "/", nil)
+func TestUpdateUserReturns400WithNoUpdates(t *testing.T) {
+	request, _ := http.NewRequest("PUT", "/", nil)
+	request.Header.Add("content-type", "application/json")
 	request.Header.Set("x-tidepool-session-token", "blah-blah-123-blah")
 	response := httptest.NewRecorder()
 	mockStore := clients.NewMockStoreClient()
@@ -62,14 +64,35 @@ func TestUpdateUserRequiresWithStatus(t *testing.T) {
 
 	shoreline.UpdateUser(response, request)
 
-	if response.Code != http.StatusNotImplemented {
-		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "501", response.Code)
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("Non-expected status code %v:\n\tbody: %v", "400", response.Code)
+	}
+}
+
+func TestUpdateUserReturns200(t *testing.T) {
+
+	var updateData = []byte(`{"userid":"0x3-123-345-0x3","username": "test","emails":["test@foo.bar"]}`)
+
+	request, _ := http.NewRequest("PUT", "/", bytes.NewBuffer(updateData))
+
+	request.Header.Set("x-tidepool-session-token", "blah-blah-123-blah")
+	request.Header.Add("content-type", "application/json")
+
+	response := httptest.NewRecorder()
+	mockStore := clients.NewMockStoreClient()
+	shoreline := InitApi(mockStore)
+
+	shoreline.UpdateUser(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("Non-expected status code %v:\n\tbody: %v", "200", response.Code)
 	}
 }
 
 func TestGetUserInfoReturnsWithStatus(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	request.Header.Set("x-tidepool-session-token", "blah-blah-123-blah")
+	request.Header.Add("content-type", "application/json")
 	response := httptest.NewRecorder()
 	mockStore := clients.NewMockStoreClient()
 	shoreline := InitApi(mockStore)
