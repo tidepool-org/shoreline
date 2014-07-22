@@ -18,81 +18,111 @@ func InitApi(store clients.StoreClient) *Api {
 	return &Api{Store: store}
 }
 
-func decodeBody(res http.ResponseWriter, req *http.Request) (usr *models.User) {
-	if req.Body == nil {
-		res.WriteHeader(http.StatusBadRequest)
-		return
+//Docode the http.Request parsing out the user model
+func findUserDetail(res http.ResponseWriter, req *http.Request) (usr *models.User) {
+
+	id := req.URL.Query().Get("userid")
+
+	//do we also have details in the body?
+	if req.Body != nil {
+		if err := json.NewDecoder(req.Body).Decode(&usr); err != nil {
+			onError(res, err)
+		}
 	}
 
-	err := json.NewDecoder(req.Body).Decode(&usr)
-
-	onError(res, err)
+	if usr != nil && id != "" {
+		usr.Id = id
+	} else if id != "" {
+		usr = &models.User{Id: id}
+	}
 
 	return usr
 }
 
+//Log the error and return http.StatusInternalServerError code
 func onError(res http.ResponseWriter, err error) {
 	if err != nil {
+		log.Fatal(err)
 		res.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 }
 
+//Check token and return http.StatusUnauthorized if not found
 func tokenCheck(res http.ResponseWriter, req *http.Request) {
 	token := models.GetSessionToken(req.Header)
 	if token.Token == "" {
-		res.WriteHeader(401)
+		res.WriteHeader(http.StatusUnauthorized)
 		return
 	}
 }
 
+//Pull the incoming user from the http.Request body and save return http.StatusCreated
 func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 
-	usr := decodeBody(res, req)
+	if usr := findUserDetail(res, req); usr == nil {
+		res.WriteHeader(http.StatusBadRequest)
+		return
+	} else {
 
-	err := a.Store.UpsertUser(usr)
+		err := a.Store.UpsertUser(usr)
 
-	onError(res, err)
+		onError(res, err)
 
-	res.WriteHeader(http.StatusCreated)
-	return
+		res.WriteHeader(http.StatusCreated)
+		return
+	}
 }
 
+//Pull the incoming user updates from http.Request body and save return http.StatusOK
 func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request) {
 
 	tokenCheck(res, req)
-	usr := decodeBody(res, req)
 
-	err := a.Store.UpsertUser(usr)
+	if usr := findUserDetail(res, req); usr == nil {
+		res.WriteHeader(http.StatusBadRequest)
+		return
+	} else {
 
-	onError(res, err)
+		err := a.Store.UpsertUser(usr)
 
-	res.WriteHeader(http.StatusOK)
-	return
+		onError(res, err)
+
+		res.WriteHeader(http.StatusOK)
+		return
+	}
 }
 
+//Pull the incoming user feilds to search for from http.Request body and
+//find any matches returning them with return http.StatusOK
 func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request) {
 
 	tokenCheck(res, req)
-	usr := decodeBody(res, req)
 
-	results, err := a.Store.FindUser(usr)
+	if usr := findUserDetail(res, req); usr == nil {
+		res.WriteHeader(http.StatusBadRequest)
+		return
+	} else {
 
-	onError(res, err)
+		results, err := a.Store.FindUser(usr)
 
-	res.WriteHeader(http.StatusOK)
-	res.Header().Add("content-type", "application/json")
-	res.Write([]byte("["))
-	bytes, err := json.Marshal(results)
-	if err != nil {
-		log.Fatal(err)
+		onError(res, err)
+
+		res.WriteHeader(http.StatusOK)
+		res.Header().Add("content-type", "application/json")
+		res.Write([]byte("["))
+		bytes, err := json.Marshal(results)
+		if err != nil {
+			log.Fatal(err)
+		}
+		res.Write(bytes)
+		res.Write([]byte("]"))
+
+		return
 	}
-	res.Write(bytes)
-	res.Write([]byte("]"))
-
-	return
 }
 
+//TODO:
 func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request) {
 
 	tokenCheck(res, req)

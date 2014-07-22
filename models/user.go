@@ -32,6 +32,10 @@ func (u *User) HasIdentifier() bool {
 	return u.Name != "" || u.Id != "" || len(u.Emails) > 0
 }
 
+func (u *User) CanUpdate() bool {
+	return u.Name != "" || u.Id != "" || len(u.Emails) > 0
+}
+
 func (u *User) HashPassword(pw, salt string) error {
 
 	if pw == "" || salt == "" {

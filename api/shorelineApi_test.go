@@ -3,7 +3,6 @@ package api
 import (
 	"bytes"
 	clients "github.com/tidepool-org/shoreline/clients"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -102,15 +101,46 @@ func TestGetUserInfoReturns200AndInfo(t *testing.T) {
 
 	shoreline.GetUserInfo(response, request)
 
-	log.Printf("res %v", response.Body)
-
+	//NOTE: as we have mocked the mongo layer we just be passed back what we gave
 	if response.Code != http.StatusOK {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, response.Code)
+	}
+
+	if response.Body == nil {
+		t.Fatalf("Non-expected empty body has been returned body: %v", response.Body)
+	}
+}
+
+func TestGetUserInfoForIDReturns200AndInfo(t *testing.T) {
+
+	request, _ := http.NewRequest("GET", "/", nil)
+
+	values := request.URL.Query()
+	values.Add("userid", "9lJmBOVkWB")
+	request.URL.RawQuery = values.Encode()
+
+	request.Header.Set("x-tidepool-session-token", "blah-blah-123-blah")
+	request.Header.Add("content-type", "application/json")
+
+	response := httptest.NewRecorder()
+	mockStore := clients.NewMockStoreClient()
+	shoreline := InitApi(mockStore)
+
+	shoreline.GetUserInfo(response, request)
+
+	//NOTE: as we have mocked the mongo layer we just be passed back what we gave
+	if response.Code != http.StatusOK {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, response.Code)
+	}
+
+	if response.Body == nil {
+		t.Fatalf("Non-expected empty body has been returned body: %v", response.Body)
 	}
 }
 
 func TestGetUserInfoReturns401WithNoToken(t *testing.T) {
-	request, _ := http.NewRequest("GET", "/", nil)
+	var findData = []byte(`{"username": "test","emails":["test@foo.bar"]}`)
+	request, _ := http.NewRequest("GET", "/", bytes.NewBuffer(findData))
 	response := httptest.NewRecorder()
 	mockStore := clients.NewMockStoreClient()
 	shoreline := InitApi(mockStore)
