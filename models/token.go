@@ -8,8 +8,8 @@ import (
 )
 
 type SessionToken struct {
-	Token string `json:"token" bson:"_id,omitempty"`
-	Time  string `json:"-" bson:"time"`
+	Token string `json:"token" 	bson:"_id,omitempty"`
+	Time  string `json:"-" 		bson:"time"`
 }
 
 func (t *SessionToken) UnpackToken(secret string) (*jwt.Token, error) {
