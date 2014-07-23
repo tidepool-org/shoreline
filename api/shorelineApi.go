@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"github.com/tidepool-org/shoreline/clients"
 	"github.com/tidepool-org/shoreline/models"
 	"log"
@@ -196,13 +197,12 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 		if results, err := a.Store.FindUser(usr); err != nil {
 			errorRes(res, err)
 		} else if results != nil && results.Id != "" {
-			sessionToken, _ := models.NewSessionToken(results.Id, a.config.ServerSecret, 1000, false)
+			sessionToken, _ := models.NewSessionToken(&models.Data{UserId: results.Id, IsServer: false, Duration: 3600}, a.config.ServerSecret)
 
 			if err := a.Store.AddToken(sessionToken); err == nil {
 				res.Header().Set(TP_SESSION_TOKEN, sessionToken.Token)
-				//userid username emails
-				usersRes(res, []*models.User{results})
 				//postThisUser('userlogin', {}, sessiontoken);
+				usersRes(res, []*models.User{results})
 			}
 		}
 	}
@@ -221,44 +221,58 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 	}
 	if pw == a.config.ServerSecret {
 		//generate new token
-		sessionToken, _ := models.NewSessionToken(server, a.config.ServerSecret, 1000, true)
-		res.Header().Set(TP_SESSION_TOKEN, sessionToken.Token)
-		res.WriteHeader(http.StatusOK)
-		return
+		sessionToken, _ := models.NewSessionToken(&models.Data{UserId: server, IsServer: true, Duration: 3600}, a.config.ServerSecret)
+
+		if err := a.Store.AddToken(sessionToken); err == nil {
+			res.Header().Set(TP_SESSION_TOKEN, sessionToken.Token)
+			res.WriteHeader(http.StatusOK)
+			//postServer('serverlogin', {}, sessiontoken);
+			return
+		} else {
+			errorRes(res, err)
+		}
 	}
 	res.WriteHeader(http.StatusUnauthorized)
 	return
-
-	/*
-			var server = req.headers['x-tidepool-server-name'];
-		    var pw = req.headers['x-tidepool-server-secret'];
-
-		    if (!(server && pw)) {
-		      log.warn('Machine login attempted with missing information');
-		      res.send(400, 'Missing login information');
-		      return next();
-		    }
-
-		    if (pw === envConfig.serverSecret) {
-		      // we're good, create a token
-		      var sessiontoken = getSessionToken(server, req.tokenduration, true);
-		      upsertToken(sessiontoken, function (err, stored) {
-		        res.header('x-tidepool-session-token', sessiontoken);
-		        res.send(200, 'machine login');
-		        postServer('serverlogin', {}, sessiontoken);
-		        return next();
-		      });
-		    } else {
-		      log.warn('Machine login attempted with bad login info. server[%s], host[%s]', server, req.connection.remoteAddress);
-		      res.send(401, 'Server identity not validated!');
-		      return next();
-		    }
-	*/
-
 }
 
 func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
-	res.WriteHeader(501)
+
+	sessionToken := models.GetSessionToken(req.Header)
+
+	if ok := sessionToken.Verify(a.config.ServerSecret); ok == true {
+
+		if sessionToken.TokenData.IsServer == false && sessionToken.TokenData.Duration > 60*60*2 {
+			//long-duration, it's not renewable, so just return it
+			res.Header().Add(TP_SESSION_TOKEN, sessionToken.Token)
+			res.Header().Add("content-type", "application/json")
+			res.WriteHeader(http.StatusOK)
+			res.Write([]byte(fmt.Sprintf(`{"userid": %s }`, sessionToken.TokenData.UserId)))
+			return
+		}
+		//sessionToken, _ := models.NewSessionToken(server, a.config.ServerSecret, 1000, true)
+
+		newToken, _ := models.NewSessionToken(
+			&models.Data{
+				UserId:   sessionToken.TokenData.UserId,
+				Duration: 10000,
+				IsServer: sessionToken.TokenData.IsServer,
+			},
+			a.config.ServerSecret,
+		)
+
+		if err := a.Store.AddToken(newToken); err == nil {
+			res.Header().Set(TP_SESSION_TOKEN, newToken.Token)
+			res.WriteHeader(http.StatusOK)
+			//postServer('serverlogin', {}, sessiontoken);
+			return
+		} else {
+			errorRes(res, err)
+		}
+
+	}
+	res.WriteHeader(http.StatusUnauthorized)
+	return
 }
 
 func (a *Api) ValidateLongterm(res http.ResponseWriter, req *http.Request) {

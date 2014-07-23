@@ -9,9 +9,9 @@ import (
 
 type (
 	SessionToken struct {
-		Token string `json:"-" 	bson:"_id,omitempty"`
-		Time  string `json:"-" 	bson:"time"`
-		data  Data   `json:"-"`
+		Token     string `json:"-" 	bson:"_id,omitempty"`
+		Time      string `json:"-" 	bson:"time"`
+		TokenData Data   `json:"-"`
 	}
 
 	Data struct {
@@ -28,7 +28,7 @@ func (t *SessionToken) unpackToken(secret string) {
 		return
 	} else {
 
-		t.data = Data{
+		t.TokenData = Data{
 			IsServer: jwtToken.Claims["svr"] == "yes",
 			Duration: jwtToken.Claims["dur"].(float64),
 			UserId:   jwtToken.Claims["usr"].(string),
@@ -45,7 +45,7 @@ func (t *SessionToken) Verify(secret string) bool {
 	}
 
 	t.unpackToken(secret)
-	return t.data.Valid
+	return t.TokenData.Valid
 }
 
 func GetSessionToken(header http.Header) SessionToken {

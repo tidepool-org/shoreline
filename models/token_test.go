@@ -63,15 +63,15 @@ func TestUnpackedData(t *testing.T) {
 		t.Fatalf("unpacked token should be valid")
 	}
 
-	if token.data.IsServer == false {
+	if token.TokenData.IsServer == false {
 		t.Fatalf(" token should have been what was given")
 	}
 
-	if token.data.Duration != testData.data.Duration {
+	if token.TokenData.Duration != testData.data.Duration {
 		t.Fatalf("the duration should have been what was given")
 	}
 
-	if token.data.UserId != testData.data.UserId {
+	if token.TokenData.UserId != testData.data.UserId {
 		t.Fatalf("the user should have been what was given")
 	}
 
