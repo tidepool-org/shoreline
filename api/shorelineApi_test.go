@@ -8,6 +8,10 @@ import (
 	"testing"
 )
 
+const (
+	THE_SECRET = "shhh! don't tell"
+)
+
 func TestCreateUser_StatusBadRequest_WhenNoParamsGiven(t *testing.T) {
 	request, _ := http.NewRequest("POST", "/", nil)
 	response := httptest.NewRecorder()
@@ -235,7 +239,7 @@ func TestServerLogin_StatusBadRequest_WhenNoNameOrSecret(t *testing.T) {
 
 func TestServerLogin_StatusBadRequest_WhenNoName(t *testing.T) {
 	request, _ := http.NewRequest("POST", "/", nil)
-	request.Header.Set(TP_SERVER_SECRET, "shhhh! dont tell")
+	request.Header.Set(TP_SERVER_SECRET, THE_SECRET)
 	response := httptest.NewRecorder()
 	mockStore := clients.NewMockStoreClient()
 	shoreline := InitApi(mockStore)
@@ -264,7 +268,7 @@ func TestServerLogin_StatusBadRequest_WhenNoSecret(t *testing.T) {
 func TestServerLogin_StatusOK(t *testing.T) {
 	request, _ := http.NewRequest("POST", "/", nil)
 	request.Header.Set(TP_SERVER_NAME, "shoreline")
-	request.Header.Set(TP_SERVER_SECRET, "shhhh! dont tell")
+	request.Header.Set(TP_SERVER_SECRET, THE_SECRET)
 	response := httptest.NewRecorder()
 	mockStore := clients.NewMockStoreClient()
 	shoreline := InitApi(mockStore)
@@ -273,6 +277,21 @@ func TestServerLogin_StatusOK(t *testing.T) {
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, response.Code)
+	}
+}
+
+func TestServerLogin_StatusUnauthorized_WhenSecretWrong(t *testing.T) {
+	request, _ := http.NewRequest("POST", "/", nil)
+	request.Header.Set(TP_SERVER_NAME, "shoreline")
+	request.Header.Set(TP_SERVER_SECRET, "wrong secret")
+	response := httptest.NewRecorder()
+	mockStore := clients.NewMockStoreClient()
+	shoreline := InitApi(mockStore)
+
+	shoreline.ServerLogin(response, request)
+
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusUnauthorized, response.Code)
 	}
 }
 

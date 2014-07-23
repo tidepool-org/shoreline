@@ -12,7 +12,12 @@ import (
 
 type (
 	Api struct {
-		Store clients.StoreClient
+		Store  clients.StoreClient
+		config config
+	}
+	config struct {
+		ServerSecret string
+		Salt         string
 	}
 )
 
@@ -23,7 +28,7 @@ const (
 )
 
 func InitApi(store clients.StoreClient) *Api {
-	return &Api{Store: store}
+	return &Api{Store: store, config: config{ServerSecret: "shhh! don't tell"}}
 }
 
 //Docode the http.Request parsing out the user model
@@ -215,6 +220,12 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 		res.WriteHeader(http.StatusBadRequest)
 		return
 	}
+	if pw == a.config.ServerSecret {
+		res.WriteHeader(http.StatusOK)
+		return
+	}
+	res.WriteHeader(http.StatusUnauthorized)
+	return
 
 	/*
 			var server = req.headers['x-tidepool-server-name'];
@@ -242,7 +253,6 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 		    }
 	*/
 
-	res.WriteHeader(http.StatusOK)
 }
 
 func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
