@@ -196,8 +196,7 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 		if results, err := a.Store.FindUser(usr); err != nil {
 			errorRes(res, err)
 		} else if results != nil && results.Id != "" {
-			//TODO: the secret!!!
-			sessionToken, _ := models.NewSessionToken(results.Id, "make it secret", 1000, false)
+			sessionToken, _ := models.NewSessionToken(results.Id, a.config.ServerSecret, 1000, false)
 
 			if err := a.Store.AddToken(sessionToken); err == nil {
 				res.Header().Set(TP_SESSION_TOKEN, sessionToken.Token)
@@ -221,6 +220,9 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 	if pw == a.config.ServerSecret {
+		//generate new token
+		sessionToken, _ := models.NewSessionToken(server, a.config.ServerSecret, 1000, true)
+		res.Header().Set(TP_SESSION_TOKEN, sessionToken.Token)
 		res.WriteHeader(http.StatusOK)
 		return
 	}

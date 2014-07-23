@@ -222,6 +222,10 @@ func TestLogin_StatusOK(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, response.Code)
 	}
+
+	if response.Header().Get(TP_SESSION_TOKEN) == "" {
+		t.Fatal("The session token should have been set")
+	}
 }
 
 func TestServerLogin_StatusBadRequest_WhenNoNameOrSecret(t *testing.T) {
@@ -277,6 +281,10 @@ func TestServerLogin_StatusOK(t *testing.T) {
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, response.Code)
+	}
+
+	if response.Header().Get(TP_SESSION_TOKEN) == "" {
+		t.Fatal("The session token should have been set")
 	}
 }
 
