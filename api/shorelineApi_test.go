@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestCreateUserReturnsWith400StatusWithNoParamsGiven(t *testing.T) {
+func TestCreateUser_StatusBadRequest_WhenNoParamsGiven(t *testing.T) {
 	request, _ := http.NewRequest("POST", "/", nil)
 	response := httptest.NewRecorder()
 
@@ -22,7 +22,7 @@ func TestCreateUserReturnsWith400StatusWithNoParamsGiven(t *testing.T) {
 	}
 }
 
-func TestCreateUserReturns201Status(t *testing.T) {
+func TestCreateUser_StatusCreated(t *testing.T) {
 
 	var jsonData = []byte(`{"username": "test", "password": "123youknoWm3","emails":["test@foo.bar"]}`)
 
@@ -41,7 +41,7 @@ func TestCreateUserReturns201Status(t *testing.T) {
 	}
 }
 
-func TestUpdateUserReturns401WithNoToken(t *testing.T) {
+func TestUpdateUser_StatusUnauthorized_WhenNoToken(t *testing.T) {
 	request, _ := http.NewRequest("PUT", "/", nil)
 	response := httptest.NewRecorder()
 	mockStore := clients.NewMockStoreClient()
@@ -54,7 +54,7 @@ func TestUpdateUserReturns401WithNoToken(t *testing.T) {
 	}
 }
 
-func TestUpdateUserReturns400WithNoUpdates(t *testing.T) {
+func TestUpdateUser_StatusBadRequest_WhenNoUpdates(t *testing.T) {
 	request, _ := http.NewRequest("PUT", "/", nil)
 	request.Header.Add("content-type", "application/json")
 	request.Header.Set("x-tidepool-session-token", "blah-blah-123-blah")
@@ -69,7 +69,7 @@ func TestUpdateUserReturns400WithNoUpdates(t *testing.T) {
 	}
 }
 
-func TestUpdateUserReturns200(t *testing.T) {
+func TestUpdateUser_StatusOK(t *testing.T) {
 
 	var updateData = []byte(`{"userid":"0x3-123-345-0x3","username": "test","emails":["test@foo.bar"]}`)
 
@@ -89,7 +89,7 @@ func TestUpdateUserReturns200(t *testing.T) {
 	}
 }
 
-func TestGetUserInfoReturns200AndInfo(t *testing.T) {
+func TestGetUserInfo_StatusOK_AndBody(t *testing.T) {
 	var findData = []byte(`{"username": "test","emails":["test@foo.bar"]}`)
 
 	request, _ := http.NewRequest("GET", "/", bytes.NewBuffer(findData))
@@ -111,7 +111,7 @@ func TestGetUserInfoReturns200AndInfo(t *testing.T) {
 	}
 }
 
-func TestGetUserInfoForIDReturns200AndInfo(t *testing.T) {
+func TestGetUserInfo_StatusOK_AndBody_WhenIdInURL(t *testing.T) {
 
 	request, _ := http.NewRequest("GET", "/", nil)
 
@@ -138,7 +138,7 @@ func TestGetUserInfoForIDReturns200AndInfo(t *testing.T) {
 	}
 }
 
-func TestGetUserInfoReturns401WithNoToken(t *testing.T) {
+func TestGetUserInfo_StatusUnauthorized_WhenNoToken(t *testing.T) {
 	var findData = []byte(`{"username": "test","emails":["test@foo.bar"]}`)
 	request, _ := http.NewRequest("GET", "/", bytes.NewBuffer(findData))
 	response := httptest.NewRecorder()
@@ -179,7 +179,7 @@ func TestDeleteUserReturns401WhenNoSessionTokenHeaderGiven(t *testing.T) {
 	}
 }
 
-func TestLoginReturnsWithStatus400(t *testing.T) {
+func TestLogin_StatusBadRequest_WithNoAuth(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	response := httptest.NewRecorder()
 	mockStore := clients.NewMockStoreClient()
@@ -188,26 +188,40 @@ func TestLoginReturnsWithStatus400(t *testing.T) {
 	shoreline.Login(response, request)
 
 	if response.Code != http.StatusBadRequest {
-		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "400", response.Code)
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusBadRequest, response.Code)
 	}
 }
 
-func TestLoginReturnsWithStatusWhenAuthorizationSet(t *testing.T) {
-	request, _ := http.NewRequest("GET", "/", nil)
-	request.SetBasicAuth("username", "password")
+func TestLogin_StatusBadRequest_WithInvalidAuth(t *testing.T) {
+	request, _ := http.NewRequest("POST", "/", nil)
+	request.SetBasicAuth("", "")
 	response := httptest.NewRecorder()
 	mockStore := clients.NewMockStoreClient()
 	shoreline := InitApi(mockStore)
 
 	shoreline.Login(response, request)
 
-	if response.Code != http.StatusNotImplemented {
-		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "501", response.Code)
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusBadRequest, response.Code)
+	}
+}
+
+func TestLogin_StatusOK(t *testing.T) {
+	request, _ := http.NewRequest("POST", "/", nil)
+	request.SetBasicAuth("test", "123youknoWm3")
+	response := httptest.NewRecorder()
+	mockStore := clients.NewMockStoreClient()
+	shoreline := InitApi(mockStore)
+
+	shoreline.Login(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, response.Code)
 	}
 }
 
 func TestServerLoginReturnsWithStatus(t *testing.T) {
-	request, _ := http.NewRequest("GET", "/", nil)
+	request, _ := http.NewRequest("POST", "/", nil)
 	response := httptest.NewRecorder()
 	mockStore := clients.NewMockStoreClient()
 	shoreline := InitApi(mockStore)

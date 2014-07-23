@@ -1,11 +1,13 @@
 package api
 
 import (
+	"encoding/base64"
 	"encoding/json"
-	clients "github.com/tidepool-org/shoreline/clients"
-	models "github.com/tidepool-org/shoreline/models"
+	"github.com/tidepool-org/shoreline/clients"
+	"github.com/tidepool-org/shoreline/models"
 	"log"
 	"net/http"
+	"strings"
 )
 
 type (
@@ -26,7 +28,7 @@ func findUserDetail(res http.ResponseWriter, req *http.Request) (usr *models.Use
 	//do we also have details in the body?
 	if req.Body != nil {
 		if err := json.NewDecoder(req.Body).Decode(&usr); err != nil {
-			onError(res, err)
+			errorRes(res, err)
 		}
 	}
 
@@ -40,7 +42,7 @@ func findUserDetail(res http.ResponseWriter, req *http.Request) (usr *models.Use
 }
 
 //Log the error and return http.StatusInternalServerError code
-func onError(res http.ResponseWriter, err error) {
+func errorRes(res http.ResponseWriter, err error) {
 	if err != nil {
 		log.Fatal(err)
 		res.WriteHeader(http.StatusInternalServerError)
@@ -57,6 +59,55 @@ func tokenCheck(res http.ResponseWriter, req *http.Request) {
 	}
 }
 
+// Extract the username and password from the authorization
+// line of an HTTP header. This function will handle the
+// parsing and decoding of the line.
+func unpackAuth(authLine string) (usr *models.User, err error) {
+
+	if authLine == "" {
+		//no auth header so return empty
+		return &models.User{Name: "", Pw: ""}, nil
+	} else {
+
+		parts := strings.SplitN(authLine, " ", 2)
+		payload := parts[1]
+		decodedPayload, err := base64.URLEncoding.DecodeString(payload)
+		if err != nil {
+			return usr, err
+		}
+
+		details := strings.Split(string(decodedPayload), ":")
+
+		return &models.User{Name: details[0], Pw: details[1]}, nil
+	}
+}
+
+func usersRes(res http.ResponseWriter, users []*models.User) {
+
+	res.WriteHeader(http.StatusOK)
+	res.Header().Add("content-type", "application/json")
+
+	if len(users) > 1 {
+		res.Write([]byte("["))
+		for i := range users {
+			bytes, err := json.Marshal(users[i])
+			if err != nil {
+				log.Fatal(err)
+			}
+			res.Write(bytes)
+		}
+		res.Write([]byte("]"))
+		return
+	} else if len(users) == 1 {
+		bytes, err := json.Marshal(users[0])
+		if err != nil {
+			log.Fatal(err)
+		}
+		res.Write(bytes)
+		return
+	}
+}
+
 //Pull the incoming user from the http.Request body and save return http.StatusCreated
 func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 
@@ -67,7 +118,7 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 
 		err := a.Store.UpsertUser(usr)
 
-		onError(res, err)
+		errorRes(res, err)
 
 		res.WriteHeader(http.StatusCreated)
 		return
@@ -86,7 +137,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request) {
 
 		err := a.Store.UpsertUser(usr)
 
-		onError(res, err)
+		errorRes(res, err)
 
 		res.WriteHeader(http.StatusOK)
 		return
@@ -104,19 +155,11 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request) {
 		return
 	} else {
 
-		results, err := a.Store.FindUser(usr)
-
-		onError(res, err)
-
-		res.WriteHeader(http.StatusOK)
-		res.Header().Add("content-type", "application/json")
-		res.Write([]byte("["))
-		bytes, err := json.Marshal(results)
-		if err != nil {
-			log.Fatal(err)
+		if results, err := a.Store.FindUser(usr); err != nil {
+			errorRes(res, err)
+		} else {
+			usersRes(res, []*models.User{results})
 		}
-		res.Write(bytes)
-		res.Write([]byte("]"))
 
 		return
 	}
@@ -132,12 +175,30 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request) {
 
 func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 
-	if req.Header.Get("Authorization") == "" {
-		res.WriteHeader(400)
+	if usr, err := unpackAuth(req.Header.Get("Authorization")); err != nil {
+		errorRes(res, err)
+	} else if usr.Name == "" || usr.Pw == "" {
+		res.WriteHeader(http.StatusBadRequest)
 		return
+	} else {
+
+		if results, err := a.Store.FindUser(usr); err != nil {
+			errorRes(res, err)
+		} else if results != nil && results.Id != "" {
+			//TODO: the secret!!!
+			sessionToken, _ := models.NewSessionToken(results.Id, "make it secret", 1000, false)
+
+			if err := a.Store.AddToken(sessionToken); err == nil {
+				res.Header().Set("x-tidepool-session-token", sessionToken.Token)
+				//userid username emails
+				usersRes(res, []*models.User{results})
+				//postThisUser('userlogin', {}, sessiontoken);
+			}
+		}
 	}
 
-	res.WriteHeader(501)
+	res.WriteHeader(http.StatusUnauthorized)
+	return
 }
 
 func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
