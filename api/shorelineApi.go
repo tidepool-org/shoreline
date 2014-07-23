@@ -16,6 +16,12 @@ type (
 	}
 )
 
+const (
+	TP_SERVER_NAME   = "x-tidepool-server-name"
+	TP_SERVER_SECRET = "x-tidepool-server-secret"
+	TP_SESSION_TOKEN = "x-tidepool-session-token"
+)
+
 func InitApi(store clients.StoreClient) *Api {
 	return &Api{Store: store}
 }
@@ -189,7 +195,7 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 			sessionToken, _ := models.NewSessionToken(results.Id, "make it secret", 1000, false)
 
 			if err := a.Store.AddToken(sessionToken); err == nil {
-				res.Header().Set("x-tidepool-session-token", sessionToken.Token)
+				res.Header().Set(TP_SESSION_TOKEN, sessionToken.Token)
 				//userid username emails
 				usersRes(res, []*models.User{results})
 				//postThisUser('userlogin', {}, sessiontoken);
@@ -203,7 +209,7 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 
 func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 
-	server, pw := req.Header.Get("x-tidepool-server-name"), req.Header.Get("x-tidepool-server-secret")
+	server, pw := req.Header.Get(TP_SERVER_NAME), req.Header.Get(TP_SERVER_SECRET)
 
 	if server == "" || pw == "" {
 		res.WriteHeader(http.StatusBadRequest)

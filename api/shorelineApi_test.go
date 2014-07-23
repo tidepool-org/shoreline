@@ -57,7 +57,7 @@ func TestUpdateUser_StatusUnauthorized_WhenNoToken(t *testing.T) {
 func TestUpdateUser_StatusBadRequest_WhenNoUpdates(t *testing.T) {
 	request, _ := http.NewRequest("PUT", "/", nil)
 	request.Header.Add("content-type", "application/json")
-	request.Header.Set("x-tidepool-session-token", "blah-blah-123-blah")
+	request.Header.Set(TP_SESSION_TOKEN, "blah-blah-123-blah")
 	response := httptest.NewRecorder()
 	mockStore := clients.NewMockStoreClient()
 	shoreline := InitApi(mockStore)
@@ -75,7 +75,7 @@ func TestUpdateUser_StatusOK(t *testing.T) {
 
 	request, _ := http.NewRequest("PUT", "/", bytes.NewBuffer(updateData))
 
-	request.Header.Set("x-tidepool-session-token", "blah-blah-123-blah")
+	request.Header.Set(TP_SESSION_TOKEN, "blah-blah-123-blah")
 	request.Header.Add("content-type", "application/json")
 
 	response := httptest.NewRecorder()
@@ -93,7 +93,7 @@ func TestGetUserInfo_StatusOK_AndBody(t *testing.T) {
 	var findData = []byte(`{"username": "test","emails":["test@foo.bar"]}`)
 
 	request, _ := http.NewRequest("GET", "/", bytes.NewBuffer(findData))
-	request.Header.Set("x-tidepool-session-token", "blah-blah-123-blah")
+	request.Header.Set(TP_SESSION_TOKEN, "blah-blah-123-blah")
 	request.Header.Add("content-type", "application/json")
 	response := httptest.NewRecorder()
 	mockStore := clients.NewMockStoreClient()
@@ -119,7 +119,7 @@ func TestGetUserInfo_StatusOK_AndBody_WhenIdInURL(t *testing.T) {
 	values.Add("userid", "9lJmBOVkWB")
 	request.URL.RawQuery = values.Encode()
 
-	request.Header.Set("x-tidepool-session-token", "blah-blah-123-blah")
+	request.Header.Set(TP_SESSION_TOKEN, "blah-blah-123-blah")
 	request.Header.Add("content-type", "application/json")
 
 	response := httptest.NewRecorder()
@@ -154,7 +154,7 @@ func TestGetUserInfo_StatusUnauthorized_WhenNoToken(t *testing.T) {
 
 func TestDeleteUserReturnsWithStatus(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
-	request.Header.Set("x-tidepool-session-token", "blah-blah-123-blah")
+	request.Header.Set(TP_SESSION_TOKEN, "blah-blah-123-blah")
 	response := httptest.NewRecorder()
 	mockStore := clients.NewMockStoreClient()
 	shoreline := InitApi(mockStore)
@@ -235,7 +235,7 @@ func TestServerLogin_StatusBadRequest_WhenNoNameOrSecret(t *testing.T) {
 
 func TestServerLogin_StatusBadRequest_WhenNoName(t *testing.T) {
 	request, _ := http.NewRequest("POST", "/", nil)
-	request.Header.Set("x-tidepool-server-secret", "shhhh! dont tell")
+	request.Header.Set(TP_SERVER_SECRET, "shhhh! dont tell")
 	response := httptest.NewRecorder()
 	mockStore := clients.NewMockStoreClient()
 	shoreline := InitApi(mockStore)
@@ -249,7 +249,7 @@ func TestServerLogin_StatusBadRequest_WhenNoName(t *testing.T) {
 
 func TestServerLogin_StatusBadRequest_WhenNoSecret(t *testing.T) {
 	request, _ := http.NewRequest("POST", "/", nil)
-	request.Header.Set("x-tidepool-server-name", "shoreline")
+	request.Header.Set(TP_SERVER_NAME, "shoreline")
 	response := httptest.NewRecorder()
 	mockStore := clients.NewMockStoreClient()
 	shoreline := InitApi(mockStore)
@@ -263,8 +263,8 @@ func TestServerLogin_StatusBadRequest_WhenNoSecret(t *testing.T) {
 
 func TestServerLogin_StatusOK(t *testing.T) {
 	request, _ := http.NewRequest("POST", "/", nil)
-	request.Header.Set("x-tidepool-server-name", "shoreline")
-	request.Header.Set("x-tidepool-server-secret", "shhhh! dont tell")
+	request.Header.Set(TP_SERVER_NAME, "shoreline")
+	request.Header.Set(TP_SERVER_SECRET, "shhhh! dont tell")
 	response := httptest.NewRecorder()
 	mockStore := clients.NewMockStoreClient()
 	shoreline := InitApi(mockStore)
@@ -304,7 +304,7 @@ func TestValidateLongtermReturnsWithStatus(t *testing.T) {
 
 func TestRequireServerTokenReturnsWithStatus(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
-	request.Header.Set("x-tidepool-session-token", "blah-blah-123-blah")
+	request.Header.Set(TP_SESSION_TOKEN, "blah-blah-123-blah")
 	response := httptest.NewRecorder()
 	mockStore := clients.NewMockStoreClient()
 	shoreline := InitApi(mockStore)
