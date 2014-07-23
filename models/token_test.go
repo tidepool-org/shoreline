@@ -7,10 +7,8 @@ import (
 )
 
 type tokenTestData struct {
-	userid     string
-	duration   float64
+	data       *Data
 	secretUsed string
-	isServer   bool
 }
 
 func TestGetSessionToken(t *testing.T) {
@@ -28,14 +26,18 @@ func TestGetSessionToken(t *testing.T) {
 
 func TestGenerateSessionTokenWhenNoUserId(t *testing.T) {
 
-	if _, err := NewSessionToken("", "my secret", 3600, false); err == nil {
+	testData := tokenTestData{data: &Data{UserId: "", IsServer: false, Duration: 3600}, secretUsed: "my secret"}
+
+	if _, err := NewSessionToken(testData.data, testData.secretUsed); err == nil {
 		t.Fatalf("should not generate a session token if there is no userid")
 	}
 }
 
 func TestGenerateSessionToken(t *testing.T) {
 
-	if token, _ := NewSessionToken("2341", "my secret", 3600, false); token.Token == "" || token.Time == "" {
+	testData := tokenTestData{data: &Data{UserId: "12-99-100", IsServer: false, Duration: 3600}, secretUsed: "my secret"}
+
+	if token, _ := NewSessionToken(testData.data, testData.secretUsed); token.Token == "" || token.Time == "" {
 		t.Fatalf("should generate a session token")
 	}
 
@@ -43,38 +45,33 @@ func TestGenerateSessionToken(t *testing.T) {
 
 func TestGenerateSessionTokenForServer(t *testing.T) {
 
-	if token, _ := NewSessionToken("2341", "my secret", 3600, true); token.Token == "" || token.Time == "" {
+	testData := tokenTestData{data: &Data{UserId: "shoreline", IsServer: true, Duration: 3600}, secretUsed: "my secret"}
+
+	if token, _ := NewSessionToken(testData.data, testData.secretUsed); token.Token == "" || token.Time == "" {
 		t.Fatalf("should generate a session token")
 	}
 
 }
 
-func TestUnpackToken(t *testing.T) {
+func TestUnpackedData(t *testing.T) {
 
-	data := tokenTestData{
-		userid:     "111",
-		duration:   3600,
-		secretUsed: "my other secret",
-		isServer:   true,
-	}
+	testData := tokenTestData{data: &Data{UserId: "111", IsServer: true, Duration: 3600}, secretUsed: "my other secret"}
 
-	token, _ := NewSessionToken(data.userid, data.secretUsed, data.duration, data.isServer)
+	token, _ := NewSessionToken(testData.data, testData.secretUsed)
 
-	jwtToken, _ := token.UnpackToken(data.secretUsed)
-
-	if jwtToken.Valid == false {
+	if ok := token.Verify(testData.secretUsed); ok == false {
 		t.Fatalf("unpacked token should be valid")
 	}
 
-	if jwtToken.Claims["svr"] != "yes" {
+	if token.data.IsServer == false {
 		t.Fatalf(" token should have been what was given")
 	}
 
-	if jwtToken.Claims["dur"] != data.duration {
+	if token.data.Duration != testData.data.Duration {
 		t.Fatalf("the duration should have been what was given")
 	}
 
-	if jwtToken.Claims["usr"] != data.userid {
+	if token.data.UserId != testData.data.UserId {
 		t.Fatalf("the user should have been what was given")
 	}
 
@@ -82,18 +79,13 @@ func TestUnpackToken(t *testing.T) {
 
 func TestUnpackTokenExpires(t *testing.T) {
 
-	data := tokenTestData{
-		userid:     "2341",
-		duration:   1,
-		secretUsed: "my secret",
-		isServer:   false,
-	}
+	testData := tokenTestData{data: &Data{UserId: "2341", IsServer: false, Duration: 1}, secretUsed: "my secret"}
 
-	token, _ := NewSessionToken(data.userid, data.secretUsed, data.duration, data.isServer)
+	token, _ := NewSessionToken(testData.data, testData.secretUsed)
 
 	time.Sleep(2 * time.Second) //ensure token expires
 
-	if _, err := token.UnpackToken(data.secretUsed); err == nil {
+	if ok := token.Verify(testData.secretUsed); ok != false {
 		t.Fatalf("the token should have expired")
 	}
 
@@ -101,22 +93,11 @@ func TestUnpackTokenExpires(t *testing.T) {
 
 func TestVerifyStoredToken(t *testing.T) {
 
-	data := tokenTestData{
-		userid:     "2341",
-		duration:   1200,
-		secretUsed: "my secret",
-		isServer:   false,
+	testData := tokenTestData{data: &Data{UserId: "2341", IsServer: false, Duration: 1200}, secretUsed: "my secret"}
+
+	token, _ := NewSessionToken(testData.data, testData.secretUsed)
+
+	if ok := token.Verify(testData.secretUsed); ok == false {
+		t.Fatalf("the token should not have expired")
 	}
-
-	token, _ := NewSessionToken(data.userid, data.secretUsed, data.duration, data.isServer)
-
-	isValid, err := token.VerifyStoredToken(data.secretUsed)
-
-	if err != nil {
-		t.Fatalf("the token should have expired")
-	}
-	if isValid == false {
-		t.Fatalf("the token should be valid")
-	}
-
 }
