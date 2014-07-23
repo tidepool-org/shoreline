@@ -202,7 +202,41 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 }
 
 func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
-	res.WriteHeader(501)
+
+	server, pw := req.Header.Get("x-tidepool-server-name"), req.Header.Get("x-tidepool-server-secret")
+
+	if server == "" || pw == "" {
+		res.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	/*
+			var server = req.headers['x-tidepool-server-name'];
+		    var pw = req.headers['x-tidepool-server-secret'];
+
+		    if (!(server && pw)) {
+		      log.warn('Machine login attempted with missing information');
+		      res.send(400, 'Missing login information');
+		      return next();
+		    }
+
+		    if (pw === envConfig.serverSecret) {
+		      // we're good, create a token
+		      var sessiontoken = getSessionToken(server, req.tokenduration, true);
+		      upsertToken(sessiontoken, function (err, stored) {
+		        res.header('x-tidepool-session-token', sessiontoken);
+		        res.send(200, 'machine login');
+		        postServer('serverlogin', {}, sessiontoken);
+		        return next();
+		      });
+		    } else {
+		      log.warn('Machine login attempted with bad login info. server[%s], host[%s]', server, req.connection.remoteAddress);
+		      res.send(401, 'Server identity not validated!');
+		      return next();
+		    }
+	*/
+
+	res.WriteHeader(http.StatusOK)
 }
 
 func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {

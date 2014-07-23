@@ -220,7 +220,7 @@ func TestLogin_StatusOK(t *testing.T) {
 	}
 }
 
-func TestServerLoginReturnsWithStatus(t *testing.T) {
+func TestServerLogin_StatusBadRequest_WhenNoNameOrSecret(t *testing.T) {
 	request, _ := http.NewRequest("POST", "/", nil)
 	response := httptest.NewRecorder()
 	mockStore := clients.NewMockStoreClient()
@@ -228,8 +228,51 @@ func TestServerLoginReturnsWithStatus(t *testing.T) {
 
 	shoreline.ServerLogin(response, request)
 
-	if response.Code != http.StatusNotImplemented {
-		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "501", response.Code)
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusBadRequest, response.Code)
+	}
+}
+
+func TestServerLogin_StatusBadRequest_WhenNoName(t *testing.T) {
+	request, _ := http.NewRequest("POST", "/", nil)
+	request.Header.Set("x-tidepool-server-secret", "shhhh! dont tell")
+	response := httptest.NewRecorder()
+	mockStore := clients.NewMockStoreClient()
+	shoreline := InitApi(mockStore)
+
+	shoreline.ServerLogin(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusBadRequest, response.Code)
+	}
+}
+
+func TestServerLogin_StatusBadRequest_WhenNoSecret(t *testing.T) {
+	request, _ := http.NewRequest("POST", "/", nil)
+	request.Header.Set("x-tidepool-server-name", "shoreline")
+	response := httptest.NewRecorder()
+	mockStore := clients.NewMockStoreClient()
+	shoreline := InitApi(mockStore)
+
+	shoreline.ServerLogin(response, request)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusBadRequest, response.Code)
+	}
+}
+
+func TestServerLogin_StatusOK(t *testing.T) {
+	request, _ := http.NewRequest("POST", "/", nil)
+	request.Header.Set("x-tidepool-server-name", "shoreline")
+	request.Header.Set("x-tidepool-server-secret", "shhhh! dont tell")
+	response := httptest.NewRecorder()
+	mockStore := clients.NewMockStoreClient()
+	shoreline := InitApi(mockStore)
+
+	shoreline.ServerLogin(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, response.Code)
 	}
 }
 
