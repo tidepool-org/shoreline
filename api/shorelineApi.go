@@ -93,30 +93,35 @@ func unpackAuth(authLine string) (usr *models.User, err error) {
 	}
 }
 
-func usersRes(res http.ResponseWriter, users []*models.User) {
+func sendModelsJsonRes(res http.ResponseWriter, models []interface{}) {
 
 	res.WriteHeader(http.StatusOK)
 	res.Header().Add("content-type", "application/json")
 
-	if len(users) > 1 {
-		res.Write([]byte("["))
-		for i := range users {
-			bytes, err := json.Marshal(users[i])
-			if err != nil {
-				log.Fatal(err)
-			}
-			res.Write(bytes)
-		}
-		res.Write([]byte("]"))
-		return
-	} else if len(users) == 1 {
-		bytes, err := json.Marshal(users[0])
-		if err != nil {
+	res.Write([]byte("["))
+	for i := range models {
+		if jsonDetails, err := json.Marshal(models[i]); err != nil {
 			log.Fatal(err)
+		} else {
+			res.Write(jsonDetails)
 		}
-		res.Write(bytes)
-		return
 	}
+	res.Write([]byte("]"))
+	return
+
+}
+
+func sendModelJsonRes(res http.ResponseWriter, model interface{}) {
+
+	res.WriteHeader(http.StatusOK)
+	res.Header().Add("content-type", "application/json")
+
+	if jsonDetails, err := json.Marshal(model); err != nil {
+		log.Fatal(err)
+	} else {
+		res.Write(jsonDetails)
+	}
+	return
 }
 
 //Pull the incoming user from the http.Request body and save return http.StatusCreated
@@ -169,7 +174,7 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request) {
 		if results, err := a.Store.FindUser(usr); err != nil {
 			errorRes(res, err)
 		} else {
-			usersRes(res, []*models.User{results})
+			sendModelJsonRes(res, results)
 		}
 
 		return
@@ -201,7 +206,7 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 			if err := a.Store.AddToken(sessionToken); err == nil {
 				res.Header().Set(TP_SESSION_TOKEN, sessionToken.Token)
 				//postThisUser('userlogin', {}, sessiontoken);
-				usersRes(res, []*models.User{results})
+				sendModelJsonRes(res, results)
 			}
 		}
 	}
@@ -243,16 +248,7 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 
 		if sessionToken.TokenData.IsServer == false && sessionToken.TokenData.Duration > 60*60*2 {
 			//long-duration, it's not renewable, so just return it
-			if jsonDetails, err := json.Marshal(sessionToken.TokenData.UserId); err != nil {
-				res.WriteHeader(http.StatusInternalServerError)
-				return
-			} else {
-				res.WriteHeader(http.StatusOK)
-				res.Header().Add(TP_SESSION_TOKEN, sessionToken.Token)
-				res.Header().Add("content-type", "application/json")
-				res.Write(jsonDetails)
-				return
-			}
+			sendModelJsonRes(res, sessionToken.TokenData.UserId)
 		}
 		//sessionToken, _ := models.NewSessionToken(server, a.config.ServerSecret, 1000, true)
 
@@ -310,15 +306,7 @@ func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request) {
 	givenToken := models.GetSessionToken(req.Header)
 	if ok := givenToken.Verify(a.config.ServerSecret); ok == true {
 
-		if jsonDetails, err := json.Marshal(givenToken.TokenData); err != nil {
-			res.WriteHeader(http.StatusInternalServerError)
-			return
-		} else {
-			res.WriteHeader(http.StatusOK)
-			res.Header().Add("content-type", "application/json")
-			res.Write(jsonDetails)
-			return
-		}
+		sendModelJsonRes(res, givenToken.TokenData)
 	}
 	res.WriteHeader(http.StatusNotFound)
 	return
@@ -349,15 +337,7 @@ func (a *Api) AnonymousIdHashPair(res http.ResponseWriter, req *http.Request) {
 
 		idHashPair := models.NewIdHashPair("", theStrings)
 
-		if jsonDetails, err := json.Marshal(idHashPair); err != nil {
-			res.WriteHeader(http.StatusInternalServerError)
-			return
-		} else {
-			res.WriteHeader(http.StatusOK)
-			res.Header().Add("content-type", "application/json")
-			res.Write(jsonDetails)
-			return
-		}
+		sendModelJsonRes(res, idHashPair)
 	}
 	res.WriteHeader(http.StatusBadRequest)
 	return
