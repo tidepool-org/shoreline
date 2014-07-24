@@ -325,7 +325,15 @@ func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request) {
 }
 
 func (a *Api) Logout(res http.ResponseWriter, req *http.Request) {
-	res.WriteHeader(501)
+	//lets just try and remove the token
+	if givenToken := models.GetSessionToken(req.Header); givenToken.Token != "" {
+		if err := a.Store.RemoveToken(givenToken.Token); err != nil {
+			log.Fatal("Unable to delete token.", err)
+		}
+	}
+	//otherwise all good
+	res.WriteHeader(http.StatusOK)
+	return
 }
 
 func (a *Api) AnonymousIdHashPair(res http.ResponseWriter, req *http.Request) {

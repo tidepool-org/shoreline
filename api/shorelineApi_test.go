@@ -481,16 +481,42 @@ func TestServerCheckToken_StatusOK(t *testing.T) {
 	}
 }
 
-func TestLogoutReturnsWithStatus(t *testing.T) {
-	request, _ := http.NewRequest("GET", "/", nil)
+func TestLogout_StatusOK_WhenNoToken(t *testing.T) {
+	request, _ := http.NewRequest("POST", "/", nil)
 	response := httptest.NewRecorder()
 	mockStore := clients.NewMockStoreClient()
 	shoreline := InitApi(mockStore)
 
 	shoreline.Logout(response, request)
 
-	if response.Code != http.StatusNotImplemented {
-		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "501", response.Code)
+	if response.Code != http.StatusOK {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, response.Code)
+	}
+}
+
+func TestLogout_StatusOK(t *testing.T) {
+
+	request, _ := http.NewRequest("POST", "/", nil)
+	request.SetBasicAuth("test", "123youknoWm3")
+	response := httptest.NewRecorder()
+	mockStore := clients.NewMockStoreClient()
+	shoreline := InitApi(mockStore)
+
+	//login to create a token first
+	shoreline.Login(response, request)
+	tokenToUse := response.Header().Get(TP_SESSION_TOKEN)
+
+	if tokenToUse == "" {
+		t.Fatalf("we expected to get a token back")
+	}
+	//now logout with valid token
+	nextRequest, _ := http.NewRequest("POST", "/", nil)
+	nextRequest.Header.Set(TP_SESSION_TOKEN, tokenToUse)
+
+	shoreline.Logout(response, nextRequest)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, response.Code)
 	}
 }
 
