@@ -28,7 +28,7 @@ const (
 )
 
 func InitApi(store clients.StoreClient) *Api {
-	return &Api{Store: store, config: config{ServerSecret: "shhh! don't tell"}}
+	return &Api{Store: store, config: config{ServerSecret: "shhh! don't tell", Salt: "a mineral substance composed primarily of sodium chloride"}}
 }
 
 //Docode the http.Request parsing out the user model
@@ -337,7 +337,7 @@ func (a *Api) Logout(res http.ResponseWriter, req *http.Request) {
 }
 
 func (a *Api) AnonymousIdHashPair(res http.ResponseWriter, req *http.Request) {
-	theStrings := []string{"salt"}
+	theStrings := []string{a.config.Salt}
 	queryValues := req.URL.Query()
 
 	if len(queryValues) > 0 {
