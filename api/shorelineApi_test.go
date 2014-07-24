@@ -303,7 +303,7 @@ func TestServerLogin_StatusUnauthorized_WhenSecretWrong(t *testing.T) {
 	}
 }
 
-func TestRefreshSessionReturnsWithStatus(t *testing.T) {
+func TestRefreshSession_StatusUnauthorized_WithNoToken(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	response := httptest.NewRecorder()
 	mockStore := clients.NewMockStoreClient()
@@ -311,8 +311,48 @@ func TestRefreshSessionReturnsWithStatus(t *testing.T) {
 
 	shoreline.RefreshSession(response, request)
 
-	if response.Code != http.StatusNotImplemented {
-		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "501", response.Code)
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusUnauthorized, response.Code)
+	}
+}
+
+func TestRefreshSession_StatusUnauthorized_WithWrongToken(t *testing.T) {
+	request, _ := http.NewRequest("GET", "/", nil)
+	request.Header.Set(TP_SESSION_TOKEN, "not this token")
+	response := httptest.NewRecorder()
+	mockStore := clients.NewMockStoreClient()
+	shoreline := InitApi(mockStore)
+
+	shoreline.RefreshSession(response, request)
+
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusUnauthorized, response.Code)
+	}
+}
+
+func TestRefreshSession_StatusOK(t *testing.T) {
+	request, _ := http.NewRequest("GET", "/", nil)
+	request.SetBasicAuth("test", "123youknoWm3")
+	response := httptest.NewRecorder()
+	mockStore := clients.NewMockStoreClient()
+	shoreline := InitApi(mockStore)
+
+	//login to create a token first
+	shoreline.Login(response, request)
+	tokenToUse := response.Header().Get(TP_SESSION_TOKEN)
+
+	if tokenToUse == "" {
+		t.Fatalf("we expected to get a token back")
+	}
+
+	nextRequest, _ := http.NewRequest("GET", "/", nil)
+
+	nextRequest.Header.Set(TP_SESSION_TOKEN, tokenToUse)
+
+	shoreline.RefreshSession(response, nextRequest)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, response.Code)
 	}
 }
 
@@ -329,7 +369,7 @@ func TestValidateLongtermReturnsWithStatus(t *testing.T) {
 	}
 }
 
-func TestRequireServerTokenReturnsWithStatus(t *testing.T) {
+func TestRequireServerToken_ReturnsWithNoStatus(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	request.Header.Set(TP_SESSION_TOKEN, "blah-blah-123-blah")
 	response := httptest.NewRecorder()
@@ -338,12 +378,12 @@ func TestRequireServerTokenReturnsWithStatus(t *testing.T) {
 
 	shoreline.RequireServerToken(response, request)
 
-	if response.Code != http.StatusNotImplemented {
-		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "501", response.Code)
+	if response.Code == 0 {
+		t.Fatalf("expected no status code%v:\n\tbody: %v", response.Code)
 	}
 }
 
-func TestRequireServerToken401WhenNoSessionTokenHeaderGiven(t *testing.T) {
+func TestRequireServerToken_StatusUnauthorized_WhenWrongTokenGiven(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	response := httptest.NewRecorder()
 	mockStore := clients.NewMockStoreClient()
@@ -352,7 +392,20 @@ func TestRequireServerToken401WhenNoSessionTokenHeaderGiven(t *testing.T) {
 	shoreline.RequireServerToken(response, request)
 
 	if response.Code != http.StatusUnauthorized {
-		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "401", response.Code)
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusUnauthorized, response.Code)
+	}
+}
+
+func TestRequireServerToken_StatusUnauthorized_WhenNoSessionTokenHeaderGiven(t *testing.T) {
+	request, _ := http.NewRequest("GET", "/", nil)
+	response := httptest.NewRecorder()
+	mockStore := clients.NewMockStoreClient()
+	shoreline := InitApi(mockStore)
+
+	shoreline.RequireServerToken(response, request)
+
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusUnauthorized, response.Code)
 	}
 }
 

@@ -2,8 +2,7 @@ package clients
 
 import (
 	"crypto/rand"
-	models "github.com/tidepool-org/shoreline/models"
-	"time"
+	"github.com/tidepool-org/shoreline/models"
 )
 
 type MockStoreClient struct{}
@@ -27,8 +26,7 @@ func (d MockStoreClient) UpsertUser(user *models.User) error {
 }
 
 func (d MockStoreClient) FindUser(user *models.User) (found *models.User, err error) {
-
-	//`find` a pretend one
+	//`find` a pretend one we just made
 	found = &models.User{Id: rand_str(10), Name: user.Name, Emails: user.Emails, PwHash: rand_str(24), Hash: rand_str(24)}
 	return found, nil
 }
@@ -42,7 +40,9 @@ func (d MockStoreClient) AddToken(token *models.SessionToken) error {
 }
 
 func (d MockStoreClient) FindToken(tokenId string) (*models.SessionToken, error) {
-	return &models.SessionToken{Token: tokenId, Time: time.Now().String()}, nil
+	//`find` a pretend one we just made
+	token, _ := models.NewSessionToken(&models.Data{IsServer: true, Duration: 3600, UserId: "1234", Valid: true}, "my secret")
+	return token, nil
 }
 
 func (d MockStoreClient) RemoveToken(tokenId string) error {

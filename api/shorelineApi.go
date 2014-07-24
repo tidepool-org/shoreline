@@ -275,14 +275,30 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 	return
 }
 
+//set the tokenduration
 func (a *Api) ValidateLongterm(res http.ResponseWriter, req *http.Request) {
+
+	/*if (req.params.longtermkey != null && req.params.longtermkey === envConfig.longtermkey) {
+	    req.tokenduration = 30 * 24 * 60 * 60; // 30 days
+	  }
+	  return next();
+	*/
+
 	res.WriteHeader(501)
 }
 
 func (a *Api) RequireServerToken(res http.ResponseWriter, req *http.Request) {
 	tokenCheck(res, req)
 
-	res.WriteHeader(501)
+	svrToken := models.GetSessionToken(req.Header)
+
+	if ok := svrToken.Verify(a.config.ServerSecret); ok == true {
+		if svrToken.TokenData.IsServer {
+			return
+		}
+	}
+	res.WriteHeader(http.StatusUnauthorized)
+	return
 }
 
 func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request) {
