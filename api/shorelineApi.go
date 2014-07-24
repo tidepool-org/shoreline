@@ -39,7 +39,7 @@ func findUserDetail(res http.ResponseWriter, req *http.Request) (usr *models.Use
 	//do we also have details in the body?
 	if req.Body != nil {
 		if err := json.NewDecoder(req.Body).Decode(&usr); err != nil {
-			errorRes(res, err)
+			sendErrorAsRes(res, err)
 		}
 	}
 
@@ -53,7 +53,7 @@ func findUserDetail(res http.ResponseWriter, req *http.Request) (usr *models.Use
 }
 
 //Log the error and return http.StatusInternalServerError code
-func errorRes(res http.ResponseWriter, err error) {
+func sendErrorAsRes(res http.ResponseWriter, err error) {
 	if err != nil {
 		log.Fatal(err)
 		res.WriteHeader(http.StatusInternalServerError)
@@ -111,7 +111,7 @@ func sendModelsJsonRes(res http.ResponseWriter, models []interface{}) {
 
 }
 
-func sendModelJsonRes(res http.ResponseWriter, model interface{}) {
+func sendModelAsRes(res http.ResponseWriter, model interface{}) {
 
 	res.WriteHeader(http.StatusOK)
 	res.Header().Add("content-type", "application/json")
@@ -134,7 +134,7 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 
 		err := a.Store.UpsertUser(usr)
 
-		errorRes(res, err)
+		sendErrorAsRes(res, err)
 
 		res.WriteHeader(http.StatusCreated)
 		return
@@ -153,7 +153,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request) {
 
 		err := a.Store.UpsertUser(usr)
 
-		errorRes(res, err)
+		sendErrorAsRes(res, err)
 
 		res.WriteHeader(http.StatusOK)
 		return
@@ -172,9 +172,9 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request) {
 	} else {
 
 		if results, err := a.Store.FindUser(usr); err != nil {
-			errorRes(res, err)
+			sendErrorAsRes(res, err)
 		} else {
-			sendModelJsonRes(res, results)
+			sendModelAsRes(res, results)
 		}
 
 		return
@@ -192,21 +192,21 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request) {
 func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 
 	if usr, err := unpackAuth(req.Header.Get("Authorization")); err != nil {
-		errorRes(res, err)
+		sendErrorAsRes(res, err)
 	} else if usr.Name == "" || usr.Pw == "" {
 		res.WriteHeader(http.StatusBadRequest)
 		return
 	} else {
 
 		if results, err := a.Store.FindUser(usr); err != nil {
-			errorRes(res, err)
+			sendErrorAsRes(res, err)
 		} else if results != nil && results.Id != "" {
 			sessionToken, _ := models.NewSessionToken(&models.TokenData{UserId: results.Id, IsServer: false, Duration: 3600}, a.config.ServerSecret)
 
 			if err := a.Store.AddToken(sessionToken); err == nil {
 				res.Header().Set(TP_SESSION_TOKEN, sessionToken.Token)
 				//postThisUser('userlogin', {}, sessiontoken);
-				sendModelJsonRes(res, results)
+				sendModelAsRes(res, results)
 			}
 		}
 	}
@@ -233,7 +233,7 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 			//postServer('serverlogin', {}, sessiontoken);
 			return
 		} else {
-			errorRes(res, err)
+			sendErrorAsRes(res, err)
 		}
 	}
 	res.WriteHeader(http.StatusUnauthorized)
@@ -248,7 +248,7 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 
 		if sessionToken.TokenData.IsServer == false && sessionToken.TokenData.Duration > 60*60*2 {
 			//long-duration, it's not renewable, so just return it
-			sendModelJsonRes(res, sessionToken.TokenData.UserId)
+			sendModelAsRes(res, sessionToken.TokenData.UserId)
 		}
 		//sessionToken, _ := models.NewSessionToken(server, a.config.ServerSecret, 1000, true)
 
@@ -267,7 +267,7 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 			//postServer('serverlogin', {}, sessiontoken);
 			return
 		} else {
-			errorRes(res, err)
+			sendErrorAsRes(res, err)
 		}
 
 	}
@@ -306,7 +306,7 @@ func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request) {
 	givenToken := models.GetSessionToken(req.Header)
 	if ok := givenToken.Verify(a.config.ServerSecret); ok == true {
 
-		sendModelJsonRes(res, givenToken.TokenData)
+		sendModelAsRes(res, givenToken.TokenData)
 	}
 	res.WriteHeader(http.StatusNotFound)
 	return
@@ -337,7 +337,7 @@ func (a *Api) AnonymousIdHashPair(res http.ResponseWriter, req *http.Request) {
 
 		idHashPair := models.NewIdHashPair("", theStrings)
 
-		sendModelJsonRes(res, idHashPair)
+		sendModelAsRes(res, idHashPair)
 	}
 	res.WriteHeader(http.StatusBadRequest)
 	return
