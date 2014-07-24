@@ -371,12 +371,27 @@ func TestValidateLongtermReturnsWithStatus(t *testing.T) {
 
 func TestRequireServerToken_ReturnsWithNoStatus(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
-	request.Header.Set(TP_SESSION_TOKEN, "blah-blah-123-blah")
+	request.Header.Set(TP_SERVER_NAME, "shoreline")
+	request.Header.Set(TP_SERVER_SECRET, THE_SECRET)
 	response := httptest.NewRecorder()
 	mockStore := clients.NewMockStoreClient()
 	shoreline := InitApi(mockStore)
 
-	shoreline.RequireServerToken(response, request)
+	//login as server
+	shoreline.ServerLogin(response, request)
+
+	svrTokenToUse := response.Header().Get(TP_SESSION_TOKEN)
+
+	if svrTokenToUse == "" {
+		t.Fatalf("we expected to get a token back")
+	}
+
+	//now do the check
+
+	nextRequest, _ := http.NewRequest("GET", "/", nil)
+	nextRequest.Header.Set(TP_SESSION_TOKEN, svrTokenToUse)
+
+	shoreline.RequireServerToken(response, nextRequest)
 
 	if response.Code == 0 {
 		t.Fatalf("expected no status code%v:\n\tbody: %v", response.Code)
