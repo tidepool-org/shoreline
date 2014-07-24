@@ -337,7 +337,30 @@ func (a *Api) Logout(res http.ResponseWriter, req *http.Request) {
 }
 
 func (a *Api) AnonymousIdHashPair(res http.ResponseWriter, req *http.Request) {
-	res.WriteHeader(501)
+	theStrings := []string{"salt"}
+	queryValues := req.URL.Query()
+
+	if len(queryValues) > 0 {
+
+		for k, v := range queryValues {
+			theStrings = append(theStrings, k)
+			theStrings = append(theStrings, v[0])
+		}
+
+		idHashPair := models.NewIdHashPair("", theStrings)
+
+		if jsonDetails, err := json.Marshal(idHashPair); err != nil {
+			res.WriteHeader(http.StatusInternalServerError)
+			return
+		} else {
+			res.WriteHeader(http.StatusOK)
+			res.Header().Add("content-type", "application/json")
+			res.Write(jsonDetails)
+			return
+		}
+	}
+	res.WriteHeader(http.StatusBadRequest)
+	return
 }
 
 func (a *Api) ManageIdHashPair(res http.ResponseWriter, req *http.Request) {

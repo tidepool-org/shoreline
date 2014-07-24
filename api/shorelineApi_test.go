@@ -520,7 +520,7 @@ func TestLogout_StatusOK(t *testing.T) {
 	}
 }
 
-func TestAnonymousIdHashPairReturnsWithStatus(t *testing.T) {
+func TestAnonymousIdHashPair_StatusInternalServerError_NoParamsGiven(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	response := httptest.NewRecorder()
 	mockStore := clients.NewMockStoreClient()
@@ -528,8 +528,42 @@ func TestAnonymousIdHashPairReturnsWithStatus(t *testing.T) {
 
 	shoreline.AnonymousIdHashPair(response, request)
 
-	if response.Code != http.StatusNotImplemented {
-		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "501", response.Code)
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusBadRequest, response.Code)
+	}
+}
+
+func TestAnonymousIdHashPair_StatusOK(t *testing.T) {
+	request, _ := http.NewRequest("GET", "/", nil)
+
+	values := request.URL.Query()
+	values.Add("one", "somestuff")
+	values.Add("two", "some more stuff")
+	request.URL.RawQuery = values.Encode()
+
+	response := httptest.NewRecorder()
+	mockStore := clients.NewMockStoreClient()
+	shoreline := InitApi(mockStore)
+
+	shoreline.AnonymousIdHashPair(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, response.Code)
+	}
+
+	body, _ := ioutil.ReadAll(response.Body)
+
+	var idHashPair models.IdHashPair
+	_ = json.Unmarshal(body, &idHashPair)
+
+	if idHashPair.Name != "" {
+		t.Fatalf("should have no name but was %v", idHashPair.Name)
+	}
+	if idHashPair.Id == "" {
+		t.Fatalf("should have an Id but was %v", idHashPair.Id)
+	}
+	if idHashPair.Hash == "" {
+		t.Fatalf("should have an Hash but was %v", idHashPair.Name)
 	}
 }
 
