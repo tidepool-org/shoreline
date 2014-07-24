@@ -3,7 +3,6 @@ package api
 import (
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"github.com/tidepool-org/shoreline/clients"
 	"github.com/tidepool-org/shoreline/models"
 	"log"
@@ -244,11 +243,16 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 
 		if sessionToken.TokenData.IsServer == false && sessionToken.TokenData.Duration > 60*60*2 {
 			//long-duration, it's not renewable, so just return it
-			res.Header().Add(TP_SESSION_TOKEN, sessionToken.Token)
-			res.Header().Add("content-type", "application/json")
-			res.WriteHeader(http.StatusOK)
-			res.Write([]byte(fmt.Sprintf(`{"userid": %s }`, sessionToken.TokenData.UserId)))
-			return
+			if jsonDetails, err := json.Marshal(sessionToken.TokenData.UserId); err != nil {
+				res.WriteHeader(http.StatusInternalServerError)
+				return
+			} else {
+				res.WriteHeader(http.StatusOK)
+				res.Header().Add(TP_SESSION_TOKEN, sessionToken.Token)
+				res.Header().Add("content-type", "application/json")
+				res.Write(jsonDetails)
+				return
+			}
 		}
 		//sessionToken, _ := models.NewSessionToken(server, a.config.ServerSecret, 1000, true)
 
