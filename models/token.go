@@ -9,16 +9,16 @@ import (
 
 type (
 	SessionToken struct {
-		Token     string `json:"-" 	bson:"_id,omitempty"`
-		Time      string `json:"-" 	bson:"time"`
-		TokenData Data   `json:"-"`
+		Token     string    `json:"-" 	bson:"_id,omitempty"`
+		Time      string    `json:"-" 	bson:"time"`
+		TokenData TokenData `json:"-"`
 	}
 
-	Data struct {
-		IsServer bool
-		Duration float64
-		UserId   string
-		Valid    bool
+	TokenData struct {
+		UserId   string  `json:"userid"`
+		IsServer bool    `json:"isserver"`
+		Duration float64 `json:"-"`
+		Valid    bool    `json:"-"`
 	}
 )
 
@@ -28,7 +28,7 @@ func (t *SessionToken) unpackToken(secret string) {
 		return
 	} else {
 
-		t.TokenData = Data{
+		t.TokenData = TokenData{
 			IsServer: jwtToken.Claims["svr"] == "yes",
 			Duration: jwtToken.Claims["dur"].(float64),
 			UserId:   jwtToken.Claims["usr"].(string),
@@ -52,8 +52,7 @@ func GetSessionToken(header http.Header) SessionToken {
 	return SessionToken{Token: header.Get("x-tidepool-session-token")}
 }
 
-//func NewSessionToken(userId string, secret string, durationSeconds float64, isServer bool) (token *SessionToken, err error) {
-func NewSessionToken(data *Data, secret string) (token *SessionToken, err error) {
+func NewSessionToken(data *TokenData, secret string) (token *SessionToken, err error) {
 
 	if data.UserId == "" {
 		return nil, errors.New("No userId was given for the token")

@@ -41,7 +41,7 @@ func (d MockStoreClient) AddToken(token *models.SessionToken) error {
 
 func (d MockStoreClient) FindToken(tokenId string) (*models.SessionToken, error) {
 	//`find` a pretend one we just made
-	token, _ := models.NewSessionToken(&models.Data{IsServer: true, Duration: 3600, UserId: "1234", Valid: true}, "my secret")
+	token, _ := models.NewSessionToken(&models.TokenData{IsServer: true, Duration: 3600, UserId: "1234", Valid: true}, "my secret")
 	return token, nil
 }
 

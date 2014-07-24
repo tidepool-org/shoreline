@@ -2,7 +2,10 @@ package api
 
 import (
 	"bytes"
-	clients "github.com/tidepool-org/shoreline/clients"
+	"encoding/json"
+	"github.com/tidepool-org/shoreline/clients"
+	"github.com/tidepool-org/shoreline/models"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -387,7 +390,6 @@ func TestRequireServerToken_ReturnsWithNoStatus(t *testing.T) {
 	}
 
 	//now do the check
-
 	nextRequest, _ := http.NewRequest("GET", "/", nil)
 	nextRequest.Header.Set(TP_SESSION_TOKEN, svrTokenToUse)
 
@@ -424,7 +426,7 @@ func TestRequireServerToken_StatusUnauthorized_WhenNoSessionTokenHeaderGiven(t *
 	}
 }
 
-func TestServerCheckTokenReturnsWithStatus(t *testing.T) {
+func TestServerCheckToken_StatusNotFound_WhenNoToken(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	response := httptest.NewRecorder()
 	mockStore := clients.NewMockStoreClient()
@@ -432,8 +434,50 @@ func TestServerCheckTokenReturnsWithStatus(t *testing.T) {
 
 	shoreline.ServerCheckToken(response, request)
 
-	if response.Code != http.StatusNotImplemented {
-		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "501", response.Code)
+	if response.Code != http.StatusNotFound {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusNotFound, response.Code)
+	}
+}
+
+func TestServerCheckToken_StatusOK(t *testing.T) {
+	request, _ := http.NewRequest("GET", "/", nil)
+
+	request.Header.Set(TP_SERVER_NAME, "shoreline")
+	request.Header.Set(TP_SERVER_SECRET, THE_SECRET)
+	response := httptest.NewRecorder()
+	mockStore := clients.NewMockStoreClient()
+	shoreline := InitApi(mockStore)
+
+	//login as server
+	shoreline.ServerLogin(response, request)
+
+	svrTokenToUse := response.Header().Get(TP_SESSION_TOKEN)
+
+	if svrTokenToUse == "" {
+		t.Fatalf("we expected to get a token back")
+	}
+
+	//now do the check
+	nextRequest, _ := http.NewRequest("GET", "/", nil)
+	nextRequest.Header.Set(TP_SESSION_TOKEN, svrTokenToUse)
+
+	shoreline.ServerCheckToken(response, nextRequest)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, response.Code)
+	}
+
+	body, _ := ioutil.ReadAll(response.Body)
+
+	var tokenData models.TokenData
+	_ = json.Unmarshal(body, &tokenData)
+
+	if tokenData.UserId != "shoreline" {
+		t.Fatalf("should have had a server id of `shoreline` but was %v", tokenData.UserId)
+	}
+
+	if tokenData.IsServer != true {
+		t.Fatalf("should have been a server token but was %v", tokenData.IsServer)
 	}
 }
 

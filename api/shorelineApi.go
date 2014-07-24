@@ -197,7 +197,7 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 		if results, err := a.Store.FindUser(usr); err != nil {
 			errorRes(res, err)
 		} else if results != nil && results.Id != "" {
-			sessionToken, _ := models.NewSessionToken(&models.Data{UserId: results.Id, IsServer: false, Duration: 3600}, a.config.ServerSecret)
+			sessionToken, _ := models.NewSessionToken(&models.TokenData{UserId: results.Id, IsServer: false, Duration: 3600}, a.config.ServerSecret)
 
 			if err := a.Store.AddToken(sessionToken); err == nil {
 				res.Header().Set(TP_SESSION_TOKEN, sessionToken.Token)
@@ -221,7 +221,7 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 	}
 	if pw == a.config.ServerSecret {
 		//generate new token
-		sessionToken, _ := models.NewSessionToken(&models.Data{UserId: server, IsServer: true, Duration: 3600}, a.config.ServerSecret)
+		sessionToken, _ := models.NewSessionToken(&models.TokenData{UserId: server, IsServer: true, Duration: 3600}, a.config.ServerSecret)
 
 		if err := a.Store.AddToken(sessionToken); err == nil {
 			res.Header().Set(TP_SESSION_TOKEN, sessionToken.Token)
@@ -253,7 +253,7 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 		//sessionToken, _ := models.NewSessionToken(server, a.config.ServerSecret, 1000, true)
 
 		newToken, _ := models.NewSessionToken(
-			&models.Data{
+			&models.TokenData{
 				UserId:   sessionToken.TokenData.UserId,
 				Duration: 10000,
 				IsServer: sessionToken.TokenData.IsServer,
@@ -302,7 +302,22 @@ func (a *Api) RequireServerToken(res http.ResponseWriter, req *http.Request) {
 }
 
 func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request) {
-	res.WriteHeader(501)
+
+	givenToken := models.GetSessionToken(req.Header)
+	if ok := givenToken.Verify(a.config.ServerSecret); ok == true {
+
+		if jsonDetails, err := json.Marshal(givenToken.TokenData); err != nil {
+			res.WriteHeader(http.StatusInternalServerError)
+			return
+		} else {
+			res.WriteHeader(http.StatusOK)
+			res.Header().Add("content-type", "application/json")
+			res.Write(jsonDetails)
+			return
+		}
+	}
+	res.WriteHeader(http.StatusNotFound)
+	return
 }
 
 func (a *Api) Logout(res http.ResponseWriter, req *http.Request) {
