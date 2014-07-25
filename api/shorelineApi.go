@@ -112,8 +112,12 @@ func sendModelsJsonRes(res http.ResponseWriter, models []interface{}) {
 }
 
 func sendModelAsRes(res http.ResponseWriter, model interface{}) {
+	sendModelAsResWithStatus(res, model, http.StatusOK)
+}
 
-	res.WriteHeader(http.StatusOK)
+func sendModelAsResWithStatus(res http.ResponseWriter, model interface{}, statusCode int) {
+
+	res.WriteHeader(statusCode)
 	res.Header().Add("content-type", "application/json")
 
 	if jsonDetails, err := json.Marshal(model); err != nil {
@@ -325,18 +329,8 @@ func (a *Api) Logout(res http.ResponseWriter, req *http.Request) {
 }
 
 func (a *Api) AnonymousIdHashPair(res http.ResponseWriter, req *http.Request) {
-	theStrings := []string{a.config.Salt}
-	queryValues := req.URL.Query()
-
-	if len(queryValues) > 0 {
-
-		for k, v := range queryValues {
-			theStrings = append(theStrings, k)
-			theStrings = append(theStrings, v[0])
-		}
-
-		idHashPair := models.NewIdHashPair("", theStrings)
-
+	if len(req.URL.Query()) > 0 {
+		idHashPair := models.NewAnonIdHashPair([]string{a.config.Salt}, req.URL.Query())
 		sendModelAsRes(res, idHashPair)
 	}
 	res.WriteHeader(http.StatusBadRequest)
@@ -344,5 +338,44 @@ func (a *Api) AnonymousIdHashPair(res http.ResponseWriter, req *http.Request) {
 }
 
 func (a *Api) ManageIdHashPair(res http.ResponseWriter, req *http.Request) {
-	res.WriteHeader(501)
+
+	pathParts := strings.Split(req.URL.Path, "/")
+
+	usr := &models.User{Id: strings.TrimSpace(pathParts[0])}
+	theKey := strings.TrimSpace(pathParts[1])
+
+	baseStrings := []string{a.config.Salt, usr.Id, theKey}
+
+	res.WriteHeader(http.StatusNotImplemented)
+
+	if foundUsr, err := a.Store.FindUser(usr); err != nil {
+		sendErrorAsRes(res, err)
+	} else {
+		switch req.Method {
+		case "GET":
+			if foundUsr.Private[theKey].Id == "" {
+				sendModelAsRes(res, foundUsr.Private[theKey])
+			} else {
+				foundUsr.Private[theKey] = models.NewIdHashPair(baseStrings, req.URL.Query())
+
+				if err := a.Store.UpsertUser(foundUsr); err != nil {
+					sendErrorAsRes(res, err)
+				} else {
+					sendModelAsRes(res, foundUsr.Private[theKey])
+				}
+			}
+		case "POST":
+		case "PUT":
+			foundUsr.Private[theKey] = models.NewIdHashPair(baseStrings, req.URL.Query())
+
+			if err := a.Store.UpsertUser(foundUsr); err != nil {
+				sendErrorAsRes(res, err)
+			} else {
+				sendModelAsResWithStatus(res, foundUsr.Private[theKey], http.StatusCreated)
+			}
+		case "DELETE":
+			res.WriteHeader(http.StatusNotImplemented)
+		}
+		res.WriteHeader(http.StatusBadRequest)
+	}
 }

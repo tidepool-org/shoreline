@@ -553,22 +553,27 @@ func TestAnonymousIdHashPair_StatusOK(t *testing.T) {
 
 	body, _ := ioutil.ReadAll(response.Body)
 
-	var idHashPair models.IdHashPair
-	_ = json.Unmarshal(body, &idHashPair)
+	var anonIdHashPair models.AnonIdHashPair
+	_ = json.Unmarshal(body, &anonIdHashPair)
 
-	if idHashPair.Name != "" {
-		t.Fatalf("should have no name but was %v", idHashPair.Name)
+	if anonIdHashPair.Name != "" {
+		t.Fatalf("should have no name but was %v", anonIdHashPair.Name)
 	}
-	if idHashPair.Id == "" {
-		t.Fatalf("should have an Id but was %v", idHashPair.Id)
+	if anonIdHashPair.IdHashPair.Id == "" {
+		t.Fatalf("should have an Id but was %v", anonIdHashPair.IdHashPair.Id)
 	}
-	if idHashPair.Hash == "" {
-		t.Fatalf("should have an Hash but was %v", idHashPair.Name)
+	if anonIdHashPair.IdHashPair.Hash == "" {
+		t.Fatalf("should have an Hash but was %v", anonIdHashPair.IdHashPair.Hash)
 	}
 }
 
-func TestManageIdHashPairReturnsWithStatus(t *testing.T) {
-	request, _ := http.NewRequest("GET", "/", nil)
+func TestManageIdHashPair(t *testing.T) {
+	/*
+			{ path: '/private/:userid/:key/', verbs: ['get', 'post', 'del', 'put'],
+		      func: [requireServerToken, manageIdHashPair] }
+	*/
+	request, _ := http.NewRequest("GET", "/1234/somename", nil)
+
 	response := httptest.NewRecorder()
 	mockStore := clients.NewMockStoreClient()
 	shoreline := InitApi(mockStore)
@@ -576,6 +581,6 @@ func TestManageIdHashPairReturnsWithStatus(t *testing.T) {
 	shoreline.ManageIdHashPair(response, request)
 
 	if response.Code != http.StatusNotImplemented {
-		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "501", response.Code)
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusNotImplemented, response.Code)
 	}
 }

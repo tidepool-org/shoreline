@@ -1,17 +1,38 @@
 package models
 
 type (
+	AnonIdHashPair struct {
+		Name       string `json:"name"`
+		IdHashPair IdHashPair
+	}
 	IdHashPair struct {
-		Name string `json:"name"`
 		Id   string `json:"id"`
 		Hash string `json:"hash"`
 	}
 )
 
-func NewIdHashPair(name string, theStrings []string) *IdHashPair {
+func NewAnonIdHashPair(baseStrings []string, params map[string][]string) *AnonIdHashPair {
 
-	id, _ := generateUniqueHash(theStrings, 10)
-	hash, _ := generateUniqueHash(theStrings, 24)
+	for k, v := range params {
+		baseStrings = append(baseStrings, k)
+		baseStrings = append(baseStrings, v[0])
+	}
 
-	return &IdHashPair{Name: name, Id: id, Hash: hash}
+	id, _ := generateUniqueHash(baseStrings, 10)
+	hash, _ := generateUniqueHash(baseStrings, 24)
+
+	return &AnonIdHashPair{Name: "", IdHashPair: IdHashPair{Id: id, Hash: hash}}
+}
+
+func NewIdHashPair(baseStrings []string, params map[string][]string) IdHashPair {
+
+	for k, v := range params {
+		baseStrings = append(baseStrings, k)
+		baseStrings = append(baseStrings, v[0])
+	}
+
+	id, _ := generateUniqueHash(baseStrings, 10)
+	hash, _ := generateUniqueHash(baseStrings, 24)
+
+	return IdHashPair{Id: id, Hash: hash}
 }
