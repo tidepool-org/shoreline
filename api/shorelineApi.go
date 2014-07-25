@@ -346,16 +346,17 @@ func (a *Api) ManageIdHashPair(res http.ResponseWriter, req *http.Request) {
 
 	baseStrings := []string{a.config.Salt, usr.Id, theKey}
 
-	res.WriteHeader(http.StatusNotImplemented)
-
 	if foundUsr, err := a.Store.FindUser(usr); err != nil {
 		sendErrorAsRes(res, err)
 	} else {
 		switch req.Method {
 		case "GET":
-			if foundUsr.Private[theKey].Id == "" {
+			if foundUsr.Private != nil && foundUsr.Private[theKey] != nil {
 				sendModelAsRes(res, foundUsr.Private[theKey])
 			} else {
+				if foundUsr.Private == nil {
+					foundUsr.Private = make(map[string]*models.IdHashPair)
+				}
 				foundUsr.Private[theKey] = models.NewIdHashPair(baseStrings, req.URL.Query())
 
 				if err := a.Store.UpsertUser(foundUsr); err != nil {
@@ -364,8 +365,10 @@ func (a *Api) ManageIdHashPair(res http.ResponseWriter, req *http.Request) {
 					sendModelAsRes(res, foundUsr.Private[theKey])
 				}
 			}
-		case "POST":
-		case "PUT":
+		case "POST", "PUT":
+			if foundUsr.Private == nil {
+				foundUsr.Private = make(map[string]*models.IdHashPair)
+			}
 			foundUsr.Private[theKey] = models.NewIdHashPair(baseStrings, req.URL.Query())
 
 			if err := a.Store.UpsertUser(foundUsr); err != nil {

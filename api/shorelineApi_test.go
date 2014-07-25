@@ -567,12 +567,9 @@ func TestAnonymousIdHashPair_StatusOK(t *testing.T) {
 	}
 }
 
-func TestManageIdHashPair(t *testing.T) {
-	/*
-			{ path: '/private/:userid/:key/', verbs: ['get', 'post', 'del', 'put'],
-		      func: [requireServerToken, manageIdHashPair] }
-	*/
-	request, _ := http.NewRequest("GET", "/1234/somename", nil)
+func TestManageIdHashPair_StatusNotImplemented_WhenDelete(t *testing.T) {
+
+	request, _ := http.NewRequest("DELETE", "/1234/somename", nil)
 
 	response := httptest.NewRecorder()
 	mockStore := clients.NewMockStoreClient()
@@ -581,6 +578,89 @@ func TestManageIdHashPair(t *testing.T) {
 	shoreline.ManageIdHashPair(response, request)
 
 	if response.Code != http.StatusNotImplemented {
-		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusNotImplemented, response.Code)
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, response.Code)
+	}
+}
+
+func TestManageIdHashPair_StatusOK(t *testing.T) {
+
+	request, _ := http.NewRequest("GET", "/1234/somename", nil)
+
+	response := httptest.NewRecorder()
+	mockStore := clients.NewMockStoreClient()
+	shoreline := InitApi(mockStore)
+
+	shoreline.ManageIdHashPair(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, response.Code)
+	}
+
+	body, _ := ioutil.ReadAll(response.Body)
+
+	var idHashPair models.IdHashPair
+	_ = json.Unmarshal(body, &idHashPair)
+
+	if idHashPair.Id == "" {
+		t.Fatalf("should have an Id but was %v", idHashPair.Id)
+	}
+	if idHashPair.Hash == "" {
+		t.Fatalf("should have an Hash but was %v", idHashPair.Hash)
+	}
+}
+
+func TestManageIdHashPair_StatusCreated_WhenPost(t *testing.T) {
+	/*
+			{ path: '/private/:userid/:key/', verbs: ['get', 'post', 'del', 'put'],
+		      func: [requireServerToken, manageIdHashPair] }
+	*/
+	request, _ := http.NewRequest("POST", "/1234/somename", nil)
+
+	response := httptest.NewRecorder()
+	mockStore := clients.NewMockStoreClient()
+	shoreline := InitApi(mockStore)
+
+	shoreline.ManageIdHashPair(response, request)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusCreated, response.Code)
+	}
+
+	body, _ := ioutil.ReadAll(response.Body)
+
+	var idHashPair models.IdHashPair
+	_ = json.Unmarshal(body, &idHashPair)
+
+	if idHashPair.Id == "" {
+		t.Fatalf("should have an Id but was %v", idHashPair.Id)
+	}
+	if idHashPair.Hash == "" {
+		t.Fatalf("should have an Hash but was %v", idHashPair.Hash)
+	}
+}
+
+func TestManageIdHashPair_StatusCreated_WhenPut(t *testing.T) {
+	request, _ := http.NewRequest("PUT", "/1234/somename", nil)
+
+	response := httptest.NewRecorder()
+	mockStore := clients.NewMockStoreClient()
+	shoreline := InitApi(mockStore)
+
+	shoreline.ManageIdHashPair(response, request)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusCreated, response.Code)
+	}
+
+	body, _ := ioutil.ReadAll(response.Body)
+
+	var idHashPair models.IdHashPair
+	_ = json.Unmarshal(body, &idHashPair)
+
+	if idHashPair.Id == "" {
+		t.Fatalf("should have an Id but was %v", idHashPair.Id)
+	}
+	if idHashPair.Hash == "" {
+		t.Fatalf("should have an Hash but was %v", idHashPair.Hash)
 	}
 }

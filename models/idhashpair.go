@@ -24,7 +24,7 @@ func NewAnonIdHashPair(baseStrings []string, params map[string][]string) *AnonId
 	return &AnonIdHashPair{Name: "", IdHashPair: IdHashPair{Id: id, Hash: hash}}
 }
 
-func NewIdHashPair(baseStrings []string, params map[string][]string) IdHashPair {
+func NewIdHashPair(baseStrings []string, params map[string][]string) *IdHashPair {
 
 	for k, v := range params {
 		baseStrings = append(baseStrings, k)
@@ -34,5 +34,5 @@ func NewIdHashPair(baseStrings []string, params map[string][]string) IdHashPair 
 	id, _ := generateUniqueHash(baseStrings, 10)
 	hash, _ := generateUniqueHash(baseStrings, 24)
 
-	return IdHashPair{Id: id, Hash: hash}
+	return &IdHashPair{Id: id, Hash: hash}
 }
