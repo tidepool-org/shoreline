@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/base64"
 	"encoding/json"
+	"github.com/gorilla/mux"
 	"github.com/tidepool-org/shoreline/clients"
 	"github.com/tidepool-org/shoreline/models"
 	"log"
@@ -34,7 +35,7 @@ func InitApi(store clients.StoreClient) *Api {
 //Docode the http.Request parsing out the user model
 func findUserDetail(res http.ResponseWriter, req *http.Request) (usr *models.User) {
 
-	id := req.URL.Query().Get("userid")
+	id := mux.Vars(req)["userid"]
 
 	//do we also have details in the body?
 	if req.Body != nil {
@@ -246,6 +247,10 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 
 func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 
+	//params := mux.Vars(req)
+
+	//usr := &models.User{Id: params["token"]}
+
 	sessionToken := models.GetSessionToken(req.Header)
 
 	if ok := sessionToken.Verify(a.config.ServerSecret); ok == true {
@@ -254,7 +259,6 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 			//long-duration, it's not renewable, so just return it
 			sendModelAsRes(res, sessionToken.TokenData.UserId)
 		}
-		//sessionToken, _ := models.NewSessionToken(server, a.config.ServerSecret, 1000, true)
 
 		newToken, _ := models.NewSessionToken(
 			&models.TokenData{
@@ -339,10 +343,12 @@ func (a *Api) AnonymousIdHashPair(res http.ResponseWriter, req *http.Request) {
 
 func (a *Api) ManageIdHashPair(res http.ResponseWriter, req *http.Request) {
 
-	pathParts := strings.Split(req.URL.Path, "/")
+	log.Println("got here!")
 
-	usr := &models.User{Id: strings.TrimSpace(pathParts[0])}
-	theKey := strings.TrimSpace(pathParts[1])
+	params := mux.Vars(req)
+
+	usr := &models.User{Id: params["userid"]}
+	theKey := params["key"]
 
 	baseStrings := []string{a.config.Salt, usr.Id, theKey}
 
