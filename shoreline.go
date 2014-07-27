@@ -38,7 +38,7 @@ func main() {
 
 	rtr.HandleFunc("/login", api.Login).Methods("POST")
 	rtr.HandleFunc("/login", api.RefreshSession).Methods("GET")
-	rtr.HandleFunc("/login/{longtermkey}", api.RefreshSession).Methods("POST")
+	rtr.HandleFunc("/login/{longtermkey}", api.ValidateLongterm).Methods("POST")
 
 	rtr.HandleFunc("/serverlogin", api.ServerLogin).Methods("POST")
 

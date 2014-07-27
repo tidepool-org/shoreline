@@ -289,7 +289,6 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 	return
 }
 
-//set the tokenduration
 func (a *Api) ValidateLongterm(res http.ResponseWriter, req *http.Request) {
 
 	longtermkey := mux.Vars(req)["longtermkey"]
