@@ -44,8 +44,7 @@ func findUserDetail(res http.ResponseWriter, req *http.Request) (usr *models.Use
 
 	id := mux.Vars(req)["userid"]
 
-	//do we also have details in the body?
-	if req.Body != nil {
+	if req.ContentLength > 0 {
 		if err := json.NewDecoder(req.Body).Decode(&usr); err != nil {
 			sendErrorAsRes(res, err)
 		}
@@ -293,7 +292,7 @@ func (a *Api) ValidateLongterm(res http.ResponseWriter, req *http.Request) {
 
 	longtermkey := mux.Vars(req)["longtermkey"]
 
-	if longtermkey != "" && longtermkey == a.config.LongTermKey {
+	if longtermkey == a.config.LongTermKey {
 		log.Println(30 * 24 * 60 * 60) // 30 days
 	}
 	return
