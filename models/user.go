@@ -10,7 +10,7 @@ type User struct {
 	Id      string                 `json:"userid" 	bson:"_id,omitempty"` // map _id to id
 	Name    string                 `json:"username" 	bson:"name"`
 	Emails  []string               `json:"emails" 	bson:"emails"`
-	Pw      string                 `json:"password"`
+	Pw      string                 `json:"-"`
 	PwHash  string                 `json:"-" 		bson:"pwhash"` //json:"-" is used to prevent the pwhash from being serialised to json
 	Hash    string                 `json:"-" 		bson:"hash"`
 	Private map[string]*IdHashPair `json:"-" 		bson:"private"`
