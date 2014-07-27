@@ -18,6 +18,7 @@ type (
 	}
 	config struct {
 		ServerSecret string
+		LongTermKey  string
 		Salt         string
 	}
 )
@@ -29,7 +30,13 @@ const (
 )
 
 func InitApi(store clients.StoreClient) *Api {
-	return &Api{Store: store, config: config{ServerSecret: "shhh! don't tell", LongTermKey: "the longetermkey", Salt: "a mineral substance composed primarily of sodium chloride"}}
+	return &Api{
+		Store: store,
+		config: config{
+			ServerSecret: "shhh! don't tell",
+			LongTermKey:  "the longetermkey",
+			Salt:         "a mineral substance composed primarily of sodium chloride"},
+	}
 }
 
 //Docode the http.Request parsing out the user model
