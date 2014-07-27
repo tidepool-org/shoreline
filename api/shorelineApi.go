@@ -29,7 +29,7 @@ const (
 )
 
 func InitApi(store clients.StoreClient) *Api {
-	return &Api{Store: store, config: config{ServerSecret: "shhh! don't tell", Salt: "a mineral substance composed primarily of sodium chloride"}}
+	return &Api{Store: store, config: config{ServerSecret: "shhh! don't tell", LongTermKey: "the longetermkey", Salt: "a mineral substance composed primarily of sodium chloride"}}
 }
 
 //Docode the http.Request parsing out the user model
@@ -248,7 +248,6 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 
 	//params := mux.Vars(req)
-
 	//usr := &models.User{Id: params["token"]}
 
 	sessionToken := models.GetSessionToken(req.Header)
@@ -286,13 +285,12 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 //set the tokenduration
 func (a *Api) ValidateLongterm(res http.ResponseWriter, req *http.Request) {
 
-	/*if (req.params.longtermkey != null && req.params.longtermkey === envConfig.longtermkey) {
-	    req.tokenduration = 30 * 24 * 60 * 60; // 30 days
-	  }
-	  return next();
-	*/
+	longtermkey := mux.Vars(req)["longtermkey"]
 
-	res.WriteHeader(501)
+	if longtermkey != "" && longtermkey == a.config.LongTermKey {
+		log.Println(30 * 24 * 60 * 60) // 30 days
+	}
+	return
 }
 
 func (a *Api) RequireServerToken(res http.ResponseWriter, req *http.Request) {
@@ -342,8 +340,6 @@ func (a *Api) AnonymousIdHashPair(res http.ResponseWriter, req *http.Request) {
 }
 
 func (a *Api) ManageIdHashPair(res http.ResponseWriter, req *http.Request) {
-
-	log.Println("got here!")
 
 	params := mux.Vars(req)
 
