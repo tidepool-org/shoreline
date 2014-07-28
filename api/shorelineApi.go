@@ -30,7 +30,10 @@ const (
 	TP_TOKEN_DURATION = "tokenduration"
 )
 
-func InitApi(store clients.StoreClient) *Api {
+func InitApi(store clients.StoreClient, cfg interface{}) *Api {
+
+	log.Println("config ", cfg)
+
 	return &Api{
 		Store: store,
 		config: config{
@@ -116,7 +119,6 @@ func sendModelsJsonRes(res http.ResponseWriter, models []interface{}) {
 	}
 	res.Write([]byte("]"))
 	return
-
 }
 
 func sendModelAsRes(res http.ResponseWriter, model interface{}) {
@@ -141,7 +143,10 @@ func (a *Api) requireServerToken(res http.ResponseWriter, req *http.Request) {
 
 	svrToken := models.GetSessionToken(req.Header)
 
+	log.Print("to verify ", svrToken)
+
 	if ok := svrToken.Verify(a.config.ServerSecret); ok == true {
+		log.Print("verified ", svrToken.TokenData)
 		if svrToken.TokenData.IsServer {
 			return
 		}
@@ -337,9 +342,10 @@ func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request) {
 	//we need server token
 	a.requireServerToken(res, req)
 
-	givenToken := models.GetSessionToken(req.Header)
-	if ok := givenToken.Verify(a.config.ServerSecret); ok == true {
-		sendModelAsRes(res, givenToken.TokenData)
+	svrToken := &models.SessionToken{Token: mux.Vars(req)["token"]}
+
+	if ok := svrToken.Verify(a.config.ServerSecret); ok == true {
+		sendModelAsRes(res, svrToken.TokenData)
 	}
 	res.WriteHeader(http.StatusNotFound)
 	return

@@ -3,7 +3,6 @@ package main
 import (
 	"github.com/gorilla/mux"
 	"github.com/tidepool-org/go-common"
-	"github.com/tidepool-org/go-common/clients"
 	"github.com/tidepool-org/go-common/clients/disc"
 	"github.com/tidepool-org/go-common/clients/mongo"
 	"github.com/tidepool-org/shoreline/api"
@@ -13,7 +12,6 @@ import (
 )
 
 type Config struct {
-	clients.Config
 	Service disc.ServiceListing `json:"service"`
 	Mongo   mongo.Config        `json:"mongo"`
 }
@@ -25,7 +23,9 @@ func main() {
 		log.Fatal("Problem loading config", err)
 	}
 
-	api := api.InitApi(sc.NewMockStoreClient())
+	log.Printf("mongo %v service %v", config.Mongo, config.Service)
+
+	api := api.InitApi(sc.NewMockStoreClient(), config.Service)
 
 	rtr := mux.NewRouter()
 

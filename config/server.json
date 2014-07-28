@@ -4,7 +4,10 @@
     "protocol": "http",
     "host": "localhost:17072",
     "keyFile": "config/key.pem",
-    "certFile": "config/cert.pem"
+    "certFile": "config/cert.pem",
+    "salt":"a mineral substance composed primarily of sodium chloride",
+    "serverSecret":"shhh! don't tell",
+    "longtermkey":"the longetermkey"
   },
   "mongo": {
     "connectionString": "mongodb://localhost/shoreline"
