@@ -2,10 +2,14 @@
 
 export GOPATH=`pwd`
 
-OUTDIR=dist
+come_deps.sh
 
+PROJECT=shoreline
+
+OUTDIR=dist
 rm -rf ${OUTDIR}
 mkdir ${OUTDIR}
-go build -o ${OUTDIR}/shoreline tidepool.org/shoreline
+
+go build -o ${OUTDIR}/${PROJECT}
 
 cp start.sh ${OUTDIR}/
