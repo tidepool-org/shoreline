@@ -24,9 +24,10 @@ type (
 )
 
 const (
-	TP_SERVER_NAME   = "x-tidepool-server-name"
-	TP_SERVER_SECRET = "x-tidepool-server-secret"
-	TP_SESSION_TOKEN = "x-tidepool-session-token"
+	TP_SERVER_NAME    = "x-tidepool-server-name"
+	TP_SERVER_SECRET  = "x-tidepool-server-secret"
+	TP_SESSION_TOKEN  = "x-tidepool-session-token"
+	TP_TOKEN_DURATION = "tokenduration"
 )
 
 func InitApi(store clients.StoreClient) *Api {
@@ -135,6 +136,19 @@ func sendModelAsResWithStatus(res http.ResponseWriter, model interface{}, status
 	return
 }
 
+func (a *Api) requireServerToken(res http.ResponseWriter, req *http.Request) {
+	tokenCheck(res, req)
+
+	svrToken := models.GetSessionToken(req.Header)
+
+	if ok := svrToken.Verify(a.config.ServerSecret); ok == true {
+		if svrToken.TokenData.IsServer {
+			return
+		}
+	}
+	res.WriteHeader(http.StatusUnauthorized)
+}
+
 //Pull the incoming user from the http.Request body and save return http.StatusCreated
 func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 
@@ -177,7 +191,26 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request) {
 
 	tokenCheck(res, req)
 
-	if usr := findUserDetail(res, req); usr == nil {
+	var usr *models.User
+
+	//TODO: could be id or email infact
+	id := mux.Vars(req)["userid"]
+	if id != "" {
+		usr = &models.User{Id: id}
+	} else {
+		//use the token to find the userid
+		token := models.GetSessionToken(req.Header)
+
+		token.Verify(a.config.ServerSecret)
+		//log.Println("trying the session token ", token)
+		//log.Println("found ", token.TokenData)
+		usr = &models.User{Id: token.TokenData.UserId}
+
+		//log.Println("unpacked usr ", token.TokenData.UserId)
+
+	}
+
+	if usr == nil {
 		res.WriteHeader(http.StatusBadRequest)
 		return
 	} else {
@@ -187,8 +220,6 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request) {
 		} else {
 			sendModelAsRes(res, results)
 		}
-
-		return
 	}
 }
 
@@ -288,35 +319,26 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 	return
 }
 
-func (a *Api) ValidateLongterm(res http.ResponseWriter, req *http.Request) {
+func (a *Api) LongtermLogin(res http.ResponseWriter, req *http.Request) {
 
 	longtermkey := mux.Vars(req)["longtermkey"]
 
 	if longtermkey == a.config.LongTermKey {
-		log.Println(30 * 24 * 60 * 60) // 30 days
+		thirtyDays := 30 * 24 * 60 * 60
+		req.Header.Add(TP_TOKEN_DURATION, string(thirtyDays))
 	}
-	return
-}
 
-func (a *Api) RequireServerToken(res http.ResponseWriter, req *http.Request) {
-	tokenCheck(res, req)
-
-	svrToken := models.GetSessionToken(req.Header)
-
-	if ok := svrToken.Verify(a.config.ServerSecret); ok == true {
-		if svrToken.TokenData.IsServer {
-			return
-		}
-	}
-	res.WriteHeader(http.StatusUnauthorized)
-	return
+	//and now login
+	a.Login(res, req)
 }
 
 func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request) {
 
+	//we need server token
+	a.requireServerToken(res, req)
+
 	givenToken := models.GetSessionToken(req.Header)
 	if ok := givenToken.Verify(a.config.ServerSecret); ok == true {
-
 		sendModelAsRes(res, givenToken.TokenData)
 	}
 	res.WriteHeader(http.StatusNotFound)
@@ -345,6 +367,9 @@ func (a *Api) AnonymousIdHashPair(res http.ResponseWriter, req *http.Request) {
 }
 
 func (a *Api) ManageIdHashPair(res http.ResponseWriter, req *http.Request) {
+
+	//we need server token
+	a.requireServerToken(res, req)
 
 	params := mux.Vars(req)
 
