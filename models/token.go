@@ -3,7 +3,6 @@ package models
 import (
 	"errors"
 	jwt "github.com/dgrijalva/jwt-go"
-	"net/http"
 	"time"
 )
 
@@ -81,6 +80,6 @@ func (t *SessionToken) Verify(secret string) bool {
 	return t.TokenData.Valid
 }
 
-func GetSessionToken(header http.Header) *SessionToken {
-	return &SessionToken{Token: header.Get("x-tidepool-session-token")}
+func GetSessionToken(tokenString string) *SessionToken {
+	return &SessionToken{Token: tokenString}
 }

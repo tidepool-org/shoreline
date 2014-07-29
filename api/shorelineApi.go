@@ -72,7 +72,7 @@ func sendErrorAsRes(res http.ResponseWriter, err error) {
 
 //Check token and return http.StatusUnauthorized if not found
 func tokenCheck(res http.ResponseWriter, req *http.Request) {
-	token := models.GetSessionToken(req.Header)
+	token := models.GetSessionToken(req.Header.Get(TP_SESSION_TOKEN))
 	if token.Token == "" {
 		res.WriteHeader(http.StatusUnauthorized)
 		return
@@ -150,7 +150,7 @@ func sendModelAsResWithStatus(res http.ResponseWriter, model interface{}, status
 func (a *Api) requireServerToken(res http.ResponseWriter, req *http.Request) {
 	tokenCheck(res, req)
 
-	svrToken := models.GetSessionToken(req.Header)
+	svrToken := models.GetSessionToken(req.Header.Get(TP_SESSION_TOKEN))
 
 	if ok := svrToken.Verify(a.config.ServerSecret); ok == true {
 		if svrToken.TokenData.IsServer {
@@ -230,7 +230,7 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request) {
 		usr = &models.User{Id: id}
 	} else {
 		//use the token to find the userid
-		token := models.GetSessionToken(req.Header)
+		token := models.GetSessionToken(req.Header.Get(TP_SESSION_TOKEN))
 		token.Verify(a.config.ServerSecret)
 		usr = &models.User{Id: token.TokenData.UserId}
 	}
@@ -344,7 +344,7 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 		TWO_HOURS_IN_SECS = 60 * 60 * 2
 	)
 
-	sessionToken := models.GetSessionToken(req.Header)
+	sessionToken := models.GetSessionToken(req.Header.Get(TP_SESSION_TOKEN))
 
 	if ok := sessionToken.Verify(a.config.ServerSecret); ok == true {
 
@@ -409,7 +409,7 @@ func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request) {
 
 func (a *Api) Logout(res http.ResponseWriter, req *http.Request) {
 	//lets just try and remove the token
-	if givenToken := models.GetSessionToken(req.Header); givenToken.Token != "" {
+	if givenToken := models.GetSessionToken(req.Header.Get(TP_SESSION_TOKEN)); givenToken.Token != "" {
 		if err := a.Store.RemoveToken(givenToken); err != nil {
 			log.Fatal("Unable to delete token.", err)
 		}

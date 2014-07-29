@@ -1,7 +1,6 @@
 package models
 
 import (
-	"net/http"
 	"testing"
 	"time"
 )
@@ -13,13 +12,11 @@ type tokenTestData struct {
 
 func TestGetSessionToken(t *testing.T) {
 
-	tokenKey := "x-tidepool-session-token"
-	request, _ := http.NewRequest("GET", "/", nil)
-	request.Header.Add(tokenKey, "123-456-test-token")
+	tokenString := "123-456-test-token"
 
-	token := GetSessionToken(request.Header)
+	token := GetSessionToken(tokenString)
 
-	if token.Token != request.Header.Get(tokenKey) {
+	if token.Token != tokenString {
 		t.Fatalf("session value should have been set for token")
 	}
 }
