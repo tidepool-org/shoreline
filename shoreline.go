@@ -20,7 +20,7 @@ func main() {
 	var config Config
 
 	if err := common.LoadConfig([]string{"./config/env.json", "./config/server.json"}, &config); err != nil {
-		log.Fatal("Problem loading config", err)
+		log.Panic("Problem loading config", err)
 	}
 
 	api := api.InitApi(sc.NewMockStoreClient(), config.Service)

@@ -64,7 +64,7 @@ func findUserDetail(res http.ResponseWriter, req *http.Request) (usr *models.Use
 //Log the error and return http.StatusInternalServerError code
 func sendErrorAsRes(res http.ResponseWriter, err error) {
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 		res.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -122,7 +122,7 @@ func sendModelsAsRes(res http.ResponseWriter, models ...interface{}) {
 	res.Write([]byte("["))
 	for i := range models {
 		if jsonDetails, err := json.Marshal(models[i]); err != nil {
-			log.Fatal(err)
+			log.Println(err)
 		} else {
 			res.Write(jsonDetails)
 		}
@@ -140,7 +140,7 @@ func sendModelAsResWithStatus(res http.ResponseWriter, model interface{}, status
 	res.Header().Add("content-type", "application/json")
 
 	if jsonDetails, err := json.Marshal(model); err != nil {
-		log.Fatal(err)
+		log.Println(err)
 	} else {
 		res.Write(jsonDetails)
 	}
@@ -411,7 +411,7 @@ func (a *Api) Logout(res http.ResponseWriter, req *http.Request) {
 	//lets just try and remove the token
 	if givenToken := models.GetSessionToken(req.Header.Get(TP_SESSION_TOKEN)); givenToken.Token != "" {
 		if err := a.Store.RemoveToken(givenToken); err != nil {
-			log.Fatal("Unable to delete token.", err)
+			log.Println("Unable to delete token.", err)
 		}
 	}
 	//otherwise all good

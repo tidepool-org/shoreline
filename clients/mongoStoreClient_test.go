@@ -6,7 +6,6 @@ import (
 	"github.com/tidepool-org/shoreline/models"
 	"io/ioutil"
 	"labix.org/v2/mgo"
-	"log"
 	"testing"
 )
 
@@ -27,7 +26,7 @@ func TestMongoStoreUserOperations(t *testing.T) {
 	if jsonConfig, err := ioutil.ReadFile("../config/server.json"); err == nil {
 
 		if err := json.Unmarshal(jsonConfig, &config); err != nil {
-			log.Fatal(err)
+			t.Fatalf("We could not load the config ", err)
 		}
 
 		mc := NewMongoStoreClient(config.Mongo)
@@ -145,7 +144,7 @@ func TestMongoStoreTokenOperations(t *testing.T) {
 	if jsonConfig, err := ioutil.ReadFile("../config/server.json"); err == nil {
 
 		if err := json.Unmarshal(jsonConfig, &config); err != nil {
-			log.Fatal(err)
+			t.Fatalf("We could not load the config ", err)
 		}
 
 		mc := NewMongoStoreClient(config.Mongo)
