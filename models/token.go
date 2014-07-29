@@ -22,36 +22,6 @@ type (
 	}
 )
 
-func (t *SessionToken) unpackToken(secret string) {
-
-	if jwtToken, err := jwt.Parse(t.Token, func(t *jwt.Token) ([]byte, error) { return []byte(secret), nil }); err != nil {
-		return
-	} else {
-
-		t.TokenData = TokenData{
-			IsServer: jwtToken.Claims["svr"] == "yes",
-			Duration: jwtToken.Claims["dur"].(float64),
-			UserId:   jwtToken.Claims["usr"].(string),
-			Valid:    jwtToken.Valid,
-		}
-		return
-	}
-}
-
-func (t *SessionToken) Verify(secret string) bool {
-
-	if t.Token == "" {
-		return false
-	}
-
-	t.unpackToken(secret)
-	return t.TokenData.Valid
-}
-
-func GetSessionToken(header http.Header) SessionToken {
-	return SessionToken{Token: header.Get("x-tidepool-session-token")}
-}
-
 func NewSessionToken(data *TokenData, secret string) (token *SessionToken, err error) {
 
 	if data.UserId == "" {
@@ -83,4 +53,34 @@ func NewSessionToken(data *TokenData, secret string) (token *SessionToken, err e
 	}
 
 	return nil, errors.New("The duration for the token was 0 seconds")
+}
+
+func (t *SessionToken) unpackToken(secret string) {
+
+	if jwtToken, err := jwt.Parse(t.Token, func(t *jwt.Token) ([]byte, error) { return []byte(secret), nil }); err != nil {
+		return
+	} else {
+
+		t.TokenData = TokenData{
+			IsServer: jwtToken.Claims["svr"] == "yes",
+			Duration: jwtToken.Claims["dur"].(float64),
+			UserId:   jwtToken.Claims["usr"].(string),
+			Valid:    jwtToken.Valid,
+		}
+		return
+	}
+}
+
+func (t *SessionToken) Verify(secret string) bool {
+
+	if t.Token == "" {
+		return false
+	}
+
+	t.unpackToken(secret)
+	return t.TokenData.Valid
+}
+
+func GetSessionToken(header http.Header) SessionToken {
+	return SessionToken{Token: header.Get("x-tidepool-session-token")}
 }

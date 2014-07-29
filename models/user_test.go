@@ -61,7 +61,7 @@ func TestPwHashWithEmptyParams(t *testing.T) {
 
 func TestNewUserNoPw(t *testing.T) {
 
-	if _, err := NewUser("jamie", "", []string{}); err == nil {
+	if _, err := NewUser("jamie", "", "some salt", []string{}); err == nil {
 		t.Fatalf("should have given error as the password is not given")
 	}
 
@@ -69,7 +69,7 @@ func TestNewUserNoPw(t *testing.T) {
 
 func TestNewUserNoName(t *testing.T) {
 
-	if _, err := NewUser("", "3th3Hardw0y", []string{}); err == nil {
+	if _, err := NewUser("", "3th3Hardw0y", "some salt", []string{}); err == nil {
 		t.Fatalf("should have given error as the name is not given")
 	}
 
@@ -77,7 +77,7 @@ func TestNewUserNoName(t *testing.T) {
 
 func TestNewUser(t *testing.T) {
 
-	if user, err := NewUser("", "3th3Hardw0y", []string{"test@foo.bar"}); err == nil {
+	if user, err := NewUser("", "3th3Hardw0y", "some salt", []string{"test@foo.bar"}); err == nil {
 		if user.Hash == "" {
 			t.Fatalf("the user hash should have been set")
 		}
