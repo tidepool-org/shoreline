@@ -55,7 +55,7 @@ func TestMongoStoreUserOperations(t *testing.T) {
 		//By Name
 		toFindByOriginalName := &models.User{Name: user.Name}
 
-		if found, err := mc.FindUser(toFindByOriginalName); err != nil {
+		if found, err := mc.FindUsers(toFindByOriginalName); err != nil {
 			t.Fatalf("we could not find the the user by name: err[%v]", err)
 		} else {
 			if found[0].Name != toFindByOriginalName.Name && found[0].Name != "test user" {
@@ -73,7 +73,7 @@ func TestMongoStoreUserOperations(t *testing.T) {
 		//By Name
 		toFindByName := &models.User{Name: user.Name}
 
-		if found, err := mc.FindUser(toFindByName); err != nil {
+		if found, err := mc.FindUsers(toFindByName); err != nil {
 			t.Fatalf("we could not find the the user by name: err[%v]", err)
 		} else {
 			if len(found) != 1 {
@@ -88,7 +88,7 @@ func TestMongoStoreUserOperations(t *testing.T) {
 		//By Email
 		toFindByEmails := &models.User{Emails: user.Emails}
 
-		if found, err := mc.FindUser(toFindByEmails); err != nil {
+		if found, err := mc.FindUsers(toFindByEmails); err != nil {
 			t.Fatalf("we could not find the the user by emails %v", toFindByEmails)
 		} else {
 			if len(found) != 1 {
@@ -106,11 +106,7 @@ func TestMongoStoreUserOperations(t *testing.T) {
 		if found, err := mc.FindUser(toFindById); err != nil {
 			t.Fatalf("we could not find the the user by id err[%v]", err)
 		} else {
-			if len(found) != 1 {
-				t.Logf("results: %v ", found)
-				t.Fatalf("there should only be 1 match be we found %v", len(found))
-			}
-			if found[0].Id != toFindById.Id {
+			if found.Id != toFindById.Id {
 				t.Fatalf("the user we found doesn't match what we asked for %v", found)
 			}
 		}
@@ -124,7 +120,7 @@ func TestMongoStoreUserOperations(t *testing.T) {
 
 		toMultipleByEmails := &models.User{Emails: user.Emails}
 
-		if found, err := mc.FindUser(toMultipleByEmails); err != nil {
+		if found, err := mc.FindUsers(toMultipleByEmails); err != nil {
 			t.Fatalf("we could not find the the users by emails %v", toMultipleByEmails)
 		} else if len(found) != 2 {
 			t.Logf("results: %v ", found)
