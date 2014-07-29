@@ -2,8 +2,8 @@ package clients
 
 import (
 	"encoding/json"
-	mongo "github.com/tidepool-org/go-common/clients/mongo"
-	models "github.com/tidepool-org/shoreline/models"
+	"github.com/tidepool-org/go-common/clients/mongo"
+	"github.com/tidepool-org/shoreline/models"
 	"io/ioutil"
 	"labix.org/v2/mgo"
 	"log"
@@ -12,11 +12,17 @@ import (
 
 func TestMongoStoreUserOperations(t *testing.T) {
 
-	type Config struct {
-		Mongo *mongo.Config `json:"mongo"`
-	}
+	type (
+		Config struct {
+			Mongo *mongo.Config `json:"mongo"`
+		}
+	)
 
-	var config Config
+	var (
+		config Config
+	)
+
+	const FAKE_SALT = "some fake salt for the tests"
 
 	if jsonConfig, err := ioutil.ReadFile("../config/server.json"); err == nil {
 
@@ -24,15 +30,13 @@ func TestMongoStoreUserOperations(t *testing.T) {
 			log.Fatal(err)
 		}
 
-		log.Println("config is", config.Mongo)
-
 		mc := NewMongoStoreClient(config.Mongo)
 
 		/*
 		 * INIT THE TEST - we use a clean copy of the collection before we start
 		 */
 
-		//jsut drop and don't worry about any errors
+		//just drop and don't worry about any errors
 		mc.usersC.DropCollection()
 
 		if err := mc.usersC.Create(&mgo.CollectionInfo{}); err != nil {
@@ -42,54 +46,89 @@ func TestMongoStoreUserOperations(t *testing.T) {
 		/*
 		 * THE TESTS
 		 */
-		user, _ := models.NewUser("test user", "myT35t", []string{"test@foo.bar"})
+		user, _ := models.NewUser("test user", "myT35t", FAKE_SALT, []string{"test@foo.bar"})
 
 		if err := mc.UpsertUser(user); err != nil {
 			t.Fatalf("we could not create the user %v", err)
 		}
 
+		//By Name
+		toFindByOriginalName := &models.User{Name: user.Name}
+
+		if found, err := mc.FindUser(toFindByOriginalName); err != nil {
+			t.Fatalf("we could not find the the user by name: err[%v]", err)
+		} else {
+			if found[0].Name != toFindByOriginalName.Name && found[0].Name != "test user" {
+				t.Fatalf("the user we found doesn't match what we asked for %v", found)
+			}
+		}
+
+		//Do an update
 		user.Name = "test user updated"
 
 		if err := mc.UpsertUser(user); err != nil {
 			t.Fatalf("we could not update the user %v", err)
 		}
 
+		//By Name
 		toFindByName := &models.User{Name: user.Name}
 
 		if found, err := mc.FindUser(toFindByName); err != nil {
-			t.Fatalf("we could not find the the user bu name %v", toFindByName)
+			t.Fatalf("we could not find the the user by name: err[%v]", err)
 		} else {
-			if found.Name != toFindByName.Name {
+			if len(found) != 1 {
+				t.Logf("results: %v ", found)
+				t.Fatalf("there should only be 1 match be we found %v", len(found))
+			}
+			if found[0].Name != toFindByName.Name {
 				t.Fatalf("the user we found doesn't match what we asked for %v", found)
 			}
 		}
 
-		toFindById := &models.User{Id: user.Id}
-
-		if found, err := mc.FindUser(toFindById); err != nil {
-			t.Fatalf("we could not find the the user by id %v", toFindById)
-		} else {
-			if found.Id != toFindById.Id {
-				t.Fatalf("the user we found doesn't match what we asked for %v", found)
-			}
-		}
-
+		//By Email
 		toFindByEmails := &models.User{Emails: user.Emails}
 
 		if found, err := mc.FindUser(toFindByEmails); err != nil {
 			t.Fatalf("we could not find the the user by emails %v", toFindByEmails)
 		} else {
-			if found.Emails[0] != toFindByEmails.Emails[0] {
+			if len(found) != 1 {
+				t.Logf("results: %v ", found)
+				t.Fatalf("there should only be 1 match be we found %v", len(found))
+			}
+			if found[0].Emails[0] != toFindByEmails.Emails[0] {
 				t.Fatalf("the user we found doesn't match what we asked for %v", found)
 			}
 		}
 
-		if found, err := mc.FindUser(toFindByEmails); err != nil {
-			t.Fatalf("we could not find the the user by emails %v", toFindByEmails)
+		//By Id
+		toFindById := &models.User{Id: user.Id}
+
+		if found, err := mc.FindUser(toFindById); err != nil {
+			t.Fatalf("we could not find the the user by id err[%v]", err)
 		} else {
-			if found.Emails[0] != toFindByEmails.Emails[0] {
+			if len(found) != 1 {
+				t.Logf("results: %v ", found)
+				t.Fatalf("there should only be 1 match be we found %v", len(found))
+			}
+			if found[0].Id != toFindById.Id {
 				t.Fatalf("the user we found doesn't match what we asked for %v", found)
 			}
+		}
+
+		//Find many By Email - user and userTwo have the same emails addresses
+		userTwo, _ := models.NewUser("test user two", "my0th3rT35t", FAKE_SALT, user.Emails)
+
+		if err := mc.UpsertUser(userTwo); err != nil {
+			t.Fatalf("we could not create the user %v", err)
+		}
+
+		toMultipleByEmails := &models.User{Emails: user.Emails}
+
+		if found, err := mc.FindUser(toMultipleByEmails); err != nil {
+			t.Fatalf("we could not find the the users by emails %v", toMultipleByEmails)
+		} else if len(found) != 2 {
+			t.Logf("results: %v ", found)
+			t.Fatalf("there should be 2 match's be we found %v", len(found))
 		}
 
 	} else {
@@ -105,13 +144,13 @@ func TestMongoStoreTokenOperations(t *testing.T) {
 
 	var config Config
 
+	const FAKE_SECRET = "some secret for the tests"
+
 	if jsonConfig, err := ioutil.ReadFile("../config/server.json"); err == nil {
 
 		if err := json.Unmarshal(jsonConfig, &config); err != nil {
 			log.Fatal(err)
 		}
-
-		log.Println("config is", config.Mongo)
 
 		mc := NewMongoStoreClient(config.Mongo)
 
@@ -129,28 +168,28 @@ func TestMongoStoreTokenOperations(t *testing.T) {
 		/*
 		 * THE TESTS
 		 */
-		sessionToken, _ := models.NewSessionToken("2341", "my secret", 3600, true)
+		sessionToken, _ := models.NewSessionToken(&models.TokenData{UserId: "2341", IsServer: true, Duration: 3600}, FAKE_SECRET)
 
 		if err := mc.AddToken(sessionToken); err != nil {
 			t.Fatalf("we could not save the token %v", err)
 		}
 
-		if token, err := mc.FindToken(sessionToken.Token); err == nil {
-			if token.Token == "" {
-				t.Fatalf("the token string isn't included %v", token)
+		if foundToken, err := mc.FindToken(sessionToken); err == nil {
+			if foundToken.Token == "" {
+				t.Fatalf("the token string isn't included %v", foundToken)
 			}
-			if token.Time == "" {
-				t.Fatalf("the time wasn't included %v", token)
+			if foundToken.Time == "" {
+				t.Fatalf("the time wasn't included %v", foundToken)
 			}
 		} else {
-			t.Fatalf("we could not get the token back %v", err)
+			t.Fatalf("no token was returned when it should have been - err[%v]", err)
 		}
 
-		if err := mc.RemoveToken(sessionToken.Token); err != nil {
+		if err := mc.RemoveToken(sessionToken); err != nil {
 			t.Fatalf("we could not remove the token %v", err)
 		}
 
-		if token, err := mc.FindToken(sessionToken.Token); err == nil {
+		if token, err := mc.FindToken(sessionToken); err == nil {
 			if token != nil {
 				t.Fatalf("the token has been removed so we shouldn't find it %v", token)
 			}

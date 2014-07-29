@@ -1,11 +1,10 @@
 package clients
 
 import (
-	mongo "github.com/tidepool-org/go-common/clients/mongo"
-	models "github.com/tidepool-org/shoreline/models"
+	"github.com/tidepool-org/go-common/clients/mongo"
+	"github.com/tidepool-org/shoreline/models"
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
-	"log"
 )
 
 const (
@@ -20,8 +19,6 @@ type MongoStoreClient struct {
 }
 
 func NewMongoStoreClient(config *mongo.Config) *MongoStoreClient {
-
-	log.Println("creating client", config)
 
 	//TODO - replace this with common version
 	mongoSession, err := mgo.Dial("localhost")
@@ -40,19 +37,20 @@ func NewMongoStoreClient(config *mongo.Config) *MongoStoreClient {
 func (d MongoStoreClient) UpsertUser(user *models.User) error {
 
 	// if the user already exists we update otherwise we add
-	if _, err := d.usersC.UpsertId(user.Id, user); err != nil {
+
+	if _, err := d.usersC.Upsert(bson.M{"id": user.Id}, user); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (d MongoStoreClient) FindUser(user *models.User) (result models.User, err error) {
+func (d MongoStoreClient) FindUser(user *models.User) (results []models.User, err error) {
 
 	fieldsToMatch := []bson.M{}
 
 	if user.Id != "" {
-		fieldsToMatch = append(fieldsToMatch, bson.M{"_id": user.Id})
+		fieldsToMatch = append(fieldsToMatch, bson.M{"id": user.Id})
 	}
 	if user.Name != "" {
 		fieldsToMatch = append(fieldsToMatch, bson.M{"name": user.Name})
@@ -61,30 +59,11 @@ func (d MongoStoreClient) FindUser(user *models.User) (result models.User, err e
 		fieldsToMatch = append(fieldsToMatch, bson.M{"emails": user.Emails})
 	}
 
-	if err = d.usersC.Find(bson.M{"$or": fieldsToMatch}).One(&result); err != nil {
-		return result, err
+	if err = d.usersC.Find(bson.M{"$or": fieldsToMatch}).All(&results); err != nil {
+		return results, err
 	}
 
-	/*TODO
-	- pw check
-	- return multiple of there are more than on mactch - e.g. on email
-	*/
-
-	/*if len(results) == 1 {
-		if user.password {
-			results[0].pwhash != user.HashPassword()
-		}
-	}*/
-
-	// one thing found, so check if pw was specified
-	/*if (userdata.password) {
-	  if (items[0].pwhash !== hashpw(items[0].userid, userdata.password)) {
-	    // there was a pw and it didn't match
-	    done(null, { statuscode: 204, msg: 'User not found', detail: userdata.user });
-	    return;
-	  }
-	}*/
-	return result, nil
+	return results, nil
 }
 
 func (d MongoStoreClient) RemoveUser(userId string) (err error) {
@@ -99,17 +78,18 @@ func (d MongoStoreClient) AddToken(st *models.SessionToken) error {
 	return nil
 }
 
-func (d MongoStoreClient) FindToken(token string) (result *models.SessionToken, err error) {
+func (d MongoStoreClient) FindToken(st *models.SessionToken) (result *models.SessionToken, err error) {
 	//todo: safe mode ?? i.e. {w:1}
-	if err = d.tokensC.Find(bson.M{"_id": token}).One(&result); err != nil {
+
+	if err = d.tokensC.Find(bson.M{"token": st.Token}).One(&result); err != nil {
 		return result, err
 	}
 	return result, nil
 }
 
-func (d MongoStoreClient) RemoveToken(token string) (err error) {
+func (d MongoStoreClient) RemoveToken(st *models.SessionToken) (err error) {
 	//todo: safe mode ?? i.e. {w:1}
-	if err = d.tokensC.RemoveId(token); err != nil {
+	if err = d.tokensC.Remove(bson.M{"token": st.Token}); err != nil {
 		return err
 	}
 	return nil
