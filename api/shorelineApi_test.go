@@ -15,12 +15,18 @@ const (
 	THE_SECRET = "shhh! don't tell"
 )
 
+var fakeConfig = config{
+	ServerSecret: "shhh! don't tell",
+	LongTermKey:  "the longetermkey",
+	Salt:         "a mineral substance composed primarily of sodium chloride",
+}
+
 func TestCreateUser_StatusBadRequest_WhenNoParamsGiven(t *testing.T) {
 	request, _ := http.NewRequest("POST", "/", nil)
 	response := httptest.NewRecorder()
 
-	mockStore := clients.NewMockStoreClient()
-	shoreline := InitApi(mockStore)
+	mockStore := clients.NewMockStoreClient(fakeConfig.Salt)
+	shoreline := InitApi(mockStore, fakeConfig)
 
 	shoreline.CreateUser(response, request)
 
@@ -38,8 +44,8 @@ func TestCreateUser_StatusCreated(t *testing.T) {
 
 	response := httptest.NewRecorder()
 
-	mockStore := clients.NewMockStoreClient()
-	shoreline := InitApi(mockStore)
+	mockStore := clients.NewMockStoreClient(fakeConfig.Salt)
+	shoreline := InitApi(mockStore, fakeConfig)
 
 	shoreline.CreateUser(response, request)
 
@@ -51,8 +57,8 @@ func TestCreateUser_StatusCreated(t *testing.T) {
 func TestUpdateUser_StatusUnauthorized_WhenNoToken(t *testing.T) {
 	request, _ := http.NewRequest("PUT", "/", nil)
 	response := httptest.NewRecorder()
-	mockStore := clients.NewMockStoreClient()
-	shoreline := InitApi(mockStore)
+	mockStore := clients.NewMockStoreClient(fakeConfig.Salt)
+	shoreline := InitApi(mockStore, fakeConfig)
 
 	shoreline.UpdateUser(response, request)
 
@@ -66,8 +72,8 @@ func TestUpdateUser_StatusBadRequest_WhenNoUpdates(t *testing.T) {
 	request.Header.Add("content-type", "application/json")
 	request.Header.Set(TP_SESSION_TOKEN, "blah-blah-123-blah")
 	response := httptest.NewRecorder()
-	mockStore := clients.NewMockStoreClient()
-	shoreline := InitApi(mockStore)
+	mockStore := clients.NewMockStoreClient(fakeConfig.Salt)
+	shoreline := InitApi(mockStore, fakeConfig)
 
 	shoreline.UpdateUser(response, request)
 
@@ -86,8 +92,8 @@ func TestUpdateUser_StatusOK(t *testing.T) {
 	request.Header.Add("content-type", "application/json")
 
 	response := httptest.NewRecorder()
-	mockStore := clients.NewMockStoreClient()
-	shoreline := InitApi(mockStore)
+	mockStore := clients.NewMockStoreClient(fakeConfig.Salt)
+	shoreline := InitApi(mockStore, fakeConfig)
 
 	shoreline.UpdateUser(response, request)
 
@@ -103,8 +109,8 @@ func TestGetUserInfo_StatusOK_AndBody(t *testing.T) {
 	request.Header.Set(TP_SESSION_TOKEN, "blah-blah-123-blah")
 	request.Header.Add("content-type", "application/json")
 	response := httptest.NewRecorder()
-	mockStore := clients.NewMockStoreClient()
-	shoreline := InitApi(mockStore)
+	mockStore := clients.NewMockStoreClient(fakeConfig.Salt)
+	shoreline := InitApi(mockStore, fakeConfig)
 
 	shoreline.GetUserInfo(response, request)
 
@@ -130,8 +136,8 @@ func TestGetUserInfo_StatusOK_AndBody_WhenIdInURL(t *testing.T) {
 	request.Header.Add("content-type", "application/json")
 
 	response := httptest.NewRecorder()
-	mockStore := clients.NewMockStoreClient()
-	shoreline := InitApi(mockStore)
+	mockStore := clients.NewMockStoreClient(fakeConfig.Salt)
+	shoreline := InitApi(mockStore, fakeConfig)
 
 	shoreline.GetUserInfo(response, request)
 
@@ -149,8 +155,8 @@ func TestGetUserInfo_StatusUnauthorized_WhenNoToken(t *testing.T) {
 	var findData = []byte(`{"username": "test","emails":["test@foo.bar"]}`)
 	request, _ := http.NewRequest("GET", "/", bytes.NewBuffer(findData))
 	response := httptest.NewRecorder()
-	mockStore := clients.NewMockStoreClient()
-	shoreline := InitApi(mockStore)
+	mockStore := clients.NewMockStoreClient(fakeConfig.Salt)
+	shoreline := InitApi(mockStore, fakeConfig)
 
 	shoreline.GetUserInfo(response, request)
 
@@ -163,8 +169,8 @@ func TestDeleteUserReturnsWithStatus(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	request.Header.Set(TP_SESSION_TOKEN, "blah-blah-123-blah")
 	response := httptest.NewRecorder()
-	mockStore := clients.NewMockStoreClient()
-	shoreline := InitApi(mockStore)
+	mockStore := clients.NewMockStoreClient(fakeConfig.Salt)
+	shoreline := InitApi(mockStore, fakeConfig)
 
 	shoreline.DeleteUser(response, request)
 
@@ -176,8 +182,8 @@ func TestDeleteUserReturnsWithStatus(t *testing.T) {
 func TestDeleteUserReturns401WhenNoSessionTokenHeaderGiven(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	response := httptest.NewRecorder()
-	mockStore := clients.NewMockStoreClient()
-	shoreline := InitApi(mockStore)
+	mockStore := clients.NewMockStoreClient(fakeConfig.Salt)
+	shoreline := InitApi(mockStore, fakeConfig)
 
 	shoreline.DeleteUser(response, request)
 
@@ -189,8 +195,8 @@ func TestDeleteUserReturns401WhenNoSessionTokenHeaderGiven(t *testing.T) {
 func TestLogin_StatusBadRequest_WithNoAuth(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	response := httptest.NewRecorder()
-	mockStore := clients.NewMockStoreClient()
-	shoreline := InitApi(mockStore)
+	mockStore := clients.NewMockStoreClient(fakeConfig.Salt)
+	shoreline := InitApi(mockStore, fakeConfig)
 
 	shoreline.Login(response, request)
 
@@ -203,8 +209,8 @@ func TestLogin_StatusBadRequest_WithInvalidAuth(t *testing.T) {
 	request, _ := http.NewRequest("POST", "/", nil)
 	request.SetBasicAuth("", "")
 	response := httptest.NewRecorder()
-	mockStore := clients.NewMockStoreClient()
-	shoreline := InitApi(mockStore)
+	mockStore := clients.NewMockStoreClient(fakeConfig.Salt)
+	shoreline := InitApi(mockStore, fakeConfig)
 
 	shoreline.Login(response, request)
 
@@ -217,8 +223,8 @@ func TestLogin_StatusOK(t *testing.T) {
 	request, _ := http.NewRequest("POST", "/", nil)
 	request.SetBasicAuth("test", "123youknoWm3")
 	response := httptest.NewRecorder()
-	mockStore := clients.NewMockStoreClient()
-	shoreline := InitApi(mockStore)
+	mockStore := clients.NewMockStoreClient(fakeConfig.Salt)
+	shoreline := InitApi(mockStore, fakeConfig)
 
 	shoreline.Login(response, request)
 
@@ -234,8 +240,8 @@ func TestLogin_StatusOK(t *testing.T) {
 func TestServerLogin_StatusBadRequest_WhenNoNameOrSecret(t *testing.T) {
 	request, _ := http.NewRequest("POST", "/", nil)
 	response := httptest.NewRecorder()
-	mockStore := clients.NewMockStoreClient()
-	shoreline := InitApi(mockStore)
+	mockStore := clients.NewMockStoreClient(fakeConfig.Salt)
+	shoreline := InitApi(mockStore, fakeConfig)
 
 	shoreline.ServerLogin(response, request)
 
@@ -248,8 +254,8 @@ func TestServerLogin_StatusBadRequest_WhenNoName(t *testing.T) {
 	request, _ := http.NewRequest("POST", "/", nil)
 	request.Header.Set(TP_SERVER_SECRET, THE_SECRET)
 	response := httptest.NewRecorder()
-	mockStore := clients.NewMockStoreClient()
-	shoreline := InitApi(mockStore)
+	mockStore := clients.NewMockStoreClient(fakeConfig.Salt)
+	shoreline := InitApi(mockStore, fakeConfig)
 
 	shoreline.ServerLogin(response, request)
 
@@ -262,8 +268,8 @@ func TestServerLogin_StatusBadRequest_WhenNoSecret(t *testing.T) {
 	request, _ := http.NewRequest("POST", "/", nil)
 	request.Header.Set(TP_SERVER_NAME, "shoreline")
 	response := httptest.NewRecorder()
-	mockStore := clients.NewMockStoreClient()
-	shoreline := InitApi(mockStore)
+	mockStore := clients.NewMockStoreClient(fakeConfig.Salt)
+	shoreline := InitApi(mockStore, fakeConfig)
 
 	shoreline.ServerLogin(response, request)
 
@@ -277,8 +283,8 @@ func TestServerLogin_StatusOK(t *testing.T) {
 	request.Header.Set(TP_SERVER_NAME, "shoreline")
 	request.Header.Set(TP_SERVER_SECRET, THE_SECRET)
 	response := httptest.NewRecorder()
-	mockStore := clients.NewMockStoreClient()
-	shoreline := InitApi(mockStore)
+	mockStore := clients.NewMockStoreClient(fakeConfig.Salt)
+	shoreline := InitApi(mockStore, fakeConfig)
 
 	shoreline.ServerLogin(response, request)
 
@@ -296,8 +302,8 @@ func TestServerLogin_StatusUnauthorized_WhenSecretWrong(t *testing.T) {
 	request.Header.Set(TP_SERVER_NAME, "shoreline")
 	request.Header.Set(TP_SERVER_SECRET, "wrong secret")
 	response := httptest.NewRecorder()
-	mockStore := clients.NewMockStoreClient()
-	shoreline := InitApi(mockStore)
+	mockStore := clients.NewMockStoreClient(fakeConfig.Salt)
+	shoreline := InitApi(mockStore, fakeConfig)
 
 	shoreline.ServerLogin(response, request)
 
@@ -309,8 +315,8 @@ func TestServerLogin_StatusUnauthorized_WhenSecretWrong(t *testing.T) {
 func TestRefreshSession_StatusUnauthorized_WithNoToken(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	response := httptest.NewRecorder()
-	mockStore := clients.NewMockStoreClient()
-	shoreline := InitApi(mockStore)
+	mockStore := clients.NewMockStoreClient(fakeConfig.Salt)
+	shoreline := InitApi(mockStore, fakeConfig)
 
 	shoreline.RefreshSession(response, request)
 
@@ -323,8 +329,8 @@ func TestRefreshSession_StatusUnauthorized_WithWrongToken(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	request.Header.Set(TP_SESSION_TOKEN, "not this token")
 	response := httptest.NewRecorder()
-	mockStore := clients.NewMockStoreClient()
-	shoreline := InitApi(mockStore)
+	mockStore := clients.NewMockStoreClient(fakeConfig.Salt)
+	shoreline := InitApi(mockStore, fakeConfig)
 
 	shoreline.RefreshSession(response, request)
 
@@ -337,8 +343,8 @@ func TestRefreshSession_StatusOK(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	request.SetBasicAuth("test", "123youknoWm3")
 	response := httptest.NewRecorder()
-	mockStore := clients.NewMockStoreClient()
-	shoreline := InitApi(mockStore)
+	mockStore := clients.NewMockStoreClient(fakeConfig.Salt)
+	shoreline := InitApi(mockStore, fakeConfig)
 
 	//login to create a token first
 	shoreline.Login(response, request)
@@ -363,8 +369,8 @@ func TestValidateLongterm_StatusOK(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	request.SetBasicAuth("test", "123youknoWm3")
 	response := httptest.NewRecorder()
-	mockStore := clients.NewMockStoreClient()
-	shoreline := InitApi(mockStore)
+	mockStore := clients.NewMockStoreClient(fakeConfig.Salt)
+	shoreline := InitApi(mockStore, fakeConfig)
 
 	shoreline.LongtermLogin(response, request)
 
@@ -385,8 +391,8 @@ func TestValidateLongterm_StatusBadRequest_AuthEmpty(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	request.SetBasicAuth("", "")
 	response := httptest.NewRecorder()
-	mockStore := clients.NewMockStoreClient()
-	shoreline := InitApi(mockStore)
+	mockStore := clients.NewMockStoreClient(fakeConfig.Salt)
+	shoreline := InitApi(mockStore, fakeConfig)
 
 	shoreline.LongtermLogin(response, request)
 
@@ -398,8 +404,8 @@ func TestValidateLongterm_StatusBadRequest_AuthEmpty(t *testing.T) {
 func TestValidateLongterm_StatusUnauthorized_WithNoAuthSet(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	response := httptest.NewRecorder()
-	mockStore := clients.NewMockStoreClient()
-	shoreline := InitApi(mockStore)
+	mockStore := clients.NewMockStoreClient(fakeConfig.Salt)
+	shoreline := InitApi(mockStore, fakeConfig)
 
 	shoreline.LongtermLogin(response, request)
 
@@ -413,8 +419,8 @@ func TestRequireServerToken_ReturnsWithNoStatus(t *testing.T) {
 	request.Header.Set(TP_SERVER_NAME, "shoreline")
 	request.Header.Set(TP_SERVER_SECRET, THE_SECRET)
 	response := httptest.NewRecorder()
-	mockStore := clients.NewMockStoreClient()
-	shoreline := InitApi(mockStore)
+	mockStore := clients.NewMockStoreClient(fakeConfig.Salt)
+	shoreline := InitApi(mockStore, fakeConfig)
 
 	//login as server
 	shoreline.ServerLogin(response, request)
@@ -439,8 +445,8 @@ func TestRequireServerToken_ReturnsWithNoStatus(t *testing.T) {
 func TestRequireServerToken_StatusUnauthorized_WhenWrongTokenGiven(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	response := httptest.NewRecorder()
-	mockStore := clients.NewMockStoreClient()
-	shoreline := InitApi(mockStore)
+	mockStore := clients.NewMockStoreClient(fakeConfig.Salt)
+	shoreline := InitApi(mockStore, fakeConfig)
 
 	shoreline.requireServerToken(response, request)
 
@@ -452,8 +458,8 @@ func TestRequireServerToken_StatusUnauthorized_WhenWrongTokenGiven(t *testing.T)
 func TestRequireServerToken_StatusUnauthorized_WhenNoSessionTokenHeaderGiven(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	response := httptest.NewRecorder()
-	mockStore := clients.NewMockStoreClient()
-	shoreline := InitApi(mockStore)
+	mockStore := clients.NewMockStoreClient(fakeConfig.Salt)
+	shoreline := InitApi(mockStore, fakeConfig)
 
 	shoreline.requireServerToken(response, request)
 
@@ -465,8 +471,8 @@ func TestRequireServerToken_StatusUnauthorized_WhenNoSessionTokenHeaderGiven(t *
 func TestServerCheckToken_StatusOK(t *testing.T) {
 
 	//the api
-	mockStore := clients.NewMockStoreClient()
-	shoreline := InitApi(mockStore)
+	mockStore := clients.NewMockStoreClient(fakeConfig.Salt)
+	shoreline := InitApi(mockStore, fakeConfig)
 
 	//step 1 - login as server
 	request, _ := http.NewRequest("GET", "/", nil)
@@ -483,19 +489,22 @@ func TestServerCheckToken_StatusOK(t *testing.T) {
 	}
 
 	//step 2 - do the check
-	checkTokenRequest, _ := http.NewRequest("GET", "/", nil)
+	checkTokenRequest, _ := http.NewRequest("GET", "/"+svrTokenToUse, nil)
 	checkTokenRequest.Header.Set(TP_SESSION_TOKEN, svrTokenToUse)
+	checkTokenResponse := httptest.NewRecorder()
 
-	shoreline.ServerCheckToken(response, checkTokenRequest)
+	shoreline.ServerCheckToken(checkTokenResponse, checkTokenRequest)
 
-	if response.Code != http.StatusOK {
-		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, response.Code)
+	if checkTokenResponse.Code != http.StatusOK {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, checkTokenResponse.Code)
 	}
 
-	body, _ := ioutil.ReadAll(response.Body)
+	body, _ := ioutil.ReadAll(checkTokenResponse.Body)
 
 	var tokenData models.TokenData
 	_ = json.Unmarshal(body, &tokenData)
+
+	t.Log("token data returned ", tokenData)
 
 	if tokenData.UserId != "shoreline" {
 		t.Fatalf("should have had a server id of `shoreline` but was %v", tokenData.UserId)
@@ -509,8 +518,8 @@ func TestServerCheckToken_StatusOK(t *testing.T) {
 func TestServerCheckToken_StatusUnauthorized_WhenNoSvrToken(t *testing.T) {
 
 	//the api
-	mockStore := clients.NewMockStoreClient()
-	shoreline := InitApi(mockStore)
+	mockStore := clients.NewMockStoreClient(fakeConfig.Salt)
+	shoreline := InitApi(mockStore, fakeConfig)
 
 	request, _ := http.NewRequest("GET", "/", nil)
 	response := httptest.NewRecorder()
@@ -525,8 +534,8 @@ func TestServerCheckToken_StatusUnauthorized_WhenNoSvrToken(t *testing.T) {
 func TestLogout_StatusOK_WhenNoToken(t *testing.T) {
 	request, _ := http.NewRequest("POST", "/", nil)
 	response := httptest.NewRecorder()
-	mockStore := clients.NewMockStoreClient()
-	shoreline := InitApi(mockStore)
+	mockStore := clients.NewMockStoreClient(fakeConfig.Salt)
+	shoreline := InitApi(mockStore, fakeConfig)
 
 	shoreline.Logout(response, request)
 
@@ -540,8 +549,8 @@ func TestLogout_StatusOK(t *testing.T) {
 	request, _ := http.NewRequest("POST", "/", nil)
 	request.SetBasicAuth("test", "123youknoWm3")
 	response := httptest.NewRecorder()
-	mockStore := clients.NewMockStoreClient()
-	shoreline := InitApi(mockStore)
+	mockStore := clients.NewMockStoreClient(fakeConfig.Salt)
+	shoreline := InitApi(mockStore, fakeConfig)
 
 	//login to create a token first
 	shoreline.Login(response, request)
@@ -564,8 +573,8 @@ func TestLogout_StatusOK(t *testing.T) {
 func TestAnonymousIdHashPair_StatusInternalServerError_NoParamsGiven(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	response := httptest.NewRecorder()
-	mockStore := clients.NewMockStoreClient()
-	shoreline := InitApi(mockStore)
+	mockStore := clients.NewMockStoreClient(fakeConfig.Salt)
+	shoreline := InitApi(mockStore, fakeConfig)
 
 	shoreline.AnonymousIdHashPair(response, request)
 
@@ -583,8 +592,8 @@ func TestAnonymousIdHashPair_StatusOK(t *testing.T) {
 	request.URL.RawQuery = values.Encode()
 
 	response := httptest.NewRecorder()
-	mockStore := clients.NewMockStoreClient()
-	shoreline := InitApi(mockStore)
+	mockStore := clients.NewMockStoreClient(fakeConfig.Salt)
+	shoreline := InitApi(mockStore, fakeConfig)
 
 	shoreline.AnonymousIdHashPair(response, request)
 
@@ -610,8 +619,8 @@ func TestAnonymousIdHashPair_StatusOK(t *testing.T) {
 
 func TestManageIdHashPair_StatusUnauthorized_WhenNoSvrToken(t *testing.T) {
 
-	mockStore := clients.NewMockStoreClient()
-	shoreline := InitApi(mockStore)
+	mockStore := clients.NewMockStoreClient(fakeConfig.Salt)
+	shoreline := InitApi(mockStore, fakeConfig)
 
 	request, _ := http.NewRequest("GET", "/1234/givemesomemore", nil)
 	response := httptest.NewRecorder()
@@ -643,8 +652,8 @@ func TestManageIdHashPair_StatusUnauthorized_WhenNoSvrToken(t *testing.T) {
 
 func TestManageIdHashPair_StatusNotImplemented_WhenDelete(t *testing.T) {
 
-	mockStore := clients.NewMockStoreClient()
-	shoreline := InitApi(mockStore)
+	mockStore := clients.NewMockStoreClient(fakeConfig.Salt)
+	shoreline := InitApi(mockStore, fakeConfig)
 	//server login
 	request, _ := http.NewRequest("GET", "/", nil)
 	request.Header.Set(TP_SERVER_NAME, "shoreline")
@@ -673,8 +682,8 @@ func TestManageIdHashPair_StatusNotImplemented_WhenDelete(t *testing.T) {
 
 func TestManageIdHashPair_StatusOK(t *testing.T) {
 
-	mockStore := clients.NewMockStoreClient()
-	shoreline := InitApi(mockStore)
+	mockStore := clients.NewMockStoreClient(fakeConfig.Salt)
+	shoreline := InitApi(mockStore, fakeConfig)
 	//server login
 	request, _ := http.NewRequest("GET", "/", nil)
 	request.Header.Set(TP_SERVER_NAME, "shoreline")
@@ -714,8 +723,8 @@ func TestManageIdHashPair_StatusOK(t *testing.T) {
 
 func TestManageIdHashPair_StatusCreated_WhenPost(t *testing.T) {
 
-	mockStore := clients.NewMockStoreClient()
-	shoreline := InitApi(mockStore)
+	mockStore := clients.NewMockStoreClient(fakeConfig.Salt)
+	shoreline := InitApi(mockStore, fakeConfig)
 	//server login
 	request, _ := http.NewRequest("GET", "/", nil)
 	request.Header.Set(TP_SERVER_NAME, "shoreline")
@@ -756,8 +765,8 @@ func TestManageIdHashPair_StatusCreated_WhenPost(t *testing.T) {
 
 func TestManageIdHashPair_StatusCreated_WhenPut(t *testing.T) {
 
-	mockStore := clients.NewMockStoreClient()
-	shoreline := InitApi(mockStore)
+	mockStore := clients.NewMockStoreClient(fakeConfig.Salt)
+	shoreline := InitApi(mockStore, fakeConfig)
 	//server login
 	request, _ := http.NewRequest("GET", "/", nil)
 	request.Header.Set(TP_SERVER_NAME, "shoreline")

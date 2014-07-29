@@ -23,8 +23,6 @@ func main() {
 		log.Fatal("Problem loading config", err)
 	}
 
-	log.Printf("mongo %v service %v", config.Mongo, config.Service)
-
 	api := api.InitApi(sc.NewMockStoreClient(), config.Service)
 
 	rtr := mux.NewRouter()

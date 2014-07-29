@@ -5,12 +5,15 @@ import (
 	"github.com/tidepool-org/shoreline/models"
 )
 
-type MockStoreClient struct{}
-
-func NewMockStoreClient() *MockStoreClient {
-	return &MockStoreClient{}
+type MockStoreClient struct {
+	salt string
 }
 
+func NewMockStoreClient(salt string) *MockStoreClient {
+	return &MockStoreClient{salt: salt}
+}
+
+//faking the hashes
 func rand_str(str_size int) string {
 	alphanum := "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 	var bytes = make([]byte, str_size)
@@ -25,13 +28,26 @@ func (d MockStoreClient) UpsertUser(user *models.User) error {
 	return nil
 }
 
-func (d MockStoreClient) FindUser(user *models.User) (found *models.User, err error) {
+func (d MockStoreClient) FindUsers(user *models.User) (found []*models.User, err error) {
 	//`find` a pretend one we just made
-	found = &models.User{Id: rand_str(10), Name: user.Name, Emails: user.Emails, PwHash: rand_str(24), Hash: rand_str(24)}
-	return found, nil
+	if user.Id == "" && user.Pw != "" && user.Name != "" {
+		found, _ := models.NewUser(user.Name, user.Pw, d.salt, []string{})
+		return []*models.User{found}, nil
+	}
+
+	return []*models.User{user}, nil
 }
 
-func (d MockStoreClient) RemoveUser(userId string) error {
+func (d MockStoreClient) FindUser(user *models.User) (found *models.User, err error) {
+	//`find` a pretend one we just made
+	if user.Id == "" && user.Pw != "" && user.Name != "" {
+		found, _ := models.NewUser(user.Name, user.Pw, d.salt, []string{})
+		return found, nil
+	}
+	return user, nil
+}
+
+func (d MockStoreClient) RemoveUser(user *models.User) error {
 	return nil
 }
 
@@ -39,12 +55,11 @@ func (d MockStoreClient) AddToken(token *models.SessionToken) error {
 	return nil
 }
 
-func (d MockStoreClient) FindToken(tokenId string) (*models.SessionToken, error) {
+func (d MockStoreClient) FindToken(token *models.SessionToken) (*models.SessionToken, error) {
 	//`find` a pretend one we just made
-	token, _ := models.NewSessionToken(&models.TokenData{IsServer: true, Duration: 3600, UserId: "1234", Valid: true}, "my secret")
 	return token, nil
 }
 
-func (d MockStoreClient) RemoveToken(tokenId string) error {
+func (d MockStoreClient) RemoveToken(token *models.SessionToken) error {
 	return nil
 }

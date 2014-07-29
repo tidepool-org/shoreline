@@ -7,8 +7,9 @@ import (
 type StoreClient interface {
 	UpsertUser(user *models.User) error
 	FindUser(user *models.User) (*models.User, error)
-	RemoveUser(userId string) error
+	FindUsers(user *models.User) ([]*models.User, error)
+	RemoveUser(user *models.User) error
 	AddToken(token *models.SessionToken) error
-	FindToken(tokenId string) (*models.SessionToken, error)
-	RemoveToken(tokenId string) error
+	FindToken(token *models.SessionToken) (*models.SessionToken, error)
+	RemoveToken(token *models.SessionToken) error
 }

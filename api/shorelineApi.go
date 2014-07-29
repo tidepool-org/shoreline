@@ -8,6 +8,7 @@ import (
 	"github.com/tidepool-org/shoreline/models"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -31,9 +32,6 @@ const (
 )
 
 func InitApi(store clients.StoreClient, cfg interface{}) *Api {
-
-	log.Println("config ", cfg)
-
 	return &Api{
 		Store: store,
 		config: config{
@@ -81,6 +79,18 @@ func tokenCheck(res http.ResponseWriter, req *http.Request) {
 	}
 }
 
+//has a duration been set?
+func tokenDuration(req *http.Request) (dur float64) {
+
+	durString := req.Header.Get(TP_TOKEN_DURATION)
+
+	if durString != "" {
+		dur, _ = strconv.ParseFloat(durString, 64)
+	}
+
+	return dur
+}
+
 // Extract the username and password from the authorization
 // line of an HTTP header. This function will handle the
 // parsing and decoding of the line.
@@ -104,7 +114,7 @@ func unpackAuth(authLine string) (usr *models.User, err error) {
 	}
 }
 
-func sendModelsJsonRes(res http.ResponseWriter, models []interface{}) {
+func sendModelsAsRes(res http.ResponseWriter, models ...interface{}) {
 
 	res.WriteHeader(http.StatusOK)
 	res.Header().Add("content-type", "application/json")
@@ -126,7 +136,6 @@ func sendModelAsRes(res http.ResponseWriter, model interface{}) {
 }
 
 func sendModelAsResWithStatus(res http.ResponseWriter, model interface{}, statusCode int) {
-
 	res.WriteHeader(statusCode)
 	res.Header().Add("content-type", "application/json")
 
@@ -143,15 +152,32 @@ func (a *Api) requireServerToken(res http.ResponseWriter, req *http.Request) {
 
 	svrToken := models.GetSessionToken(req.Header)
 
-	log.Print("to verify ", svrToken)
-
 	if ok := svrToken.Verify(a.config.ServerSecret); ok == true {
-		log.Print("verified ", svrToken.TokenData)
 		if svrToken.TokenData.IsServer {
 			return
 		}
 	}
 	res.WriteHeader(http.StatusUnauthorized)
+}
+
+func getPathComonents(req *http.Request) []string {
+	//The URL that the user queried.
+	path := req.URL.Path
+	path = strings.TrimSpace(path)
+
+	//Cut off the leading and trailing forward slashes, if they exist.
+	//This cuts off the leading forward slash.
+	if strings.HasPrefix(path, "/") {
+		path = path[1:]
+	}
+	//This cuts off the trailing forward slash.
+	if strings.HasSuffix(path, "/") {
+		cut_off_last_char_len := len(path) - 1
+		path = path[:cut_off_last_char_len]
+	}
+	//We need to isolate the individual components of the path.
+	components := strings.Split(path, "/")
+	return components
 }
 
 //Pull the incoming user from the http.Request body and save return http.StatusCreated
@@ -205,34 +231,35 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request) {
 	} else {
 		//use the token to find the userid
 		token := models.GetSessionToken(req.Header)
-
 		token.Verify(a.config.ServerSecret)
-		//log.Println("trying the session token ", token)
-		//log.Println("found ", token.TokenData)
 		usr = &models.User{Id: token.TokenData.UserId}
-
-		//log.Println("unpacked usr ", token.TokenData.UserId)
-
 	}
 
 	if usr == nil {
 		res.WriteHeader(http.StatusBadRequest)
 		return
 	} else {
-
-		if results, err := a.Store.FindUser(usr); err != nil {
+		if results, err := a.Store.FindUsers(usr); err != nil {
 			sendErrorAsRes(res, err)
 		} else {
-			sendModelAsRes(res, results)
+			if len(results) == 1 && usr.Pw != "" {
+				if results[0].HasPwMatch(usr, a.config.Salt) {
+					sendModelAsRes(res, results[0])
+				}
+				res.WriteHeader(http.StatusNoContent)
+				return
+			} else if len(results) == 1 {
+				sendModelAsRes(res, results[0])
+			}
+			sendModelsAsRes(res, results)
 		}
 	}
 }
 
-//TODO:
 func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request) {
 
 	tokenCheck(res, req)
-
+	//TODO:
 	res.WriteHeader(501)
 }
 
@@ -245,15 +272,31 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 		return
 	} else {
 
-		if results, err := a.Store.FindUser(usr); err != nil {
+		if results, err := a.Store.FindUsers(usr); err != nil {
 			sendErrorAsRes(res, err)
-		} else if results != nil && results.Id != "" {
-			sessionToken, _ := models.NewSessionToken(&models.TokenData{UserId: results.Id, IsServer: false, Duration: 3600}, a.config.ServerSecret)
+		} else if results != nil {
 
-			if err := a.Store.AddToken(sessionToken); err == nil {
-				res.Header().Set(TP_SESSION_TOKEN, sessionToken.Token)
-				//postThisUser('userlogin', {}, sessiontoken);
-				sendModelAsRes(res, results)
+			for i := range results {
+				//ensure a pw match
+				if results[i].HasPwMatch(usr, a.config.Salt) {
+
+					sessionToken, _ := models.NewSessionToken(
+						&models.TokenData{
+							UserId:   results[i].Id,
+							IsServer: false,
+							Duration: tokenDuration(req),
+						},
+						a.config.ServerSecret,
+					)
+
+					if err := a.Store.AddToken(sessionToken); err == nil {
+						res.Header().Set(TP_SESSION_TOKEN, sessionToken.Token)
+						//postThisUser('userlogin', {}, sessiontoken);
+						sendModelAsRes(res, results[0])
+					} else {
+						sendErrorAsRes(res, err)
+					}
+				}
 			}
 		}
 	}
@@ -272,7 +315,15 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 	}
 	if pw == a.config.ServerSecret {
 		//generate new token
-		sessionToken, _ := models.NewSessionToken(&models.TokenData{UserId: server, IsServer: true, Duration: 3600}, a.config.ServerSecret)
+
+		sessionToken, _ := models.NewSessionToken(
+			&models.TokenData{
+				UserId:   server,
+				IsServer: true,
+				Duration: tokenDuration(req),
+			},
+			a.config.ServerSecret,
+		)
 
 		if err := a.Store.AddToken(sessionToken); err == nil {
 			res.Header().Set(TP_SESSION_TOKEN, sessionToken.Token)
@@ -289,14 +340,15 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 
 func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 
-	//params := mux.Vars(req)
-	//usr := &models.User{Id: params["token"]}
+	const (
+		TWO_HOURS_IN_SECS = 60 * 60 * 2
+	)
 
 	sessionToken := models.GetSessionToken(req.Header)
 
 	if ok := sessionToken.Verify(a.config.ServerSecret); ok == true {
 
-		if sessionToken.TokenData.IsServer == false && sessionToken.TokenData.Duration > 60*60*2 {
+		if sessionToken.TokenData.IsServer == false && sessionToken.TokenData.Duration > TWO_HOURS_IN_SECS {
 			//long-duration, it's not renewable, so just return it
 			sendModelAsRes(res, sessionToken.TokenData.UserId)
 		}
@@ -304,7 +356,7 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 		newToken, _ := models.NewSessionToken(
 			&models.TokenData{
 				UserId:   sessionToken.TokenData.UserId,
-				Duration: 10000,
+				Duration: tokenDuration(req),
 				IsServer: sessionToken.TokenData.IsServer,
 			},
 			a.config.ServerSecret,
@@ -341,9 +393,13 @@ func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request) {
 
 	//we need server token
 	a.requireServerToken(res, req)
+	tokenString := mux.Vars(req)["token"]
+	if tokenString == "" {
+		parts := getPathComonents(req)
+		tokenString = parts[0]
+	}
 
-	svrToken := &models.SessionToken{Token: mux.Vars(req)["token"]}
-
+	svrToken := &models.SessionToken{Token: tokenString}
 	if ok := svrToken.Verify(a.config.ServerSecret); ok == true {
 		sendModelAsRes(res, svrToken.TokenData)
 	}
@@ -354,7 +410,7 @@ func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request) {
 func (a *Api) Logout(res http.ResponseWriter, req *http.Request) {
 	//lets just try and remove the token
 	if givenToken := models.GetSessionToken(req.Header); givenToken.Token != "" {
-		if err := a.Store.RemoveToken(givenToken.Token); err != nil {
+		if err := a.Store.RemoveToken(givenToken); err != nil {
 			log.Fatal("Unable to delete token.", err)
 		}
 	}

@@ -38,3 +38,12 @@ func (u *User) HashPassword(pw, salt string) (err error) {
 	u.PwHash, err = GeneratePasswordHash(u.Id, pw, salt)
 	return err
 }
+
+func (u *User) HasPwMatch(usrToCheck *User, salt string) bool {
+
+	if usrToCheck.Pw != "" {
+		pwMatch, _ := GeneratePasswordHash(u.Id, usrToCheck.Pw, salt)
+		return u.PwHash == pwMatch
+	}
+	return false
+}

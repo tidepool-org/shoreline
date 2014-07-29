@@ -45,7 +45,18 @@ func (d MongoStoreClient) UpsertUser(user *models.User) error {
 	return nil
 }
 
-func (d MongoStoreClient) FindUser(user *models.User) (results []models.User, err error) {
+func (d MongoStoreClient) FindUser(user *models.User) (result *models.User, err error) {
+
+	if user.Id != "" {
+		if err = d.usersC.Find(bson.M{"id": user.Id}).One(&result); err != nil {
+			return result, err
+		}
+	}
+
+	return result, nil
+}
+
+func (d MongoStoreClient) FindUsers(user *models.User) (results []*models.User, err error) {
 
 	fieldsToMatch := []bson.M{}
 
