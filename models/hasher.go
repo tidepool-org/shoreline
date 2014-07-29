@@ -29,3 +29,20 @@ func generateUniqueHash(strings []string, length int) (string, error) {
 	return "", errors.New("both strings and length are required")
 
 }
+
+func GeneratePasswordHash(id, pw, salt string) (string, error) {
+
+	if salt == "" || id == "" {
+		return "", errors.New("id and salt are required")
+	}
+
+	hash := sha1.New()
+	if pw != "" {
+		hash.Write([]byte(pw))
+	}
+	hash.Write([]byte(salt))
+	hash.Write([]byte(id))
+	pwHash := hex.EncodeToString(hash.Sum(nil))
+
+	return pwHash, nil
+}
