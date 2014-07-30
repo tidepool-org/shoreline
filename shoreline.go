@@ -23,29 +23,9 @@ func main() {
 		log.Panic("Problem loading config", err)
 	}
 
-	api := api.InitApi(sc.NewMockStoreClient(), config.Service)
-
 	rtr := mux.NewRouter()
-
-	rtr.HandleFunc("/user", api.GetUserInfo).Methods("GET")
-	rtr.HandleFunc("/user/{userid}", api.GetUserInfo).Methods("GET")
-
-	rtr.HandleFunc("/user", api.CreateUser).Methods("POST")
-	rtr.HandleFunc("/user", api.UpdateUser).Methods("PUT")
-	rtr.HandleFunc("/user/{userid}", api.UpdateUser).Methods("PUT")
-
-	rtr.HandleFunc("/login", api.Login).Methods("POST")
-	rtr.HandleFunc("/login", api.RefreshSession).Methods("GET")
-	rtr.HandleFunc("/login/{longtermkey}", api.LongtermLogin).Methods("POST")
-
-	rtr.HandleFunc("/serverlogin", api.ServerLogin).Methods("POST")
-
-	rtr.HandleFunc("/token/{token}", api.ServerCheckToken).Methods("GET")
-
-	rtr.HandleFunc("/logout", api.Logout).Methods("POST")
-
-	rtr.HandleFunc("/private", api.AnonymousIdHashPair).Methods("GET")
-	rtr.HandleFunc("/private/{userid}/{key}", api.ManageIdHashPair).Methods("GET", "POST", "PUT", "DELETE")
+	api := api.InitApi(sc.NewMockStoreClient(), config.Service, rtr)
+	api.SetHandlers()
 
 	http.Handle("/", rtr)
 

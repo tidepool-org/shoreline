@@ -15,6 +15,7 @@ import (
 type (
 	Api struct {
 		Store  clients.StoreClient
+		rtr    *mux.Router
 		config config
 	}
 	config struct {
@@ -22,6 +23,8 @@ type (
 		LongTermKey  string
 		Salt         string
 	}
+
+	varsHandler func(http.ResponseWriter, *http.Request, map[string]string)
 )
 
 const (
@@ -31,14 +34,45 @@ const (
 	TP_TOKEN_DURATION = "tokenduration"
 )
 
-func InitApi(store clients.StoreClient, cfg interface{}) *Api {
+func InitApi(store clients.StoreClient, cfg interface{}, rtr *mux.Router) *Api {
 	return &Api{
 		Store: store,
+		rtr:   rtr,
 		config: config{
 			ServerSecret: "shhh! don't tell",
 			LongTermKey:  "the longetermkey",
 			Salt:         "a mineral substance composed primarily of sodium chloride"},
 	}
+}
+
+func (a *Api) SetHandlers() {
+	if a.rtr == nil {
+		return
+	}
+	a.rtr.Handle("/user", varsHandler(a.GetUserInfo)).Methods("GET")
+	a.rtr.Handle("/user/{userid}", varsHandler(a.GetUserInfo)).Methods("GET")
+
+	a.rtr.HandleFunc("/user", a.CreateUser).Methods("POST")
+	a.rtr.Handle("/user", varsHandler(a.UpdateUser)).Methods("PUT")
+	a.rtr.Handle("/user/{userid}", varsHandler(a.UpdateUser)).Methods("PUT")
+
+	a.rtr.HandleFunc("/login", a.Login).Methods("POST")
+	a.rtr.HandleFunc("/login", a.RefreshSession).Methods("GET")
+	a.rtr.Handle("/login/{longtermkey}", varsHandler(a.LongtermLogin)).Methods("POST")
+
+	a.rtr.HandleFunc("/serverlogin", a.ServerLogin).Methods("POST")
+
+	a.rtr.Handle("/token/{token}", varsHandler(a.ServerCheckToken)).Methods("GET")
+
+	a.rtr.HandleFunc("/logout", a.Logout).Methods("POST")
+
+	a.rtr.HandleFunc("/private", a.AnonymousIdHashPair).Methods("GET")
+	a.rtr.Handle("/private/{userid}/{key}", varsHandler(a.ManageIdHashPair)).Methods("GET", "POST", "PUT", "DELETE")
+}
+
+func (h varsHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	h(res, req, vars)
 }
 
 //Docode the http.Request parsing out the user model
@@ -148,26 +182,6 @@ func (a *Api) requireServerToken(res http.ResponseWriter, req *http.Request) {
 	res.WriteHeader(http.StatusUnauthorized)
 }
 
-func getPathComonents(req *http.Request) []string {
-	//The URL that the user queried.
-	path := req.URL.Path
-	path = strings.TrimSpace(path)
-
-	//Cut off the leading and trailing forward slashes, if they exist.
-	//This cuts off the leading forward slash.
-	if strings.HasPrefix(path, "/") {
-		path = path[1:]
-	}
-	//This cuts off the trailing forward slash.
-	if strings.HasSuffix(path, "/") {
-		cut_off_last_char_len := len(path) - 1
-		path = path[:cut_off_last_char_len]
-	}
-	//We need to isolate the individual components of the path.
-	components := strings.Split(path, "/")
-	return components
-}
-
 //Pull the incoming user from the http.Request body and save return http.StatusCreated
 func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 
@@ -188,7 +202,7 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 }
 
 //Pull the incoming user updates from http.Request body and save return http.StatusOK
-func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request) {
+func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 
 	tokenCheck(res, req)
 
@@ -210,14 +224,14 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request) {
 
 //Pull the incoming user feilds to search for from http.Request body and
 //find any matches returning them with return http.StatusOK
-func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request) {
+func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 
 	tokenCheck(res, req)
 
 	var usr *models.User
 
 	//TODO: could be id or email infact
-	id := mux.Vars(req)["userid"]
+	id := vars["userid"]
 	if id != "" {
 		usr = &models.User{Id: id}
 	} else {
@@ -375,9 +389,9 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 	return
 }
 
-func (a *Api) LongtermLogin(res http.ResponseWriter, req *http.Request) {
+func (a *Api) LongtermLogin(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 
-	longtermkey := mux.Vars(req)["longtermkey"]
+	longtermkey := vars["longtermkey"]
 
 	if longtermkey == a.config.LongTermKey {
 		thirtyDays := 30 * 24 * 60 * 60
@@ -388,15 +402,11 @@ func (a *Api) LongtermLogin(res http.ResponseWriter, req *http.Request) {
 	a.Login(res, req)
 }
 
-func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request) {
+func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 
 	//we need server token
 	a.requireServerToken(res, req)
-	tokenString := mux.Vars(req)["token"]
-	if tokenString == "" {
-		parts := getPathComonents(req)
-		tokenString = parts[0]
-	}
+	tokenString := vars["token"]
 
 	svrToken := &models.SessionToken{Token: tokenString}
 	if ok := svrToken.Verify(a.config.ServerSecret); ok == true {
@@ -427,15 +437,13 @@ func (a *Api) AnonymousIdHashPair(res http.ResponseWriter, req *http.Request) {
 	return
 }
 
-func (a *Api) ManageIdHashPair(res http.ResponseWriter, req *http.Request) {
+func (a *Api) ManageIdHashPair(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 
 	//we need server token
 	a.requireServerToken(res, req)
 
-	params := mux.Vars(req)
-
-	usr := &models.User{Id: params["userid"]}
-	theKey := params["key"]
+	usr := &models.User{Id: vars["userid"]}
+	theKey := vars["key"]
 
 	baseStrings := []string{a.config.Salt, usr.Id, theKey}
 
