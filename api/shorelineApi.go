@@ -16,9 +16,9 @@ type (
 	Api struct {
 		Store  clients.StoreClient
 		rtr    *mux.Router
-		config config
+		Config Config
 	}
-	config struct {
+	Config struct {
 		ServerSecret string
 		LongTermKey  string
 		Salt         string
@@ -34,14 +34,11 @@ const (
 	TP_TOKEN_DURATION = "tokenduration"
 )
 
-func InitApi(store clients.StoreClient, cfg interface{}, rtr *mux.Router) *Api {
+func InitApi(store clients.StoreClient, cfg Config, rtr *mux.Router) *Api {
 	return &Api{
-		Store: store,
-		rtr:   rtr,
-		config: config{
-			ServerSecret: "shhh! don't tell",
-			LongTermKey:  "the longetermkey",
-			Salt:         "a mineral substance composed primarily of sodium chloride"},
+		Store:  store,
+		rtr:    rtr,
+		Config: cfg,
 	}
 }
 
@@ -174,7 +171,7 @@ func (a *Api) requireServerToken(res http.ResponseWriter, req *http.Request) {
 
 	svrToken := models.GetSessionToken(req.Header.Get(TP_SESSION_TOKEN))
 
-	if ok := svrToken.Verify(a.config.ServerSecret); ok == true {
+	if ok := svrToken.Verify(a.Config.ServerSecret); ok == true {
 		if svrToken.TokenData.IsServer {
 			return
 		}
@@ -237,7 +234,7 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 	} else {
 		//use the token to find the userid
 		token := models.GetSessionToken(req.Header.Get(TP_SESSION_TOKEN))
-		token.Verify(a.config.ServerSecret)
+		token.Verify(a.Config.ServerSecret)
 		usr = &models.User{Id: token.TokenData.UserId}
 	}
 
@@ -251,7 +248,7 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 			return
 		} else {
 			if len(results) == 1 && usr.Pw != "" {
-				if results[0].HasPwMatch(usr, a.config.Salt) {
+				if results[0].HasPwMatch(usr, a.Config.Salt) {
 					sendModelAsRes(res, results[0])
 				}
 				res.WriteHeader(http.StatusNoContent)
@@ -280,7 +277,7 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 		if results, err := a.Store.FindUsers(usr); results != nil {
 			for i := range results {
 				//ensure a pw match
-				if results[i].HasPwMatch(usr, a.config.Salt) {
+				if results[i].HasPwMatch(usr, a.Config.Salt) {
 
 					sessionToken, _ := models.NewSessionToken(
 						&models.TokenData{
@@ -288,7 +285,7 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 							IsServer: false,
 							Duration: tokenDuration(req),
 						},
-						a.config.ServerSecret,
+						a.Config.ServerSecret,
 					)
 
 					if err := a.Store.AddToken(sessionToken); err == nil {
@@ -322,7 +319,7 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 		res.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	if pw == a.config.ServerSecret {
+	if pw == a.Config.ServerSecret {
 		//generate new token
 
 		sessionToken, _ := models.NewSessionToken(
@@ -331,7 +328,7 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 				IsServer: true,
 				Duration: tokenDuration(req),
 			},
-			a.config.ServerSecret,
+			a.Config.ServerSecret,
 		)
 
 		if err := a.Store.AddToken(sessionToken); err == nil {
@@ -357,7 +354,7 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 
 	sessionToken := models.GetSessionToken(req.Header.Get(TP_SESSION_TOKEN))
 
-	if ok := sessionToken.Verify(a.config.ServerSecret); ok == true {
+	if ok := sessionToken.Verify(a.Config.ServerSecret); ok == true {
 
 		if sessionToken.TokenData.IsServer == false && sessionToken.TokenData.Duration > TWO_HOURS_IN_SECS {
 			//long-duration, it's not renewable, so just return it
@@ -370,7 +367,7 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 				Duration: tokenDuration(req),
 				IsServer: sessionToken.TokenData.IsServer,
 			},
-			a.config.ServerSecret,
+			a.Config.ServerSecret,
 		)
 
 		if err := a.Store.AddToken(newToken); err == nil {
@@ -393,7 +390,7 @@ func (a *Api) LongtermLogin(res http.ResponseWriter, req *http.Request, vars map
 
 	longtermkey := vars["longtermkey"]
 
-	if longtermkey == a.config.LongTermKey {
+	if longtermkey == a.Config.LongTermKey {
 		thirtyDays := 30 * 24 * 60 * 60
 		req.Header.Add(TP_TOKEN_DURATION, string(thirtyDays))
 	}
@@ -409,7 +406,7 @@ func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars 
 	tokenString := vars["token"]
 
 	svrToken := &models.SessionToken{Token: tokenString}
-	if ok := svrToken.Verify(a.config.ServerSecret); ok == true {
+	if ok := svrToken.Verify(a.Config.ServerSecret); ok == true {
 		sendModelAsRes(res, svrToken.TokenData)
 	}
 	res.WriteHeader(http.StatusNotFound)
@@ -430,7 +427,7 @@ func (a *Api) Logout(res http.ResponseWriter, req *http.Request) {
 
 func (a *Api) AnonymousIdHashPair(res http.ResponseWriter, req *http.Request) {
 	if len(req.URL.Query()) > 0 {
-		idHashPair := models.NewAnonIdHashPair([]string{a.config.Salt}, req.URL.Query())
+		idHashPair := models.NewAnonIdHashPair([]string{a.Config.Salt}, req.URL.Query())
 		sendModelAsRes(res, idHashPair)
 	}
 	res.WriteHeader(http.StatusBadRequest)
@@ -445,7 +442,7 @@ func (a *Api) ManageIdHashPair(res http.ResponseWriter, req *http.Request, vars 
 	usr := &models.User{Id: vars["userid"]}
 	theKey := vars["key"]
 
-	baseStrings := []string{a.config.Salt, usr.Id, theKey}
+	baseStrings := []string{a.Config.Salt, usr.Id, theKey}
 
 	if foundUsr, err := a.Store.FindUser(usr); err != nil {
 		log.Println(err)

@@ -5,6 +5,7 @@ import (
 	"github.com/tidepool-org/shoreline/models"
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
+	"log"
 )
 
 const (
@@ -21,11 +22,18 @@ type MongoStoreClient struct {
 func NewMongoStoreClient(config *mongo.Config) *MongoStoreClient {
 
 	//TODO - replace this with common version
-	mongoSession, err := mgo.Dial("localhost")
+	/*
+		mongoSession, err := mgo.Dial(config.ConnectionString)
+		if err != nil {
+			panic(err)
+		}
+	*/
 
+	mongoSession, err := mongo.Connect(config)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
+	defer mongoSession.Close()
 
 	return &MongoStoreClient{
 		session: mongoSession,
@@ -37,7 +45,6 @@ func NewMongoStoreClient(config *mongo.Config) *MongoStoreClient {
 func (d MongoStoreClient) UpsertUser(user *models.User) error {
 
 	// if the user already exists we update otherwise we add
-
 	if _, err := d.usersC.Upsert(bson.M{"id": user.Id}, user); err != nil {
 		return err
 	}
@@ -77,7 +84,7 @@ func (d MongoStoreClient) FindUsers(user *models.User) (results []*models.User, 
 	return results, nil
 }
 
-func (d MongoStoreClient) RemoveUser(userId string) (err error) {
+func (d MongoStoreClient) RemoveUser(user *models.User) (err error) {
 	return nil
 }
 

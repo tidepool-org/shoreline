@@ -11,10 +11,12 @@ import (
 	"net/http"
 )
 
-type Config struct {
-	Service disc.ServiceListing `json:"service"`
-	Mongo   mongo.Config        `json:"mongo"`
-}
+type (
+	Config struct {
+		Service disc.ServiceListing `json:"service"`
+		Mongo   mongo.Config        `json:"mongo"`
+	}
+)
 
 func main() {
 	var config Config
@@ -23,8 +25,16 @@ func main() {
 		log.Panic("Problem loading config", err)
 	}
 
+	cfg := api.Config{
+		ServerSecret: "shhh! don't tell",
+		LongTermKey:  "the longetermkey",
+		Salt:         "a mineral substance composed primarily of sodium chloride",
+	}
+
+	store := sc.NewMongoStoreClient(&config.Mongo)
+
 	rtr := mux.NewRouter()
-	api := api.InitApi(sc.NewMockStoreClient(), config.Service, rtr)
+	api := api.InitApi(store, cfg, rtr)
 	api.SetHandlers()
 
 	http.Handle("/", rtr)
