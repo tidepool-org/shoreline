@@ -48,7 +48,8 @@ func findUserDetail(res http.ResponseWriter, req *http.Request) (usr *models.Use
 
 	if req.ContentLength > 0 {
 		if err := json.NewDecoder(req.Body).Decode(&usr); err != nil {
-			sendErrorAsRes(res, err)
+			log.Println("error trying to decode user detail ", err)
+			return nil
 		}
 	}
 
@@ -59,15 +60,6 @@ func findUserDetail(res http.ResponseWriter, req *http.Request) (usr *models.Use
 	}
 
 	return usr
-}
-
-//Log the error and return http.StatusInternalServerError code
-func sendErrorAsRes(res http.ResponseWriter, err error) {
-	if err != nil {
-		log.Println(err)
-		res.WriteHeader(http.StatusInternalServerError)
-		return
-	}
 }
 
 //Check token and return http.StatusUnauthorized if not found
@@ -94,24 +86,20 @@ func tokenDuration(req *http.Request) (dur float64) {
 // Extract the username and password from the authorization
 // line of an HTTP header. This function will handle the
 // parsing and decoding of the line.
-func unpackAuth(authLine string) (usr *models.User, err error) {
-
-	if authLine == "" {
-		//no auth header so return empty
-		return &models.User{Name: "", Pw: ""}, nil
-	} else {
-
+func unpackAuth(authLine string) (usr *models.User) {
+	if authLine != "" {
 		parts := strings.SplitN(authLine, " ", 2)
 		payload := parts[1]
-		decodedPayload, err := base64.URLEncoding.DecodeString(payload)
-		if err != nil {
-			return usr, err
+		if decodedPayload, err := base64.URLEncoding.DecodeString(payload); err != nil {
+			log.Print(err)
+		} else {
+			details := strings.Split(string(decodedPayload), ":")
+			if details[0] != "" || details[1] != "" {
+				return &models.User{Name: details[0], Pw: details[1]}
+			}
 		}
-
-		details := strings.Split(string(decodedPayload), ":")
-
-		return &models.User{Name: details[0], Pw: details[1]}, nil
 	}
+	return nil
 }
 
 func sendModelsAsRes(res http.ResponseWriter, models ...interface{}) {
@@ -188,9 +176,11 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 		return
 	} else {
 
-		err := a.Store.UpsertUser(usr)
-
-		sendErrorAsRes(res, err)
+		if err := a.Store.UpsertUser(usr); err != nil {
+			log.Println(err)
+			res.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 
 		res.WriteHeader(http.StatusCreated)
 		return
@@ -207,9 +197,11 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request) {
 		return
 	} else {
 
-		err := a.Store.UpsertUser(usr)
-
-		sendErrorAsRes(res, err)
+		if err := a.Store.UpsertUser(usr); err != nil {
+			log.Println(err)
+			res.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 
 		res.WriteHeader(http.StatusOK)
 		return
@@ -240,7 +232,9 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request) {
 		return
 	} else {
 		if results, err := a.Store.FindUsers(usr); err != nil {
-			sendErrorAsRes(res, err)
+			log.Println(err)
+			res.WriteHeader(http.StatusInternalServerError)
+			return
 		} else {
 			if len(results) == 1 && usr.Pw != "" {
 				if results[0].HasPwMatch(usr, a.config.Salt) {
@@ -265,17 +259,11 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request) {
 
 func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 
-	if usr, err := unpackAuth(req.Header.Get("Authorization")); err != nil {
-		sendErrorAsRes(res, err)
-	} else if usr.Name == "" || usr.Pw == "" {
+	if usr := unpackAuth(req.Header.Get("Authorization")); usr == nil {
 		res.WriteHeader(http.StatusBadRequest)
 		return
 	} else {
-
-		if results, err := a.Store.FindUsers(usr); err != nil {
-			sendErrorAsRes(res, err)
-		} else if results != nil {
-
+		if results, err := a.Store.FindUsers(usr); results != nil {
 			for i := range results {
 				//ensure a pw match
 				if results[i].HasPwMatch(usr, a.config.Salt) {
@@ -293,14 +281,21 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 						res.Header().Set(TP_SESSION_TOKEN, sessionToken.Token)
 						//postThisUser('userlogin', {}, sessiontoken);
 						sendModelAsRes(res, results[0])
+						return
 					} else {
-						sendErrorAsRes(res, err)
+						log.Println(err)
+						res.WriteHeader(http.StatusInternalServerError)
+						return
 					}
 				}
 			}
+		} else if err != nil {
+			log.Println(err)
+			res.WriteHeader(http.StatusInternalServerError)
+			return
 		}
 	}
-
+	//default
 	res.WriteHeader(http.StatusUnauthorized)
 	return
 }
@@ -331,7 +326,9 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 			//postServer('serverlogin', {}, sessiontoken);
 			return
 		} else {
-			sendErrorAsRes(res, err)
+			log.Println(err)
+			res.WriteHeader(http.StatusInternalServerError)
+			return
 		}
 	}
 	res.WriteHeader(http.StatusUnauthorized)
@@ -368,7 +365,9 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 			//postServer('serverlogin', {}, sessiontoken);
 			return
 		} else {
-			sendErrorAsRes(res, err)
+			log.Println(err)
+			res.WriteHeader(http.StatusInternalServerError)
+			return
 		}
 
 	}
@@ -441,7 +440,9 @@ func (a *Api) ManageIdHashPair(res http.ResponseWriter, req *http.Request) {
 	baseStrings := []string{a.config.Salt, usr.Id, theKey}
 
 	if foundUsr, err := a.Store.FindUser(usr); err != nil {
-		sendErrorAsRes(res, err)
+		log.Println(err)
+		res.WriteHeader(http.StatusInternalServerError)
+		return
 	} else {
 		switch req.Method {
 		case "GET":
@@ -454,9 +455,12 @@ func (a *Api) ManageIdHashPair(res http.ResponseWriter, req *http.Request) {
 				foundUsr.Private[theKey] = models.NewIdHashPair(baseStrings, req.URL.Query())
 
 				if err := a.Store.UpsertUser(foundUsr); err != nil {
-					sendErrorAsRes(res, err)
+					log.Println(err)
+					res.WriteHeader(http.StatusInternalServerError)
+					return
 				} else {
 					sendModelAsRes(res, foundUsr.Private[theKey])
+					return
 				}
 			}
 		case "POST", "PUT":
@@ -466,9 +470,12 @@ func (a *Api) ManageIdHashPair(res http.ResponseWriter, req *http.Request) {
 			foundUsr.Private[theKey] = models.NewIdHashPair(baseStrings, req.URL.Query())
 
 			if err := a.Store.UpsertUser(foundUsr); err != nil {
-				sendErrorAsRes(res, err)
+				log.Println(err)
+				res.WriteHeader(http.StatusInternalServerError)
+				return
 			} else {
 				sendModelAsResWithStatus(res, foundUsr.Private[theKey], http.StatusCreated)
+				return
 			}
 		case "DELETE":
 			res.WriteHeader(http.StatusNotImplemented)
