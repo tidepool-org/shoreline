@@ -41,7 +41,7 @@ func (d MockStoreClient) FindUsers(user *models.User) (found []*models.User, err
 	}
 
 	if user.Id == "" && user.Pw != "" && user.Name != "" {
-		found, _ := models.NewUser(user.Name, user.Pw, d.salt, []string{})
+		found, _ := models.NewUser(&models.UserDetail{Name: user.Name, Pw: user.Pw, Emails: []string{}}, d.salt)
 		return []*models.User{found}, nil
 	}
 
@@ -55,7 +55,7 @@ func (d MockStoreClient) FindUser(user *models.User) (found *models.User, err er
 	}
 	//`find` a pretend one we just made
 	if user.Id == "" && user.Pw != "" && user.Name != "" {
-		found, _ := models.NewUser(user.Name, user.Pw, d.salt, []string{})
+		found, _ := models.NewUser(&models.UserDetail{Name: user.Name, Pw: user.Pw, Emails: []string{}}, d.salt)
 		return found, nil
 	}
 	return user, nil

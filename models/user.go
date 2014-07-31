@@ -14,16 +14,25 @@ type User struct {
 	Private map[string]*IdHashPair `json:"-" 		bson:"private"`
 }
 
-func NewUser(name, pw, salt string, emails []string) (user *User, err error) {
+/*
+ * Incoming user details used to create or update a `User`
+ */
+type UserDetail struct {
+	Name   string   `json:"username"`
+	Emails []string `json:"emails"`
+	Pw     string   `json:"password"`
+}
 
-	if name == "" || pw == "" {
+func NewUser(details *UserDetail, salt string) (user *User, err error) {
+
+	if details.Name == "" || details.Pw == "" {
 		return user, errors.New("both the name and pw are required")
 	}
-	id, _ := generateUniqueHash([]string{name, pw}, 10)
-	hash, _ := generateUniqueHash([]string{name, pw, id}, 24)
-	pwHash, _ := GeneratePasswordHash(id, pw, salt)
+	id, _ := generateUniqueHash([]string{details.Name, details.Pw}, 10)
+	hash, _ := generateUniqueHash([]string{details.Name, details.Pw, id}, 24)
+	pwHash, _ := GeneratePasswordHash(id, details.Pw, salt)
 
-	return &User{Id: id, Name: name, Emails: emails, Hash: hash, PwHash: pwHash}, nil
+	return &User{Id: id, Name: details.Name, Emails: details.Emails, Hash: hash, PwHash: pwHash}, nil
 }
 
 func (u *User) HasIdentifier() bool {

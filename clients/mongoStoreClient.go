@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	usersCollectionName  = "users"
-	tokensCollectionName = "tokens"
+	USERS_COLLECTION  = "users"
+	TOKENS_COLLECTION = "tokens"
 )
 
 type MongoStoreClient struct {
@@ -33,12 +33,12 @@ func NewMongoStoreClient(config *mongo.Config) *MongoStoreClient {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer mongoSession.Close()
+	//defer mongoSession.Close()
 
 	return &MongoStoreClient{
 		session: mongoSession,
-		usersC:  mongoSession.DB("shoreline").C(usersCollectionName),
-		tokensC: mongoSession.DB("shoreline").C(tokensCollectionName),
+		usersC:  mongoSession.DB("shoreline").C(USERS_COLLECTION),
+		tokensC: mongoSession.DB("shoreline").C(TOKENS_COLLECTION),
 	}
 }
 
@@ -76,6 +76,8 @@ func (d MongoStoreClient) FindUsers(user *models.User) (results []*models.User, 
 	if len(user.Emails) > 0 {
 		fieldsToMatch = append(fieldsToMatch, bson.M{"emails": user.Emails})
 	}
+
+	log.Println("query ", fieldsToMatch)
 
 	if err = d.usersC.Find(bson.M{"$or": fieldsToMatch}).All(&results); err != nil {
 		return results, err
