@@ -34,7 +34,6 @@ func NewSessionToken(data *TokenData, secret string) (token *SessionToken, err e
 
 	if data.DurationSecs == 0 {
 		data.DurationSecs = (time.Hour * 1).Seconds() //1 hour
-		log.Println("2 Dur ", data.DurationSecs)
 		if data.IsServer {
 			data.DurationSecs = (time.Hour * 24).Seconds() //24 hours
 		}
@@ -63,11 +62,9 @@ func NewSessionToken(data *TokenData, secret string) (token *SessionToken, err e
 func (t *SessionToken) unpackToken(secret string) {
 
 	if jwtToken, err := jwt.Parse(t.Token, func(t *jwt.Token) ([]byte, error) { return []byte(secret), nil }); err != nil {
-		log.Print("what! ", err)
+		log.Println("unpackToken ", err)
 		return
 	} else {
-
-		log.Printf("unpacked id[%v] valid[%v]", jwtToken.Claims["usr"].(string), jwtToken.Valid)
 
 		t.TokenData = TokenData{
 			IsServer:     jwtToken.Claims["svr"] == "yes",
@@ -79,7 +76,7 @@ func (t *SessionToken) unpackToken(secret string) {
 	}
 }
 
-func (t *SessionToken) Verify(secret string) bool {
+func (t *SessionToken) UnpackAndVerify(secret string) bool {
 
 	if t.Token == "" {
 		return false

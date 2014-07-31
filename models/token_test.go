@@ -56,7 +56,7 @@ func TestUnpackedData(t *testing.T) {
 
 	token, _ := NewSessionToken(testData.data, testData.secretUsed)
 
-	if ok := token.Verify(testData.secretUsed); ok == false {
+	if ok := token.UnpackAndVerify(testData.secretUsed); ok == false {
 		t.Fatalf("unpacked token should be valid")
 	}
 
@@ -82,19 +82,19 @@ func TestUnpackTokenExpires(t *testing.T) {
 
 	time.Sleep(2 * time.Second) //ensure token expires
 
-	if ok := token.Verify(testData.secretUsed); ok != false {
+	if ok := token.UnpackAndVerify(testData.secretUsed); ok != false {
 		t.Fatalf("the token should have expired")
 	}
 
 }
 
-func TestVerifyStoredToken(t *testing.T) {
+func TestUnpackAndVerifyStoredToken(t *testing.T) {
 
 	testData := tokenTestData{data: &TokenData{UserId: "2341", IsServer: false, Duration: 1200}, secretUsed: "my secret"}
 
 	token, _ := NewSessionToken(testData.data, testData.secretUsed)
 
-	if ok := token.Verify(testData.secretUsed); ok == false {
+	if ok := token.UnpackAndVerify(testData.secretUsed); ok == false {
 		t.Fatalf("the token should not have expired")
 	}
 }

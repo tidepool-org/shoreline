@@ -162,7 +162,7 @@ func sendModelAsResWithStatus(res http.ResponseWriter, model interface{}, status
 func (a *Api) hasServerToken(req *http.Request) bool {
 
 	if svrToken := getToken(req); svrToken != nil {
-		if ok := svrToken.Verify(a.Config.ServerSecret); ok == true {
+		if ok := svrToken.UnpackAndVerify(a.Config.ServerSecret); ok == true {
 			return svrToken.TokenData.IsServer
 		}
 	}
@@ -224,15 +224,14 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 
 		var usr *models.User
 
-		//TODO: could be id or email infact
 		id := vars["userid"]
 		if id != "" {
-			usr = &models.User{Id: id}
+			//the `userid` could infact be an email
+			usr = &models.User{Id: id, Emails: []string{id}}
 		} else {
 			//use the token to find the userid
-			if ok := sessionToken.Verify(a.Config.ServerSecret); ok == true {
+			if ok := sessionToken.UnpackAndVerify(a.Config.ServerSecret); ok == true {
 				usr = &models.User{Id: sessionToken.TokenData.UserId}
-				log.Println("usr from token ", usr)
 			}
 		}
 
@@ -369,7 +368,7 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 
 		const TWO_HOURS_IN_SECS = 60 * 60 * 2
 
-		if ok := sessionToken.Verify(a.Config.ServerSecret); ok == true {
+		if ok := sessionToken.UnpackAndVerify(a.Config.ServerSecret); ok == true {
 
 			if sessionToken.TokenData.IsServer == false && sessionToken.TokenData.DurationSecs > TWO_HOURS_IN_SECS {
 				//long-duration, it's not renewable, so just return it
@@ -421,7 +420,7 @@ func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars 
 		tokenString := vars["token"]
 
 		svrToken := &models.SessionToken{Token: tokenString}
-		if ok := svrToken.Verify(a.Config.ServerSecret); ok == true {
+		if ok := svrToken.UnpackAndVerify(a.Config.ServerSecret); ok == true {
 			sendModelAsRes(res, svrToken.TokenData)
 		}
 		res.WriteHeader(http.StatusNotFound)
