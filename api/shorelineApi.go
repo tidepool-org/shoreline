@@ -230,8 +230,10 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 			usr = &models.User{Id: id}
 		} else {
 			//use the token to find the userid
-			sessionToken.Verify(a.Config.ServerSecret)
-			usr = &models.User{Id: sessionToken.TokenData.UserId}
+			if ok := sessionToken.Verify(a.Config.ServerSecret); ok == true {
+				usr = &models.User{Id: sessionToken.TokenData.UserId}
+				log.Println("usr from token ", usr)
+			}
 		}
 
 		if usr == nil {
@@ -295,9 +297,9 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 					//generate token and save
 					sessionToken, _ := models.NewSessionToken(
 						&models.TokenData{
-							UserId:   results[i].Id,
-							IsServer: false,
-							Duration: tokenDuration(req),
+							UserId:       results[i].Id,
+							IsServer:     false,
+							DurationSecs: tokenDuration(req),
 						},
 						a.Config.ServerSecret,
 					)
@@ -339,9 +341,9 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 
 		sessionToken, _ := models.NewSessionToken(
 			&models.TokenData{
-				UserId:   server,
-				IsServer: true,
-				Duration: tokenDuration(req),
+				UserId:       server,
+				IsServer:     true,
+				DurationSecs: tokenDuration(req),
 			},
 			a.Config.ServerSecret,
 		)
@@ -369,16 +371,16 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 
 		if ok := sessionToken.Verify(a.Config.ServerSecret); ok == true {
 
-			if sessionToken.TokenData.IsServer == false && sessionToken.TokenData.Duration > TWO_HOURS_IN_SECS {
+			if sessionToken.TokenData.IsServer == false && sessionToken.TokenData.DurationSecs > TWO_HOURS_IN_SECS {
 				//long-duration, it's not renewable, so just return it
 				sendModelAsRes(res, sessionToken.TokenData.UserId)
 			}
 
 			newToken, _ := models.NewSessionToken(
 				&models.TokenData{
-					UserId:   sessionToken.TokenData.UserId,
-					Duration: tokenDuration(req),
-					IsServer: sessionToken.TokenData.IsServer,
+					UserId:       sessionToken.TokenData.UserId,
+					DurationSecs: tokenDuration(req),
+					IsServer:     sessionToken.TokenData.IsServer,
 				},
 				a.Config.ServerSecret,
 			)
