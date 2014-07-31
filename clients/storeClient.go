@@ -5,6 +5,7 @@ import (
 )
 
 type StoreClient interface {
+	Close()
 	UpsertUser(user *models.User) error
 	FindUser(user *models.User) (*models.User, error)
 	FindUsers(user *models.User) ([]*models.User, error)

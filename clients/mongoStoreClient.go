@@ -25,13 +25,17 @@ func NewMongoStoreClient(config *mongo.Config) *MongoStoreClient {
 	if err != nil {
 		log.Fatal(err)
 	}
-	//defer mongoSession.Close()
 
 	return &MongoStoreClient{
 		session: mongoSession,
 		usersC:  mongoSession.DB("shoreline").C(USERS_COLLECTION),
 		tokensC: mongoSession.DB("shoreline").C(TOKENS_COLLECTION),
 	}
+}
+
+func (d MongoStoreClient) Close() {
+	log.Println("Close the session")
+	d.session.Close()
 }
 
 func (d MongoStoreClient) UpsertUser(user *models.User) error {

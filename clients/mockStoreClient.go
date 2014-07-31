@@ -26,6 +26,8 @@ func rand_str(str_size int) string {
 	return string(bytes)
 }
 
+func (d MockStoreClient) Close() {}
+
 func (d MockStoreClient) UpsertUser(user *models.User) error {
 	if d.doBad {
 		return errors.New("UpsertUser failure")
