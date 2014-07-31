@@ -118,7 +118,7 @@ func unpackAuth(authLine string) (usr *models.User) {
 		} else {
 			details := strings.Split(string(decodedPayload), ":")
 			if details[0] != "" || details[1] != "" {
-				//could be userid, email or username
+				//Note the incoming `name` coule infact be id, email or the username
 				return &models.User{Id: details[0], Name: details[0], Emails: []string{details[0]}, Pw: details[1]}
 			}
 		}
@@ -242,17 +242,21 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 				log.Println(err)
 				res.WriteHeader(http.StatusInternalServerError)
 				return
-			} else {
+			} else if results != nil {
 				if len(results) == 1 && usr.Pw != "" {
 					if results[0].HasPwMatch(usr, a.Config.Salt) {
 						sendModelAsRes(res, results[0])
+						return
+					} else {
+						res.WriteHeader(http.StatusNoContent)
+						return
 					}
-					res.WriteHeader(http.StatusNoContent)
-					return
 				} else if len(results) == 1 {
 					sendModelAsRes(res, results[0])
+					return
 				}
 				sendModelsAsRes(res, results)
+				return
 			}
 		}
 	}
