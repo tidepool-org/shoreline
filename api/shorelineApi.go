@@ -15,7 +15,6 @@ import (
 type (
 	Api struct {
 		Store  clients.StoreClient
-		rtr    *mux.Router
 		Config Config
 	}
 	Config struct {
@@ -34,37 +33,34 @@ const (
 	TP_TOKEN_DURATION = "tokenduration"
 )
 
-func InitApi(store clients.StoreClient, cfg Config, rtr *mux.Router) *Api {
+func InitApi(store clients.StoreClient, cfg Config) *Api {
 	return &Api{
 		Store:  store,
-		rtr:    rtr,
 		Config: cfg,
 	}
 }
 
-func (a *Api) SetHandlers() {
-	if a.rtr == nil {
-		return
-	}
-	a.rtr.Handle("/user", varsHandler(a.GetUserInfo)).Methods("GET")
-	a.rtr.Handle("/user/{userid}", varsHandler(a.GetUserInfo)).Methods("GET")
+func (a *Api) SetHandlers(prefix string, rtr *mux.Router) {
 
-	a.rtr.HandleFunc("/user", a.CreateUser).Methods("POST")
-	a.rtr.Handle("/user", varsHandler(a.UpdateUser)).Methods("PUT")
-	a.rtr.Handle("/user/{userid}", varsHandler(a.UpdateUser)).Methods("PUT")
+	rtr.Handle("/user", varsHandler(a.GetUserInfo)).Methods("GET")
+	rtr.Handle("/user/{userid}", varsHandler(a.GetUserInfo)).Methods("GET")
 
-	a.rtr.HandleFunc("/login", a.Login).Methods("POST")
-	a.rtr.HandleFunc("/login", a.RefreshSession).Methods("GET")
-	a.rtr.Handle("/login/{longtermkey}", varsHandler(a.LongtermLogin)).Methods("POST")
+	rtr.HandleFunc("/user", a.CreateUser).Methods("POST")
+	rtr.Handle("/user", varsHandler(a.UpdateUser)).Methods("PUT")
+	rtr.Handle("/user/{userid}", varsHandler(a.UpdateUser)).Methods("PUT")
 
-	a.rtr.HandleFunc("/serverlogin", a.ServerLogin).Methods("POST")
+	rtr.HandleFunc("/login", a.Login).Methods("POST")
+	rtr.HandleFunc("/login", a.RefreshSession).Methods("GET")
+	rtr.Handle("/login/{longtermkey}", varsHandler(a.LongtermLogin)).Methods("POST")
 
-	a.rtr.Handle("/token/{token}", varsHandler(a.ServerCheckToken)).Methods("GET")
+	rtr.HandleFunc("/serverlogin", a.ServerLogin).Methods("POST")
 
-	a.rtr.HandleFunc("/logout", a.Logout).Methods("POST")
+	rtr.Handle("/token/{token}", varsHandler(a.ServerCheckToken)).Methods("GET")
 
-	a.rtr.HandleFunc("/private", a.AnonymousIdHashPair).Methods("GET")
-	a.rtr.Handle("/private/{userid}/{key}", varsHandler(a.ManageIdHashPair)).Methods("GET", "POST", "PUT", "DELETE")
+	rtr.HandleFunc("/logout", a.Logout).Methods("POST")
+
+	rtr.HandleFunc("/private", a.AnonymousIdHashPair).Methods("GET")
+	rtr.Handle("/private/{userid}/{key}", varsHandler(a.ManageIdHashPair)).Methods("GET", "POST", "PUT", "DELETE")
 }
 
 func (h varsHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {

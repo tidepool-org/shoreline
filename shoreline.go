@@ -34,8 +34,8 @@ func main() {
 	store := sc.NewMongoStoreClient(&config.Mongo)
 
 	rtr := mux.NewRouter()
-	api := api.InitApi(store, cfg, rtr)
-	api.SetHandlers()
+	api := api.InitApi(store, cfg)
+	api.SetHandlers("", rtr)
 
 	http.Handle("/", rtr)
 
