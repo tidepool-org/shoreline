@@ -21,14 +21,6 @@ type MongoStoreClient struct {
 
 func NewMongoStoreClient(config *mongo.Config) *MongoStoreClient {
 
-	//TODO - replace this with common version
-	/*
-		mongoSession, err := mgo.Dial(config.ConnectionString)
-		if err != nil {
-			panic(err)
-		}
-	*/
-
 	mongoSession, err := mongo.Connect(config)
 	if err != nil {
 		log.Fatal(err)
@@ -76,8 +68,6 @@ func (d MongoStoreClient) FindUsers(user *models.User) (results []*models.User, 
 	if len(user.Emails) > 0 {
 		fieldsToMatch = append(fieldsToMatch, bson.M{"emails": user.Emails})
 	}
-
-	log.Println("query ", fieldsToMatch)
 
 	if err = d.usersC.Find(bson.M{"$or": fieldsToMatch}).All(&results); err != nil {
 		return results, err
