@@ -28,7 +28,7 @@ var (
 	USR_TOKEN, _ = models.NewSessionToken(usrTknData, FAKE_CONFIG.ServerSecret)
 	//basics setup
 	rtr       = mux.NewRouter()
-	mockStore = clients.NewMockStoreClient(FAKE_CONFIG.Salt, false)
+	mockStore = clients.NewMockStoreClient(FAKE_CONFIG.Salt, false, false)
 	shoreline = InitApi(mockStore, FAKE_CONFIG)
 )
 
@@ -94,37 +94,39 @@ func TestUpdateUser_StatusBadRequest_WhenNoUpdates(t *testing.T) {
 
 func TestUpdateUser_StatusOK(t *testing.T) {
 
-	shoreline.SetHandlers("", rtr)
+	mockStore2 := clients.NewMockStoreClient(FAKE_CONFIG.Salt, true, false)
+	sl2 := InitApi(mockStore2, FAKE_CONFIG)
+
+	sl2.SetHandlers("", rtr)
 
 	/*
-		 * can update all
+	 * can update all
+	 */
+	var updateAll = []byte(`{"username": "change1","password":"aN3wPw0rD","emails":["change1@new.bar"]}`)
 
-		var updateAll = []byte(`{"username": "test","password":"aN3wPw0rD","emails":["test@new.bar"]}`)
+	requestUpdateAll, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updateAll))
 
-		requestUpdateAll, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updateAll))
+	requestUpdateAll.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
+	requestUpdateAll.Header.Add("content-type", "application/json")
 
-		requestUpdateAll.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
-		requestUpdateAll.Header.Add("content-type", "application/json")
+	responseUpdateAll := httptest.NewRecorder()
 
-		responseUpdateAll := httptest.NewRecorder()
+	sl2.UpdateUser(responseUpdateAll, requestUpdateAll, map[string]string{"userid": USR.Id})
 
-
-		shoreline.UpdateUser(responseUpdateAll, requestUpdateAll, map[string]string{"userid": USR.Id})
-
-		if responseUpdateAll.Code != http.StatusOK {
-			t.Fatalf("Non-expected status code %v:\n\tbody: %v", "200", responseUpdateAll.Code)
-		}*/
+	if responseUpdateAll.Code != http.StatusOK {
+		t.Fatalf("Non-expected status code %v:\n\tbody: %v", "200", responseUpdateAll.Code)
+	}
 
 	/*
 	 * can update just username
 	 */
-	var updateName = []byte(`{"username": "Updated Name"}`)
+	var updateName = []byte(`{"username": "change2"}`)
 
 	requestUpdateName, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updateName))
 	requestUpdateName.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
 	requestUpdateName.Header.Add("content-type", "application/json")
 	responseUpdateName := httptest.NewRecorder()
-	shoreline.UpdateUser(responseUpdateName, requestUpdateName, map[string]string{"userid": USR.Id})
+	sl2.UpdateUser(responseUpdateName, requestUpdateName, map[string]string{"userid": USR.Id})
 
 	if responseUpdateName.Code != http.StatusOK {
 		t.Fatalf("Non-expected status code %v:\n\tbody: %v", "200", responseUpdateName.Code)
@@ -140,7 +142,7 @@ func TestUpdateUser_StatusOK(t *testing.T) {
 	requestUpdatePW.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
 	requestUpdatePW.Header.Add("content-type", "application/json")
 	responseUpdatePW := httptest.NewRecorder()
-	shoreline.UpdateUser(responseUpdatePW, requestUpdatePW, map[string]string{"userid": USR.Id})
+	sl2.UpdateUser(responseUpdatePW, requestUpdatePW, map[string]string{"userid": USR.Id})
 
 	if responseUpdatePW.Code != http.StatusOK {
 		t.Fatalf("Non-expected status code %v:\n\tbody: %v", "200", responseUpdatePW.Code)
@@ -149,13 +151,13 @@ func TestUpdateUser_StatusOK(t *testing.T) {
 	/*
 	 * can update just email
 	 */
-	var updateEmail = []byte(`{"emails":["test@foo.bar","test@new.bar"]}`)
+	var updateEmail = []byte(`{"emails":["change3@new.bar"]}`)
 
 	requestUpdateEmail, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updateEmail))
 	requestUpdateEmail.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
 	requestUpdateEmail.Header.Add("content-type", "application/json")
 	responseUpdateEmail := httptest.NewRecorder()
-	shoreline.UpdateUser(responseUpdateEmail, requestUpdateEmail, map[string]string{"userid": USR.Id})
+	sl2.UpdateUser(responseUpdateEmail, requestUpdateEmail, map[string]string{"userid": USR.Id})
 
 	if responseUpdateEmail.Code != http.StatusOK {
 		t.Fatalf("Non-expected status code %v:\n\tbody: %v", "200", responseUpdateEmail.Code)

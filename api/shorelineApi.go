@@ -218,7 +218,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 						res.WriteHeader(http.StatusInternalServerError)
 						return
 					} else if len(results) > 0 {
-						log.Println("Users found with this name and/or email already")
+						log.Println("Users found with this name and/or email already ")
 						res.WriteHeader(http.StatusBadRequest)
 						return
 					}

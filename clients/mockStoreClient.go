@@ -7,12 +7,13 @@ import (
 )
 
 type MockStoreClient struct {
-	salt  string
-	doBad bool
+	salt            string
+	doBad           bool
+	returnDifferent bool
 }
 
-func NewMockStoreClient(salt string, doBad bool) *MockStoreClient {
-	return &MockStoreClient{salt: salt, doBad: doBad}
+func NewMockStoreClient(salt string, returnDifferent, doBad bool) *MockStoreClient {
+	return &MockStoreClient{salt: salt, doBad: doBad, returnDifferent: returnDifferent}
 }
 
 //faking the hashes
@@ -42,12 +43,18 @@ func (d MockStoreClient) FindUsers(user *models.User) (found []*models.User, err
 		return found, errors.New("FindUsers failure")
 	}
 
+	if d.returnDifferent {
+		//other, _ := models.NewUser(&models.UserDetail{Name: "Some One", Pw: "s0m30n3", Emails: []string{}}, d.salt)
+		return []*models.User{}, nil
+	}
+
 	if user.Pw != "" && user.Name != "" {
 		found, _ := models.NewUser(&models.UserDetail{Name: user.Name, Pw: user.Pw, Emails: []string{}}, d.salt)
 		return []*models.User{found}, nil
 	}
 
 	return []*models.User{user}, nil
+
 }
 
 func (d MockStoreClient) FindUser(user *models.User) (found *models.User, err error) {
@@ -56,6 +63,11 @@ func (d MockStoreClient) FindUser(user *models.User) (found *models.User, err er
 		return found, errors.New("FindUser failure")
 	}
 	//`find` a pretend one we just made
+
+	if d.returnDifferent {
+		other, _ := models.NewUser(&models.UserDetail{Name: "Some One Else", Pw: "s0m30n33ls3", Emails: []string{}}, d.salt)
+		return other, nil
+	}
 
 	if user.Pw != "" && user.Name != "" {
 		found, _ := models.NewUser(&models.UserDetail{Name: user.Name, Pw: user.Pw, Emails: []string{}}, d.salt)
