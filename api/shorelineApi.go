@@ -71,7 +71,6 @@ func (h varsHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 //Docode the http.Request parsing out the user details
 func getUserDetail(req *http.Request) (usr *models.UserDetail) {
 	if req.ContentLength > 0 {
-		log.Println("decodeing user details")
 		if err := json.NewDecoder(req.Body).Decode(&usr); err != nil {
 			log.Println("error trying to decode user detail ", err)
 			return nil
@@ -84,7 +83,6 @@ func getUserDetail(req *http.Request) (usr *models.UserDetail) {
 func getToken(req *http.Request) (st *models.SessionToken) {
 	st = models.GetSessionToken(req.Header.Get(TP_SESSION_TOKEN))
 	if st.Token == "" {
-		log.Println("No Session Token")
 		return nil
 	}
 	return st
@@ -314,20 +312,16 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request) {
 func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 
 	if usr := unpackAuth(req.Header.Get("Authorization")); usr != nil {
-		log.Println("the unpacked user", usr)
+
 		if results, err := a.Store.FindUsers(usr); err != nil {
 			log.Println(err)
 			res.WriteHeader(http.StatusInternalServerError)
 			return
 		} else {
-
-			log.Println("found users", results)
-
 			for i := range results {
 				//ensure a pw match
-				if results[i].HasPwMatch(usr, a.Config.Salt) {
 
-					log.Println("the user", results[i])
+				if results[i].HasPwMatch(usr, a.Config.Salt) {
 
 					//generate token and save
 					sessionToken, _ := models.NewSessionToken(
@@ -338,8 +332,6 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 						},
 						a.Config.ServerSecret,
 					)
-
-					log.Println("the token", sessionToken)
 
 					if err := a.Store.AddToken(sessionToken); err == nil {
 						res.Header().Set(TP_SESSION_TOKEN, sessionToken.Token)
@@ -401,7 +393,6 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 
 	if sessionToken := getToken(req); sessionToken != nil {
-
 		const TWO_HOURS_IN_SECS = 60 * 60 * 2
 
 		if ok := sessionToken.UnpackAndVerify(a.Config.ServerSecret); ok == true {
