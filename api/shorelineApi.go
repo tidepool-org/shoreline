@@ -193,17 +193,57 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 
 		id := vars["userid"]
 
-		if usrDetails := getUserDetail(req); usrDetails != nil && id != "" {
+		if updatesToApply := getUserDetail(req); updatesToApply != nil && id != "" {
 
-			//TODO: perform updates
-			/*if err := a.Store.UpsertUser(usr); err != nil {
+			usrToFind := &models.User{Id: id, Emails: []string{id}}
+
+			if userToUpdate, err := a.Store.FindUser(usrToFind); err != nil {
 				log.Println(err)
 				res.WriteHeader(http.StatusInternalServerError)
 				return
-			}*/
+			} else if userToUpdate != nil {
 
-			res.WriteHeader(http.StatusOK)
-			return
+				//Name and/or Emails and perform dups check
+				if updatesToApply.Name != "" || len(updatesToApply.Emails) > 0 {
+					dupCheck := &models.User{}
+					if updatesToApply.Name != "" {
+						userToUpdate.Name = updatesToApply.Name
+						dupCheck.Name = userToUpdate.Name
+					}
+					if len(updatesToApply.Emails) > 0 {
+						userToUpdate.Emails = updatesToApply.Emails
+						dupCheck.Emails = userToUpdate.Emails
+					}
+					//check if unique
+					if results, err := a.Store.FindUsers(dupCheck); err != nil {
+						log.Println(err)
+						res.WriteHeader(http.StatusInternalServerError)
+						return
+					} else if len(results) > 0 {
+						log.Println("Users found with this name and/or email already")
+						res.WriteHeader(http.StatusBadRequest)
+						return
+					}
+				}
+
+				if updatesToApply.Pw != "" {
+
+					if err := userToUpdate.HashPassword(updatesToApply.Pw, a.Config.Salt); err != nil {
+						log.Println(err)
+						res.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+				}
+
+				if err := a.Store.UpsertUser(userToUpdate); err != nil {
+					log.Println(err)
+					res.WriteHeader(http.StatusInternalServerError)
+					return
+				} else {
+					res.WriteHeader(http.StatusOK)
+					return
+				}
+			}
 		}
 		res.WriteHeader(http.StatusBadRequest)
 		return
@@ -399,11 +439,13 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 
 func (a *Api) LongtermLogin(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 
+	const (
+		THIRTY_DAYS = 30 * 24 * 60 * 60
+	)
 	longtermkey := vars["longtermkey"]
 
 	if longtermkey == a.Config.LongTermKey {
-		thirtyDays := 30 * 24 * 60 * 60
-		req.Header.Add(TP_TOKEN_DURATION, string(thirtyDays))
+		req.Header.Add(TP_TOKEN_DURATION, string(THIRTY_DAYS))
 	}
 
 	//and now login

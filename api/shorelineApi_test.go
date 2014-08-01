@@ -97,24 +97,74 @@ func TestUpdateUser_StatusBadRequest_WhenNoUpdates(t *testing.T) {
 
 func TestUpdateUser_StatusOK(t *testing.T) {
 
-	var updateData = []byte(`{"userid":"0x3-123-345-0x3","username": "test","emails":["test@foo.bar"]}`)
+	/*
+	 * can update all
+	 */
+	var updateAll = []byte(`{"userid":"0x3-123-345-0x3","username": "test","password":"aN3wPw0rD","emails":["test@new.bar"]}`)
 
-	request, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updateData))
+	requestUpdateAll, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updateAll))
 
-	request.Header.Set(TP_SESSION_TOKEN, "blah-blah-123-blah")
-	request.Header.Add("content-type", "application/json")
+	requestUpdateAll.Header.Set(TP_SESSION_TOKEN, "blah-blah-123-blah")
+	requestUpdateAll.Header.Add("content-type", "application/json")
 
-	response := httptest.NewRecorder()
+	responseUpdateAll := httptest.NewRecorder()
 	mockStore := clients.NewMockStoreClient(fakeConfig.Salt, false)
 	rtr := mux.NewRouter()
 	shoreline := InitApi(mockStore, fakeConfig)
 	shoreline.SetHandlers("", rtr)
 
-	shoreline.UpdateUser(response, request, NO_PARAMS)
+	shoreline.UpdateUser(requestUpdateAll, responseUpdateAll, NO_PARAMS)
 
-	if response.Code != http.StatusOK {
+	if responseUpdateAll.Code != http.StatusOK {
 		t.Fatalf("Non-expected status code %v:\n\tbody: %v", "200", response.Code)
 	}
+
+	/*
+	 * can update just username
+	 */
+	var updateName = []byte(`{"username": "Updated Name"}`)
+
+	requestUpdateName, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updateName))
+	requestUpdateName.Header.Set(TP_SESSION_TOKEN, "blah-blah-123-blah")
+	requestUpdateName.Header.Add("content-type", "application/json")
+	responseUpdateName := httptest.NewRecorder()
+	shoreline.UpdateUser(requestUpdateName, responseUpdateName, NO_PARAMS)
+
+	if responseUpdateName.Code != http.StatusOK {
+		t.Fatalf("Non-expected status code %v:\n\tbody: %v", "200", response.Code)
+	}
+
+	/*
+	 * can update just pw
+	 */
+
+	var updatePW = []byte(`{"password": "MyN3w0n_"}`)
+
+	requestUpdatePW, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updatePW))
+	requestUpdatePW.Header.Set(TP_SESSION_TOKEN, "blah-blah-123-blah")
+	requestUpdatePW.Header.Add("content-type", "application/json")
+	responseUpdatePW := httptest.NewRecorder()
+	shoreline.UpdateUser(requestUpdatePW, responseUpdatePW, NO_PARAMS)
+
+	if responseUpdatePW.Code != http.StatusOK {
+		t.Fatalf("Non-expected status code %v:\n\tbody: %v", "200", response.Code)
+	}
+
+	/*
+	 * can update just email
+	 */
+	var updateEmail = []byte(`{"emails":["test@foo.bar","test@new.bar"]}`)
+
+	requestUpdateEmail, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updateEmail))
+	requestUpdateEmail.Header.Set(TP_SESSION_TOKEN, "blah-blah-123-blah")
+	requestUpdateEmail.Header.Add("content-type", "application/json")
+	responseUpdateEmail := httptest.NewRecorder()
+	shoreline.UpdateUser(requestUpdateEmail, responseUpdateEmail, NO_PARAMS)
+
+	if responseUpdateEmail.Code != http.StatusOK {
+		t.Fatalf("Non-expected status code %v:\n\tbody: %v", "200", response.Code)
+	}
+
 }
 
 func TestGetUserInfo_StatusOK_AndBody(t *testing.T) {
