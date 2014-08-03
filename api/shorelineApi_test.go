@@ -228,30 +228,30 @@ func TestGetUserInfo_StatusUnauthorized_WhenNoToken(t *testing.T) {
 	}
 }
 
-func TestDeleteUserReturnsWithStatus(t *testing.T) {
+func TestDeleteUser_StatusNotImplemented(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
 	response := httptest.NewRecorder()
 
 	shoreline.SetHandlers("", rtr)
 
-	shoreline.DeleteUser(response, request)
+	shoreline.DeleteUser(response, request, NO_PARAMS)
 
 	if response.Code != http.StatusNotImplemented {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "501", response.Code)
 	}
 }
 
-func TestDeleteUserReturns401WhenNoSessionTokenHeaderGiven(t *testing.T) {
-	request, _ := http.NewRequest("GET", "/", nil)
+func TestDeleteUser_StatusUnauthorized_WhenNoToken(t *testing.T) {
+	request, _ := http.NewRequest("DELETE", "/", nil)
 	response := httptest.NewRecorder()
 
 	shoreline.SetHandlers("", rtr)
 
-	shoreline.DeleteUser(response, request)
+	shoreline.DeleteUser(response, request, NO_PARAMS)
 
 	if response.Code != http.StatusUnauthorized {
-		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "401", response.Code)
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusUnauthorized, response.Code)
 	}
 }
 

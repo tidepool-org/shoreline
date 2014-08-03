@@ -48,6 +48,7 @@ func (a *Api) SetHandlers(prefix string, rtr *mux.Router) {
 	rtr.HandleFunc("/user", a.CreateUser).Methods("POST")
 	rtr.Handle("/user", varsHandler(a.UpdateUser)).Methods("PUT")
 	rtr.Handle("/user/{userid}", varsHandler(a.UpdateUser)).Methods("PUT")
+	rtr.Handle("/user/{userid}", varsHandler(a.DeleteUser)).Methods("DELETE")
 
 	rtr.HandleFunc("/login", a.Login).Methods("POST")
 	rtr.HandleFunc("/login", a.RefreshSession).Methods("GET")
@@ -223,7 +224,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 						return
 					}
 				}
-
+				//Rehash the pw if needed
 				if updatesToApply.Pw != "" {
 
 					if err := userToUpdate.HashPassword(updatesToApply.Pw, a.Config.Salt); err != nil {
@@ -232,7 +233,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 						return
 					}
 				}
-
+				//All good - now update
 				if err := a.Store.UpsertUser(userToUpdate); err != nil {
 					log.Println(err)
 					res.WriteHeader(http.StatusInternalServerError)
@@ -299,9 +300,51 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 	return
 }
 
-func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request) {
+func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 
 	if sessionToken := getToken(req); sessionToken != nil {
+
+		id := vars["userid"]
+
+		if id != "" {
+		}
+
+		/*
+					var sessiontoken = req.headers['x-tidepool-session-token'];
+			    if (sessiontoken == null) {
+			      res.send(401, 'Unauthorized'); // not authorized
+			      return next();
+			    }
+
+			    var tokenData = unpackSessionToken(sessiontoken);
+			    // we can delete a specified user only if we're a server
+			    // we still require a password since only users should be able to delete tokenData
+			    var uid = null;
+			    if (tokenData.svr === 'yes') {
+			      uid = req.params.userid;
+			      postWithUser(uid, 'deleteuser', {server: true}, sessiontoken);
+			    } else {
+			      uid = tokenData.usr;
+			      postThisUser('deleteuser', {server: false}, sessiontoken);
+			    }
+			    var pw = req.params.password;
+			    if (pw == null || uid == null) {
+			      res.send(403);
+			      return next();
+			    }
+			    userService.deleteUser({ userid: uid, password: pw }, function (err, result) {
+			      if (tokenData.svr !== 'yes') {
+			        // if it was a user token, get rid of it
+			        userService.deleteToken(sessiontoken, function () {});
+			      }
+			      if (err) {
+			        res.send(err.statuscode, err.msg);
+			      } else {
+			        res.send(result.statuscode, result.msg);
+			      }
+			      return next();
+			    });
+		*/
 		//TODO:
 		res.WriteHeader(501)
 	}
