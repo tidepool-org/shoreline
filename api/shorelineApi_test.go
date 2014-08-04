@@ -22,6 +22,7 @@ var (
 		ServerSecret: "shhh! don't tell",
 		LongTermKey:  "the longetermkey",
 		Salt:         "a mineral substance composed primarily of sodium chloride",
+		AdminKey:     "gibraltar",
 	}
 	USR          = &models.User{Id: "123-99-100", Name: "Test One", Emails: []string{"test@new.bar"}}
 	usrTknData   = &models.TokenData{UserId: USR.Id, IsServer: false, DurationSecs: 3600}
@@ -228,8 +229,8 @@ func TestGetUserInfo_StatusUnauthorized_WhenNoToken(t *testing.T) {
 	}
 }
 
-func TestDeleteUser_StatusNotImplemented(t *testing.T) {
-	request, _ := http.NewRequest("GET", "/", nil)
+func TestDeleteUser_StatusForbidden_WhenNoPw(t *testing.T) {
+	request, _ := http.NewRequest("DELETE", "/", nil)
 	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
 	response := httptest.NewRecorder()
 
@@ -237,8 +238,40 @@ func TestDeleteUser_StatusNotImplemented(t *testing.T) {
 
 	shoreline.DeleteUser(response, request, NO_PARAMS)
 
-	if response.Code != http.StatusNotImplemented {
-		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "501", response.Code)
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusForbidden, response.Code)
+	}
+}
+
+func TestDeleteUser_StatusForbidden_WhenEmptyPw(t *testing.T) {
+
+	var jsonData = []byte(`{"password": ""}`)
+	request, _ := http.NewRequest("DELETE", "/", bytes.NewBuffer(jsonData))
+	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
+	response := httptest.NewRecorder()
+
+	shoreline.SetHandlers("", rtr)
+
+	shoreline.DeleteUser(response, request, NO_PARAMS)
+
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusForbidden, response.Code)
+	}
+}
+
+func TestDeleteUser_StatusAccepted(t *testing.T) {
+
+	var jsonData = []byte(`{"password": "123youknoWm3"}`)
+	request, _ := http.NewRequest("DELETE", "/", bytes.NewBuffer(jsonData))
+	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
+	response := httptest.NewRecorder()
+
+	shoreline.SetHandlers("", rtr)
+
+	shoreline.DeleteUser(response, request, map[string]string{"userid": USR.Id})
+
+	if response.Code != http.StatusAccepted {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusAccepted, response.Code)
 	}
 }
 

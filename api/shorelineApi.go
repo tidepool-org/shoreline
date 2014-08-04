@@ -21,6 +21,7 @@ type (
 		ServerSecret string
 		LongTermKey  string
 		Salt         string
+		AdminKey     string
 	}
 
 	varsHandler func(http.ResponseWriter, *http.Request, map[string]string)
@@ -78,6 +79,17 @@ func getUserDetail(req *http.Request) (usr *models.UserDetail) {
 		}
 	}
 	return usr
+}
+
+//Docode the http.Request parsing out the user details
+func getGivenDetail(req *http.Request) (d map[string]string) {
+	if req.ContentLength > 0 {
+		if err := json.NewDecoder(req.Body).Decode(&d); err != nil {
+			log.Println("error trying to decode user detail ", err)
+			return nil
+		}
+	}
+	return d
 }
 
 //get the token from the req header
@@ -304,49 +316,39 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 
 	if sessionToken := getToken(req); sessionToken != nil {
 
-		id := vars["userid"]
+		if sessionToken.UnpackAndVerify(a.Config.ServerSecret) {
+			var id string
+			if sessionToken.TokenData.IsServer == true {
+				id = vars["userid"]
+			} else {
+				id = sessionToken.TokenData.UserId
+			}
+			details := getGivenDetail(req)
+			pw := details["password"]
 
-		if id != "" {
+			if id != "" && pw != "" {
+
+				var err error
+				toDelete := &models.User{Id: id}
+
+				if err = toDelete.HashPassword(pw, a.Config.Salt); err == nil {
+					if err = a.Store.RemoveUser(toDelete); err == nil {
+						//cleanup if any
+						if sessionToken.TokenData.IsServer == false {
+							a.Store.RemoveToken(sessionToken)
+						}
+						//all good
+						res.WriteHeader(http.StatusAccepted)
+						return
+					}
+				}
+				log.Println(err)
+				res.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			res.WriteHeader(http.StatusForbidden)
+			return
 		}
-
-		/*
-					var sessiontoken = req.headers['x-tidepool-session-token'];
-			    if (sessiontoken == null) {
-			      res.send(401, 'Unauthorized'); // not authorized
-			      return next();
-			    }
-
-			    var tokenData = unpackSessionToken(sessiontoken);
-			    // we can delete a specified user only if we're a server
-			    // we still require a password since only users should be able to delete tokenData
-			    var uid = null;
-			    if (tokenData.svr === 'yes') {
-			      uid = req.params.userid;
-			      postWithUser(uid, 'deleteuser', {server: true}, sessiontoken);
-			    } else {
-			      uid = tokenData.usr;
-			      postThisUser('deleteuser', {server: false}, sessiontoken);
-			    }
-			    var pw = req.params.password;
-			    if (pw == null || uid == null) {
-			      res.send(403);
-			      return next();
-			    }
-			    userService.deleteUser({ userid: uid, password: pw }, function (err, result) {
-			      if (tokenData.svr !== 'yes') {
-			        // if it was a user token, get rid of it
-			        userService.deleteToken(sessiontoken, function () {});
-			      }
-			      if (err) {
-			        res.send(err.statuscode, err.msg);
-			      } else {
-			        res.send(result.statuscode, result.msg);
-			      }
-			      return next();
-			    });
-		*/
-		//TODO:
-		res.WriteHeader(501)
 	}
 	res.WriteHeader(http.StatusUnauthorized)
 	return
