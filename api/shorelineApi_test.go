@@ -215,6 +215,57 @@ func TestGetUserInfo_StatusOK_AndBody_WhenIdInURL(t *testing.T) {
 	}
 }
 
+func TestGetUserInfo_IsCaseInsensitive(t *testing.T) {
+
+	/*
+	 * Email
+	 */
+	var findData = []byte(`{emails":["TEST@FOO.BAR"]}`)
+	requestEmail, _ := http.NewRequest("GET", "/", bytes.NewBuffer(findData))
+
+	requestEmail.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
+	requestEmail.Header.Add("content-type", "application/json")
+
+	responseEmail := httptest.NewRecorder()
+
+	shoreline.SetHandlers("", rtr)
+
+	shoreline.GetUserInfo(responseEmail, requestEmail, NO_PARAMS)
+
+	//NOTE: as we have mocked the mongo layer we just be passed back what we gave
+	if responseEmail.Code != http.StatusOK {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, responseEmail.Code)
+	}
+
+	if responseEmail.Body == nil {
+		t.Fatalf("Non-expected empty body has been returned body: %v", responseEmail.Body)
+	}
+
+	/*
+	 * Email
+	 */
+	var findName = []byte(`{username":"TEST"}`)
+	requestName, _ := http.NewRequest("GET", "/", bytes.NewBuffer(findName))
+
+	requestName.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
+	requestName.Header.Add("content-type", "application/json")
+
+	responseName := httptest.NewRecorder()
+
+	shoreline.SetHandlers("", rtr)
+
+	shoreline.GetUserInfo(responseName, requestName, NO_PARAMS)
+
+	//NOTE: as we have mocked the mongo layer we just be passed back what we gave
+	if responseName.Code != http.StatusOK {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, responseName.Code)
+	}
+
+	if responseName.Body == nil {
+		t.Fatalf("Non-expected empty body has been returned body: %v", responseName.Body)
+	}
+}
+
 func TestGetUserInfo_StatusUnauthorized_WhenNoToken(t *testing.T) {
 	var findData = []byte(`{"username": "test","emails":["test@foo.bar"]}`)
 	request, _ := http.NewRequest("GET", "/", bytes.NewBuffer(findData))

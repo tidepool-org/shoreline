@@ -1,6 +1,7 @@
 package clients
 
 import (
+	"fmt"
 	"github.com/tidepool-org/go-common/clients/mongo"
 	"github.com/tidepool-org/shoreline/models"
 	"labix.org/v2/mgo"
@@ -36,6 +37,7 @@ func NewMongoStoreClient(config *mongo.Config) *MongoStoreClient {
 func (d MongoStoreClient) Close() {
 	log.Println("Close the session")
 	d.session.Close()
+	return
 }
 
 func (d MongoStoreClient) UpsertUser(user *models.User) error {
@@ -62,19 +64,36 @@ func (d MongoStoreClient) FindUser(user *models.User) (result *models.User, err 
 func (d MongoStoreClient) FindUsers(user *models.User) (results []*models.User, err error) {
 
 	fieldsToMatch := []bson.M{}
+	const (
+		MATCH            = `^%s$`
+		CASE_INSENSITIVE = `/^%s$/i`
+	)
 
 	if user.Id != "" {
 		fieldsToMatch = append(fieldsToMatch, bson.M{"id": user.Id})
 	}
 	if user.Name != "" {
-		fieldsToMatch = append(fieldsToMatch, bson.M{"name": user.Name})
+		fieldsToMatch = append(fieldsToMatch, bson.M{"name": bson.M{"$regex": bson.RegEx{fmt.Sprintf(MATCH, user.Name), "i"}}})
 	}
 	if len(user.Emails) > 0 {
-		fieldsToMatch = append(fieldsToMatch, bson.M{"emails": user.Emails})
+		//fieldsToMatch = append(fieldsToMatch, bson.M{"emails": user.Emails})
+
+		fieldsToMatch = append(fieldsToMatch, bson.M{"emails": bson.M{"$in": user.Emails}})
+
+		/*var matchEmails []string // := make(map[string][]*Person)
+		for i := range user.Emails {
+			matchEmails = append(matchEmails, fmt.Sprintf(CASE_INSENSITIVE, user.Emails[i]))
+		}
+		fieldsToMatch = append(fieldsToMatch, bson.M{"emails": bson.M{"$in": matchEmails}})
+		*/
 	}
 
 	if err = d.usersC.Find(bson.M{"$or": fieldsToMatch}).All(&results); err != nil {
 		return results, err
+	}
+
+	if results == nil {
+		results = []*models.User{}
 	}
 
 	return results, nil
