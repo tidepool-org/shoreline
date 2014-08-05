@@ -71,14 +71,14 @@ func (h varsHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 }
 
 //Docode the http.Request parsing out the user details
-func getUserDetail(req *http.Request) (usr *models.UserDetail) {
+func getUserDetail(req *http.Request) (ud *models.UserDetail) {
 	if req.ContentLength > 0 {
-		if err := json.NewDecoder(req.Body).Decode(&usr); err != nil {
+		if err := json.NewDecoder(req.Body).Decode(&ud); err != nil {
 			log.Println("error trying to decode user detail ", err)
-			return nil
+			return ud
 		}
 	}
-	return usr
+	return ud
 }
 
 //Docode the http.Request parsing out the user details
@@ -126,7 +126,7 @@ func unpackAuth(authLine string) (usr *models.User) {
 			details := strings.Split(string(decodedPayload), ":")
 			if details[0] != "" || details[1] != "" {
 				//Note the incoming `name` coule infact be id, email or the username
-				return &models.User{Id: details[0], Name: details[0], Emails: []string{details[0]}, Pw: details[1]}
+				return models.UserFromDetails(&models.UserDetail{Id: details[0], Name: details[0], Emails: []string{details[0]}, Pw: details[1]})
 			}
 		}
 	}
@@ -206,7 +206,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 
 		if updatesToApply := getUserDetail(req); updatesToApply != nil && id != "" {
 
-			usrToFind := &models.User{Id: id, Emails: []string{id}}
+			usrToFind := models.UserFromDetails(&models.UserDetail{Id: id, Emails: []string{id}})
 
 			if userToUpdate, err := a.Store.FindUser(usrToFind); err != nil {
 				log.Println(err)
@@ -216,7 +216,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 
 				//Name and/or Emails and perform dups check
 				if updatesToApply.Name != "" || len(updatesToApply.Emails) > 0 {
-					dupCheck := &models.User{}
+					dupCheck := models.UserFromDetails(&models.UserDetail{})
 					if updatesToApply.Name != "" {
 						userToUpdate.Name = updatesToApply.Name
 						dupCheck.Name = userToUpdate.Name
@@ -274,11 +274,11 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 		id := vars["userid"]
 		if id != "" {
 			//the `userid` could infact be an email
-			usr = &models.User{Id: id, Emails: []string{id}}
+			usr = models.UserFromDetails(&models.UserDetail{Id: id, Emails: []string{id}})
 		} else {
 			//use the token to find the userid
 			if ok := sessionToken.UnpackAndVerify(a.Config.ServerSecret); ok == true {
-				usr = &models.User{Id: sessionToken.TokenData.UserId}
+				usr = models.UserFromDetails(&models.UserDetail{Id: sessionToken.TokenData.UserId})
 			}
 		}
 
@@ -329,7 +329,7 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 			if id != "" && pw != "" {
 
 				var err error
-				toDelete := &models.User{Id: id}
+				toDelete := models.UserFromDetails(&models.UserDetail{Id: id})
 
 				if err = toDelete.HashPassword(pw, a.Config.Salt); err == nil {
 					if err = a.Store.RemoveUser(toDelete); err == nil {
@@ -532,7 +532,7 @@ func (a *Api) ManageIdHashPair(res http.ResponseWriter, req *http.Request, vars 
 	//we need server token
 	if a.hasServerToken(req) {
 
-		usr := &models.User{Id: vars["userid"]}
+		usr := models.UserFromDetails(&models.UserDetail{Id: vars["userid"]})
 		theKey := vars["key"]
 
 		baseStrings := []string{a.Config.Salt, usr.Id, theKey}

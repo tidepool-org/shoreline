@@ -9,8 +9,7 @@ func TestName(t *testing.T) {
 
 	casedName := "A Name"
 
-	ud := &UserDetail{Name: casedName}
-	user := UserFromDetails(ud)
+	user := UserFromDetails(&UserDetail{Name: casedName})
 
 	if user.Name == "" {
 		t.Fatalf("the name should have been set")
@@ -25,8 +24,7 @@ func TestName(t *testing.T) {
 func TestId(t *testing.T) {
 
 	id := "123-your-id"
-	ud := &UserDetail{Id: id}
-	user := UserFromDetails(ud)
+	user := UserFromDetails(&UserDetail{Id: id})
 
 	if user.Id != id {
 		t.Fatalf("the id should have been set")
@@ -39,8 +37,7 @@ func TestEmails(t *testing.T) {
 	e2 := "TEST@two.bar"
 
 	emails := []string{e1, e2}
-	ud := &UserDetail{Emails: emails}
-	user := UserFromDetails(ud)
+	user := UserFromDetails(&UserDetail{Emails: emails})
 
 	if len(user.Emails) != 2 {
 		t.Fatalf("there should be two emails")
@@ -84,9 +81,7 @@ func TestPwHashWithEmptyParams(t *testing.T) {
 
 func TestNewUserNoPw(t *testing.T) {
 
-	noPw := &UserDetail{Name: "jamie", Pw: "", Emails: []string{"test@foo.bar"}}
-
-	if _, err := NewUser(noPw, "some salt"); err == nil {
+	if _, err := NewUser(&UserDetail{Name: "jamie", Pw: "", Emails: []string{"test@foo.bar"}}, "some salt"); err == nil {
 		t.Fatalf("should have given error as the password is not given")
 	}
 
@@ -94,9 +89,7 @@ func TestNewUserNoPw(t *testing.T) {
 
 func TestNewUserNoName(t *testing.T) {
 
-	noName := &UserDetail{Name: "", Pw: "3th3Hardw0y", Emails: []string{}}
-
-	if _, err := NewUser(noName, "some salt"); err == nil {
+	if _, err := NewUser(&UserDetail{Name: "", Pw: "3th3Hardw0y", Emails: []string{}}, "some salt"); err == nil {
 		t.Fatalf("should have given error as the name is not given")
 	}
 
