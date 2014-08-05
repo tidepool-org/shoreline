@@ -1,11 +1,11 @@
 package api
 
 import (
+	"./../clients"
+	"./../models"
 	"bytes"
 	"encoding/json"
 	"github.com/gorilla/mux"
-	"github.com/tidepool-org/shoreline/clients"
-	"github.com/tidepool-org/shoreline/models"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"

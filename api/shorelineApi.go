@@ -1,11 +1,11 @@
 package api
 
 import (
+	"./../clients"
+	"./../models"
 	"encoding/base64"
 	"encoding/json"
 	"github.com/gorilla/mux"
-	"github.com/tidepool-org/shoreline/clients"
-	"github.com/tidepool-org/shoreline/models"
 	"log"
 	"net/http"
 	"strconv"
@@ -292,7 +292,7 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 				return
 			} else if results != nil {
 				if len(results) == 1 && usr.Pw != "" {
-					if results[0].HasPwMatch(usr, a.Config.Salt) {
+					if results[0].PwsMatch(usr, a.Config.Salt) {
 						sendModelAsRes(res, results[0])
 						return
 					} else {
@@ -366,7 +366,7 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 			for i := range results {
 				//ensure a pw match
 
-				if results[i].HasPwMatch(usr, a.Config.Salt) {
+				if results[i].PwsMatch(usr, a.Config.Salt) {
 
 					//generate token and save
 					sessionToken, _ := models.NewSessionToken(

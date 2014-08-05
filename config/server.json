@@ -2,7 +2,7 @@
   "service": {
     "service": "shoreline-local",
     "protocol": "http",
-    "host": "localhost:17072",
+    "host": "localhost:9107",
     "keyFile": "config/key.pem",
     "certFile": "config/cert.pem",
     "Salt":"a mineral substance composed primarily of sodium chloride",

@@ -1,7 +1,7 @@
 package clients
 
 import (
-	models "github.com/tidepool-org/shoreline/models"
+	"./../models"
 )
 
 type StoreClient interface {

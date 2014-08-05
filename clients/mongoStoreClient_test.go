@@ -1,9 +1,9 @@
 package clients
 
 import (
+	"./../models"
 	"encoding/json"
 	"github.com/tidepool-org/go-common/clients/mongo"
-	"github.com/tidepool-org/shoreline/models"
 	"io/ioutil"
 	"labix.org/v2/mgo"
 	"strings"
@@ -33,8 +33,6 @@ func TestMongoStoreUserOperations(t *testing.T) {
 		}
 
 		mc := NewMongoStoreClient(config.Mongo)
-
-		//defer mc.Close()
 
 		/*
 		 * INIT THE TEST - we use a clean copy of the collection before we start
@@ -134,25 +132,6 @@ func TestMongoStoreUserOperations(t *testing.T) {
 				t.Fatalf("the user we found doesn't match what we asked for %v", found)
 			}
 		}
-		//UPPERCASE
-		/*
-			TODO: sort out regex for this test
-			email := strings.ToUpper(user.Emails[0])
-
-			byEmailsUpper := &models.User{Emails: []string{email}}
-
-			if found, err := mc.FindUsers(byEmailsUpper); err != nil {
-				t.Fatalf("we could not find the the user by emails %v", byEmailsUpper)
-			} else {
-				if len(found) != 1 {
-					t.Logf("results: %v ", found)
-					t.Fatalf("there should only be 1 match be we found %v", len(found))
-				}
-				if found[0].Emails[0] != byEmailsUpper.Emails[0] {
-					t.Fatalf("the user we found doesn't match what we asked for %v", found)
-				}
-			}
-		*/
 
 		//By Id
 		toFindById := &models.User{Id: user.Id}
@@ -208,7 +187,6 @@ func TestMongoStoreTokenOperations(t *testing.T) {
 		}
 
 		mc := NewMongoStoreClient(config.Mongo)
-		//defer mc.Close()
 
 		/*
 		 * INIT THE TEST - we use a clean copy of the collection before we start

@@ -1,9 +1,8 @@
 package clients
 
 import (
-	"crypto/rand"
+	"./../models"
 	"errors"
-	"github.com/tidepool-org/shoreline/models"
 )
 
 type MockStoreClient struct {
@@ -14,17 +13,6 @@ type MockStoreClient struct {
 
 func NewMockStoreClient(salt string, returnDifferent, doBad bool) *MockStoreClient {
 	return &MockStoreClient{salt: salt, doBad: doBad, returnDifferent: returnDifferent}
-}
-
-//faking the hashes
-func rand_str(str_size int) string {
-	alphanum := "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-	var bytes = make([]byte, str_size)
-	rand.Read(bytes)
-	for i, b := range bytes {
-		bytes[i] = alphanum[b%byte(len(alphanum))]
-	}
-	return string(bytes)
 }
 
 func (d MockStoreClient) Close() {}
@@ -44,7 +32,6 @@ func (d MockStoreClient) FindUsers(user *models.User) (found []*models.User, err
 	}
 
 	if d.returnDifferent {
-		//other, _ := models.NewUser(&models.UserDetail{Name: "Some One", Pw: "s0m30n3", Emails: []string{}}, d.salt)
 		return []*models.User{}, nil
 	}
 

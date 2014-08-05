@@ -1,34 +1,57 @@
 package models
 
 import (
+	"strings"
 	"testing"
 )
 
-func TestHasIdentifierForName(t *testing.T) {
-	user := User{Name: "a name"}
-	if valid := user.HasIdentifier(); valid != true {
-		t.Fatalf("session value should have been set for token")
+func TestName(t *testing.T) {
+
+	casedName := "A Name"
+
+	ud := &UserDetail{Name: casedName}
+	user := UserFromDetails(ud)
+
+	if user.Name == "" {
+		t.Fatalf("the name should have been set")
+	}
+
+	if user.Name != strings.ToLower(casedName) {
+		t.Fatalf("the name should be lowercase")
+	}
+
+}
+
+func TestId(t *testing.T) {
+
+	id := "123-your-id"
+	ud := &UserDetail{Id: id}
+	user := UserFromDetails(ud)
+
+	if user.Id != id {
+		t.Fatalf("the id should have been set")
 	}
 }
 
-func TestHasIdentifierForId(t *testing.T) {
-	user := User{Id: "123-your-id"}
-	if valid := user.HasIdentifier(); valid != true {
-		t.Fatalf("session value should have been set for token")
-	}
-}
+func TestEmails(t *testing.T) {
 
-func TestHasIdentifierForEmail(t *testing.T) {
-	user := User{Emails: []string{"test@foo.bar"}}
-	if valid := user.HasIdentifier(); valid != true {
-		t.Fatalf("session value should have been set for token")
-	}
-}
+	e1 := "test@foo.bar"
+	e2 := "TEST@two.bar"
 
-func TestHasIdentifierWhenNonSet(t *testing.T) {
-	user := User{}
-	if valid := user.HasIdentifier(); valid != false {
-		t.Fatalf("session value should have been set for token")
+	emails := []string{e1, e2}
+	ud := &UserDetail{Emails: emails}
+	user := UserFromDetails(ud)
+
+	if len(user.Emails) != 2 {
+		t.Fatalf("there should be two emails")
+	}
+
+	if user.Emails[0] != emails[0] || user.Emails[1] != emails[1] {
+		t.Fatalf("the emails should have been set")
+	}
+
+	if user.Emails[1] != e2 {
+		t.Fatalf("the emails should keep the case as they were added")
 	}
 }
 
@@ -61,7 +84,9 @@ func TestPwHashWithEmptyParams(t *testing.T) {
 
 func TestNewUserNoPw(t *testing.T) {
 
-	if _, err := NewUser("jamie", "", "some salt", []string{}); err == nil {
+	noPw := &UserDetail{Name: "jamie", Pw: "", Emails: []string{"test@foo.bar"}}
+
+	if _, err := NewUser(noPw, "some salt"); err == nil {
 		t.Fatalf("should have given error as the password is not given")
 	}
 
@@ -69,7 +94,9 @@ func TestNewUserNoPw(t *testing.T) {
 
 func TestNewUserNoName(t *testing.T) {
 
-	if _, err := NewUser("", "3th3Hardw0y", "some salt", []string{}); err == nil {
+	noName := &UserDetail{Name: "", Pw: "3th3Hardw0y", Emails: []string{}}
+
+	if _, err := NewUser(noName, "some salt"); err == nil {
 		t.Fatalf("should have given error as the name is not given")
 	}
 
@@ -77,7 +104,9 @@ func TestNewUserNoName(t *testing.T) {
 
 func TestNewUser(t *testing.T) {
 
-	if user, err := NewUser("", "3th3Hardw0y", "some salt", []string{"test@foo.bar"}); err == nil {
+	name := "MixeD caSe"
+
+	if user, err := NewUser(&UserDetail{Name: name, Pw: "3th3Hardw0y", Emails: []string{"test@foo.bar"}}, "some salt"); err == nil {
 		if user.Hash == "" {
 			t.Fatalf("the user hash should have been set")
 		}
@@ -90,9 +119,17 @@ func TestNewUser(t *testing.T) {
 		if len(user.Id) != 10 {
 			t.Fatalf("the user id should be 10 characters in length")
 		}
+		//Name should be lowercase
 		if user.Name == "" {
 			t.Fatalf("the user name should have been set")
 		}
+		if user.Name == name {
+			t.Fatalf("the user name should be lower case")
+		}
+		if user.Name != strings.ToLower(name) {
+			t.Fatalf("the user name should match the lowercase version of the given name")
+		}
+
 		if len(user.Emails) != 1 {
 			t.Fatalf("the emails should have been set")
 		}
