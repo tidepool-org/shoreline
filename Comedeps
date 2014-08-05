@@ -1,3 +1,3 @@
 labix.org/v2/mgo bzr https://launchpad.net/mgo/v2 287
 github.com/gorilla/mux git https://github.com/gorilla/mux.git 14cafe28513321476c73967a5a4f3454b6129c46
-github.com/tidepool-org/go-common git https://github.com/tidepool-org/go-common.git v0.0.2
+github.com/tidepool-org/go-common git https://github.com/tidepool-org/go-common.git v0.0.4
