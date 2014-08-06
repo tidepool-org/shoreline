@@ -22,7 +22,6 @@ var (
 		ServerSecret: "shhh! don't tell",
 		LongTermKey:  "the longetermkey",
 		Salt:         "a mineral substance composed primarily of sodium chloride",
-		AdminKey:     "gibraltar",
 	}
 	USR          = &models.User{Id: "123-99-100", Name: "Test One", Emails: []string{"test@new.bar"}}
 	usrTknData   = &models.TokenData{UserId: USR.Id, IsServer: false, DurationSecs: 3600}
@@ -63,6 +62,20 @@ func TestCreateUser_StatusCreated(t *testing.T) {
 	if response.Code != http.StatusCreated {
 		t.Fatalf("Non-expected status code %v:\n\tbody: %v", "201", response.Code)
 	}
+
+	body, _ := ioutil.ReadAll(response.Body)
+
+	var usrData map[string]string
+	_ = json.Unmarshal(body, &usrData)
+
+	if usrData == nil {
+		t.Fatal("body should have been returned")
+	}
+
+	if usrData["userid"] == "" {
+		t.Fatal("body should have the userid")
+	}
+
 }
 
 func TestUpdateUser_StatusUnauthorized_WhenNoToken(t *testing.T) {

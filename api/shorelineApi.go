@@ -185,7 +185,7 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 				res.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			res.WriteHeader(http.StatusCreated)
+			sendModelAsResWithStatus(res, usr, http.StatusCreated)
 			return
 		} else {
 			log.Println(err)

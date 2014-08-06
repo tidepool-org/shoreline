@@ -46,7 +46,6 @@ func (d MongoStoreClient) UpsertUser(user *models.User) error {
 	if _, err := d.usersC.Upsert(bson.M{"id": user.Id}, user); err != nil {
 		return err
 	}
-
 	return nil
 }
 
