@@ -21,6 +21,7 @@ type (
 		clients.Config
 		Service disc.ServiceListing `json:"service"`
 		Mongo   mongo.Config        `json:"mongo"`
+		Api     api.Config          `json:"shoreline"`
 	}
 )
 
@@ -31,11 +32,7 @@ func main() {
 		log.Panic("Problem loading config", err)
 	}
 
-	cfg := api.Config{
-		ServerSecret: "shhh! don't tell",
-		LongTermKey:  "the longetermkey",
-		Salt:         "a mineral substance composed primarily of sodium chloride",
-	}
+	log.Println("@@ config ", config.Api)
 
 	/*
 	 * Hakken setup
@@ -55,7 +52,7 @@ func main() {
 	store := sc.NewMongoStoreClient(&config.Mongo)
 
 	rtr := mux.NewRouter()
-	api := api.InitApi(store, cfg)
+	api := api.InitApi(store, config.Api)
 	api.SetHandlers("", rtr)
 
 	/*
@@ -95,10 +92,5 @@ func main() {
 	}()
 
 	<-done
-
-	/*http.Handle("/", rtr)
-	log.Println("Listening...")
-	http.ListenAndServe(":9107", nil)
-	*/
 
 }

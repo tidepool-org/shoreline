@@ -4,12 +4,14 @@
     "protocol": "http",
     "host": "localhost:9107",
     "keyFile": "config/key.pem",
-    "certFile": "config/cert.pem",
-    "Salt":"a mineral substance composed primarily of sodium chloride",
-    "ServerSecret":"shhh! don't tell",
-    "Longtermkey":"the longetermkey"
+    "certFile": "config/cert.pem"
   },
   "mongo": {
     "connectionString": "mongodb://localhost/shoreline"
+  },
+  "shoreline" : {
+    "serverSecret": "This needs to be the same secret everywhere. YaHut75NsK1f9UKUXuWqxNN0RUwHFBCy",
+    "longTermKey": "abcdefghijklmnopqrstuvwxyz",
+    "salt" : "ADihSEI7tOQQP9xfXMO9HfRpXKu1NpIJ"
   }
 }

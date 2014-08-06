@@ -18,10 +18,9 @@ type (
 		Config Config
 	}
 	Config struct {
-		ServerSecret string
-		LongTermKey  string
-		Salt         string
-		AdminKey     string
+		ServerSecret string `json:"serverSecret"`
+		LongTermKey  string `json:"longTermKey"`
+		Salt         string `json:"salt"`
 	}
 
 	varsHandler func(http.ResponseWriter, *http.Request, map[string]string)
