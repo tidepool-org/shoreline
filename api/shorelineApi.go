@@ -134,8 +134,8 @@ func unpackAuth(authLine string) (usr *models.User) {
 
 func sendModelsAsRes(res http.ResponseWriter, models ...interface{}) {
 
+	res.Header().Set("content-type", "application/json")
 	res.WriteHeader(http.StatusOK)
-	res.Header().Add("content-type", "application/json")
 
 	res.Write([]byte("["))
 	for i := range models {
@@ -154,8 +154,8 @@ func sendModelAsRes(res http.ResponseWriter, model interface{}) {
 }
 
 func sendModelAsResWithStatus(res http.ResponseWriter, model interface{}, statusCode int) {
+	res.Header().Set("content-type", "application/json")
 	res.WriteHeader(statusCode)
-	res.Header().Add("content-type", "application/json")
 
 	if jsonDetails, err := json.Marshal(model); err != nil {
 		log.Println(err)

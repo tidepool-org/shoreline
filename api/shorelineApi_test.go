@@ -63,6 +63,10 @@ func TestCreateUser_StatusCreated(t *testing.T) {
 		t.Fatalf("Non-expected status code %v:\n\tbody: %v", "201", response.Code)
 	}
 
+	if response.Header().Get("content-type") != "application/json" {
+		t.Fatal("the resp should be json")
+	}
+
 	body, _ := ioutil.ReadAll(response.Body)
 
 	var usrData map[string]string
@@ -395,6 +399,10 @@ func TestLogin_StatusOK(t *testing.T) {
 	if response.Header().Get(TP_SESSION_TOKEN) == "" {
 		t.Fatal("The session token should have been set")
 	}
+
+	if response.Header().Get("content-type") != "application/json" {
+		t.Fatal("the resp should be json")
+	}
 }
 
 func TestServerLogin_StatusBadRequest_WhenNoNameOrSecret(t *testing.T) {
@@ -455,6 +463,7 @@ func TestServerLogin_StatusOK(t *testing.T) {
 	if response.Header().Get(TP_SESSION_TOKEN) == "" {
 		t.Fatal("The session token should have been set")
 	}
+
 }
 
 func TestServerLogin_StatusUnauthorized_WhenSecretWrong(t *testing.T) {
@@ -658,6 +667,10 @@ func TestServerCheckToken_StatusOK(t *testing.T) {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, checkTokenResponse.Code)
 	}
 
+	if checkTokenResponse.Header().Get("content-type") != "application/json" {
+		t.Fatal("the resp should be json")
+	}
+
 	body, _ := ioutil.ReadAll(checkTokenResponse.Body)
 
 	var tokenData models.TokenData
@@ -747,6 +760,10 @@ func TestAnonymousIdHashPair_StatusOK(t *testing.T) {
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, response.Code)
+	}
+
+	if response.Header().Get("content-type") != "application/json" {
+		t.Fatal("the resp should be json")
 	}
 
 	body, _ := ioutil.ReadAll(response.Body)
@@ -853,6 +870,10 @@ func TestManageIdHashPair_StatusOK(t *testing.T) {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, response.Code)
 	}
 
+	if response.Header().Get("content-type") != "application/json" {
+		t.Fatal("the resp should be json")
+	}
+
 	body, _ := ioutil.ReadAll(response.Body)
 
 	var idHashPair models.IdHashPair
@@ -894,6 +915,10 @@ func TestManageIdHashPair_StatusCreated_WhenPost(t *testing.T) {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusCreated, response.Code)
 	}
 
+	if mngIdPairResponse.Header().Get("content-type") != "application/json" {
+		t.Fatal("the resp should be json")
+	}
+
 	body, _ := ioutil.ReadAll(mngIdPairResponse.Body)
 
 	var idHashPair models.IdHashPair
@@ -933,6 +958,10 @@ func TestManageIdHashPair_StatusCreated_WhenPut(t *testing.T) {
 
 	if mngIdPairResponse.Code != http.StatusCreated {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusCreated, response.Code)
+	}
+
+	if mngIdPairResponse.Header().Get("content-type") != "application/json" {
+		t.Fatal("the resp should be json")
 	}
 
 	body, _ := ioutil.ReadAll(mngIdPairResponse.Body)
