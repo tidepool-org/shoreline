@@ -63,6 +63,10 @@ func TestCreateUser_StatusCreated(t *testing.T) {
 		t.Fatalf("Non-expected status code %v:\n\tbody: %v", "201", response.Code)
 	}
 
+	if response.Header().Get(TP_SESSION_TOKEN) == "" {
+		t.Fatal("the resp should have a session token")
+	}
+
 	if response.Header().Get("content-type") != "application/json" {
 		t.Fatal("the resp should be json")
 	}

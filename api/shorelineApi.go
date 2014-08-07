@@ -175,6 +175,23 @@ func (a *Api) hasServerToken(req *http.Request) bool {
 	return false
 }
 
+func (a *Api) createAndSaveToken(dur float64, usr *models.User) (*models.SessionToken, error) {
+	sessionToken, _ := models.NewSessionToken(
+		&models.TokenData{
+			UserId:       usr.Id,
+			IsServer:     false,
+			DurationSecs: dur,
+		},
+		a.Config.ServerSecret,
+	)
+
+	if err := a.Store.AddToken(sessionToken); err == nil {
+		return sessionToken, nil
+	} else {
+		return nil, err
+	}
+}
+
 //Pull the incoming user from the http.Request body and save return http.StatusCreated
 func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 
@@ -185,8 +202,16 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 				res.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			sendModelAsResWithStatus(res, usr, http.StatusCreated)
-			return
+			if sessionToken, err := a.createAndSaveToken(tokenDuration(req), usr); err != nil {
+				log.Println(err)
+				res.WriteHeader(http.StatusInternalServerError)
+				return
+			} else {
+				res.Header().Set(TP_SESSION_TOKEN, sessionToken.Token)
+				sendModelAsResWithStatus(res, usr, http.StatusCreated)
+				return
+			}
+
 		} else {
 			log.Println(err)
 		}
@@ -364,27 +389,14 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 		} else {
 			for i := range results {
 				//ensure a pw match
-
 				if results[i].PwsMatch(usr, a.Config.Salt) {
-
-					//generate token and save
-					sessionToken, _ := models.NewSessionToken(
-						&models.TokenData{
-							UserId:       results[i].Id,
-							IsServer:     false,
-							DurationSecs: tokenDuration(req),
-						},
-						a.Config.ServerSecret,
-					)
-
-					if err := a.Store.AddToken(sessionToken); err == nil {
-						res.Header().Set(TP_SESSION_TOKEN, sessionToken.Token)
-						//postThisUser('userlogin', {}, sessiontoken);
-						sendModelAsRes(res, results[0])
-						return
-					} else {
+					if sessionToken, err := a.createAndSaveToken(tokenDuration(req), results[i]); err != nil {
 						log.Println(err)
 						res.WriteHeader(http.StatusInternalServerError)
+						return
+					} else {
+						res.Header().Set(TP_SESSION_TOKEN, sessionToken.Token)
+						sendModelAsRes(res, results[i])
 						return
 					}
 				} else {
