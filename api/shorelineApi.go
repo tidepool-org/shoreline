@@ -151,6 +151,7 @@ func sendModelsAsRes(res http.ResponseWriter, models ...interface{}) {
 
 func sendModelAsRes(res http.ResponseWriter, model interface{}) {
 	sendModelAsResWithStatus(res, model, http.StatusOK)
+	return
 }
 
 func sendModelAsResWithStatus(res http.ResponseWriter, model interface{}, statusCode int) {
@@ -175,11 +176,11 @@ func (a *Api) hasServerToken(req *http.Request) bool {
 	return false
 }
 
-func (a *Api) createAndSaveToken(dur float64, usr *models.User) (*models.SessionToken, error) {
+func (a *Api) createAndSaveToken(dur float64, id string, isServer bool) (*models.SessionToken, error) {
 	sessionToken, _ := models.NewSessionToken(
 		&models.TokenData{
-			UserId:       usr.Id,
-			IsServer:     false,
+			UserId:       id,
+			IsServer:     isServer,
 			DurationSecs: dur,
 		},
 		a.Config.ServerSecret,
@@ -202,7 +203,7 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 				res.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			if sessionToken, err := a.createAndSaveToken(tokenDuration(req), usr); err != nil {
+			if sessionToken, err := a.createAndSaveToken(tokenDuration(req), usr.Id, false); err != nil {
 				log.Println(err)
 				res.WriteHeader(http.StatusInternalServerError)
 				return
@@ -301,7 +302,7 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 			usr = models.UserFromDetails(&models.UserDetail{Id: id, Emails: []string{id}})
 		} else {
 			//use the token to find the userid
-			if ok := sessionToken.UnpackAndVerify(a.Config.ServerSecret); ok == true {
+			if sessionToken.UnpackAndVerify(a.Config.ServerSecret) {
 				usr = models.UserFromDetails(&models.UserDetail{Id: sessionToken.TokenData.UserId})
 			}
 		}
@@ -390,7 +391,12 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 			for i := range results {
 				//ensure a pw match
 				if results[i].PwsMatch(usr, a.Config.Salt) {
-					if sessionToken, err := a.createAndSaveToken(tokenDuration(req), results[i]); err != nil {
+					//a mactch so login
+					if sessionToken, err := a.createAndSaveToken(
+						tokenDuration(req),
+						results[i].Id,
+						false,
+					); err != nil {
 						log.Println(err)
 						res.WriteHeader(http.StatusInternalServerError)
 						return
@@ -421,24 +427,17 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 	}
 	if pw == a.Config.ServerSecret {
 		//generate new token
-
-		sessionToken, _ := models.NewSessionToken(
-			&models.TokenData{
-				UserId:       server,
-				IsServer:     true,
-				DurationSecs: tokenDuration(req),
-			},
-			a.Config.ServerSecret,
-		)
-
-		if err := a.Store.AddToken(sessionToken); err == nil {
-			res.Header().Set(TP_SESSION_TOKEN, sessionToken.Token)
-			res.WriteHeader(http.StatusOK)
-			//postServer('serverlogin', {}, sessiontoken);
-			return
-		} else {
+		if sessionToken, err := a.createAndSaveToken(
+			tokenDuration(req),
+			server,
+			true,
+		); err != nil {
 			log.Println(err)
 			res.WriteHeader(http.StatusInternalServerError)
+			return
+		} else {
+			res.Header().Set(TP_SESSION_TOKEN, sessionToken.Token)
+			res.WriteHeader(http.StatusOK)
 			return
 		}
 	}
@@ -451,33 +450,27 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 	if sessionToken := getToken(req); sessionToken != nil {
 		const TWO_HOURS_IN_SECS = 60 * 60 * 2
 
-		if ok := sessionToken.UnpackAndVerify(a.Config.ServerSecret); ok == true {
+		if sessionToken.UnpackAndVerify(a.Config.ServerSecret) {
 
 			if sessionToken.TokenData.IsServer == false && sessionToken.TokenData.DurationSecs > TWO_HOURS_IN_SECS {
 				//long-duration, it's not renewable, so just return it
 				sendModelAsRes(res, sessionToken.TokenData.UserId)
-			}
-
-			newToken, _ := models.NewSessionToken(
-				&models.TokenData{
-					UserId:       sessionToken.TokenData.UserId,
-					DurationSecs: tokenDuration(req),
-					IsServer:     sessionToken.TokenData.IsServer,
-				},
-				a.Config.ServerSecret,
-			)
-
-			if err := a.Store.AddToken(newToken); err == nil {
-				res.Header().Set(TP_SESSION_TOKEN, newToken.Token)
-				res.WriteHeader(http.StatusOK)
-				//postServer('serverlogin', {}, sessiontoken);
 				return
-			} else {
+			}
+			//refresh
+			if sessionToken, err := a.createAndSaveToken(
+				tokenDuration(req),
+				sessionToken.TokenData.UserId,
+				sessionToken.TokenData.IsServer,
+			); err != nil {
 				log.Println(err)
 				res.WriteHeader(http.StatusInternalServerError)
 				return
+			} else {
+				res.Header().Set(TP_SESSION_TOKEN, sessionToken.Token)
+				res.WriteHeader(http.StatusOK)
+				return
 			}
-
 		}
 	}
 	res.WriteHeader(http.StatusUnauthorized)
@@ -507,6 +500,7 @@ func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars 
 		svrToken := &models.SessionToken{Token: tokenString}
 		if ok := svrToken.UnpackAndVerify(a.Config.ServerSecret); ok == true {
 			sendModelAsRes(res, svrToken.TokenData)
+			return
 		}
 		res.WriteHeader(http.StatusNotFound)
 		return
@@ -533,6 +527,7 @@ func (a *Api) AnonymousIdHashPair(res http.ResponseWriter, req *http.Request) {
 	if len(req.URL.Query()) > 0 {
 		idHashPair := models.NewAnonIdHashPair([]string{a.Config.Salt}, req.URL.Query())
 		sendModelAsRes(res, idHashPair)
+		return
 	}
 	res.WriteHeader(http.StatusBadRequest)
 	return
@@ -557,6 +552,7 @@ func (a *Api) ManageIdHashPair(res http.ResponseWriter, req *http.Request, vars 
 			case "GET":
 				if foundUsr.Private != nil && foundUsr.Private[theKey] != nil {
 					sendModelAsRes(res, foundUsr.Private[theKey])
+					return
 				} else {
 					if foundUsr.Private == nil {
 						foundUsr.Private = make(map[string]*models.IdHashPair)
