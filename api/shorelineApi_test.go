@@ -438,6 +438,20 @@ func TestLogin_StatusOK(t *testing.T) {
 	}
 }
 
+func TestLogin_StatusUnauthorized_WhenWrongCreds(t *testing.T) {
+	request, _ := http.NewRequest("POST", "/", nil)
+	request.SetBasicAuth("test", "")
+	response := httptest.NewRecorder()
+
+	shoreline.SetHandlers("", rtr)
+
+	shoreline.Login(response, request)
+
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusUnauthorized, response.Code)
+	}
+}
+
 func TestServerLogin_StatusBadRequest_WhenNoNameOrSecret(t *testing.T) {
 	request, _ := http.NewRequest("POST", "/", nil)
 	response := httptest.NewRecorder()

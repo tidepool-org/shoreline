@@ -407,11 +407,9 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 						sendModelAsRes(res, results[i])
 						return
 					}
-				} else {
-					res.WriteHeader(http.StatusUnauthorized)
-					return
 				}
-
+				res.WriteHeader(http.StatusUnauthorized)
+				return
 			}
 		}
 	}
