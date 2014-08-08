@@ -62,6 +62,8 @@ func (a *Api) SetHandlers(prefix string, rtr *mux.Router) {
 
 	rtr.HandleFunc("/private", a.AnonymousIdHashPair).Methods("GET")
 	rtr.Handle("/private/{userid}/{key}", varsHandler(a.ManageIdHashPair)).Methods("GET", "POST", "PUT", "DELETE")
+
+	rtr.Handle("/email/{userid}/{type}", varsHandler(a.EmailUser)).Methods("POST")
 }
 
 func (h varsHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
@@ -357,6 +359,15 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 				return
 			}
 		}
+	}
+	res.WriteHeader(http.StatusUnauthorized)
+	return
+}
+
+func (a *Api) EmailUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
+	if sessionToken := a.getUnpackedToken(req.Header.Get(TP_SESSION_TOKEN)); sessionToken != nil {
+		res.WriteHeader(http.StatusNotImplemented)
+		return
 	}
 	res.WriteHeader(http.StatusUnauthorized)
 	return
