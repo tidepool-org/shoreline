@@ -23,9 +23,11 @@ var (
 		LongTermKey:  "the longetermkey",
 		Salt:         "a mineral substance composed primarily of sodium chloride",
 	}
-	USR          = &models.User{Id: "123-99-100", Name: "Test One", Emails: []string{"test@new.bar"}}
-	usrTknData   = &models.TokenData{UserId: USR.Id, IsServer: false, DurationSecs: 3600}
-	USR_TOKEN, _ = models.NewSessionToken(usrTknData, FAKE_CONFIG.ServerSecret)
+	USR           = &models.User{Id: "123-99-100", Name: "Test One", Emails: []string{"test@new.bar"}}
+	usrTknData    = &models.TokenData{UserId: USR.Id, IsServer: false, DurationSecs: 36000}
+	USR_TOKEN, _  = models.NewSessionToken(usrTknData, FAKE_CONFIG.ServerSecret)
+	sverTknData   = &models.TokenData{UserId: "shoreline", IsServer: true, DurationSecs: 36000}
+	SRVR_TOKEN, _ = models.NewSessionToken(sverTknData, FAKE_CONFIG.ServerSecret)
 	//basics setup
 	rtr       = mux.NewRouter()
 	mockStore = clients.NewMockStoreClient(FAKE_CONFIG.Salt, false, false)
@@ -102,7 +104,7 @@ func TestUpdateUser_StatusUnauthorized_WhenNoToken(t *testing.T) {
 func TestUpdateUser_StatusBadRequest_WhenNoUpdates(t *testing.T) {
 	request, _ := http.NewRequest("PUT", "/user", nil)
 	request.Header.Add("content-type", "application/json")
-	request.Header.Set(TP_SESSION_TOKEN, "blah-blah-123-blah")
+	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
 	response := httptest.NewRecorder()
 
 	shoreline.SetHandlers("", rtr)
@@ -580,34 +582,26 @@ func TestHasServerToken_False_WhenWrongTokenGiven(t *testing.T) {
 
 	shoreline.SetHandlers("", rtr)
 
-	//now check if the token is a server token
-	checkSvrTokenRequest, _ := http.NewRequest("GET", "/", nil)
-	checkSvrTokenRequest.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
-
-	if ok := shoreline.hasServerToken(checkSvrTokenRequest); ok == true {
-		t.Fatal("No token was give so should have failed")
+	if shoreline.hasServerToken(USR_TOKEN.Token) {
+		t.Fatal("No server token was give so should have failed")
 	}
 }
 
 func TestHasServerToken_False_WhenUserTokenGiven(t *testing.T) {
-	request, _ := http.NewRequest("GET", "/", nil)
-	request.Header.Set(TP_SESSION_TOKEN, "not this token")
 
 	shoreline.SetHandlers("", rtr)
 
-	if ok := shoreline.hasServerToken(request); ok == true {
-		t.Fatal("No token was give so should have failed")
+	if shoreline.hasServerToken("not this token") {
+		t.Fatal("No server token was give so should have failed")
 	}
 }
 
 func TestHasServerToken_False_WhenNoSessionTokenHeaderGiven(t *testing.T) {
 
-	request, _ := http.NewRequest("GET", "/", nil)
-
 	shoreline.SetHandlers("", rtr)
 
-	if ok := shoreline.hasServerToken(request); ok == true {
-		t.Fatal("No token was give so should have failed")
+	if shoreline.hasServerToken("") {
+		t.Fatal("No server token was give so should have failed")
 	}
 }
 
@@ -631,12 +625,8 @@ func TestHasServerToken_True(t *testing.T) {
 		t.Fatal("The session token should have been set")
 	}
 
-	//now test the token
-	testSvrTokenRequest, _ := http.NewRequest("GET", "/", nil)
-	testSvrTokenRequest.Header.Set(TP_SESSION_TOKEN, response.Header().Get(TP_SESSION_TOKEN))
-
-	if ok := shoreline.hasServerToken(testSvrTokenRequest); ok != true {
-		t.Fatal("The toekn should have been a valid server token")
+	if shoreline.hasServerToken(response.Header().Get(TP_SESSION_TOKEN)) == false {
+		t.Fatal("The token should have been a valid server token")
 	}
 }
 

@@ -41,10 +41,11 @@ func NewSessionToken(data *TokenData, secret string) (token *SessionToken, err e
 	if data.DurationSecs > 0 {
 		// Create the token
 		token := jwt.New(jwt.GetSigningMethod("HS256"))
-		// Set some claims
-		token.Claims["svr"] = "no"
+
 		if data.IsServer {
 			token.Claims["svr"] = "yes"
+		} else {
+			token.Claims["svr"] = "no"
 		}
 		token.Claims["usr"] = data.UserId
 		token.Claims["dur"] = data.DurationSecs
