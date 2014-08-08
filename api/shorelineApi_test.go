@@ -116,6 +116,33 @@ func TestUpdateUser_StatusBadRequest_WhenNoUpdates(t *testing.T) {
 	}
 }
 
+func TestUpdateUser_IdFromToken_StatusOK(t *testing.T) {
+
+	mockStore2 := clients.NewMockStoreClient(FAKE_CONFIG.Salt, true, false)
+	sl2 := InitApi(mockStore2, FAKE_CONFIG)
+
+	sl2.SetHandlers("", rtr)
+
+	/*
+	 * can update all
+	 */
+	var updateAll = []byte(`{"username": "id from token","password":"aN3wPw0rD","emails":["fromtkn@new.bar"]}`)
+
+	requestUpdateAll, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updateAll))
+
+	requestUpdateAll.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
+	requestUpdateAll.Header.Add("content-type", "application/json")
+
+	responseUpdateAll := httptest.NewRecorder()
+
+	sl2.UpdateUser(responseUpdateAll, requestUpdateAll, NO_PARAMS)
+
+	if responseUpdateAll.Code != http.StatusOK {
+		t.Fatalf("Non-expected status code %v:\n\tbody: %v", "200", responseUpdateAll.Code)
+	}
+
+}
+
 func TestUpdateUser_StatusOK(t *testing.T) {
 
 	mockStore2 := clients.NewMockStoreClient(FAKE_CONFIG.Salt, true, false)

@@ -229,6 +229,10 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 
 		id := vars["userid"]
 
+		if id == "" {
+			id = sessionToken.TokenData.UserId
+		}
+
 		if updatesToApply := getUserDetail(req); updatesToApply != nil && id != "" {
 
 			usrToFind := models.UserFromDetails(&models.UserDetail{Id: id, Emails: []string{id}})
