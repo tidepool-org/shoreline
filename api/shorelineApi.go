@@ -197,22 +197,29 @@ func (a *Api) createAndSaveToken(dur float64, id string, isServer bool) (*models
 func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 
 	if usrDetails := getUserDetail(req); usrDetails != nil {
-		if usr, err := models.NewUser(usrDetails, a.Config.Salt); err == nil {
-			if err := a.Store.UpsertUser(usr); err != nil {
-				log.Println(err)
-				res.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-			if sessionToken, err := a.createAndSaveToken(tokenDuration(req), usr.Id, false); err != nil {
-				log.Println(err)
-				res.WriteHeader(http.StatusInternalServerError)
-				return
-			} else {
-				res.Header().Set(TP_SESSION_TOKEN, sessionToken.Token)
-				sendModelAsResWithStatus(res, usr, http.StatusCreated)
-				return
-			}
 
+		if usr, err := models.NewUser(usrDetails, a.Config.Salt); err == nil {
+			//do they already exist??
+			if results, _ := a.Store.FindUsers(usr); results == nil || len(results) == 0 {
+
+				if err := a.Store.UpsertUser(usr); err != nil {
+					log.Println(err)
+					res.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				if sessionToken, err := a.createAndSaveToken(tokenDuration(req), usr.Id, false); err != nil {
+					log.Println(err)
+					res.WriteHeader(http.StatusInternalServerError)
+					return
+				} else {
+					res.Header().Set(TP_SESSION_TOKEN, sessionToken.Token)
+					sendModelAsResWithStatus(res, usr, http.StatusCreated)
+					return
+				}
+			} else {
+				res.WriteHeader(http.StatusConflict)
+				return
+			}
 		} else {
 			log.Println(err)
 		}

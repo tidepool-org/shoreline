@@ -57,9 +57,12 @@ func TestCreateUser_StatusCreated(t *testing.T) {
 
 	response := httptest.NewRecorder()
 
-	shoreline.SetHandlers("", rtr)
+	mockStoreNoDups := clients.NewMockStoreClient(FAKE_CONFIG.Salt, true, false)
+	s2 := InitApi(mockStoreNoDups, FAKE_CONFIG)
 
-	shoreline.CreateUser(response, request)
+	s2.SetHandlers("", rtr)
+
+	s2.CreateUser(response, request)
 
 	if response.Code != http.StatusCreated {
 		t.Fatalf("Non-expected status code %v:\n\tbody: %v", "201", response.Code)
@@ -84,6 +87,25 @@ func TestCreateUser_StatusCreated(t *testing.T) {
 
 	if usrData["userid"] == "" {
 		t.Fatal("body should have the userid")
+	}
+
+}
+
+func TestCreateUser_StatusConflict_ForDuplicates(t *testing.T) {
+
+	var jsonData = []byte(`{"username": "test", "password": "123youknoWm3","emails":["test@foo.bar"]}`)
+
+	request, _ := http.NewRequest("POST", "/user", bytes.NewBuffer(jsonData))
+	request.Header.Add("content-type", "application/json")
+
+	response := httptest.NewRecorder()
+
+	shoreline.SetHandlers("", rtr)
+
+	shoreline.CreateUser(response, request)
+
+	if response.Code != http.StatusConflict {
+		t.Fatalf("Non-expected status code %v:\n\tbody: %v", http.StatusConflict, response.Code)
 	}
 
 }
