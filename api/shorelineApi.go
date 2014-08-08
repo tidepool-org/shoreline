@@ -536,12 +536,8 @@ func (a *Api) Logout(res http.ResponseWriter, req *http.Request) {
 }
 
 func (a *Api) AnonymousIdHashPair(res http.ResponseWriter, req *http.Request) {
-	if len(req.URL.Query()) > 0 {
-		idHashPair := models.NewAnonIdHashPair([]string{a.Config.Salt}, req.URL.Query())
-		sendModelAsRes(res, idHashPair)
-		return
-	}
-	res.WriteHeader(http.StatusBadRequest)
+	idHashPair := models.NewAnonIdHashPair([]string{a.Config.Salt}, req.URL.Query())
+	sendModelAsRes(res, idHashPair)
 	return
 }
 

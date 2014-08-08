@@ -766,19 +766,6 @@ func TestLogout_StatusOK(t *testing.T) {
 	}
 }
 
-func TestAnonymousIdHashPair_StatusInternalServerError_NoParamsGiven(t *testing.T) {
-	request, _ := http.NewRequest("GET", "/", nil)
-	response := httptest.NewRecorder()
-
-	shoreline.SetHandlers("", rtr)
-
-	shoreline.AnonymousIdHashPair(response, request)
-
-	if response.Code != http.StatusBadRequest {
-		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusBadRequest, response.Code)
-	}
-}
-
 func TestAnonymousIdHashPair_StatusOK(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 
@@ -786,6 +773,38 @@ func TestAnonymousIdHashPair_StatusOK(t *testing.T) {
 	values.Add("one", "somestuff")
 	values.Add("two", "some more stuff")
 	request.URL.RawQuery = values.Encode()
+
+	response := httptest.NewRecorder()
+
+	shoreline.SetHandlers("", rtr)
+
+	shoreline.AnonymousIdHashPair(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, response.Code)
+	}
+
+	if response.Header().Get("content-type") != "application/json" {
+		t.Fatal("the resp should be json")
+	}
+
+	body, _ := ioutil.ReadAll(response.Body)
+
+	var anonIdHashPair models.AnonIdHashPair
+	_ = json.Unmarshal(body, &anonIdHashPair)
+
+	if anonIdHashPair.Name != "" {
+		t.Fatalf("should have no name but was %v", anonIdHashPair.Name)
+	}
+	if anonIdHashPair.IdHashPair.Id == "" {
+		t.Fatalf("should have an Id but was %v", anonIdHashPair.IdHashPair.Id)
+	}
+	if anonIdHashPair.IdHashPair.Hash == "" {
+		t.Fatalf("should have an Hash but was %v", anonIdHashPair.IdHashPair.Hash)
+	}
+}
+func TestAnonymousIdHashPair_StatusOK_EvenWhenNoURLParams(t *testing.T) {
+	request, _ := http.NewRequest("GET", "/", nil)
 
 	response := httptest.NewRecorder()
 
