@@ -126,7 +126,7 @@ func TestUpdateUser_IdFromToken_StatusOK(t *testing.T) {
 	/*
 	 * can update all
 	 */
-	var updateAll = []byte(`{"username": "id from token","password":"aN3wPw0rD","emails":["fromtkn@new.bar"]}`)
+	var updateAll = []byte(`{"updates":{"username": "id from token","password":"aN3wPw0rD","emails":["fromtkn@new.bar"]}}`)
 
 	requestUpdateAll, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updateAll))
 
@@ -153,7 +153,7 @@ func TestUpdateUser_StatusOK(t *testing.T) {
 	/*
 	 * can update all
 	 */
-	var updateAll = []byte(`{"username": "change1","password":"aN3wPw0rD","emails":["change1@new.bar"]}`)
+	var updateAll = []byte(`{"updates":{"username": "change1","password":"aN3wPw0rD","emails":["change1@new.bar"]}}`)
 
 	requestUpdateAll, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updateAll))
 
@@ -171,7 +171,7 @@ func TestUpdateUser_StatusOK(t *testing.T) {
 	/*
 	 * can update just username
 	 */
-	var updateName = []byte(`{"username": "change2"}`)
+	var updateName = []byte(`{"updates":{"username": "change2"}}`)
 
 	requestUpdateName, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updateName))
 	requestUpdateName.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
@@ -187,7 +187,7 @@ func TestUpdateUser_StatusOK(t *testing.T) {
 	 * can update just pw
 	 */
 
-	var updatePW = []byte(`{"password": "MyN3w0n_"}`)
+	var updatePW = []byte(`{"updates":{"password": "MyN3w0n_"}}`)
 
 	requestUpdatePW, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updatePW))
 	requestUpdatePW.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
@@ -202,7 +202,7 @@ func TestUpdateUser_StatusOK(t *testing.T) {
 	/*
 	 * can update just email
 	 */
-	var updateEmail = []byte(`{"emails":["change3@new.bar"]}`)
+	var updateEmail = []byte(`{"updates":{"emails":["change3@new.bar"]}}`)
 
 	requestUpdateEmail, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updateEmail))
 	requestUpdateEmail.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
@@ -217,7 +217,7 @@ func TestUpdateUser_StatusOK(t *testing.T) {
 }
 
 func TestGetUserInfo_StatusOK_AndBody(t *testing.T) {
-	var findData = []byte(`{"username": "test","emails":["test@foo.bar"]}`)
+	var findData = []byte(`{"updates":{"username": "test","emails":["test@foo.bar"]}}`)
 
 	request, _ := http.NewRequest("GET", "/", bytes.NewBuffer(findData))
 	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)

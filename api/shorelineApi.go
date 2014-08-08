@@ -227,61 +227,76 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 
 	if sessionToken := a.getUnpackedToken(req.Header.Get(TP_SESSION_TOKEN)); sessionToken != nil {
 
-		id := vars["userid"]
+		var (
+			id string
+			//structure that the update are given to us in
+			updatesToApply struct {
+				Updates *models.UserDetail `json:"updates"`
+			}
+		)
+
+		id = vars["userid"]
 
 		if id == "" {
 			id = sessionToken.TokenData.UserId
 		}
 
-		if updatesToApply := getUserDetail(req); updatesToApply != nil && id != "" {
+		if id != "" { // get out quick
 
-			usrToFind := models.UserFromDetails(&models.UserDetail{Id: id, Emails: []string{id}})
+			if req.ContentLength > 0 {
+				_ = json.NewDecoder(req.Body).Decode(&updatesToApply)
+			}
 
-			if userToUpdate, err := a.Store.FindUser(usrToFind); err != nil {
-				log.Println(err)
-				res.WriteHeader(http.StatusInternalServerError)
-				return
-			} else if userToUpdate != nil {
+			if updatesToApply.Updates != nil {
 
-				//Name and/or Emails and perform dups check
-				if updatesToApply.Name != "" || len(updatesToApply.Emails) > 0 {
-					dupCheck := models.UserFromDetails(&models.UserDetail{})
-					if updatesToApply.Name != "" {
-						userToUpdate.Name = updatesToApply.Name
-						dupCheck.Name = userToUpdate.Name
-					}
-					if len(updatesToApply.Emails) > 0 {
-						userToUpdate.Emails = updatesToApply.Emails
-						dupCheck.Emails = userToUpdate.Emails
-					}
-					//check if unique
-					if results, err := a.Store.FindUsers(dupCheck); err != nil {
-						log.Println(err)
-						res.WriteHeader(http.StatusInternalServerError)
-						return
-					} else if len(results) > 0 {
-						log.Println("Users found with this name and/or email already ")
-						res.WriteHeader(http.StatusBadRequest)
-						return
-					}
-				}
-				//Rehash the pw if needed
-				if updatesToApply.Pw != "" {
+				usrToFind := models.UserFromDetails(&models.UserDetail{Id: id, Emails: []string{id}})
 
-					if err := userToUpdate.HashPassword(updatesToApply.Pw, a.Config.Salt); err != nil {
-						log.Println(err)
-						res.WriteHeader(http.StatusInternalServerError)
-						return
-					}
-				}
-				//All good - now update
-				if err := a.Store.UpsertUser(userToUpdate); err != nil {
+				if userToUpdate, err := a.Store.FindUser(usrToFind); err != nil {
 					log.Println(err)
 					res.WriteHeader(http.StatusInternalServerError)
 					return
-				} else {
-					res.WriteHeader(http.StatusOK)
-					return
+				} else if userToUpdate != nil {
+
+					//Name and/or Emails and perform dups check
+					if updatesToApply.Updates.Name != "" || len(updatesToApply.Updates.Emails) > 0 {
+						dupCheck := models.UserFromDetails(&models.UserDetail{})
+						if updatesToApply.Updates.Name != "" {
+							userToUpdate.Name = updatesToApply.Updates.Name
+							dupCheck.Name = userToUpdate.Name
+						}
+						if len(updatesToApply.Updates.Emails) > 0 {
+							userToUpdate.Emails = updatesToApply.Updates.Emails
+							dupCheck.Emails = userToUpdate.Emails
+						}
+						//check if unique
+						if results, err := a.Store.FindUsers(dupCheck); err != nil {
+							log.Println(err)
+							res.WriteHeader(http.StatusInternalServerError)
+							return
+						} else if len(results) > 0 {
+							log.Println("Users found with this name and/or email already ")
+							res.WriteHeader(http.StatusBadRequest)
+							return
+						}
+					}
+					//Rehash the pw if needed
+					if updatesToApply.Updates.Pw != "" {
+
+						if err := userToUpdate.HashPassword(updatesToApply.Updates.Pw, a.Config.Salt); err != nil {
+							log.Println(err)
+							res.WriteHeader(http.StatusInternalServerError)
+							return
+						}
+					}
+					//All good - now update
+					if err := a.Store.UpsertUser(userToUpdate); err != nil {
+						log.Println(err)
+						res.WriteHeader(http.StatusInternalServerError)
+						return
+					} else {
+						res.WriteHeader(http.StatusOK)
+						return
+					}
 				}
 			}
 		}
