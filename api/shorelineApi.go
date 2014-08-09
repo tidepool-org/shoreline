@@ -383,8 +383,8 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 		} else {
 			id = sessionToken.TokenData.UserId
 		}
-		details := getGivenDetail(req)
-		pw := details["password"]
+
+		pw := getGivenDetail(req)["password"]
 
 		if id != "" && pw != "" {
 

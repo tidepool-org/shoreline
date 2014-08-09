@@ -110,6 +110,33 @@ func TestCreateUser_StatusConflict_ForDuplicates(t *testing.T) {
 
 }
 
+func TestEmailUser_StatusUnauthorized_WhenNoToken(t *testing.T) {
+	request, _ := http.NewRequest("PUT", "/email", nil)
+	response := httptest.NewRecorder()
+
+	shoreline.SetHandlers("", rtr)
+
+	shoreline.EmailUser(response, request, NO_PARAMS)
+
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusUnauthorized, response.Code)
+	}
+}
+
+func TestEmailUser_StatusNotImplemented(t *testing.T) {
+	request, _ := http.NewRequest("POST", "/email", nil)
+	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
+	response := httptest.NewRecorder()
+
+	shoreline.SetHandlers("", rtr)
+
+	shoreline.EmailUser(response, request, NO_PARAMS)
+
+	if response.Code != http.StatusNotImplemented {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusNotImplemented, response.Code)
+	}
+}
+
 func TestUpdateUser_StatusUnauthorized_WhenNoToken(t *testing.T) {
 	request, _ := http.NewRequest("PUT", "/user", nil)
 	response := httptest.NewRecorder()
