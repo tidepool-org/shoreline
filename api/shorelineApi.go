@@ -367,11 +367,20 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 func (a *Api) EmailUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 	if sessionToken := a.getUnpackedToken(req.Header.Get(TP_SESSION_TOKEN)); sessionToken != nil {
 
-		emailType, id := vars["type"], vars["userid"]
+		emailType, usr := vars["type"], models.UserFromDetails(&models.UserDetail{Id: vars["userid"]})
 
-		if emailType != "" && id != "" {
-			res.WriteHeader(http.StatusNotImplemented)
-			return
+		if emailType != "" && usr.Id != "" {
+
+			if foundUsr, err := a.Store.FindUser(usr); err != nil {
+				log.Println(err)
+				res.WriteHeader(http.StatusInternalServerError)
+				return
+			} else {
+				log.Println("email ", foundUsr.Id)
+				res.WriteHeader(http.StatusNotImplemented)
+				return
+			}
+
 		}
 		res.WriteHeader(http.StatusBadRequest)
 		return
