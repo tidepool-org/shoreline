@@ -366,7 +366,14 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 
 func (a *Api) EmailUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 	if sessionToken := a.getUnpackedToken(req.Header.Get(TP_SESSION_TOKEN)); sessionToken != nil {
-		res.WriteHeader(http.StatusNotImplemented)
+
+		emailType, id := vars["type"], vars["userid"]
+
+		if emailType != "" && id != "" {
+			res.WriteHeader(http.StatusNotImplemented)
+			return
+		}
+		res.WriteHeader(http.StatusBadRequest)
 		return
 	}
 	res.WriteHeader(http.StatusUnauthorized)

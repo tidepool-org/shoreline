@@ -123,6 +123,21 @@ func TestEmailUser_StatusUnauthorized_WhenNoToken(t *testing.T) {
 	}
 }
 
+//StatusBadRequest
+func TestEmailUser_StatusBadRequest_WhenNoVariablesPassed(t *testing.T) {
+	request, _ := http.NewRequest("PUT", "/email", nil)
+	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
+	response := httptest.NewRecorder()
+
+	shoreline.SetHandlers("", rtr)
+
+	shoreline.EmailUser(response, request, NO_PARAMS)
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusBadRequest, response.Code)
+	}
+}
+
 func TestEmailUser_StatusNotImplemented(t *testing.T) {
 	request, _ := http.NewRequest("POST", "/email", nil)
 	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
@@ -130,7 +145,7 @@ func TestEmailUser_StatusNotImplemented(t *testing.T) {
 
 	shoreline.SetHandlers("", rtr)
 
-	shoreline.EmailUser(response, request, NO_PARAMS)
+	shoreline.EmailUser(response, request, map[string]string{"userid": USR.Id, "type": "password"})
 
 	if response.Code != http.StatusNotImplemented {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusNotImplemented, response.Code)
