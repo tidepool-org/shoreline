@@ -5,6 +5,7 @@ import (
 	"./../models"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
@@ -18,9 +19,10 @@ type (
 		Config Config
 	}
 	Config struct {
-		ServerSecret string `json:"serverSecret"`
-		LongTermKey  string `json:"longTermKey"`
-		Salt         string `json:"salt"`
+		ServerSecret    string `json:"serverSecret"`
+		LongTermKey     string `json:"longTermKey"`
+		Salt            string `json:"salt"`
+		PwResetTemplate string `json:"pwresetTemplate"`
 	}
 
 	varsHandler func(http.ResponseWriter, *http.Request, map[string]string)
@@ -375,12 +377,13 @@ func (a *Api) EmailUser(res http.ResponseWriter, req *http.Request, vars map[str
 				log.Println(err)
 				res.WriteHeader(http.StatusInternalServerError)
 				return
-			} else {
-				log.Println("email ", foundUsr.Id)
+			} else if foundUsr != nil {
+				emailText := fmt.Sprintf(a.Config.PwResetTemplate, foundUsr.Name)
+				log.Println("email ", emailText)
+
 				res.WriteHeader(http.StatusNotImplemented)
 				return
 			}
-
 		}
 		res.WriteHeader(http.StatusBadRequest)
 		return

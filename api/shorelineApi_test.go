@@ -19,9 +19,10 @@ const (
 var (
 	NO_PARAMS   = map[string]string{}
 	FAKE_CONFIG = Config{
-		ServerSecret: "shhh! don't tell",
-		LongTermKey:  "the longetermkey",
-		Salt:         "a mineral substance composed primarily of sodium chloride",
+		ServerSecret:    "shhh! don't tell",
+		LongTermKey:     "the longetermkey",
+		Salt:            "a mineral substance composed primarily of sodium chloride",
+		PwResetTemplate: "Hi %s\n\nLooks like you have forgotton your password, click the link below to reset it\n\n%s\n\nThanks\nThe Tidepool Team",
 	}
 	USR           = &models.User{Id: "123-99-100", Name: "Test One", Emails: []string{"test@new.bar"}}
 	usrTknData    = &models.TokenData{UserId: USR.Id, IsServer: false, DurationSecs: 36000}
