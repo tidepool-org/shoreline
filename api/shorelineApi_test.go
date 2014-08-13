@@ -861,11 +861,11 @@ func TestAnonymousIdHashPair_StatusOK(t *testing.T) {
 	if anonIdHashPair.Name != "" {
 		t.Fatalf("should have no name but was %v", anonIdHashPair.Name)
 	}
-	if anonIdHashPair.IdHashPair.Id == "" {
-		t.Fatalf("should have an Id but was %v", anonIdHashPair.IdHashPair.Id)
+	if anonIdHashPair.Id == "" {
+		t.Fatalf("should have an Id but was %v", anonIdHashPair.Id)
 	}
-	if anonIdHashPair.IdHashPair.Hash == "" {
-		t.Fatalf("should have an Hash but was %v", anonIdHashPair.IdHashPair.Hash)
+	if anonIdHashPair.Hash == "" {
+		t.Fatalf("should have an Hash but was %v", anonIdHashPair.Hash)
 	}
 }
 func TestAnonymousIdHashPair_StatusOK_EvenWhenNoURLParams(t *testing.T) {
@@ -893,11 +893,11 @@ func TestAnonymousIdHashPair_StatusOK_EvenWhenNoURLParams(t *testing.T) {
 	if anonIdHashPair.Name != "" {
 		t.Fatalf("should have no name but was %v", anonIdHashPair.Name)
 	}
-	if anonIdHashPair.IdHashPair.Id == "" {
-		t.Fatalf("should have an Id but was %v", anonIdHashPair.IdHashPair.Id)
+	if anonIdHashPair.Id == "" {
+		t.Fatalf("should have an Id but was %v", anonIdHashPair.Id)
 	}
-	if anonIdHashPair.IdHashPair.Hash == "" {
-		t.Fatalf("should have an Hash but was %v", anonIdHashPair.IdHashPair.Hash)
+	if anonIdHashPair.Hash == "" {
+		t.Fatalf("should have an Hash but was %v", anonIdHashPair.Hash)
 	}
 }
 
