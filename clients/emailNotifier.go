@@ -1,7 +1,10 @@
 package clients
 
 import (
+	"encoding/json"
 	"github.com/stathat/amzses"
+	"io/ioutil"
+	"log"
 )
 
 type (
@@ -40,10 +43,8 @@ func configure(jsonConfig []byte) EmailNotifierConfig {
 
 func (c *EmailNotifier) Send(to []string, subject string, msg string) error {
 
-	address := fmt.Sprintf("%v:%v", c.Config.Host, c.Config.Port)
-
 	for i := range to {
-		amzses.SendMail(From, to[i], subject, msg)
+		amzses.SendMail(c.Config.From, to[i], subject, msg)
 	}
 
 	return nil
