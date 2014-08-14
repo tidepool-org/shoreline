@@ -14,5 +14,10 @@
     "longTermKey": "abcdefghijklmnopqrstuvwxyz",
     "salt" : "ADihSEI7tOQQP9xfXMO9HfRpXKu1NpIJ",
     "pwresetTemplate" : "Hi %s!\n\nLooks like you forgot your password. Not to worry! Just hit the link below to reset it.\n\n%s\n\n Thanks\nThe Tidepool Team",
+  },
+  email : {
+    "from" : "from@user.org",
+    "accessKey": "XXX_YOUR_ACCESS_KEY_XXX",
+    "secretKey": "YYY_YOUR_SECRET_KEY_YYY"
   }
 }
