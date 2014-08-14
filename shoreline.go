@@ -19,9 +19,10 @@ import (
 type (
 	Config struct {
 		clients.Config
-		Service disc.ServiceListing `json:"service"`
-		Mongo   mongo.Config        `json:"mongo"`
-		Api     api.Config          `json:"shoreline"`
+		Service disc.ServiceListing  `json:"service"`
+		Mongo   mongo.Config         `json:"mongo"`
+		Api     api.Config           `json:"shoreline"`
+		Mail    sc.SesNotifierConfig `json:"sesEmail"`
 	}
 )
 
@@ -31,8 +32,6 @@ func main() {
 	if err := common.LoadConfig([]string{"./config/env.json", "./config/server.json"}, &config); err != nil {
 		log.Panic("Problem loading config", err)
 	}
-
-	log.Println("@@ config ", config.Api)
 
 	/*
 	 * Hakken setup
