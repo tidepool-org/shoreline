@@ -37,7 +37,7 @@ var (
 	shoreline = InitApi(mockStore, FAKE_CONFIG)
 	//failure
 	mockStoreFails = clients.NewMockStoreClient(FAKE_CONFIG.Salt, false, MAKE_IT_FAIL)
-	shorelineFails = InitApi(mockStore, FAKE_CONFIG)
+	shorelineFails = InitApi(mockStoreFails, FAKE_CONFIG)
 )
 
 func TestCreateUser_StatusBadRequest_WhenNoParamsGiven(t *testing.T) {
