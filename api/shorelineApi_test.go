@@ -13,7 +13,8 @@ import (
 )
 
 const (
-	THE_SECRET = "shhh! don't tell"
+	THE_SECRET   = "shhh! don't tell"
+	MAKE_IT_FAIL = true
 )
 
 var (
@@ -24,6 +25,7 @@ var (
 		Salt:            "a mineral substance composed primarily of sodium chloride",
 		PwResetTemplate: "Hi %s\n\nLooks like you have forgotton your password, click the link below to reset it\n\n%s\n\nThanks\nThe Tidepool Team",
 	}
+	//users and tokens
 	USR           = &models.User{Id: "123-99-100", Name: "Test One", Emails: []string{"test@new.bar"}}
 	usrTknData    = &models.TokenData{UserId: USR.Id, IsServer: false, DurationSecs: 36000}
 	USR_TOKEN, _  = models.NewSessionToken(usrTknData, FAKE_CONFIG.ServerSecret)
@@ -33,6 +35,9 @@ var (
 	rtr       = mux.NewRouter()
 	mockStore = clients.NewMockStoreClient(FAKE_CONFIG.Salt, false, false)
 	shoreline = InitApi(mockStore, FAKE_CONFIG)
+	//failure
+	mockStoreFails = clients.NewMockStoreClient(FAKE_CONFIG.Salt, false, MAKE_IT_FAIL)
+	shorelineFails = InitApi(mockStore, FAKE_CONFIG)
 )
 
 func TestCreateUser_StatusBadRequest_WhenNoParamsGiven(t *testing.T) {
@@ -90,6 +95,24 @@ func TestCreateUser_StatusCreated(t *testing.T) {
 		t.Fatal("body should have the userid")
 	}
 
+}
+
+func TestCreateUser_Failure(t *testing.T) {
+
+	var jsonData = []byte(`{"username": "test", "password": "123youknoWm3","emails":["test@foo.bar"]}`)
+
+	request, _ := http.NewRequest("POST", "/user", bytes.NewBuffer(jsonData))
+	request.Header.Add("content-type", "application/json")
+
+	response := httptest.NewRecorder()
+
+	shorelineFails.SetHandlers("", rtr)
+
+	shorelineFails.CreateUser(response, request)
+
+	if response.Code != http.StatusInternalServerError {
+		t.Fatalf("Expected [%v] and got [%v]", http.StatusInternalServerError, response.Code)
+	}
 }
 
 func TestCreateUser_StatusConflict_ForDuplicates(t *testing.T) {
@@ -281,6 +304,24 @@ func TestUpdateUser_StatusOK(t *testing.T) {
 
 }
 
+func TestUpdateUser_Failure(t *testing.T) {
+
+	var updateAll = []byte(`{"updates":{"username": "change1","password":"aN3wPw0rD","emails":["change1@new.bar"]}}`)
+
+	req, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updateAll))
+	req.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
+	req.Header.Add("content-type", "application/json")
+
+	resp := httptest.NewRecorder()
+
+	shorelineFails.SetHandlers("", rtr)
+	shorelineFails.UpdateUser(resp, req, map[string]string{"userid": USR.Id})
+
+	if resp.Code != http.StatusInternalServerError {
+		t.Fatalf("Expected [%v] and got [%v]", http.StatusInternalServerError, resp.Code)
+	}
+}
+
 func TestGetUserInfo_StatusOK_AndBody(t *testing.T) {
 	var findData = []byte(`{"updates":{"username": "test","emails":["test@foo.bar"]}}`)
 
@@ -301,6 +342,23 @@ func TestGetUserInfo_StatusOK_AndBody(t *testing.T) {
 	if response.Body == nil {
 		t.Fatalf("Non-expected empty body has been returned body: %v", response.Body)
 	}
+}
+
+func TestGetUserInfo_Failure(t *testing.T) {
+	var findData = []byte(`{"updates":{"username": "test","emails":["test@foo.bar"]}}`)
+
+	req, _ := http.NewRequest("GET", "/", bytes.NewBuffer(findData))
+	req.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
+	req.Header.Add("content-type", "application/json")
+	resp := httptest.NewRecorder()
+
+	shorelineFails.SetHandlers("", rtr)
+	shorelineFails.GetUserInfo(resp, req, NO_PARAMS)
+
+	if resp.Code != http.StatusInternalServerError {
+		t.Fatalf("Expected [%v] and got [%v]", http.StatusInternalServerError, resp.Code)
+	}
+
 }
 
 func TestGetUserInfo_StatusOK_AndBody_WhenIdInURL(t *testing.T) {
@@ -425,6 +483,22 @@ func TestDeleteUser_StatusForbidden_WhenEmptyPw(t *testing.T) {
 	}
 }
 
+func TestDeleteUser_Failure(t *testing.T) {
+
+	var jsonData = []byte(`{"password": "92ggh38"}`)
+	req, _ := http.NewRequest("DELETE", "/", bytes.NewBuffer(jsonData))
+	req.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
+	resp := httptest.NewRecorder()
+
+	shorelineFails.SetHandlers("", rtr)
+
+	shorelineFails.DeleteUser(resp, req, NO_PARAMS)
+
+	if resp.Code != http.StatusInternalServerError {
+		t.Fatalf("Expected [%v] and got [%v]", http.StatusInternalServerError, resp.Code)
+	}
+}
+
 func TestDeleteUser_StatusAccepted(t *testing.T) {
 
 	var jsonData = []byte(`{"password": "123youknoWm3"}`)
@@ -503,6 +577,20 @@ func TestLogin_StatusOK(t *testing.T) {
 	}
 }
 
+func TestLogin_Failure(t *testing.T) {
+	req, _ := http.NewRequest("POST", "/", nil)
+	req.SetBasicAuth("test", "123youknoWm3")
+	resp := httptest.NewRecorder()
+
+	shorelineFails.SetHandlers("", rtr)
+
+	shorelineFails.Login(resp, req)
+
+	if resp.Code != http.StatusInternalServerError {
+		t.Fatalf("Expected [%v] and got [%v]", http.StatusInternalServerError, resp.Code)
+	}
+}
+
 func TestLogin_StatusUnauthorized_WhenWrongCreds(t *testing.T) {
 	request, _ := http.NewRequest("POST", "/", nil)
 	request.SetBasicAuth("test", "")
@@ -578,6 +666,21 @@ func TestServerLogin_StatusOK(t *testing.T) {
 
 }
 
+func TestServerLogin_Failure(t *testing.T) {
+	req, _ := http.NewRequest("POST", "/", nil)
+	req.Header.Set(TP_SERVER_NAME, "shoreline")
+	req.Header.Set(TP_SERVER_SECRET, THE_SECRET)
+	resp := httptest.NewRecorder()
+
+	shorelineFails.SetHandlers("", rtr)
+
+	shorelineFails.ServerLogin(resp, req)
+
+	if resp.Code != http.StatusInternalServerError {
+		t.Fatalf("Expected [%v] and got [%v]", http.StatusInternalServerError, resp.Code)
+	}
+}
+
 func TestServerLogin_StatusUnauthorized_WhenSecretWrong(t *testing.T) {
 	request, _ := http.NewRequest("POST", "/", nil)
 	request.Header.Set(TP_SERVER_NAME, "shoreline")
@@ -635,6 +738,21 @@ func TestRefreshSession_StatusOK(t *testing.T) {
 	}
 }
 
+func TestRefreshSession_Failure(t *testing.T) {
+
+	shorelineFails.SetHandlers("", rtr)
+
+	req, _ := http.NewRequest("GET", "/", nil)
+	req.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
+	resp := httptest.NewRecorder()
+
+	shorelineFails.RefreshSession(resp, req)
+
+	if resp.Code != http.StatusInternalServerError {
+		t.Fatalf("Expected [%v] and got [%v]", http.StatusInternalServerError, resp.Code)
+	}
+}
+
 func TestValidateLongterm_StatusOK(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	request.SetBasicAuth("test", "123youknoWm3")
@@ -654,6 +772,20 @@ func TestValidateLongterm_StatusOK(t *testing.T) {
 
 	if response.Header().Get(TP_SESSION_TOKEN) == "" {
 		t.Fatal("The session token should have been set")
+	}
+}
+
+func TestValidateLongterm_Failure(t *testing.T) {
+	req, _ := http.NewRequest("GET", "/", nil)
+	req.SetBasicAuth("test", "123youknoWm3")
+	resp := httptest.NewRecorder()
+
+	shorelineFails.SetHandlers("", rtr)
+
+	shorelineFails.LongtermLogin(resp, req, map[string]string{"longtermkey": FAKE_CONFIG.LongTermKey})
+
+	if resp.Code != http.StatusInternalServerError {
+		t.Fatalf("Expected [%v] and got [%v]", http.StatusInternalServerError, resp.Code)
 	}
 }
 
@@ -787,6 +919,21 @@ func TestServerCheckToken_StatusOK(t *testing.T) {
 	}
 }
 
+func TestServerCheckToken_Failure(t *testing.T) {
+
+	shorelineFails.SetHandlers("", rtr)
+
+	req, _ := http.NewRequest("GET", "/", nil)
+	req.Header.Set(TP_SESSION_TOKEN, SRVR_TOKEN.Token)
+	resp := httptest.NewRecorder()
+
+	shorelineFails.ServerCheckToken(resp, req, map[string]string{"token": SRVR_TOKEN.Token})
+
+	if resp.Code != http.StatusInternalServerError {
+		t.Fatalf("Expected [%v] and got [%v]", http.StatusInternalServerError, resp.Code)
+	}
+}
+
 func TestServerCheckToken_StatusUnauthorized_WhenNoSvrToken(t *testing.T) {
 
 	//the api
@@ -831,6 +978,21 @@ func TestLogout_StatusOK(t *testing.T) {
 	}
 }
 
+func TestLogout_Failure(t *testing.T) {
+
+	shorelineFails.SetHandlers("", rtr)
+	//now logout with valid token
+	req, _ := http.NewRequest("POST", "/", nil)
+	req.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
+	resp := httptest.NewRecorder()
+
+	shorelineFails.Logout(resp, req)
+
+	if resp.Code != http.StatusInternalServerError {
+		t.Fatalf("Expected [%v] and got [%v]", http.StatusInternalServerError, resp.Code)
+	}
+}
+
 func TestAnonymousIdHashPair_StatusOK(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 
@@ -866,6 +1028,25 @@ func TestAnonymousIdHashPair_StatusOK(t *testing.T) {
 	}
 	if anonIdHashPair.Hash == "" {
 		t.Fatalf("should have an Hash but was %v", anonIdHashPair.Hash)
+	}
+}
+
+func TestAnonymousIdHashPair_Failure(t *testing.T) {
+	req, _ := http.NewRequest("GET", "/", nil)
+
+	values := req.URL.Query()
+	values.Add("one", "somestuff")
+	values.Add("two", "some more stuff")
+	req.URL.RawQuery = values.Encode()
+
+	resp := httptest.NewRecorder()
+
+	shorelineFails.SetHandlers("", rtr)
+
+	shorelineFails.AnonymousIdHashPair(resp, req)
+
+	if resp.Code != http.StatusInternalServerError {
+		t.Fatalf("Expected [%v] and got [%v]", http.StatusInternalServerError, resp.Code)
 	}
 }
 func TestAnonymousIdHashPair_StatusOK_EvenWhenNoURLParams(t *testing.T) {
@@ -1003,6 +1184,21 @@ func TestManageIdHashPair_StatusOK(t *testing.T) {
 	}
 	if idHashPair.Hash == "" {
 		t.Fatalf("should have an Hash but was %v", idHashPair.Hash)
+	}
+}
+
+func TestManageIdHashPair_Failure(t *testing.T) {
+
+	shorelineFails.SetHandlers("", rtr)
+
+	req, _ := http.NewRequest("GET", "/1234/somename", nil)
+	req.Header.Set(TP_SESSION_TOKEN, SRVR_TOKEN.Token)
+	resp := httptest.NewRecorder()
+
+	shorelineFails.ManageIdHashPair(resp, req, map[string]string{"userid": "1234", "key": "somename"})
+
+	if resp.Code != http.StatusInternalServerError {
+		t.Fatalf("Expected [%v] and got [%v]", http.StatusInternalServerError, resp.Code)
 	}
 }
 
