@@ -503,6 +503,7 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 
 	if server == "" || pw == "" {
 		res.WriteHeader(http.StatusBadRequest)
+		res.Write([]byte(STATUS_MISSING_ID_PW))
 		return
 	}
 	if pw == a.Config.ServerSecret {

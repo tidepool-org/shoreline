@@ -484,6 +484,12 @@ func TestDeleteUser_StatusForbidden_WhenNoPw(t *testing.T) {
 	if response.Code != http.StatusForbidden {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusForbidden, response.Code)
 	}
+
+	body, _ := ioutil.ReadAll(response.Body)
+
+	if string(body) != STATUS_MISSING_ID_PW {
+		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_MISSING_ID_PW)
+	}
 }
 
 func TestDeleteUser_StatusForbidden_WhenEmptyPw(t *testing.T) {
@@ -499,6 +505,12 @@ func TestDeleteUser_StatusForbidden_WhenEmptyPw(t *testing.T) {
 
 	if response.Code != http.StatusForbidden {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusForbidden, response.Code)
+	}
+
+	body, _ := ioutil.ReadAll(response.Body)
+
+	if string(body) != STATUS_MISSING_ID_PW {
+		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_MISSING_ID_PW)
 	}
 }
 
@@ -558,6 +570,12 @@ func TestLogin_StatusBadRequest_WithNoAuth(t *testing.T) {
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusBadRequest, response.Code)
 	}
+
+	body, _ := ioutil.ReadAll(response.Body)
+
+	if string(body) != STATUS_MISSING_ID_PW {
+		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_MISSING_ID_PW)
+	}
 }
 
 func TestLogin_StatusBadRequest_WithInvalidAuth(t *testing.T) {
@@ -571,6 +589,12 @@ func TestLogin_StatusBadRequest_WithInvalidAuth(t *testing.T) {
 
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusBadRequest, response.Code)
+	}
+
+	body, _ := ioutil.ReadAll(response.Body)
+
+	if string(body) != STATUS_MISSING_ID_PW {
+		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_MISSING_ID_PW)
 	}
 }
 
@@ -635,6 +659,12 @@ func TestServerLogin_StatusBadRequest_WhenNoNameOrSecret(t *testing.T) {
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusBadRequest, response.Code)
 	}
+
+	body, _ := ioutil.ReadAll(response.Body)
+
+	if string(body) != STATUS_MISSING_ID_PW {
+		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_MISSING_ID_PW)
+	}
 }
 
 func TestServerLogin_StatusBadRequest_WhenNoName(t *testing.T) {
@@ -649,6 +679,12 @@ func TestServerLogin_StatusBadRequest_WhenNoName(t *testing.T) {
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusBadRequest, response.Code)
 	}
+
+	body, _ := ioutil.ReadAll(response.Body)
+
+	if string(body) != STATUS_MISSING_ID_PW {
+		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_MISSING_ID_PW)
+	}
 }
 
 func TestServerLogin_StatusBadRequest_WhenNoSecret(t *testing.T) {
@@ -662,6 +698,12 @@ func TestServerLogin_StatusBadRequest_WhenNoSecret(t *testing.T) {
 
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusBadRequest, response.Code)
+	}
+
+	body, _ := ioutil.ReadAll(response.Body)
+
+	if string(body) != STATUS_MISSING_ID_PW {
+		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_MISSING_ID_PW)
 	}
 }
 
@@ -712,6 +754,12 @@ func TestServerLogin_StatusUnauthorized_WhenSecretWrong(t *testing.T) {
 
 	if response.Code != http.StatusUnauthorized {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusUnauthorized, response.Code)
+	}
+
+	body, _ := ioutil.ReadAll(response.Body)
+
+	if string(body) != STATUS_PW_WRONG {
+		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_PW_WRONG)
 	}
 }
 
@@ -819,6 +867,12 @@ func TestValidateLongterm_StatusBadRequest_AuthEmpty(t *testing.T) {
 
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("the status code should be %v set but got %v", http.StatusBadRequest, response.Code)
+	}
+
+	body, _ := ioutil.ReadAll(response.Body)
+
+	if string(body) != STATUS_MISSING_ID_PW {
+		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_MISSING_ID_PW)
 	}
 }
 
