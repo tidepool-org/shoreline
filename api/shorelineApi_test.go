@@ -52,6 +52,13 @@ func TestCreateUser_StatusBadRequest_WhenNoParamsGiven(t *testing.T) {
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "400", response.Code)
 	}
+
+	body, _ := ioutil.ReadAll(response.Body)
+
+	if string(body) != STATUS_MISSING_USR_DETAILS {
+		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_MISSING_USR_DETAILS)
+	}
+
 }
 
 func TestCreateUser_StatusCreated(t *testing.T) {
@@ -132,6 +139,12 @@ func TestCreateUser_StatusConflict_ForDuplicates(t *testing.T) {
 		t.Fatalf("Non-expected status code %v:\n\tbody: %v", http.StatusConflict, response.Code)
 	}
 
+	body, _ := ioutil.ReadAll(response.Body)
+
+	if string(body) != STATUS_USR_ALREADY_EXISTS {
+		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_USR_ALREADY_EXISTS)
+	}
+
 }
 
 func TestEmailUser_StatusUnauthorized_WhenNoToken(t *testing.T) {
@@ -201,6 +214,12 @@ func TestUpdateUser_StatusBadRequest_WhenNoUpdates(t *testing.T) {
 
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("Non-expected status code %v:\n\tbody: %v", "400", response.Code)
+	}
+
+	body, _ := ioutil.ReadAll(response.Body)
+
+	if string(body) != STATUS_NO_USR_DETAILS {
+		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_NO_USR_DETAILS)
 	}
 }
 
