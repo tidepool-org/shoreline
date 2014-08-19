@@ -29,10 +29,21 @@ type (
 )
 
 const (
-	TP_SERVER_NAME    = "x-tidepool-server-name"
-	TP_SERVER_SECRET  = "x-tidepool-server-secret"
-	TP_SESSION_TOKEN  = "x-tidepool-session-token"
-	TP_TOKEN_DURATION = "tokenduration"
+	TP_SERVER_NAME               = "x-tidepool-server-name"
+	TP_SERVER_SECRET             = "x-tidepool-server-secret"
+	TP_SESSION_TOKEN             = "x-tidepool-session-token"
+	TP_TOKEN_DURATION            = "tokenduration"
+	STATUS_NO_USR_DETAILS        = "No user details were given"
+	STATUS_ERR_FINDING_USR       = "Error finding user"
+	STATUS_ERR_CREATING_USR      = "Error creating the user"
+	STATUS_ERR_UPDATING_USR      = "Error updating user"
+	STATUS_USR_ALREADY_EXISTS    = "User aleady exists"
+	STATUS_ERR_GENTERATING_TOKEN = "Error generating the token"
+	STATUS_ERR_UPDATING_TOKEN    = "Error updating token"
+	STATUS_MISSING_USR_DETAILS   = "Not all required details were given"
+	STATUS_ERROR_UPDATING_PW     = "Error updating password"
+	STATUS_MISSING_ID_PW         = "Missing id and/or password"
+	STATUS_PW_WRONG              = "Wrong password"
 )
 
 func InitApi(store clients.StoreClient, cfg Config) *Api {
@@ -209,11 +220,13 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 				if err := a.Store.UpsertUser(usr); err != nil {
 					log.Println(err)
 					res.WriteHeader(http.StatusInternalServerError)
+					res.Write([]byte(STATUS_ERR_CREATING_USR))
 					return
 				}
 				if sessionToken, err := a.createAndSaveToken(tokenDuration(req), usr.Id, false); err != nil {
 					log.Println(err)
 					res.WriteHeader(http.StatusInternalServerError)
+					res.Write([]byte(STATUS_ERR_GENTERATING_TOKEN))
 					return
 				} else {
 					res.Header().Set(TP_SESSION_TOKEN, sessionToken.Token)
@@ -222,6 +235,7 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 				}
 			} else {
 				res.WriteHeader(http.StatusConflict)
+				res.Write([]byte(STATUS_USR_ALREADY_EXISTS))
 				return
 			}
 		} else {
@@ -230,6 +244,7 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 	}
 	//incoming details were bad
 	res.WriteHeader(http.StatusBadRequest)
+	res.Write([]byte(STATUS_MISSING_USR_DETAILS))
 	return
 }
 
@@ -265,6 +280,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 				if userToUpdate, err := a.Store.FindUser(usrToFind); err != nil {
 					log.Println(err)
 					res.WriteHeader(http.StatusInternalServerError)
+					res.Write([]byte(STATUS_ERR_FINDING_USR))
 					return
 				} else if userToUpdate != nil {
 
@@ -285,8 +301,9 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 							res.WriteHeader(http.StatusInternalServerError)
 							return
 						} else if len(results) > 0 {
-							log.Println("Users found with this name and/or email already ")
+							log.Println(STATUS_USR_ALREADY_EXISTS)
 							res.WriteHeader(http.StatusBadRequest)
+							res.Write([]byte(STATUS_USR_ALREADY_EXISTS))
 							return
 						}
 					}
@@ -296,6 +313,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 						if err := userToUpdate.HashPassword(updatesToApply.Updates.Pw, a.Config.Salt); err != nil {
 							log.Println(err)
 							res.WriteHeader(http.StatusInternalServerError)
+							res.Write([]byte(STATUS_ERR_UPDATING_USR))
 							return
 						}
 					}
@@ -303,6 +321,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 					if err := a.Store.UpsertUser(userToUpdate); err != nil {
 						log.Println(err)
 						res.WriteHeader(http.StatusInternalServerError)
+						res.Write([]byte(STATUS_ERR_UPDATING_USR))
 						return
 					} else {
 						res.WriteHeader(http.StatusOK)
@@ -312,6 +331,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 			}
 		}
 		res.WriteHeader(http.StatusBadRequest)
+		res.Write([]byte(STATUS_NO_USR_DETAILS))
 		return
 
 	}
@@ -338,11 +358,13 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 
 		if usr == nil {
 			res.WriteHeader(http.StatusBadRequest)
+			res.Write([]byte(STATUS_NO_USR_DETAILS))
 			return
 		} else {
 			if results, err := a.Store.FindUsers(usr); err != nil {
 				log.Println(err)
 				res.WriteHeader(http.StatusInternalServerError)
+				res.Write([]byte(STATUS_ERR_FINDING_USR))
 				return
 			} else if results != nil {
 				if len(results) == 1 && usr.Pw != "" {
@@ -375,6 +397,7 @@ func (a *Api) EmailUser(res http.ResponseWriter, req *http.Request, vars map[str
 
 			if foundUsr, err := a.Store.FindUser(usr); err != nil {
 				log.Println(err)
+				res.Write([]byte(STATUS_ERR_FINDING_USR))
 				res.WriteHeader(http.StatusInternalServerError)
 				return
 			} else if foundUsr != nil {
@@ -426,6 +449,7 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 			return
 		}
 		res.WriteHeader(http.StatusForbidden)
+		res.Write([]byte(STATUS_MISSING_ID_PW))
 		return
 
 	}
@@ -440,6 +464,7 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 		if results, err := a.Store.FindUsers(usr); err != nil {
 			log.Println(err)
 			res.WriteHeader(http.StatusInternalServerError)
+			res.Write([]byte(STATUS_ERR_FINDING_USR))
 			return
 		} else {
 			for i := range results {
@@ -453,6 +478,7 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 					); err != nil {
 						log.Println(err)
 						res.WriteHeader(http.StatusInternalServerError)
+						res.Write([]byte(STATUS_ERR_UPDATING_TOKEN))
 						return
 					} else {
 						res.Header().Set(TP_SESSION_TOKEN, sessionToken.Token)
@@ -461,11 +487,13 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 					}
 				}
 				res.WriteHeader(http.StatusUnauthorized)
+				res.Write([]byte(STATUS_PW_WRONG))
 				return
 			}
 		}
 	}
 	res.WriteHeader(http.StatusBadRequest)
+	res.Write([]byte(STATUS_MISSING_ID_PW))
 	return
 }
 
@@ -486,14 +514,16 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 		); err != nil {
 			log.Println(err)
 			res.WriteHeader(http.StatusInternalServerError)
+			res.Write([]byte(STATUS_ERR_GENTERATING_TOKEN))
 			return
 		} else {
-			res.Header().Set(TP_SESSION_TOKEN, sessionToken.Token)
 			res.WriteHeader(http.StatusOK)
+			res.Header().Set(TP_SESSION_TOKEN, sessionToken.Token)
 			return
 		}
 	}
 	res.WriteHeader(http.StatusUnauthorized)
+	res.Write([]byte(STATUS_PW_WRONG))
 	return
 }
 
@@ -515,10 +545,11 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 		); err != nil {
 			log.Println(err)
 			res.WriteHeader(http.StatusInternalServerError)
+			res.Write([]byte(STATUS_ERR_GENTERATING_TOKEN))
 			return
 		} else {
-			res.Header().Set(TP_SESSION_TOKEN, sessionToken.Token)
 			res.WriteHeader(http.StatusOK)
+			res.Header().Set(TP_SESSION_TOKEN, sessionToken.Token)
 			return
 		}
 
@@ -591,6 +622,7 @@ func (a *Api) ManageIdHashPair(res http.ResponseWriter, req *http.Request, vars 
 		if foundUsr, err := a.Store.FindUser(usr); err != nil {
 			log.Println(err)
 			res.WriteHeader(http.StatusInternalServerError)
+			res.Write([]byte(STATUS_ERR_FINDING_USR))
 			return
 		} else {
 			switch req.Method {
@@ -606,6 +638,7 @@ func (a *Api) ManageIdHashPair(res http.ResponseWriter, req *http.Request, vars 
 
 					if err := a.Store.UpsertUser(foundUsr); err != nil {
 						log.Println(err)
+						res.Write([]byte(STATUS_ERR_UPDATING_USR))
 						res.WriteHeader(http.StatusInternalServerError)
 						return
 					} else {
@@ -621,6 +654,7 @@ func (a *Api) ManageIdHashPair(res http.ResponseWriter, req *http.Request, vars 
 
 				if err := a.Store.UpsertUser(foundUsr); err != nil {
 					log.Println(err)
+					res.Write([]byte(STATUS_ERR_UPDATING_USR))
 					res.WriteHeader(http.StatusInternalServerError)
 					return
 				} else {

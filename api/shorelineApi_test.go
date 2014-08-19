@@ -27,7 +27,7 @@ var (
 	}
 	//users and tokens
 	USR           = &models.User{Id: "123-99-100", Name: "Test One", Emails: []string{"test@new.bar"}}
-	usrTknData    = &models.TokenData{UserId: USR.Id, IsServer: false, DurationSecs: 36000}
+	usrTknData    = &models.TokenData{UserId: USR.Id, IsServer: false, DurationSecs: 3600}
 	USR_TOKEN, _  = models.NewSessionToken(usrTknData, FAKE_CONFIG.ServerSecret)
 	sverTknData   = &models.TokenData{UserId: "shoreline", IsServer: true, DurationSecs: 36000}
 	SRVR_TOKEN, _ = models.NewSessionToken(sverTknData, FAKE_CONFIG.ServerSecret)
@@ -919,21 +919,6 @@ func TestServerCheckToken_StatusOK(t *testing.T) {
 	}
 }
 
-func TestServerCheckToken_Failure(t *testing.T) {
-
-	shorelineFails.SetHandlers("", rtr)
-
-	req, _ := http.NewRequest("GET", "/", nil)
-	req.Header.Set(TP_SESSION_TOKEN, SRVR_TOKEN.Token)
-	resp := httptest.NewRecorder()
-
-	shorelineFails.ServerCheckToken(resp, req, map[string]string{"token": SRVR_TOKEN.Token})
-
-	if resp.Code != http.StatusInternalServerError {
-		t.Fatalf("Expected [%v] and got [%v]", http.StatusInternalServerError, resp.Code)
-	}
-}
-
 func TestServerCheckToken_StatusUnauthorized_WhenNoSvrToken(t *testing.T) {
 
 	//the api
@@ -988,8 +973,9 @@ func TestLogout_Failure(t *testing.T) {
 
 	shorelineFails.Logout(resp, req)
 
-	if resp.Code != http.StatusInternalServerError {
-		t.Fatalf("Expected [%v] and got [%v]", http.StatusInternalServerError, resp.Code)
+	//StatusOK beccuse we `try` and delete the token but the return of that
+	if resp.Code != http.StatusOK {
+		t.Fatalf("Expected [%v] and got [%v]", http.StatusOK, resp.Code)
 	}
 }
 
@@ -1031,24 +1017,6 @@ func TestAnonymousIdHashPair_StatusOK(t *testing.T) {
 	}
 }
 
-func TestAnonymousIdHashPair_Failure(t *testing.T) {
-	req, _ := http.NewRequest("GET", "/", nil)
-
-	values := req.URL.Query()
-	values.Add("one", "somestuff")
-	values.Add("two", "some more stuff")
-	req.URL.RawQuery = values.Encode()
-
-	resp := httptest.NewRecorder()
-
-	shorelineFails.SetHandlers("", rtr)
-
-	shorelineFails.AnonymousIdHashPair(resp, req)
-
-	if resp.Code != http.StatusInternalServerError {
-		t.Fatalf("Expected [%v] and got [%v]", http.StatusInternalServerError, resp.Code)
-	}
-}
 func TestAnonymousIdHashPair_StatusOK_EvenWhenNoURLParams(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 
