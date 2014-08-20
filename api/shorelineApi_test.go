@@ -40,6 +40,42 @@ var (
 	shorelineFails = InitApi(mockStoreFails, FAKE_CONFIG)
 )
 
+func TestGetStatus_StatusOk(t *testing.T) {
+
+	request, _ := http.NewRequest("GET", "/status", nil)
+	response := httptest.NewRecorder()
+
+	shoreline.SetHandlers("", rtr)
+
+	shoreline.GetStatus(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("Resp given [%s] expected [%s] ", response.Code, http.StatusOK)
+	}
+
+}
+
+func TestGetStatus_StatusInternalServerError(t *testing.T) {
+
+	request, _ := http.NewRequest("GET", "/status", nil)
+	response := httptest.NewRecorder()
+
+	shorelineFails.SetHandlers("", rtr)
+
+	shorelineFails.GetStatus(response, request)
+
+	if response.Code != http.StatusInternalServerError {
+		t.Fatalf("Resp given [%s] expected [%s] ", response.Code, http.StatusInternalServerError)
+	}
+
+	body, _ := ioutil.ReadAll(response.Body)
+
+	if string(body) != "Session failure" {
+		t.Fatalf("Message given [%s] expected [%s] ", string(body), "Session failure")
+	}
+
+}
+
 func TestCreateUser_StatusBadRequest_WhenNoParamsGiven(t *testing.T) {
 
 	request, _ := http.NewRequest("POST", "/user", nil)

@@ -40,6 +40,14 @@ func (d MongoStoreClient) Close() {
 	return
 }
 
+func (d MongoStoreClient) Ping() error {
+	// do we have a store session
+	if err := d.session.Ping(); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (d MongoStoreClient) UpsertUser(user *models.User) error {
 
 	// if the user already exists we update otherwise we add

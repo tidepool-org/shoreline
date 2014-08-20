@@ -55,6 +55,8 @@ func InitApi(store clients.StoreClient, cfg Config) *Api {
 
 func (a *Api) SetHandlers(prefix string, rtr *mux.Router) {
 
+	rtr.HandleFunc("/status", a.GetStatus).Methods("GET")
+
 	rtr.Handle("/user", varsHandler(a.GetUserInfo)).Methods("GET")
 	rtr.Handle("/user/{userid}", varsHandler(a.GetUserInfo)).Methods("GET")
 
@@ -206,6 +208,17 @@ func (a *Api) createAndSaveToken(dur float64, id string, isServer bool) (*models
 	} else {
 		return nil, err
 	}
+}
+
+func (a *Api) GetStatus(res http.ResponseWriter, req *http.Request) {
+	if err := a.Store.Ping(); err != nil {
+		log.Println(err)
+		res.WriteHeader(http.StatusInternalServerError)
+		res.Write([]byte(err.Error()))
+		return
+	}
+	res.WriteHeader(http.StatusOK)
+	return
 }
 
 //Pull the incoming user from the http.Request body and save return http.StatusCreated

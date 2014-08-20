@@ -17,6 +17,13 @@ func NewMockStoreClient(salt string, returnDifferent, doBad bool) *MockStoreClie
 
 func (d MockStoreClient) Close() {}
 
+func (d MockStoreClient) Ping() error {
+	if d.doBad {
+		return errors.New("Session failure")
+	}
+	return nil
+}
+
 func (d MockStoreClient) UpsertUser(user *models.User) error {
 	if d.doBad {
 		return errors.New("UpsertUser failure")
