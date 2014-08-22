@@ -5,10 +5,10 @@ import (
 	"./../models"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 )
@@ -78,7 +78,17 @@ func (a *Api) SetHandlers(prefix string, rtr *mux.Router) {
 	rtr.HandleFunc("/private", a.AnonymousIdHashPair).Methods("GET")
 	rtr.Handle("/private/{userid}/{key}", varsHandler(a.ManageIdHashPair)).Methods("GET", "POST", "PUT", "DELETE")
 
-	rtr.Handle("/email/{userid}/{type}", varsHandler(a.EmailUser)).Methods("POST")
+	rtr.Handle("/emailtouser/{type}", varsHandler(a.EmailUser)).Methods("GET")
+	//i.e. lost pw
+
+	rtr.Handle("/emailtoaddress/{type}/{address}", varsHandler(a.EmailAddress)).Methods("GET", "POST")
+	//ie. careteam invite, blip signup
+
+	//user could be id, email
+	//type  will
+
+	//ie invite - who is it from
+	//lp we know who it is for
 }
 
 func (h varsHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
@@ -404,7 +414,7 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 func (a *Api) EmailUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 	if sessionToken := a.getUnpackedToken(req.Header.Get(TP_SESSION_TOKEN)); sessionToken != nil {
 
-		emailType, usr := vars["type"], models.UserFromDetails(&models.UserDetail{Id: vars["userid"]})
+		emailType, usr := vars["type"], models.UserFromDetails(&models.UserDetail{Id: sessionToken.TokenData.UserId})
 
 		if emailType != "" && usr.Id != "" {
 
@@ -414,9 +424,41 @@ func (a *Api) EmailUser(res http.ResponseWriter, req *http.Request, vars map[str
 				res.WriteHeader(http.StatusInternalServerError)
 				return
 			} else if foundUsr != nil {
-				emailText := fmt.Sprintf(a.Config.PwResetTemplate, foundUsr.Name)
-				log.Println("email ", emailText)
+				log.Println("we will email user!!")
+				res.WriteHeader(http.StatusNotImplemented)
+				return
+			}
+		}
+		res.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	res.WriteHeader(http.StatusUnauthorized)
+	return
+}
 
+func (a *Api) EmailAddress(res http.ResponseWriter, req *http.Request, vars map[string]string) {
+	if sessionToken := a.getUnpackedToken(req.Header.Get(TP_SESSION_TOKEN)); sessionToken != nil {
+
+		emailType := vars["type"]
+		emailAddress, _ := url.QueryUnescape(vars["address"])
+
+		addressUser := models.UserFromDetails(&models.UserDetail{Name: emailAddress, Emails: []string{emailAddress}})
+
+		if emailAddress != "" && emailType != "" {
+
+			if foundUsr, err := a.Store.FindUser(addressUser); err != nil {
+				log.Println(err)
+				res.Write([]byte(STATUS_ERR_FINDING_USR))
+				res.WriteHeader(http.StatusInternalServerError)
+				return
+			} else if foundUsr != nil {
+				//we are email an existing user
+				log.Println("we are email an existing user")
+				res.WriteHeader(http.StatusNotImplemented)
+				return
+			} else {
+				//we are emailing a new user
+				log.Println("we are email an existing user")
 				res.WriteHeader(http.StatusNotImplemented)
 				return
 			}
@@ -471,6 +513,8 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 }
 
 func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
+
+	//delete any lost pw
 
 	if usr := unpackAuth(req.Header.Get("Authorization")); usr != nil {
 
@@ -531,8 +575,8 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 			res.Write([]byte(STATUS_ERR_GENTERATING_TOKEN))
 			return
 		} else {
-			res.WriteHeader(http.StatusOK)
 			res.Header().Set(TP_SESSION_TOKEN, sessionToken.Token)
+			res.WriteHeader(http.StatusOK)
 			return
 		}
 	}
@@ -562,8 +606,8 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 			res.Write([]byte(STATUS_ERR_GENTERATING_TOKEN))
 			return
 		} else {
-			res.WriteHeader(http.StatusOK)
 			res.Header().Set(TP_SESSION_TOKEN, sessionToken.Token)
+			res.WriteHeader(http.StatusOK)
 			return
 		}
 

@@ -218,7 +218,7 @@ func TestEmailUser_StatusNotImplemented(t *testing.T) {
 
 	shoreline.SetHandlers("", rtr)
 
-	shoreline.EmailUser(response, request, map[string]string{"userid": USR.Id, "type": "password"})
+	shoreline.EmailUser(response, request, map[string]string{"type": "password"})
 
 	if response.Code != http.StatusNotImplemented {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusNotImplemented, response.Code)
@@ -744,7 +744,7 @@ func TestServerLogin_StatusBadRequest_WhenNoSecret(t *testing.T) {
 }
 
 func TestServerLogin_StatusOK(t *testing.T) {
-	request, _ := http.NewRequest("POST", "/", nil)
+	request, _ := http.NewRequest("POST", "/serverlogin", nil)
 	request.Header.Set(TP_SERVER_NAME, "shoreline")
 	request.Header.Set(TP_SERVER_SECRET, THE_SECRET)
 	response := httptest.NewRecorder()
@@ -839,6 +839,13 @@ func TestRefreshSession_StatusOK(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, response.Code)
 	}
+
+	tokenString := response.Header().Get(TP_SESSION_TOKEN)
+
+	if tokenString == "" {
+		t.Fatal("A session token should have been returned")
+	}
+
 }
 
 func TestRefreshSession_Failure(t *testing.T) {
