@@ -1,8 +1,11 @@
 language: go
+
+services:
+  - mongodb
+
 go:
  - 1.3
  - release
- - tip
 
 script:
  - go test -v ./...
