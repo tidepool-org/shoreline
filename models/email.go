@@ -35,7 +35,7 @@ func NewPwResetEmail(u *User, templatedText string) *Email {
 	Josie
 	`*/
 
-	return &Email{Content: "", Type: PWRESET, ToUser: u.Id, Created: time.Now()}
+	return &Email{Content: templatedText, Type: PWRESET, ToUser: u.Id, Created: time.Now()}
 }
 
 func (e *Email) Send() {

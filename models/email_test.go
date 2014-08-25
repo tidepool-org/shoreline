@@ -13,7 +13,7 @@ func TestEmail(t *testing.T) {
 
 	email := NewPwResetEmail(EMAIL_USER, EMAIL_TEMPLATE)
 
-	if email.User != EMAIL_USER {
+	if email.ToUser != EMAIL_USER.Id {
 		t.Fatal("the user being emailed should be set")
 	}
 
