@@ -199,7 +199,7 @@ func TestEmailUser_StatusUnauthorized_WhenNoToken(t *testing.T) {
 //StatusBadRequest
 func TestEmailUser_StatusBadRequest_WhenNoVariablesPassed(t *testing.T) {
 	request, _ := http.NewRequest("PUT", "/email", nil)
-	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
+	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
 	response := httptest.NewRecorder()
 
 	shoreline.SetHandlers("", rtr)
@@ -213,7 +213,7 @@ func TestEmailUser_StatusBadRequest_WhenNoVariablesPassed(t *testing.T) {
 
 func TestEmailUser_StatusNotImplemented(t *testing.T) {
 	request, _ := http.NewRequest("POST", "/email", nil)
-	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
+	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
 	response := httptest.NewRecorder()
 
 	shoreline.SetHandlers("", rtr)
@@ -241,7 +241,7 @@ func TestUpdateUser_StatusUnauthorized_WhenNoToken(t *testing.T) {
 func TestUpdateUser_StatusBadRequest_WhenNoUpdates(t *testing.T) {
 	request, _ := http.NewRequest("PUT", "/user", nil)
 	request.Header.Add("content-type", "application/json")
-	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
+	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
 	response := httptest.NewRecorder()
 
 	shoreline.SetHandlers("", rtr)
@@ -273,7 +273,7 @@ func TestUpdateUser_IdFromToken_StatusOK(t *testing.T) {
 
 	requestUpdateAll, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updateAll))
 
-	requestUpdateAll.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
+	requestUpdateAll.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
 	requestUpdateAll.Header.Add("content-type", "application/json")
 
 	responseUpdateAll := httptest.NewRecorder()
@@ -300,7 +300,7 @@ func TestUpdateUser_StatusOK(t *testing.T) {
 
 	requestUpdateAll, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updateAll))
 
-	requestUpdateAll.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
+	requestUpdateAll.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
 	requestUpdateAll.Header.Add("content-type", "application/json")
 
 	responseUpdateAll := httptest.NewRecorder()
@@ -317,7 +317,7 @@ func TestUpdateUser_StatusOK(t *testing.T) {
 	var updateName = []byte(`{"updates":{"username": "change2"}}`)
 
 	requestUpdateName, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updateName))
-	requestUpdateName.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
+	requestUpdateName.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
 	requestUpdateName.Header.Add("content-type", "application/json")
 	responseUpdateName := httptest.NewRecorder()
 	sl2.UpdateUser(responseUpdateName, requestUpdateName, map[string]string{"userid": USR.Id})
@@ -333,7 +333,7 @@ func TestUpdateUser_StatusOK(t *testing.T) {
 	var updatePW = []byte(`{"updates":{"password": "MyN3w0n_"}}`)
 
 	requestUpdatePW, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updatePW))
-	requestUpdatePW.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
+	requestUpdatePW.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
 	requestUpdatePW.Header.Add("content-type", "application/json")
 	responseUpdatePW := httptest.NewRecorder()
 	sl2.UpdateUser(responseUpdatePW, requestUpdatePW, map[string]string{"userid": USR.Id})
@@ -348,7 +348,7 @@ func TestUpdateUser_StatusOK(t *testing.T) {
 	var updateEmail = []byte(`{"updates":{"emails":["change3@new.bar"]}}`)
 
 	requestUpdateEmail, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updateEmail))
-	requestUpdateEmail.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
+	requestUpdateEmail.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
 	requestUpdateEmail.Header.Add("content-type", "application/json")
 	responseUpdateEmail := httptest.NewRecorder()
 	sl2.UpdateUser(responseUpdateEmail, requestUpdateEmail, map[string]string{"userid": USR.Id})
@@ -364,7 +364,7 @@ func TestUpdateUser_Failure(t *testing.T) {
 	var updateAll = []byte(`{"updates":{"username": "change1","password":"aN3wPw0rD","emails":["change1@new.bar"]}}`)
 
 	req, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updateAll))
-	req.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
+	req.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
 	req.Header.Add("content-type", "application/json")
 
 	resp := httptest.NewRecorder()
@@ -381,7 +381,7 @@ func TestGetUserInfo_StatusOK_AndBody(t *testing.T) {
 	var findData = []byte(`{"updates":{"username": "test","emails":["test@foo.bar"]}}`)
 
 	request, _ := http.NewRequest("GET", "/", bytes.NewBuffer(findData))
-	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
+	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
 	request.Header.Add("content-type", "application/json")
 	response := httptest.NewRecorder()
 
@@ -403,7 +403,7 @@ func TestGetUserInfo_Failure(t *testing.T) {
 	var findData = []byte(`{"updates":{"username": "test","emails":["test@foo.bar"]}}`)
 
 	req, _ := http.NewRequest("GET", "/", bytes.NewBuffer(findData))
-	req.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
+	req.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
 	req.Header.Add("content-type", "application/json")
 	resp := httptest.NewRecorder()
 
@@ -424,7 +424,7 @@ func TestGetUserInfo_StatusOK_AndBody_WhenIdInURL(t *testing.T) {
 	values.Add("userid", "9lJmBOVkWB")
 	request.URL.RawQuery = values.Encode()
 
-	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
+	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
 	request.Header.Add("content-type", "application/json")
 
 	response := httptest.NewRecorder()
@@ -451,7 +451,7 @@ func TestGetUserInfo_IsCaseInsensitive(t *testing.T) {
 	var findData = []byte(`{emails":["TEST@FOO.BAR"]}`)
 	requestEmail, _ := http.NewRequest("GET", "/", bytes.NewBuffer(findData))
 
-	requestEmail.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
+	requestEmail.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
 	requestEmail.Header.Add("content-type", "application/json")
 
 	responseEmail := httptest.NewRecorder()
@@ -475,7 +475,7 @@ func TestGetUserInfo_IsCaseInsensitive(t *testing.T) {
 	var findName = []byte(`{username":"TEST"}`)
 	requestName, _ := http.NewRequest("GET", "/", bytes.NewBuffer(findName))
 
-	requestName.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
+	requestName.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
 	requestName.Header.Add("content-type", "application/json")
 
 	responseName := httptest.NewRecorder()
@@ -510,7 +510,7 @@ func TestGetUserInfo_StatusUnauthorized_WhenNoToken(t *testing.T) {
 
 func TestDeleteUser_StatusForbidden_WhenNoPw(t *testing.T) {
 	request, _ := http.NewRequest("DELETE", "/", nil)
-	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
+	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
 	response := httptest.NewRecorder()
 
 	shoreline.SetHandlers("", rtr)
@@ -532,7 +532,7 @@ func TestDeleteUser_StatusForbidden_WhenEmptyPw(t *testing.T) {
 
 	var jsonData = []byte(`{"password": ""}`)
 	request, _ := http.NewRequest("DELETE", "/", bytes.NewBuffer(jsonData))
-	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
+	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
 	response := httptest.NewRecorder()
 
 	shoreline.SetHandlers("", rtr)
@@ -554,7 +554,7 @@ func TestDeleteUser_Failure(t *testing.T) {
 
 	var jsonData = []byte(`{"password": "92ggh38"}`)
 	req, _ := http.NewRequest("DELETE", "/", bytes.NewBuffer(jsonData))
-	req.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
+	req.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
 	resp := httptest.NewRecorder()
 
 	shorelineFails.SetHandlers("", rtr)
@@ -570,7 +570,7 @@ func TestDeleteUser_StatusAccepted(t *testing.T) {
 
 	var jsonData = []byte(`{"password": "123youknoWm3"}`)
 	request, _ := http.NewRequest("DELETE", "/", bytes.NewBuffer(jsonData))
-	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
+	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
 	response := httptest.NewRecorder()
 
 	shoreline.SetHandlers("", rtr)
@@ -831,7 +831,7 @@ func TestRefreshSession_StatusOK(t *testing.T) {
 	shoreline.SetHandlers("", rtr)
 
 	refreshRequest, _ := http.NewRequest("GET", "/", nil)
-	refreshRequest.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
+	refreshRequest.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
 	response := httptest.NewRecorder()
 
 	shoreline.RefreshSession(response, refreshRequest)
@@ -853,7 +853,7 @@ func TestRefreshSession_Failure(t *testing.T) {
 	shorelineFails.SetHandlers("", rtr)
 
 	req, _ := http.NewRequest("GET", "/", nil)
-	req.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
+	req.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
 	resp := httptest.NewRecorder()
 
 	shorelineFails.RefreshSession(resp, req)
@@ -936,7 +936,7 @@ func TestHasServerToken_False_WhenWrongTokenGiven(t *testing.T) {
 
 	shoreline.SetHandlers("", rtr)
 
-	if shoreline.hasServerToken(USR_TOKEN.Token) {
+	if shoreline.hasServerToken(USR_TOKEN.Id) {
 		t.Fatal("No server token was give so should have failed")
 	}
 }
@@ -1069,7 +1069,7 @@ func TestLogout_StatusOK(t *testing.T) {
 	shoreline.SetHandlers("", rtr)
 	//now logout with valid token
 	request, _ := http.NewRequest("POST", "/", nil)
-	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
+	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
 	response := httptest.NewRecorder()
 
 	shoreline.Logout(response, request)
@@ -1084,7 +1084,7 @@ func TestLogout_Failure(t *testing.T) {
 	shorelineFails.SetHandlers("", rtr)
 	//now logout with valid token
 	req, _ := http.NewRequest("POST", "/", nil)
-	req.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Token)
+	req.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
 	resp := httptest.NewRecorder()
 
 	shorelineFails.Logout(resp, req)
@@ -1276,7 +1276,7 @@ func TestManageIdHashPair_Failure(t *testing.T) {
 	shorelineFails.SetHandlers("", rtr)
 
 	req, _ := http.NewRequest("GET", "/1234/somename", nil)
-	req.Header.Set(TP_SESSION_TOKEN, SRVR_TOKEN.Token)
+	req.Header.Set(TP_SESSION_TOKEN, SRVR_TOKEN.Id)
 	resp := httptest.NewRecorder()
 
 	shorelineFails.ManageIdHashPair(resp, req, map[string]string{"userid": "1234", "key": "somename"})

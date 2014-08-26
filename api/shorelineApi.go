@@ -119,15 +119,24 @@ func getGivenDetail(req *http.Request) (d map[string]string) {
 }
 
 //get the token from the req header
-func (a *Api) getUnpackedToken(tokenString string) (st *models.SessionToken) {
+func (a *Api) getUnpackedToken(tokenString string) *models.TokenData {
+	if st := models.GetSessionToken(tokenString); st.Id != "" {
+		if td := st.UnpackAndVerify(a.Config.ServerSecret); td != nil && td.Valid == true {
+			return td
+		}
+	}
+	return nil
+}
+
+//get the token from the req header
+/*func (a *Api) getUnpackedTokenOld(tokenString string) (st *models.SessionToken) {
 	st = models.GetSessionToken(tokenString)
 
 	if st.Token == "" || st.UnpackAndVerify(a.Config.ServerSecret) == false {
-		//log.Println("tkn: ", st)
 		return nil
 	}
 	return st
-}
+}*/
 
 //has a duration been set?
 func tokenDuration(req *http.Request) (dur float64) {
@@ -197,8 +206,8 @@ func sendModelAsResWithStatus(res http.ResponseWriter, model interface{}, status
 
 func (a *Api) hasServerToken(tokenString string) bool {
 
-	if svrToken := a.getUnpackedToken(tokenString); svrToken != nil {
-		return svrToken.TokenData.IsServer
+	if td := a.getUnpackedToken(tokenString); td != nil {
+		return td.IsServer
 	}
 	return false
 }
@@ -252,7 +261,7 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 					res.Write([]byte(STATUS_ERR_GENTERATING_TOKEN))
 					return
 				} else {
-					res.Header().Set(TP_SESSION_TOKEN, sessionToken.Token)
+					res.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
 					sendModelAsResWithStatus(res, usr, http.StatusCreated)
 					return
 				}
@@ -274,7 +283,7 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 //Pull the incoming user updates from http.Request body and save return http.StatusOK
 func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 
-	if sessionToken := a.getUnpackedToken(req.Header.Get(TP_SESSION_TOKEN)); sessionToken != nil {
+	if td := a.getUnpackedToken(req.Header.Get(TP_SESSION_TOKEN)); td != nil {
 
 		var (
 			id string
@@ -287,7 +296,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 		id = vars["userid"]
 
 		if id == "" {
-			id = sessionToken.TokenData.UserId
+			id = td.UserId
 		}
 
 		if id != "" { // get out quick
@@ -366,7 +375,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 //find any matches returning them with return http.StatusOK
 func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 
-	if sessionToken := a.getUnpackedToken(req.Header.Get(TP_SESSION_TOKEN)); sessionToken != nil {
+	if td := a.getUnpackedToken(req.Header.Get(TP_SESSION_TOKEN)); td != nil {
 
 		var usr *models.User
 
@@ -376,7 +385,7 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 			usr = models.UserFromDetails(&models.UserDetail{Id: id, Emails: []string{id}})
 		} else {
 			//use the token to find the userid
-			usr = models.UserFromDetails(&models.UserDetail{Id: sessionToken.TokenData.UserId})
+			usr = models.UserFromDetails(&models.UserDetail{Id: td.UserId})
 		}
 
 		if usr == nil {
@@ -412,9 +421,9 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 }
 
 func (a *Api) EmailUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
-	if sessionToken := a.getUnpackedToken(req.Header.Get(TP_SESSION_TOKEN)); sessionToken != nil {
+	if td := a.getUnpackedToken(req.Header.Get(TP_SESSION_TOKEN)); td != nil {
 
-		emailType, usr := vars["type"], models.UserFromDetails(&models.UserDetail{Id: sessionToken.TokenData.UserId})
+		emailType, usr := vars["type"], models.UserFromDetails(&models.UserDetail{Id: td.UserId})
 
 		if emailType != "" && usr.Id != "" {
 
@@ -437,7 +446,7 @@ func (a *Api) EmailUser(res http.ResponseWriter, req *http.Request, vars map[str
 }
 
 func (a *Api) EmailAddress(res http.ResponseWriter, req *http.Request, vars map[string]string) {
-	if sessionToken := a.getUnpackedToken(req.Header.Get(TP_SESSION_TOKEN)); sessionToken != nil {
+	if td := a.getUnpackedToken(req.Header.Get(TP_SESSION_TOKEN)); td != nil {
 
 		emailType := vars["type"]
 		emailAddress, _ := url.QueryUnescape(vars["address"])
@@ -472,13 +481,13 @@ func (a *Api) EmailAddress(res http.ResponseWriter, req *http.Request, vars map[
 
 func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 
-	if sessionToken := a.getUnpackedToken(req.Header.Get(TP_SESSION_TOKEN)); sessionToken != nil {
+	if td := a.getUnpackedToken(req.Header.Get(TP_SESSION_TOKEN)); td != nil {
 
 		var id string
-		if sessionToken.TokenData.IsServer == true {
+		if td.IsServer == true {
 			id = vars["userid"]
 		} else {
-			id = sessionToken.TokenData.UserId
+			id = td.UserId
 		}
 
 		pw := getGivenDetail(req)["password"]
@@ -491,8 +500,9 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 			if err = toDelete.HashPassword(pw, a.Config.Salt); err == nil {
 				if err = a.Store.RemoveUser(toDelete); err == nil {
 					//cleanup if any
-					if sessionToken.TokenData.IsServer == false {
-						a.Store.RemoveToken(sessionToken)
+					if td.IsServer == false {
+						usrToken := &models.SessionToken{Id: req.Header.Get(TP_SESSION_TOKEN)}
+						a.Store.RemoveToken(usrToken)
 					}
 					//all good
 					res.WriteHeader(http.StatusAccepted)
@@ -538,7 +548,7 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 						res.Write([]byte(STATUS_ERR_UPDATING_TOKEN))
 						return
 					} else {
-						res.Header().Set(TP_SESSION_TOKEN, sessionToken.Token)
+						res.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
 						sendModelAsRes(res, results[i])
 						return
 					}
@@ -575,7 +585,7 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 			res.Write([]byte(STATUS_ERR_GENTERATING_TOKEN))
 			return
 		} else {
-			res.Header().Set(TP_SESSION_TOKEN, sessionToken.Token)
+			res.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
 			res.WriteHeader(http.StatusOK)
 			return
 		}
@@ -587,26 +597,26 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 
 func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 
-	if sessionToken := a.getUnpackedToken(req.Header.Get(TP_SESSION_TOKEN)); sessionToken != nil {
+	if td := a.getUnpackedToken(req.Header.Get(TP_SESSION_TOKEN)); td != nil {
 		const TWO_HOURS_IN_SECS = 60 * 60 * 2
 
-		if sessionToken.TokenData.IsServer == false && sessionToken.TokenData.DurationSecs > TWO_HOURS_IN_SECS {
+		if td.IsServer == false && td.DurationSecs > TWO_HOURS_IN_SECS {
 			//long-duration, it's not renewable, so just return it
-			sendModelAsRes(res, sessionToken.TokenData.UserId)
+			sendModelAsRes(res, td.UserId)
 			return
 		}
 		//refresh
 		if sessionToken, err := a.createAndSaveToken(
 			tokenDuration(req),
-			sessionToken.TokenData.UserId,
-			sessionToken.TokenData.IsServer,
+			td.UserId,
+			td.IsServer,
 		); err != nil {
 			log.Println(err)
 			res.WriteHeader(http.StatusInternalServerError)
 			res.Write([]byte(STATUS_ERR_GENTERATING_TOKEN))
 			return
 		} else {
-			res.Header().Set(TP_SESSION_TOKEN, sessionToken.Token)
+			res.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
 			res.WriteHeader(http.StatusOK)
 			return
 		}
@@ -636,9 +646,9 @@ func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars 
 	if a.hasServerToken(req.Header.Get(TP_SESSION_TOKEN)) {
 		tokenString := vars["token"]
 
-		svrToken := &models.SessionToken{Token: tokenString}
-		if svrToken.UnpackAndVerify(a.Config.ServerSecret) {
-			sendModelAsRes(res, svrToken.TokenData)
+		svrToken := &models.SessionToken{Id: tokenString}
+		if td := svrToken.UnpackAndVerify(a.Config.ServerSecret); td != nil && td.Valid {
+			sendModelAsRes(res, td)
 			return
 		}
 		res.WriteHeader(http.StatusNotFound)
@@ -651,7 +661,7 @@ func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars 
 func (a *Api) Logout(res http.ResponseWriter, req *http.Request) {
 	//lets just try and remove the token
 	st := models.GetSessionToken(req.Header.Get(TP_SESSION_TOKEN))
-	if st.Token != "" {
+	if st.Id != "" {
 		if err := a.Store.RemoveToken(st); err != nil {
 			log.Println("Unable to delete token.", err)
 		}

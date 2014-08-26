@@ -9,9 +9,8 @@ import (
 
 type (
 	SessionToken struct {
-		Token     string    `json:"-" 	bson:"_id,omitempty"`
-		Time      string    `json:"-" 	bson:"time"`
-		TokenData TokenData `json:"-"`
+		Id   string `json:"-" 	bson:"_id,omitempty"`
+		Time string `json:"-" 	bson:"time"`
 	}
 
 	TokenData struct {
@@ -54,39 +53,37 @@ func NewSessionToken(data *TokenData, secret string) (token *SessionToken, err e
 		// Sign and get the complete encoded token as a string
 		tokenString, _ := token.SignedString([]byte(secret))
 
-		return &SessionToken{Token: tokenString, Time: time.Now().String()}, nil
+		return &SessionToken{Id: tokenString, Time: time.Now().String()}, nil
 	}
 
 	return nil, errors.New("The duration for the token was 0 seconds")
 }
 
-func (t *SessionToken) unpackToken(secret string) {
+func (t *SessionToken) unpackToken(secret string) *TokenData {
 
-	if jwtToken, err := jwt.Parse(t.Token, func(t *jwt.Token) ([]byte, error) { return []byte(secret), nil }); err != nil {
+	if jwtToken, err := jwt.Parse(t.Id, func(t *jwt.Token) ([]byte, error) { return []byte(secret), nil }); err != nil {
 		log.Println("unpackToken ", err)
-		return
+		return nil
 	} else {
-
-		t.TokenData = TokenData{
+		return &TokenData{
 			IsServer:     jwtToken.Claims["svr"] == "yes",
 			DurationSecs: jwtToken.Claims["dur"].(float64),
 			UserId:       jwtToken.Claims["usr"].(string),
 			Valid:        jwtToken.Valid,
 		}
-		return
 	}
 }
 
-func (t *SessionToken) UnpackAndVerify(secret string) bool {
+func (t *SessionToken) UnpackAndVerify(secret string) *TokenData {
 
-	if t.Token == "" {
-		return false
+	if t.Id == "" {
+		return nil
 	}
 
-	t.unpackToken(secret)
-	return t.TokenData.Valid
+	return t.unpackToken(secret)
+	//return t.TokenData.Valid
 }
 
 func GetSessionToken(tokenString string) *SessionToken {
-	return &SessionToken{Token: tokenString}
+	return &SessionToken{Id: tokenString}
 }

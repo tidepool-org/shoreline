@@ -16,7 +16,7 @@ func TestGetSessionToken(t *testing.T) {
 
 	token := GetSessionToken(tokenString)
 
-	if token.Token != tokenString {
+	if token.Id != tokenString {
 		t.Fatalf("session value should have been set for token")
 	}
 }
@@ -34,7 +34,7 @@ func TestGenerateSessionToken(t *testing.T) {
 
 	testData := tokenTestData{data: &TokenData{UserId: "12-99-100", IsServer: false, DurationSecs: 3600}, secretUsed: "my secret"}
 
-	if token, _ := NewSessionToken(testData.data, testData.secretUsed); token.Token == "" || token.Time == "" {
+	if token, _ := NewSessionToken(testData.data, testData.secretUsed); token.Id == "" || token.Time == "" {
 		t.Fatalf("should generate a session token")
 	}
 
@@ -44,7 +44,7 @@ func TestGenerateSessionTokenForServer(t *testing.T) {
 
 	testData := tokenTestData{data: &TokenData{UserId: "shoreline", IsServer: true, DurationSecs: 3600}, secretUsed: "my secret"}
 
-	if token, _ := NewSessionToken(testData.data, testData.secretUsed); token.Token == "" || token.Time == "" {
+	if token, _ := NewSessionToken(testData.data, testData.secretUsed); token.Id == "" || token.Time == "" {
 		t.Fatalf("should generate a session token")
 	}
 
@@ -56,20 +56,21 @@ func TestUnpackedData(t *testing.T) {
 
 	token, _ := NewSessionToken(testData.data, testData.secretUsed)
 
-	if ok := token.UnpackAndVerify(testData.secretUsed); ok == false {
+	if data := token.UnpackAndVerify(testData.secretUsed); data == nil {
 		t.Fatalf("unpacked token should be valid")
-	}
+	} else {
 
-	if token.TokenData.IsServer == false {
-		t.Fatalf(" token should have been what was given")
-	}
+		if data.IsServer == false {
+			t.Fatalf(" token should have been what was given")
+		}
 
-	if token.TokenData.DurationSecs != testData.data.DurationSecs {
-		t.Fatalf("the DurationSecs should have been what was given")
-	}
+		if data.DurationSecs != testData.data.DurationSecs {
+			t.Fatalf("the DurationSecs should have been what was given")
+		}
 
-	if token.TokenData.UserId != testData.data.UserId {
-		t.Fatalf("the user should have been what was given")
+		if data.UserId != testData.data.UserId {
+			t.Fatalf("the user should have been what was given")
+		}
 	}
 
 }
@@ -82,7 +83,7 @@ func TestUnpackTokenExpires(t *testing.T) {
 
 	time.Sleep(2 * time.Second) //ensure token expires
 
-	if ok := token.UnpackAndVerify(testData.secretUsed); ok != false {
+	if data := token.UnpackAndVerify(testData.secretUsed); data != nil && data.Valid != false {
 		t.Fatalf("the token should have expired")
 	}
 
@@ -94,7 +95,7 @@ func TestUnpackAndVerifyStoredToken(t *testing.T) {
 
 	token, _ := NewSessionToken(testData.data, testData.secretUsed)
 
-	if ok := token.UnpackAndVerify(testData.secretUsed); ok == false {
+	if data := token.UnpackAndVerify(testData.secretUsed); data != nil && data.Valid == false {
 		t.Fatalf("the token should not have expired")
 	}
 }
