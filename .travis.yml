@@ -8,4 +8,5 @@ go:
  - release
 
 script:
+ - export GOPATH=`pwd`
  - go test -v ./...
