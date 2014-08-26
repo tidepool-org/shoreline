@@ -3,4 +3,4 @@
 if [ -r config/goenv.sh ]; then
   . config/goenv.sh
 fi
-./shoreline
+exec ./shoreline
