@@ -8,7 +8,7 @@ go:
  - release
 
 install:
-  - build
+  - ./build
 
 script:
  - go test -v ./...
