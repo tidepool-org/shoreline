@@ -8,7 +8,7 @@ go:
  - release
 
 install:
-  - export GOPATH=`pwd`
+  - build
 
 script:
  - go test -v ./...
