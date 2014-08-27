@@ -10,7 +10,7 @@ import (
 type (
 	SessionToken struct {
 		Id   string `json:"-" 	bson:"_id,omitempty"`
-		Time string `json:"-" 	bson:"time"`
+		Time int64  `json:"-" 	bson:"time"`
 	}
 
 	TokenData struct {
@@ -53,7 +53,7 @@ func NewSessionToken(data *TokenData, secret string) (token *SessionToken, err e
 		// Sign and get the complete encoded token as a string
 		tokenString, _ := token.SignedString([]byte(secret))
 
-		return &SessionToken{Id: tokenString, Time: time.Now().String()}, nil
+		return &SessionToken{Id: tokenString, Time: time.Now().Unix()}, nil
 	}
 
 	return nil, errors.New("The duration for the token was 0 seconds")

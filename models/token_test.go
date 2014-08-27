@@ -34,7 +34,7 @@ func TestGenerateSessionToken(t *testing.T) {
 
 	testData := tokenTestData{data: &TokenData{UserId: "12-99-100", IsServer: false, DurationSecs: 3600}, secretUsed: "my secret"}
 
-	if token, _ := NewSessionToken(testData.data, testData.secretUsed); token.Id == "" || token.Time == "" {
+	if token, _ := NewSessionToken(testData.data, testData.secretUsed); token.Id == "" || token.Time == 0 {
 		t.Fatalf("should generate a session token")
 	}
 
@@ -44,7 +44,7 @@ func TestGenerateSessionTokenForServer(t *testing.T) {
 
 	testData := tokenTestData{data: &TokenData{UserId: "shoreline", IsServer: true, DurationSecs: 3600}, secretUsed: "my secret"}
 
-	if token, _ := NewSessionToken(testData.data, testData.secretUsed); token.Id == "" || token.Time == "" {
+	if token, _ := NewSessionToken(testData.data, testData.secretUsed); token.Id == "" || token.Time == 0 {
 		t.Fatalf("should generate a session token")
 	}
 
