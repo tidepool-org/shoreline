@@ -105,27 +105,29 @@ func (d MongoStoreClient) RemoveUser(user *models.User) (err error) {
 }
 
 func (d MongoStoreClient) AddToken(st *models.SessionToken) error {
-	//todo: safe mode ?? i.e. {w:1}
-	if err := d.tokensC.Insert(st); err != nil {
+	//map to the structure we want to save to mongo as
+	token := bson.M{"_id": st.Id, "time": st.Time}
+
+	if err := d.tokensC.Insert(token); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (d MongoStoreClient) FindToken(st *models.SessionToken) (result *models.SessionToken, err error) {
-	//todo: safe mode ?? i.e. {w:1}
-	check := bson.M{"$or": []bson.M{bson.M{"id": st.Id}, bson.M{"_id": st.Id}}}
+func (d MongoStoreClient) FindToken(st *models.SessionToken) (*models.SessionToken, error) {
 
-	if err = d.tokensC.Find(check).One(&result); err != nil {
-		return result, err
+	var result map[string]interface{}
+	if err := d.tokensC.Find(bson.M{"_id": st.Id}).One(&result); err != nil {
+		return nil, err
 	}
-	return result, nil
+	//map to the token structure the service uses
+	tkn := &models.SessionToken{Id: result["_id"].(string), Time: result["time"].(int64)}
+
+	return tkn, nil
 }
 
 func (d MongoStoreClient) RemoveToken(st *models.SessionToken) (err error) {
-	//todo: safe mode ?? i.e. {w:1}
-	check := bson.M{"$or": []bson.M{bson.M{"id": st.Id}, bson.M{"_id": st.Id}}}
-	if err = d.tokensC.Remove(check); err != nil {
+	if err = d.tokensC.Remove(bson.M{"_id": st.Id}); err != nil {
 		return err
 	}
 	return nil

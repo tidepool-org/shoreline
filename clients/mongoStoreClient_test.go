@@ -209,10 +209,10 @@ func TestMongoStoreTokenOperations(t *testing.T) {
 		}
 
 		if foundToken, err := mc.FindToken(sessionToken); err == nil {
-			if foundToken.Token == "" {
+			if foundToken.Id == "" {
 				t.Fatalf("the token string isn't included %v", foundToken)
 			}
-			if foundToken.Time == "" {
+			if foundToken.Time == 0 {
 				t.Fatalf("the time wasn't included %v", foundToken)
 			}
 		} else {
