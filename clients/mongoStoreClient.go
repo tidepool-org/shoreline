@@ -114,7 +114,7 @@ func (d MongoStoreClient) AddToken(st *models.SessionToken) error {
 
 func (d MongoStoreClient) FindToken(st *models.SessionToken) (result *models.SessionToken, err error) {
 	//todo: safe mode ?? i.e. {w:1}
-	if err = d.tokensC.Find(bson.M{"_id": st.Id}).One(&result); err != nil {
+	if err = d.tokensC.Find(bson.M{"id": st.Id}).One(&result); err != nil {
 		return result, err
 	}
 	return result, nil
@@ -122,7 +122,7 @@ func (d MongoStoreClient) FindToken(st *models.SessionToken) (result *models.Ses
 
 func (d MongoStoreClient) RemoveToken(st *models.SessionToken) (err error) {
 	//todo: safe mode ?? i.e. {w:1}
-	if err = d.tokensC.Remove(bson.M{"_id": st.Id}); err != nil {
+	if err = d.tokensC.Remove(bson.M{"id": st.Id}); err != nil {
 		return err
 	}
 	return nil
