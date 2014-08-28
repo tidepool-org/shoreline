@@ -65,6 +65,8 @@ func (d MongoStoreClient) FindUser(user *models.User) (result *models.User, err 
 		}
 	}
 
+	log.Printf("found: %v", result)
+
 	return result, nil
 }
 

@@ -145,12 +145,17 @@ func tokenDuration(req *http.Request) (dur float64) {
 // line of an HTTP header. This function will handle the
 // parsing and decoding of the line.
 func unpackAuth(authLine string) (usr *models.User) {
+
+	log.Println(" login ", authLine)
+
 	if authLine != "" {
 		parts := strings.SplitN(authLine, " ", 2)
 		payload := parts[1]
+		log.Println(" login 2 ", payload)
 		if decodedPayload, err := base64.URLEncoding.DecodeString(payload); err != nil {
 			log.Print(err)
 		} else {
+			log.Println(" login 3 ", decodedPayload)
 			details := strings.Split(string(decodedPayload), ":")
 			if details[0] != "" || details[1] != "" {
 				//Note the incoming `name` coule infact be id, email or the username
@@ -514,9 +519,7 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 }
 
 func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
-
 	if usr := unpackAuth(req.Header.Get("Authorization")); usr != nil {
-
 		if results, err := a.Store.FindUsers(usr); err != nil {
 			log.Println(err)
 			res.WriteHeader(http.StatusInternalServerError)
