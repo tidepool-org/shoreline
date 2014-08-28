@@ -29,8 +29,8 @@ func NewMongoStoreClient(config *mongo.Config) *MongoStoreClient {
 
 	return &MongoStoreClient{
 		session: mongoSession,
-		usersC:  mongoSession.DB("shoreline").C(USERS_COLLECTION),
-		tokensC: mongoSession.DB("shoreline").C(TOKENS_COLLECTION),
+		usersC:  mongoSession.DB("user").C(USERS_COLLECTION),
+		tokensC: mongoSession.DB("user").C(TOKENS_COLLECTION),
 	}
 }
 
