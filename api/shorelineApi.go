@@ -636,7 +636,7 @@ func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars 
 		tokenString := vars["token"]
 
 		svrToken := &models.SessionToken{Id: tokenString}
-		if td := svrToken.UnpackAndVerify(a.Config.ServerSecret); td != nil && td.Valid {
+		if td := svrToken.UnpackAndVerify(a.Config.Secret); td != nil && td.Valid {
 			sendModelAsRes(res, td)
 			return
 		}
