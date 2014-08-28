@@ -88,11 +88,14 @@ func (d MongoStoreClient) FindUsers(user *models.User) (results []*models.User, 
 		fieldsToMatch = append(fieldsToMatch, bson.M{"emails": bson.M{"$in": user.Emails}})
 	}
 
+	log.Printf("looking for ... [%v] ", fieldsToMatch)
+
 	if err = d.usersC.Find(bson.M{"$or": fieldsToMatch}).All(&results); err != nil {
 		return results, err
 	}
 
 	if results == nil {
+		log.Print("no users found ")
 		results = []*models.User{}
 	}
 

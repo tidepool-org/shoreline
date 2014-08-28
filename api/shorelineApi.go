@@ -44,6 +44,7 @@ const (
 	STATUS_MISSING_USR_DETAILS   = "Not all required details were given"
 	STATUS_ERROR_UPDATING_PW     = "Error updating password"
 	STATUS_MISSING_ID_PW         = "Missing id and/or password"
+	STATUS_NO_MATCH              = "No user matched the given details"
 	STATUS_PW_WRONG              = "Wrong password"
 )
 
@@ -145,9 +146,6 @@ func tokenDuration(req *http.Request) (dur float64) {
 // line of an HTTP header. This function will handle the
 // parsing and decoding of the line.
 func unpackAuth(authLine string) (usr *models.User) {
-
-	log.Println(" login ", authLine)
-
 	if authLine != "" {
 		parts := strings.SplitN(authLine, " ", 2)
 		payload := parts[1]
@@ -158,8 +156,6 @@ func unpackAuth(authLine string) (usr *models.User) {
 
 			log.Printf(" login 4 %v", details)
 			if details[0] != "" || details[1] != "" {
-				log.Printf(" login 5 %v", details[0])
-				log.Printf(" login 6 %v", details[1])
 				//Note the incoming `name` coule infact be id, email or the username
 				return models.UserFromDetails(&models.UserDetail{Id: details[0], Name: details[0], Emails: []string{details[0]}, Pw: details[1]})
 			}
@@ -528,28 +524,37 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 			res.Write([]byte(STATUS_ERR_FINDING_USR))
 			return
 		} else {
-			for i := range results {
-				//ensure a pw match
-				if results[i].PwsMatch(usr, a.Config.Salt) {
-					//a mactch so login
-					if sessionToken, err := a.createAndSaveToken(
-						tokenDuration(req),
-						results[i].Id,
-						false,
-					); err != nil {
-						log.Println(err)
-						res.WriteHeader(http.StatusInternalServerError)
-						res.Write([]byte(STATUS_ERR_UPDATING_TOKEN))
-						return
-					} else {
-						res.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
-						sendModelAsRes(res, results[i])
-						return
+
+			log.Printf(" found [%v]", results)
+
+			if len(results) > 0 {
+
+				for i := range results {
+					//ensure a pw match
+					if results[i].PwsMatch(usr, a.Config.Salt) {
+						//a mactch so login
+						if sessionToken, err := a.createAndSaveToken(
+							tokenDuration(req),
+							results[i].Id,
+							false,
+						); err != nil {
+							log.Println(err)
+							res.WriteHeader(http.StatusInternalServerError)
+							res.Write([]byte(STATUS_ERR_UPDATING_TOKEN))
+							return
+						} else {
+							res.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
+							sendModelAsRes(res, results[i])
+							return
+						}
 					}
+					res.WriteHeader(http.StatusUnauthorized)
+					res.Write([]byte(STATUS_PW_WRONG))
+					return
 				}
-				res.WriteHeader(http.StatusUnauthorized)
-				res.Write([]byte(STATUS_PW_WRONG))
-				return
+			} else {
+				res.WriteHeader(http.StatusNoContent)
+				res.Write([]byte(STATUS_NO_MATCH))
 			}
 		}
 	}
