@@ -151,13 +151,15 @@ func unpackAuth(authLine string) (usr *models.User) {
 	if authLine != "" {
 		parts := strings.SplitN(authLine, " ", 2)
 		payload := parts[1]
-		log.Println(" login 2 ", payload)
 		if decodedPayload, err := base64.URLEncoding.DecodeString(payload); err != nil {
 			log.Print(err)
 		} else {
-			log.Println(" login 3 ", decodedPayload)
 			details := strings.Split(string(decodedPayload), ":")
+
+			log.Printf(" login 4 %v", details)
 			if details[0] != "" || details[1] != "" {
+				log.Printf(" login 5 %v", details[0])
+				log.Printf(" login 6 %v", details[1])
 				//Note the incoming `name` coule infact be id, email or the username
 				return models.UserFromDetails(&models.UserDetail{Id: details[0], Name: details[0], Emails: []string{details[0]}, Pw: details[1]})
 			}
