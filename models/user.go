@@ -9,7 +9,6 @@ type User struct {
 	Id      string                 `json:"userid"   bson:"userid,omitempty"` // map userid to id
 	Name    string                 `json:"username" bson:"username"`
 	Emails  []string               `json:"emails" 	bson:"emails"`
-	Pw      string                 `json:"-"` //json:"-" is used to prevent the field being serialised to json
 	PwHash  string                 `json:"-" 		bson:"pwhash"`
 	Hash    string                 `json:"-" 		bson:"userhash"`
 	Private map[string]*IdHashPair `json:"-" 		bson:"private"`
@@ -41,8 +40,7 @@ func NewUser(details *UserDetail, salt string) (user *User, err error) {
 }
 
 func UserFromDetails(details *UserDetail) (user *User) {
-
-	return &User{Id: details.Id, Name: strings.ToLower(details.Name), Emails: details.Emails, Pw: details.Pw}
+	return &User{Id: details.Id, Name: strings.ToLower(details.Name), Emails: details.Emails}
 }
 
 func (u *User) HashPassword(pw, salt string) (err error) {
@@ -54,10 +52,9 @@ func (u *User) NamesMatch(name string) bool {
 	return strings.ToLower(u.Name) == strings.ToLower(name)
 }
 
-func (u *User) PwsMatch(usrToCheck *User, salt string) bool {
-
-	if usrToCheck.Pw != "" {
-		pwMatch, _ := GeneratePasswordHash(u.Id, usrToCheck.Pw, salt)
+func (u *User) PwsMatch(pw, salt string) bool {
+	if pw != "" {
+		pwMatch, _ := GeneratePasswordHash(u.Id, pw, salt)
 		return u.PwHash == pwMatch
 	}
 	return false

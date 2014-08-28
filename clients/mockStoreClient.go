@@ -42,8 +42,9 @@ func (d MockStoreClient) FindUsers(user *models.User) (found []*models.User, err
 		return []*models.User{}, nil
 	}
 
-	if user.Pw != "" && user.Name != "" {
-		found, _ := models.NewUser(&models.UserDetail{Name: user.Name, Pw: user.Pw, Emails: []string{}}, d.salt)
+	if user.Name != "" {
+		found, _ := models.NewUser(&models.UserDetail{Name: user.Name, Pw: "123youknoWm3", Emails: []string{}}, d.salt)
+
 		return []*models.User{found}, nil
 	}
 
@@ -59,12 +60,12 @@ func (d MockStoreClient) FindUser(user *models.User) (found *models.User, err er
 	//`find` a pretend one we just made
 
 	if d.returnDifferent {
-		other, _ := models.NewUser(&models.UserDetail{Name: "Some One Else", Pw: "s0m30n33ls3", Emails: []string{}}, d.salt)
+		other, _ := models.NewUser(&models.UserDetail{Name: "Some One Else", Pw: "123youknoWm3", Emails: []string{}}, d.salt)
 		return other, nil
 	}
 
-	if user.Pw != "" && user.Name != "" {
-		found, _ := models.NewUser(&models.UserDetail{Name: user.Name, Pw: user.Pw, Emails: []string{}}, d.salt)
+	if user.Name != "" {
+		found, _ := models.NewUser(&models.UserDetail{Name: user.Name, Pw: "123youknoWm3", Emails: []string{}}, d.salt)
 		return found, nil
 	}
 	return user, nil

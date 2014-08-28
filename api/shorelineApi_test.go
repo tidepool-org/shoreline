@@ -282,7 +282,7 @@ func TestUpdateUser_IdFromToken_StatusOK(t *testing.T) {
 	sl2.UpdateUser(responseUpdateAll, requestUpdateAll, NO_PARAMS)
 
 	if responseUpdateAll.Code != http.StatusOK {
-		t.Fatalf("Non-expected status code %v:\n\tbody: %v", "200", responseUpdateAll.Code)
+		t.Fatalf("Status given [%v] expected [%v] ", responseUpdateAll.Code, http.StatusOK)
 	}
 
 }

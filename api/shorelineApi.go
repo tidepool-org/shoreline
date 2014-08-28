@@ -145,7 +145,7 @@ func tokenDuration(req *http.Request) (dur float64) {
 // Extract the username and password from the authorization
 // line of an HTTP header. This function will handle the
 // parsing and decoding of the line.
-func unpackAuth(authLine string) (usr *models.User) {
+func unpackAuth(authLine string) (usr *models.User, pw string) {
 	if authLine != "" {
 		parts := strings.SplitN(authLine, " ", 2)
 		payload := parts[1]
@@ -153,15 +153,13 @@ func unpackAuth(authLine string) (usr *models.User) {
 			log.Print(err)
 		} else {
 			details := strings.Split(string(decodedPayload), ":")
-
-			log.Printf(" login 4 %v", details)
 			if details[0] != "" || details[1] != "" {
 				//Note the incoming `name` coule infact be id, email or the username
-				return models.UserFromDetails(&models.UserDetail{Id: details[0], Name: details[0], Emails: []string{details[0]}, Pw: details[1]})
+				return models.UserFromDetails(&models.UserDetail{Id: details[0], Name: details[0], Emails: []string{details[0]}}), details[1]
 			}
 		}
 	}
-	return nil
+	return nil, ""
 }
 
 func sendModelsAsRes(res http.ResponseWriter, models ...interface{}) {
@@ -393,15 +391,18 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 				res.Write([]byte(STATUS_ERR_FINDING_USR))
 				return
 			} else if results != nil {
-				if len(results) == 1 && usr.Pw != "" {
-					if results[0].PwsMatch(usr, a.Config.Salt) {
-						sendModelAsRes(res, results[0])
-						return
-					} else {
-						res.WriteHeader(http.StatusNoContent)
-						return
-					}
-				} else if len(results) == 1 {
+				/*
+					TODO: sort this out
+					if len(results) == 1 && usr.Pw != "" {
+						if results[0].PwsMatch(usr, a.Config.Salt) {
+							sendModelAsRes(res, results[0])
+							return
+						} else {
+							res.WriteHeader(http.StatusNoContent)
+							return
+						}
+					} else*/
+				if len(results) == 1 {
 					sendModelAsRes(res, results[0])
 					return
 				}
@@ -517,7 +518,8 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 }
 
 func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
-	if usr := unpackAuth(req.Header.Get("Authorization")); usr != nil {
+	if usr, pw := unpackAuth(req.Header.Get("Authorization")); usr != nil {
+
 		if results, err := a.Store.FindUsers(usr); err != nil {
 			log.Println(err)
 			res.WriteHeader(http.StatusInternalServerError)
@@ -527,8 +529,8 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 			if len(results) > 0 {
 				for i := range results {
 					//ensure a pw match
-					if results[i].PwsMatch(usr, a.Config.Salt) {
-						//a mactch so login
+					if results[i] != nil && results[i].PwsMatch(pw, a.Config.Salt) {
+						//a match so login
 						if sessionToken, err := a.createAndSaveToken(
 							tokenDuration(req),
 							results[i].Id,
