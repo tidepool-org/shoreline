@@ -82,7 +82,7 @@ func (d MongoStoreClient) FindUsers(user *models.User) (results []*models.User, 
 	}
 	if user.Name != "" {
 		//case insensitive match
-		fieldsToMatch = append(fieldsToMatch, bson.M{"name": bson.M{"$regex": bson.RegEx{fmt.Sprintf(MATCH, user.Name), "i"}}})
+		fieldsToMatch = append(fieldsToMatch, bson.M{"username": bson.M{"$regex": bson.RegEx{fmt.Sprintf(MATCH, user.Name), "i"}}})
 	}
 	if len(user.Emails) > 0 {
 		fieldsToMatch = append(fieldsToMatch, bson.M{"emails": bson.M{"$in": user.Emails}})

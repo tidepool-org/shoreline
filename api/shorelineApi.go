@@ -524,11 +524,7 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 			res.Write([]byte(STATUS_ERR_FINDING_USR))
 			return
 		} else {
-
-			log.Printf(" found [%v]", results)
-
 			if len(results) > 0 {
-
 				for i := range results {
 					//ensure a pw match
 					if results[i].PwsMatch(usr, a.Config.Salt) {
@@ -555,6 +551,7 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 			} else {
 				res.WriteHeader(http.StatusNoContent)
 				res.Write([]byte(STATUS_NO_MATCH))
+				return
 			}
 		}
 	}

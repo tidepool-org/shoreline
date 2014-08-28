@@ -7,11 +7,11 @@ import (
 
 type User struct {
 	Id      string                 `json:"userid"   bson:"userid,omitempty"` // map userid to id
-	Name    string                 `json:"username" bson:"name"`
+	Name    string                 `json:"username" bson:"username"`
 	Emails  []string               `json:"emails" 	bson:"emails"`
 	Pw      string                 `json:"-"` //json:"-" is used to prevent the field being serialised to json
 	PwHash  string                 `json:"-" 		bson:"pwhash"`
-	Hash    string                 `json:"-" 		bson:"hash"`
+	Hash    string                 `json:"-" 		bson:"userhash"`
 	Private map[string]*IdHashPair `json:"-" 		bson:"private"`
 }
 
