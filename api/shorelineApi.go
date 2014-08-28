@@ -19,9 +19,10 @@ type (
 		Config Config
 	}
 	Config struct {
-		ServerSecret    string `json:"serverSecret"`
+		ServerSecret    string `json:"serverSecret"` //used for services
 		LongTermKey     string `json:"longTermKey"`
-		Salt            string `json:"salt"`
+		Salt            string `json:"salt"`      //used for pw
+		Secret          string `json:"apiSecret"` //used for token
 		PwResetTemplate string `json:"pwresetTemplate"`
 	}
 
@@ -121,22 +122,12 @@ func getGivenDetail(req *http.Request) (d map[string]string) {
 //get the token from the req header
 func (a *Api) getUnpackedToken(tokenString string) *models.TokenData {
 	if st := models.GetSessionToken(tokenString); st.Id != "" {
-		if td := st.UnpackAndVerify(a.Config.ServerSecret); td != nil && td.Valid == true {
+		if td := st.UnpackAndVerify(a.Config.Secret); td != nil && td.Valid == true {
 			return td
 		}
 	}
 	return nil
 }
-
-//get the token from the req header
-/*func (a *Api) getUnpackedTokenOld(tokenString string) (st *models.SessionToken) {
-	st = models.GetSessionToken(tokenString)
-
-	if st.Token == "" || st.UnpackAndVerify(a.Config.ServerSecret) == false {
-		return nil
-	}
-	return st
-}*/
 
 //has a duration been set?
 func tokenDuration(req *http.Request) (dur float64) {
@@ -219,7 +210,7 @@ func (a *Api) createAndSaveToken(dur float64, id string, isServer bool) (*models
 			IsServer:     isServer,
 			DurationSecs: dur,
 		},
-		a.Config.ServerSecret,
+		a.Config.Secret,
 	)
 
 	if err := a.Store.AddToken(sessionToken); err == nil {
@@ -523,8 +514,6 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 }
 
 func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
-
-	//delete any lost pw
 
 	if usr := unpackAuth(req.Header.Get("Authorization")); usr != nil {
 

@@ -11,6 +11,7 @@
   },
   "shoreline" : {
     "serverSecret": "This needs to be the same secret everywhere. YaHut75NsK1f9UKUXuWqxNN0RUwHFBCy",
+    "apiSecret": "This is the api secret blah blah blah blah",
     "longTermKey": "abcdefghijklmnopqrstuvwxyz",
     "salt" : "ADihSEI7tOQQP9xfXMO9HfRpXKu1NpIJ",
     "pwresetTemplate" : "Hi %s!\n\nLooks like you forgot your password. Not to worry! Just hit the link below to reset it.\n\n%s\n\n Thanks\nThe Tidepool Team"
