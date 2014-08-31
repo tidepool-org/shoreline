@@ -112,8 +112,7 @@ func (d MongoStoreClient) RemoveUser(user *models.User) (err error) {
 func (d MongoStoreClient) AddToken(st *models.SessionToken) error {
 	//map to the structure we want to save to mongo as
 	token := bson.M{"_id": st.Id, "time": st.Time}
-
-	if err := d.tokensC.Insert(token); err != nil {
+	if _, err := d.tokensC.Upsert(bson.M{"_id": st.Id}, token); err != nil {
 		return err
 	}
 	return nil
