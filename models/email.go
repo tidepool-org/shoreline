@@ -27,7 +27,36 @@ type (
 		Name string
 		Link string
 	}
+
+	CareTeamEmail struct {
+		Name string
+		Team string
+		Link string
+	}
 )
+
+func NewCareteamInviteEmail(to *User, from *User, templatedText string) (*Email, error) {
+
+	compiled := template.Must(template.New(CARETEAM_INVITE).Parse(templatedText))
+	created := time.Now()
+	keyHash, _ := generateUniqueHash([]string{CARETEAM_INVITE, to.Id, created.String()}, 24)
+	key := "invite/" + keyHash
+
+	inviteEmail := &CareTeamEmail{Name: to.Name, Team: from.Name, Link: key}
+
+	email := &Email{Key: key, Type: CARETEAM_INVITE, ToUser: to.Id, FromUser: from.Id, Created: created}
+
+	var buffer bytes.Buffer
+
+	if err := compiled.Execute(&buffer, inviteEmail); err != nil {
+		return nil, err
+	}
+
+	parsedTemplate := buffer.String()
+
+	email.Content = parsedTemplate
+	return email, nil
+}
 
 func NewPwResetEmail(u *User, templatedText string) (*Email, error) {
 
