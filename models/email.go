@@ -1,41 +1,55 @@
 package models
 
 import (
-	//"html/template"
+	"bytes"
+	"html/template"
 	"time"
 )
 
 const (
-	PWRESET  = "reset"
-	INVITE   = "invite"
-	CARETEAM = "cteam"
+	PW_RESET        = "password_reset"
+	CARETEAM_INVITE = "careteam_invitation"
+	CONFIRMATION    = "email_confirmation"
 )
 
 type (
 	Email struct {
+		Key      string
 		Content  string
-		Type     string //e.g. pwreset, invite ....
+		Type     string //e.g. PW_RESET, CARETEAM_INVITE ...
 		ToUser   string
-		FromUser string    // could be null
+		FromUser string    // could be empty
 		Created  time.Time //used for expiry
 		Sent     time.Time //sent - or maybe failed
 	}
+
+	ResetEmail struct {
+		Name string
+		Link string
+	}
 )
 
-func NewPwResetEmail(u *User, templatedText string) *Email {
+func NewPwResetEmail(u *User, templatedText string) (*Email, error) {
 
-	/*const letter = `
-	Dear {{.Name}},
-	{{if .Attended}}
-	It was a pleasure to see you at the wedding.{{else}}
-	It is a shame you couldn't make it to the wedding.{{end}}
-	{{with .Gift}}Thank you for the lovely {{.}}.
-	{{end}}
-	Best wishes,
-	Josie
-	`*/
+	compiled := template.Must(template.New(PW_RESET).Parse(templatedText))
+	created := time.Now()
+	keyHash, _ := generateUniqueHash([]string{PW_RESET, u.Id, created.String()}, 24)
+	key := "reset/" + keyHash
 
-	return &Email{Content: templatedText, Type: PWRESET, ToUser: u.Id, Created: time.Now()}
+	resetEmail := &ResetEmail{Name: u.Name, Link: key}
+
+	email := &Email{Key: key, Type: PW_RESET, ToUser: u.Id, Created: created}
+
+	var buffer bytes.Buffer
+
+	if err := compiled.Execute(&buffer, resetEmail); err != nil {
+		return nil, err
+	}
+
+	parsedTemplate := buffer.String()
+
+	email.Content = parsedTemplate
+	return email, nil
 }
 
 func (e *Email) Send() {
