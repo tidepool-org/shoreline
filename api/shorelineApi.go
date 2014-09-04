@@ -46,6 +46,7 @@ const (
 	STATUS_MISSING_ID_PW         = "Missing id and/or password"
 	STATUS_NO_MATCH              = "No user matched the given details"
 	STATUS_PW_WRONG              = "Wrong password"
+	STATUS_ERR_SENDING_EMAIL     = "Error sending email"
 )
 
 func InitApi(cfg Config, store clients.StoreClient, notifier clients.Notifier) *Api {
@@ -447,26 +448,37 @@ func (a *Api) EmailAddress(res http.ResponseWriter, req *http.Request, vars map[
 		emailType := vars["type"]
 		emailAddress, _ := url.QueryUnescape(vars["address"])
 
-		addressUser := models.UserFromDetails(&models.UserDetail{Name: emailAddress, Emails: []string{emailAddress}})
+		//addressUser := models.UserFromDetails(&models.UserDetail{Name: emailAddress, Emails: []string{emailAddress}})
 
 		if emailAddress != "" && emailType != "" {
 
-			if foundUsr, err := a.Store.FindUser(addressUser); err != nil {
+			if status, err := a.notifier.Send([]string{emailAddress}, "TODO", "TODO"); err != nil {
 				log.Println(err)
-				res.Write([]byte(STATUS_ERR_FINDING_USR))
+				res.Write([]byte(STATUS_ERR_SENDING_EMAIL))
 				res.WriteHeader(http.StatusInternalServerError)
-				return
-			} else if foundUsr != nil {
-				//we are email an existing user
-				log.Println("we are email an existing user: ", addressUser)
-				res.WriteHeader(http.StatusNotImplemented)
-				return
 			} else {
-				//we are emailing a new user
-				log.Println("we are email an new user: ", addressUser)
-				res.WriteHeader(http.StatusNotImplemented)
-				return
+				log.Println(status)
+				res.WriteHeader(http.StatusOK)
 			}
+
+			/*
+				if foundUsr, err := a.Store.FindUser(addressUser); err != nil {
+					log.Println(err)
+					res.Write([]byte(STATUS_ERR_FINDING_USR))
+					res.WriteHeader(http.StatusInternalServerError)
+					return
+				} else if foundUsr != nil {
+					//we are email an existing user
+					log.Println("we are email an existing user: ", addressUser)
+					res.WriteHeader(http.StatusNotImplemented)
+					return
+				} else {
+					//we are emailing a new user
+					log.Println("we are email an new user: ", addressUser)
+					res.WriteHeader(http.StatusNotImplemented)
+					return
+				}
+			*/
 		}
 		res.WriteHeader(http.StatusBadRequest)
 		return

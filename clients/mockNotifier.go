@@ -14,7 +14,7 @@ func NewMockNotifier() *MockNotifier {
 }
 
 func (c *MockNotifier) Send(to []string, subject string, msg string) (string, error) {
-	details := fmt.Sprintf("Send subject[%s] with message[%s] to[%v]", subject, msg, to)
+	details := fmt.Sprintf("Send subject[%s] with message[%s] to %v", subject, msg, to)
 	log.Println(details)
 	return details, nil
 }

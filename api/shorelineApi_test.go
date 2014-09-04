@@ -267,7 +267,7 @@ func TestEmailAddress_StatusBadRequest_WhenNoVariablesPassed(t *testing.T) {
 	}
 }
 
-func TestEmailAddress_StatusNotImplemented(t *testing.T) {
+func TestEmailAddress_StatusOK(t *testing.T) {
 	request, _ := http.NewRequest("POST", "/email", nil)
 	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
 	response := httptest.NewRecorder()
@@ -276,7 +276,7 @@ func TestEmailAddress_StatusNotImplemented(t *testing.T) {
 
 	shoreline.EmailAddress(response, request, map[string]string{"type": "password", "address": "test@user.org"})
 
-	if response.Code != http.StatusNotImplemented {
+	if response.Code != http.StatusOK {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusNotImplemented, response.Code)
 	}
 }
