@@ -15,8 +15,9 @@ import (
 
 type (
 	Api struct {
-		Store  clients.StoreClient
-		Config Config
+		Store    clients.StoreClient
+		notifier clients.Notifier
+		Config   Config
 	}
 	Config struct {
 		ServerSecret    string `json:"serverSecret"` //used for services
@@ -25,7 +26,6 @@ type (
 		Secret          string `json:"apiSecret"` //used for token
 		PwResetTemplate string `json:"pwresetTemplate"`
 	}
-
 	varsHandler func(http.ResponseWriter, *http.Request, map[string]string)
 )
 
@@ -48,10 +48,11 @@ const (
 	STATUS_PW_WRONG              = "Wrong password"
 )
 
-func InitApi(store clients.StoreClient, cfg Config) *Api {
+func InitApi(cfg Config, store clients.StoreClient, notifier clients.Notifier) *Api {
 	return &Api{
-		Store:  store,
-		Config: cfg,
+		Store:    store,
+		Config:   cfg,
+		notifier: notifier,
 	}
 }
 
@@ -457,12 +458,12 @@ func (a *Api) EmailAddress(res http.ResponseWriter, req *http.Request, vars map[
 				return
 			} else if foundUsr != nil {
 				//we are email an existing user
-				log.Println("we are email an existing user")
+				log.Println("we are email an existing user: ", addressUser)
 				res.WriteHeader(http.StatusNotImplemented)
 				return
 			} else {
 				//we are emailing a new user
-				log.Println("we are email an existing user")
+				log.Println("we are email an new user: ", addressUser)
 				res.WriteHeader(http.StatusNotImplemented)
 				return
 			}
