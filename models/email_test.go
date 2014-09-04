@@ -6,49 +6,46 @@ import (
 )
 
 var (
+	//users
 	EMAIL_USER = &User{Id: "123-99-100", Name: "To User", Emails: []string{"to@new.bar"}}
 	FROM_USER  = &User{Id: "456-99-100", Name: "From user", Emails: []string{"from@new.bar"}}
-
-	ResetTemplate = `
+	//config templates
+	cfg = &EmailTemplate{
+		PasswordReset: `
 {{define "reset_test"}}
 ## Test Template
-
-Hi {{ .Name }}
-...
-{{ .Link }}
-...
-
+Hi {{ .ToUser.Name }}
+{{ .Key }}
 {{end}}
-
 {{template "reset_test" .}}
-`
-
-	InviteTemplate = `
+`,
+		CareteamInvite: `
 {{define "invite_test"}}
 ## Test Template
-
-{{ .Name }}
-...
-{{ .Link }}
-...
-{{ .Team }}
-...
-
+{{ .ToUser.Name }}
+{{ .Key }}
+{{ .FromUser.Name }}
 {{end}}
-
 {{template "invite_test" .}}
-`
+`, Confirmation: `
+{{define "confirm_test"}}
+## Test Template
+{{ .User.Name }}
+{{ .Key }}
+{{end}}
+{{template "confirm_test" .}}
+`}
 )
 
-func TestEmail_PwReset(t *testing.T) {
+func TestEmail(t *testing.T) {
 
-	email, err := NewPwResetEmail(EMAIL_USER, ResetTemplate)
+	email, err := NewEmail(PW_RESET, cfg, EMAIL_USER)
 
 	if err != nil {
 		t.Fatalf("unexpected error ", err)
 	}
 
-	if email.ToUser != EMAIL_USER.Id {
+	if email.ToUser != EMAIL_USER {
 		t.Fatal("the user being emailed should be set")
 	}
 
@@ -64,73 +61,26 @@ func TestEmail_PwReset(t *testing.T) {
 		t.Fatal("the key should be used")
 	}
 
+	if strings.Contains(email.Key, PW_RESET) == false {
+		t.Fatal("the key should include the type")
+	}
+
 	if email.Key == "" {
 		t.Fatal("the content of the email should be set")
 	}
 
-	if email.FromUser != "" {
+	if email.FromUser != nil {
 		t.Fatal("the FromUser should be empty")
 	}
 
-	if email.Type != PW_RESET {
-		t.Fatal("the type should be ", PW_RESET)
-	}
-
 	if email.Created.IsZero() {
 		t.Fatal("the date the email was created should be set")
 	}
-
-}
-
-func TestEmail_CareteamInvite(t *testing.T) {
-
-	email, err := NewCareteamInviteEmail(EMAIL_USER, FROM_USER, InviteTemplate)
-
-	if err != nil {
-		t.Fatalf("unexpected error ", err)
-	}
-
-	if email.ToUser != EMAIL_USER.Id {
-		t.Fatal("the user being emailed should be set")
-	}
-
-	if email.FromUser != FROM_USER.Id {
-		t.Fatal("the from user being emailed should be set")
-	}
-
-	if email.Content == "" {
-		t.Fatal("the content of the email should be set")
-	}
-
-	if strings.Contains(email.Content, EMAIL_USER.Name) == false {
-		t.Fatal("the name should be set")
-	}
-
-	if strings.Contains(email.Content, email.Key) == false {
-		t.Fatal("the key should be used")
-	}
-
-	if strings.Contains(email.Content, FROM_USER.Name) == false {
-		t.Fatal("the team should be used")
-	}
-
-	if email.Key == "" {
-		t.Fatal("the content of the email should be set")
-	}
-
-	if email.Type != CARETEAM_INVITE {
-		t.Fatal("the type should be ", CARETEAM_INVITE)
-	}
-
-	if email.Created.IsZero() {
-		t.Fatal("the date the email was created should be set")
-	}
-
 }
 
 func TestEmailSend(t *testing.T) {
 
-	email, _ := NewPwResetEmail(EMAIL_USER, ResetTemplate)
+	email, _ := NewEmail(PW_RESET, cfg, EMAIL_USER)
 
 	if email.Sent.IsZero() == false {
 		t.Fatal("the time sent should not be set")
