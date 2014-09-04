@@ -4,7 +4,6 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -21,7 +20,7 @@ const (
 
 type (
 	SesNotifier struct {
-		Config SesNotifierConfig
+		Config *SesNotifierConfig
 	}
 	SesNotifierConfig struct {
 		from      string `json:"fromAddress"`
@@ -30,27 +29,10 @@ type (
 	}
 )
 
-func NewSesNotifier(configSource string) *SesNotifier {
-
-	if jsonConfig, err := ioutil.ReadFile(configSource); err == nil {
-
-		config := configure(jsonConfig)
-
-		return &SesNotifier{
-			Config: config,
-		}
-	} else {
-		panic(err)
+func NewSesNotifier(cfg *SesNotifierConfig) *SesNotifier {
+	return &SesNotifier{
+		Config: cfg,
 	}
-
-}
-
-func configure(jsonConfig []byte) SesNotifierConfig {
-	var config SesNotifierConfig
-	if err := json.Unmarshal(jsonConfig, &config); err != nil {
-		log.Fatal(err)
-	}
-	return config
 }
 
 func (c *SesNotifier) Send(to []string, subject string, msg string) (string, error) {

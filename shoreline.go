@@ -49,9 +49,10 @@ func main() {
 	 * Shoreline setup
 	 */
 	store := sc.NewMongoStoreClient(&config.Mongo)
+	mail := sc.NewSesNotifier(&config.Mail)
 
 	rtr := mux.NewRouter()
-	api := api.InitApi(store, config.Api)
+	api := api.InitApi(config.Api, store, mail)
 	api.SetHandlers("", rtr)
 
 	/*
