@@ -15,16 +15,14 @@ import (
 
 type (
 	Api struct {
-		Store    clients.StoreClient
-		notifier clients.Notifier
-		Config   Config
+		Store  clients.StoreClient
+		Config Config
 	}
 	Config struct {
-		ServerSecret    string `json:"serverSecret"` //used for services
-		LongTermKey     string `json:"longTermKey"`
-		Salt            string `json:"salt"`      //used for pw
-		Secret          string `json:"apiSecret"` //used for token
-		PwResetTemplate string `json:"pwresetTemplate"`
+		ServerSecret string `json:"serverSecret"` //used for services
+		LongTermKey  string `json:"longTermKey"`
+		Salt         string `json:"salt"`      //used for pw
+		Secret       string `json:"apiSecret"` //used for token
 	}
 	varsHandler func(http.ResponseWriter, *http.Request, map[string]string)
 )
@@ -49,11 +47,10 @@ const (
 	STATUS_ERR_SENDING_EMAIL     = "Error sending email"
 )
 
-func InitApi(cfg Config, store clients.StoreClient, notifier clients.Notifier) *Api {
+func InitApi(cfg Config, store clients.StoreClient) *Api {
 	return &Api{
-		Store:    store,
-		Config:   cfg,
-		notifier: notifier,
+		Store:  store,
+		Config: cfg,
 	}
 }
 
@@ -82,17 +79,6 @@ func (a *Api) SetHandlers(prefix string, rtr *mux.Router) {
 	rtr.HandleFunc("/private", a.AnonymousIdHashPair).Methods("GET")
 	rtr.Handle("/private/{userid}/{key}", varsHandler(a.ManageIdHashPair)).Methods("GET", "POST", "PUT", "DELETE")
 
-	rtr.Handle("/emailtouser/{type}", varsHandler(a.EmailUser)).Methods("GET")
-	//i.e. lost pw
-
-	rtr.Handle("/emailtoaddress/{type}/{address}", varsHandler(a.EmailAddress)).Methods("GET", "POST")
-	//ie. careteam invite, blip signup
-
-	//user could be id, email
-	//type  will
-
-	//ie invite - who is it from
-	//lp we know who it is for
 }
 
 func (h varsHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
@@ -412,76 +398,6 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 				return
 			}
 		}
-	}
-	res.WriteHeader(http.StatusUnauthorized)
-	return
-}
-
-func (a *Api) EmailUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
-	if td := a.getUnpackedToken(req.Header.Get(TP_SESSION_TOKEN)); td != nil {
-
-		emailType, usr := vars["type"], models.UserFromDetails(&models.UserDetail{Id: td.UserId})
-
-		if emailType != "" && usr.Id != "" {
-
-			if foundUsr, err := a.Store.FindUser(usr); err != nil {
-				log.Println(err)
-				res.Write([]byte(STATUS_ERR_FINDING_USR))
-				res.WriteHeader(http.StatusInternalServerError)
-				return
-			} else if foundUsr != nil {
-				log.Println("we will email user!!")
-				res.WriteHeader(http.StatusNotImplemented)
-				return
-			}
-		}
-		res.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	res.WriteHeader(http.StatusUnauthorized)
-	return
-}
-
-func (a *Api) EmailAddress(res http.ResponseWriter, req *http.Request, vars map[string]string) {
-	if td := a.getUnpackedToken(req.Header.Get(TP_SESSION_TOKEN)); td != nil {
-
-		emailType := vars["type"]
-		emailAddress, _ := url.QueryUnescape(vars["address"])
-
-		//addressUser := models.UserFromDetails(&models.UserDetail{Name: emailAddress, Emails: []string{emailAddress}})
-
-		if emailAddress != "" && emailType != "" {
-
-			if status, err := a.notifier.Send([]string{emailAddress}, "TODO", "TODO"); err != nil {
-				log.Println(err)
-				res.Write([]byte(STATUS_ERR_SENDING_EMAIL))
-				res.WriteHeader(http.StatusInternalServerError)
-			} else {
-				log.Println(status)
-				res.WriteHeader(http.StatusOK)
-			}
-
-			/*
-				if foundUsr, err := a.Store.FindUser(addressUser); err != nil {
-					log.Println(err)
-					res.Write([]byte(STATUS_ERR_FINDING_USR))
-					res.WriteHeader(http.StatusInternalServerError)
-					return
-				} else if foundUsr != nil {
-					//we are email an existing user
-					log.Println("we are email an existing user: ", addressUser)
-					res.WriteHeader(http.StatusNotImplemented)
-					return
-				} else {
-					//we are emailing a new user
-					log.Println("we are email an new user: ", addressUser)
-					res.WriteHeader(http.StatusNotImplemented)
-					return
-				}
-			*/
-		}
-		res.WriteHeader(http.StatusBadRequest)
-		return
 	}
 	res.WriteHeader(http.StatusUnauthorized)
 	return
