@@ -8,7 +8,6 @@ import (
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 )
