@@ -528,7 +528,7 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 
 		if td.IsServer == false && td.DurationSecs > TWO_HOURS_IN_SECS {
 			//long-duration, it's not renewable, so just return it
-			sendModelAsRes(res, td.UserId)
+			sendModelAsRes(res, td)
 			return
 		}
 		//refresh
@@ -543,7 +543,7 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 			return
 		} else {
 			res.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
-			res.WriteHeader(http.StatusOK)
+			sendModelAsRes(res, td)
 			return
 		}
 
