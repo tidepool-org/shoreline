@@ -19,10 +19,9 @@ import (
 type (
 	Config struct {
 		clients.Config
-		Service disc.ServiceListing  `json:"service"`
-		Mongo   mongo.Config         `json:"mongo"`
-		Api     api.Config           `json:"shoreline"`
-		Mail    sc.SesNotifierConfig `json:"sesEmail"`
+		Service disc.ServiceListing `json:"service"`
+		Mongo   mongo.Config        `json:"mongo"`
+		Api     api.Config          `json:"shoreline"`
 	}
 )
 
@@ -51,7 +50,7 @@ func main() {
 	store := sc.NewMongoStoreClient(&config.Mongo)
 
 	rtr := mux.NewRouter()
-	api := api.InitApi(store, config.Api)
+	api := api.InitApi(config.Api, store)
 	api.SetHandlers("", rtr)
 
 	/*
