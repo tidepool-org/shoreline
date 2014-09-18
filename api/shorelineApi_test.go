@@ -20,25 +20,38 @@ const (
 var (
 	NO_PARAMS   = map[string]string{}
 	FAKE_CONFIG = Config{
-		ServerSecret:    "shhh! don't tell",
-		Secret:          "shhh! don't tell *2",
-		LongTermKey:     "the longetermkey",
-		Salt:            "a mineral substance composed primarily of sodium chloride",
-		PwResetTemplate: "Hi %s\n\nLooks like you have forgotton your password, click the link below to reset it\n\n%s\n\nThanks\nThe Tidepool Team",
+		ServerSecret: "shhh! don't tell",
+		Secret:       "shhh! don't tell *2",
+		LongTermKey:  "the longetermkey",
+		Salt:         "a mineral substance composed primarily of sodium chloride",
 	}
-	//users and tokens
+	/*
+	 * users and tokens
+	 */
 	USR           = &models.User{Id: "123-99-100", Name: "Test One", Emails: []string{"test@new.bar"}}
 	usrTknData    = &models.TokenData{UserId: USR.Id, IsServer: false, DurationSecs: 3600}
 	USR_TOKEN, _  = models.NewSessionToken(usrTknData, FAKE_CONFIG.Secret)
 	sverTknData   = &models.TokenData{UserId: "shoreline", IsServer: true, DurationSecs: 36000}
 	SRVR_TOKEN, _ = models.NewSessionToken(sverTknData, FAKE_CONFIG.Secret)
-	//basics setup
-	rtr       = mux.NewRouter()
+	/*
+	 * basics setup
+	 */
+	rtr = mux.NewRouter()
+	/*
+	 * expected path
+	 */
 	mockStore = clients.NewMockStoreClient(FAKE_CONFIG.Salt, false, false)
-	shoreline = InitApi(mockStore, FAKE_CONFIG)
-	//failure
+	shoreline = InitApi(FAKE_CONFIG, mockStore)
+	/*
+	 *
+	 */
+	mockNoDupsStore = clients.NewMockStoreClient(FAKE_CONFIG.Salt, true, false)
+	shorelineNoDups = InitApi(FAKE_CONFIG, mockNoDupsStore)
+	/*
+	 * failure path
+	 */
 	mockStoreFails = clients.NewMockStoreClient(FAKE_CONFIG.Salt, false, MAKE_IT_FAIL)
-	shorelineFails = InitApi(mockStoreFails, FAKE_CONFIG)
+	shorelineFails = InitApi(FAKE_CONFIG, mockStoreFails)
 )
 
 func TestGetStatus_StatusOk(t *testing.T) {
@@ -107,12 +120,9 @@ func TestCreateUser_StatusCreated(t *testing.T) {
 
 	response := httptest.NewRecorder()
 
-	mockStoreNoDups := clients.NewMockStoreClient(FAKE_CONFIG.Salt, true, false)
-	s2 := InitApi(mockStoreNoDups, FAKE_CONFIG)
+	shorelineNoDups.SetHandlers("", rtr)
 
-	s2.SetHandlers("", rtr)
-
-	s2.CreateUser(response, request)
+	shorelineNoDups.CreateUser(response, request)
 
 	if response.Code != http.StatusCreated {
 		t.Fatalf("Non-expected status code %v:\n\tbody: %v", "201", response.Code)
@@ -184,48 +194,6 @@ func TestCreateUser_StatusConflict_ForDuplicates(t *testing.T) {
 
 }
 
-func TestEmailUser_StatusUnauthorized_WhenNoToken(t *testing.T) {
-	request, _ := http.NewRequest("PUT", "/email", nil)
-	response := httptest.NewRecorder()
-
-	shoreline.SetHandlers("", rtr)
-
-	shoreline.EmailUser(response, request, NO_PARAMS)
-
-	if response.Code != http.StatusUnauthorized {
-		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusUnauthorized, response.Code)
-	}
-}
-
-//StatusBadRequest
-func TestEmailUser_StatusBadRequest_WhenNoVariablesPassed(t *testing.T) {
-	request, _ := http.NewRequest("PUT", "/email", nil)
-	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
-	response := httptest.NewRecorder()
-
-	shoreline.SetHandlers("", rtr)
-
-	shoreline.EmailUser(response, request, NO_PARAMS)
-
-	if response.Code != http.StatusBadRequest {
-		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusBadRequest, response.Code)
-	}
-}
-
-func TestEmailUser_StatusNotImplemented(t *testing.T) {
-	request, _ := http.NewRequest("POST", "/email", nil)
-	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
-	response := httptest.NewRecorder()
-
-	shoreline.SetHandlers("", rtr)
-
-	shoreline.EmailUser(response, request, map[string]string{"type": "password"})
-
-	if response.Code != http.StatusNotImplemented {
-		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusNotImplemented, response.Code)
-	}
-}
-
 func TestUpdateUser_StatusUnauthorized_WhenNoToken(t *testing.T) {
 	request, _ := http.NewRequest("PUT", "/user", nil)
 	response := httptest.NewRecorder()
@@ -262,10 +230,7 @@ func TestUpdateUser_StatusBadRequest_WhenNoUpdates(t *testing.T) {
 
 func TestUpdateUser_IdFromToken_StatusOK(t *testing.T) {
 
-	mockStore2 := clients.NewMockStoreClient(FAKE_CONFIG.Salt, true, false)
-	sl2 := InitApi(mockStore2, FAKE_CONFIG)
-
-	sl2.SetHandlers("", rtr)
+	shorelineNoDups.SetHandlers("", rtr)
 
 	/*
 	 * can update all
@@ -279,7 +244,7 @@ func TestUpdateUser_IdFromToken_StatusOK(t *testing.T) {
 
 	responseUpdateAll := httptest.NewRecorder()
 
-	sl2.UpdateUser(responseUpdateAll, requestUpdateAll, NO_PARAMS)
+	shorelineNoDups.UpdateUser(responseUpdateAll, requestUpdateAll, NO_PARAMS)
 
 	if responseUpdateAll.Code != http.StatusOK {
 		t.Fatalf("Status given [%v] expected [%v] ", responseUpdateAll.Code, http.StatusOK)
@@ -289,10 +254,7 @@ func TestUpdateUser_IdFromToken_StatusOK(t *testing.T) {
 
 func TestUpdateUser_StatusOK(t *testing.T) {
 
-	mockStore2 := clients.NewMockStoreClient(FAKE_CONFIG.Salt, true, false)
-	sl2 := InitApi(mockStore2, FAKE_CONFIG)
-
-	sl2.SetHandlers("", rtr)
+	shorelineNoDups.SetHandlers("", rtr)
 
 	/*
 	 * can update all
@@ -306,7 +268,7 @@ func TestUpdateUser_StatusOK(t *testing.T) {
 
 	responseUpdateAll := httptest.NewRecorder()
 
-	sl2.UpdateUser(responseUpdateAll, requestUpdateAll, map[string]string{"userid": USR.Id})
+	shorelineNoDups.UpdateUser(responseUpdateAll, requestUpdateAll, map[string]string{"userid": USR.Id})
 
 	if responseUpdateAll.Code != http.StatusOK {
 		t.Fatalf("Non-expected status code %v:\n\tbody: %v", "200", responseUpdateAll.Code)
@@ -321,7 +283,7 @@ func TestUpdateUser_StatusOK(t *testing.T) {
 	requestUpdateName.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
 	requestUpdateName.Header.Add("content-type", "application/json")
 	responseUpdateName := httptest.NewRecorder()
-	sl2.UpdateUser(responseUpdateName, requestUpdateName, map[string]string{"userid": USR.Id})
+	shorelineNoDups.UpdateUser(responseUpdateName, requestUpdateName, map[string]string{"userid": USR.Id})
 
 	if responseUpdateName.Code != http.StatusOK {
 		t.Fatalf("Non-expected status code %v:\n\tbody: %v", "200", responseUpdateName.Code)
@@ -337,7 +299,7 @@ func TestUpdateUser_StatusOK(t *testing.T) {
 	requestUpdatePW.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
 	requestUpdatePW.Header.Add("content-type", "application/json")
 	responseUpdatePW := httptest.NewRecorder()
-	sl2.UpdateUser(responseUpdatePW, requestUpdatePW, map[string]string{"userid": USR.Id})
+	shorelineNoDups.UpdateUser(responseUpdatePW, requestUpdatePW, map[string]string{"userid": USR.Id})
 
 	if responseUpdatePW.Code != http.StatusOK {
 		t.Fatalf("Non-expected status code %v:\n\tbody: %v", "200", responseUpdatePW.Code)
@@ -352,7 +314,7 @@ func TestUpdateUser_StatusOK(t *testing.T) {
 	requestUpdateEmail.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
 	requestUpdateEmail.Header.Add("content-type", "application/json")
 	responseUpdateEmail := httptest.NewRecorder()
-	sl2.UpdateUser(responseUpdateEmail, requestUpdateEmail, map[string]string{"userid": USR.Id})
+	shorelineNoDups.UpdateUser(responseUpdateEmail, requestUpdateEmail, map[string]string{"userid": USR.Id})
 
 	if responseUpdateEmail.Code != http.StatusOK {
 		t.Fatalf("Non-expected status code %v:\n\tbody: %v", "200", responseUpdateEmail.Code)
