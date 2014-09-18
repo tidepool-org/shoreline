@@ -847,6 +847,18 @@ func TestRefreshSession_StatusOK(t *testing.T) {
 		t.Fatal("A session token should have been returned")
 	}
 
+	if response.Body == nil {
+		t.Fatal("A Body should have been returned")
+	}
+
+	body, _ := ioutil.ReadAll(response.Body)
+
+	var tokenData models.TokenData
+	_ = json.Unmarshal(body, &tokenData)
+
+	if tokenData.UserId != USR.Id {
+		t.Fatalf("should have had a user id of `%v` but was %v", USR.Id, tokenData.UserId)
+	}
 }
 
 func TestRefreshSession_Failure(t *testing.T) {
