@@ -1,21 +1,24 @@
 package api
 
 import (
-	"./../clients"
-	"./../models"
 	"encoding/base64"
 	"encoding/json"
-	"github.com/gorilla/mux"
 	"log"
 	"net/http"
 	"strconv"
 	"strings"
+
+	"./../clients"
+	"./../models"
+	"github.com/gorilla/mux"
+	"github.com/tidepool-org/go-common/clients/highwater"
 )
 
 type (
 	Api struct {
-		Store  clients.StoreClient
-		Config Config
+		Store   clients.StoreClient
+		Config  Config
+		metrics highwater.Client
 	}
 	Config struct {
 		ServerSecret string `json:"serverSecret"` //used for services
@@ -46,10 +49,11 @@ const (
 	STATUS_ERR_SENDING_EMAIL     = "Error sending email"
 )
 
-func InitApi(cfg Config, store clients.StoreClient) *Api {
+func InitApi(cfg Config, store clients.StoreClient, metrics highwater.Client) *Api {
 	return &Api{
-		Store:  store,
-		Config: cfg,
+		Store:   store,
+		Config:  cfg,
+		metrics: metrics,
 	}
 }
 
@@ -105,6 +109,22 @@ func getGivenDetail(req *http.Request) (d map[string]string) {
 		}
 	}
 	return d
+}
+
+//send metric
+func (a *Api) logMetric(name string, req *http.Request) {
+	token := req.Header.Get(TP_SESSION_TOKEN)
+	emptyParams := make(map[string]string)
+	a.metrics.PostThisUser(name, token, emptyParams)
+	return
+}
+
+//send metric
+func (a *Api) logMetricForUser(id, name string, req *http.Request) {
+	token := req.Header.Get(TP_SESSION_TOKEN)
+	emptyParams := make(map[string]string)
+	a.metrics.PostWithUser(id, name, token, emptyParams)
+	return
 }
 
 //get the token from the req header
@@ -240,6 +260,7 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 					res.Write([]byte(STATUS_ERR_GENTERATING_TOKEN))
 					return
 				} else {
+					a.logMetricForUser(usr.Id, "usercreated", req)
 					res.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
 					sendModelAsResWithStatus(res, usr, http.StatusCreated)
 					return
@@ -335,6 +356,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 						res.Write([]byte(STATUS_ERR_UPDATING_USR))
 						return
 					} else {
+						a.logMetricForUser(userToUpdate.Id, "userupdated", req)
 						res.WriteHeader(http.StatusOK)
 						return
 					}
@@ -378,6 +400,7 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 				res.Write([]byte(STATUS_ERR_FINDING_USR))
 				return
 			} else if results != nil {
+				a.logMetricForUser(usr.Id, "getuserinfo", req)
 				/*
 					TODO: sort this out
 					if len(results) == 1 && usr.Pw != "" {

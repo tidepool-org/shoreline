@@ -3,11 +3,13 @@ package main
 import (
 	"./api"
 	sc "./clients"
+	"crypto/tls"
 	"github.com/gorilla/mux"
 	"github.com/tidepool-org/go-common"
 	"github.com/tidepool-org/go-common/clients"
 	"github.com/tidepool-org/go-common/clients/disc"
 	"github.com/tidepool-org/go-common/clients/hakken"
+	"github.com/tidepool-org/go-common/clients/highwater"
 	"github.com/tidepool-org/go-common/clients/mongo"
 	"log"
 	"net/http"
@@ -45,12 +47,28 @@ func main() {
 	defer hakkenClient.Close()
 
 	/*
+	 * Clients
+	 */
+
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+
+	httpClient := &http.Client{Transport: tr}
+
+	highwater := highwater.NewHighwaterClientBuilder().
+		WithHostGetter(config.HighwaterConfig.ToHostGetter(hakkenClient)).
+		WithHttpClient(httpClient).
+		WithConfig(&config.HighwaterConfig.HighwaterClientConfig).
+		Build()
+
+	/*
 	 * Shoreline setup
 	 */
 	store := sc.NewMongoStoreClient(&config.Mongo)
 
 	rtr := mux.NewRouter()
-	api := api.InitApi(config.Api, store)
+	api := api.InitApi(config.Api, store, highwater)
 	api.SetHandlers("", rtr)
 
 	/*

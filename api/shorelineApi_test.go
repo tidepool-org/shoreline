@@ -1,8 +1,6 @@
 package api
 
 import (
-	"./../clients"
-	"./../models"
 	"bytes"
 	"encoding/json"
 	"github.com/gorilla/mux"
@@ -10,6 +8,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"./../clients"
+	"./../models"
+	"github.com/tidepool-org/go-common/clients/highwater"
 )
 
 const (
@@ -40,18 +42,19 @@ var (
 	/*
 	 * expected path
 	 */
-	mockStore = clients.NewMockStoreClient(FAKE_CONFIG.Salt, false, false)
-	shoreline = InitApi(FAKE_CONFIG, mockStore)
+	mockStore   = clients.NewMockStoreClient(FAKE_CONFIG.Salt, false, false)
+	mockMetrics = highwater.NewMock()
+	shoreline   = InitApi(FAKE_CONFIG, mockStore, mockMetrics)
 	/*
 	 *
 	 */
 	mockNoDupsStore = clients.NewMockStoreClient(FAKE_CONFIG.Salt, true, false)
-	shorelineNoDups = InitApi(FAKE_CONFIG, mockNoDupsStore)
+	shorelineNoDups = InitApi(FAKE_CONFIG, mockNoDupsStore, mockMetrics)
 	/*
 	 * failure path
 	 */
 	mockStoreFails = clients.NewMockStoreClient(FAKE_CONFIG.Salt, false, MAKE_IT_FAIL)
-	shorelineFails = InitApi(FAKE_CONFIG, mockStoreFails)
+	shorelineFails = InitApi(FAKE_CONFIG, mockStoreFails, mockMetrics)
 )
 
 func TestGetStatus_StatusOk(t *testing.T) {
