@@ -111,19 +111,28 @@ func getGivenDetail(req *http.Request) (d map[string]string) {
 	return d
 }
 
+//create an empty map that we will use for metrics parameters
+func makeMetricsParams() map[string]string {
+	return make(map[string]string)
+}
+
 //send metric
-func (a *Api) logMetric(name string, req *http.Request) {
+func (a *Api) logMetric(name string, req *http.Request, params map[string]string) {
 	token := req.Header.Get(TP_SESSION_TOKEN)
-	emptyParams := make(map[string]string)
-	a.metrics.PostThisUser(name, token, emptyParams)
+	if params == nil {
+		params = makeMetricsParams()
+	}
+	a.metrics.PostThisUser(name, token, params)
 	return
 }
 
 //send metric
-func (a *Api) logMetricForUser(id, name string, req *http.Request) {
+func (a *Api) logMetricForUser(id, name string, req *http.Request, params map[string]string) {
 	token := req.Header.Get(TP_SESSION_TOKEN)
-	emptyParams := make(map[string]string)
-	a.metrics.PostWithUser(id, name, token, emptyParams)
+	if params == nil {
+		params = makeMetricsParams()
+	}
+	a.metrics.PostWithUser(id, name, token, params)
 	return
 }
 
@@ -260,7 +269,7 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 					res.Write([]byte(STATUS_ERR_GENTERATING_TOKEN))
 					return
 				} else {
-					a.logMetricForUser(usr.Id, "usercreated", req)
+					a.logMetric("usercreated", req, nil)
 					res.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
 					sendModelAsResWithStatus(res, usr, http.StatusCreated)
 					return
@@ -356,7 +365,15 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 						res.Write([]byte(STATUS_ERR_UPDATING_USR))
 						return
 					} else {
-						a.logMetricForUser(userToUpdate.Id, "userupdated", req)
+						metricsParams := makeMetricsParams()
+						if td.IsServer {
+							metricsParams["server"] = "true"
+							a.logMetricForUser(id, "userupdated", req, metricsParams)
+						} else {
+							metricsParams["server"] = "false"
+							a.logMetric("userupdated", req, metricsParams)
+						}
+						a.logMetricForUser(userToUpdate.Id, "userupdated", req, nil)
 						res.WriteHeader(http.StatusOK)
 						return
 					}
@@ -400,7 +417,16 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 				res.Write([]byte(STATUS_ERR_FINDING_USR))
 				return
 			} else if results != nil {
-				a.logMetricForUser(usr.Id, "getuserinfo", req)
+
+				metricsParams := makeMetricsParams()
+				if td.IsServer {
+					metricsParams["server"] = "true"
+					a.logMetricForUser(id, "getuserinfo", req, metricsParams)
+				} else {
+					metricsParams["server"] = "false"
+					a.logMetric("getuserinfo", req, metricsParams)
+				}
+
 				/*
 					TODO: sort this out
 					if len(results) == 1 && usr.Pw != "" {
@@ -445,6 +471,16 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 
 			if err = toDelete.HashPassword(pw, a.Config.Salt); err == nil {
 				if err = a.Store.RemoveUser(toDelete); err == nil {
+
+					params := makeMetricsParams()
+					if td.IsServer {
+						params["server"] = "true"
+						a.logMetricForUser(id, "deleteuser", req, params)
+					} else {
+						params["server"] = "false"
+						a.logMetric("deleteuser", req, params)
+					}
+
 					//cleanup if any
 					if td.IsServer == false {
 						usrToken := &models.SessionToken{Id: req.Header.Get(TP_SESSION_TOKEN)}
@@ -492,6 +528,7 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 							res.Write([]byte(STATUS_ERR_UPDATING_TOKEN))
 							return
 						} else {
+							a.logMetric("userlogin", req, nil)
 							res.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
 							sendModelAsRes(res, results[i])
 							return
@@ -534,6 +571,7 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 			res.Write([]byte(STATUS_ERR_GENTERATING_TOKEN))
 			return
 		} else {
+			a.logMetric("serverlogin", req, nil)
 			res.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
 			res.WriteHeader(http.StatusOK)
 			return
@@ -642,6 +680,11 @@ func (a *Api) ManageIdHashPair(res http.ResponseWriter, req *http.Request, vars 
 			res.Write([]byte(STATUS_ERR_FINDING_USR))
 			return
 		} else {
+
+			params := makeMetricsParams()
+			params["verb"] = req.Method
+			a.logMetricForUser(usr.Id, "name", manageprivatepair, params)
+
 			switch req.Method {
 			case "GET":
 				if foundUsr.Private != nil && foundUsr.Private[theKey] != nil {
