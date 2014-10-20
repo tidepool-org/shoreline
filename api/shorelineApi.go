@@ -117,23 +117,42 @@ func makeMetricsParams() map[string]string {
 }
 
 //send metric
-func (a *Api) logMetric(name string, req *http.Request, params map[string]string) {
-	token := req.Header.Get(TP_SESSION_TOKEN)
+func (a *Api) logMetric(name, token string, params map[string]string) {
+	if token == "" {
+		log.Println("Missing token so couldn't log metric")
+		return
+	}
 	if params == nil {
 		params = makeMetricsParams()
 	}
+	log.Printf("log metric name[%s] params[%v]", name, params)
 	a.metrics.PostThisUser(name, token, params)
-	return
 }
 
 //send metric
-func (a *Api) logMetricForUser(id, name string, req *http.Request, params map[string]string) {
-	token := req.Header.Get(TP_SESSION_TOKEN)
+func (a *Api) logMetricAsServer(name, token string, params map[string]string) {
+	if token == "" {
+		log.Println("Missing token so couldn't log metric")
+		return
+	}
 	if params == nil {
 		params = makeMetricsParams()
 	}
+	log.Printf("log metric as server name[%s] params[%v]", name, params)
+	a.metrics.PostServer(name, token, params)
+}
+
+//send metric
+func (a *Api) logMetricForUser(id, name, token string, params map[string]string) {
+	if token == "" {
+		log.Println("Missing token so couldn't log metric")
+		return
+	}
+	if params == nil {
+		params = makeMetricsParams()
+	}
+	log.Printf("log metric id[%s] name[%s] params[%v]", id, name, params)
 	a.metrics.PostWithUser(id, name, token, params)
-	return
 }
 
 //get the token from the req header
@@ -269,7 +288,7 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 					res.Write([]byte(STATUS_ERR_GENTERATING_TOKEN))
 					return
 				} else {
-					a.logMetric("usercreated", req, nil)
+					a.logMetric("usercreated", sessionToken.Id, nil)
 					res.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
 					sendModelAsResWithStatus(res, usr, http.StatusCreated)
 					return
@@ -368,12 +387,11 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 						metricsParams := makeMetricsParams()
 						if td.IsServer {
 							metricsParams["server"] = "true"
-							a.logMetricForUser(id, "userupdated", req, metricsParams)
+							a.logMetricForUser(id, "userupdated", req.Header.Get(TP_SESSION_TOKEN), metricsParams)
 						} else {
 							metricsParams["server"] = "false"
-							a.logMetric("userupdated", req, metricsParams)
+							a.logMetric("userupdated", req.Header.Get(TP_SESSION_TOKEN), metricsParams)
 						}
-						a.logMetricForUser(userToUpdate.Id, "userupdated", req, nil)
 						res.WriteHeader(http.StatusOK)
 						return
 					}
@@ -421,10 +439,10 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 				metricsParams := makeMetricsParams()
 				if td.IsServer {
 					metricsParams["server"] = "true"
-					a.logMetricForUser(id, "getuserinfo", req, metricsParams)
+					a.logMetricForUser(id, "getuserinfo", req.Header.Get(TP_SESSION_TOKEN), metricsParams)
 				} else {
 					metricsParams["server"] = "false"
-					a.logMetric("getuserinfo", req, metricsParams)
+					a.logMetric("getuserinfo", req.Header.Get(TP_SESSION_TOKEN), metricsParams)
 				}
 
 				/*
@@ -475,10 +493,10 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 					params := makeMetricsParams()
 					if td.IsServer {
 						params["server"] = "true"
-						a.logMetricForUser(id, "deleteuser", req, params)
+						a.logMetricForUser(id, "deleteuser", req.Header.Get(TP_SESSION_TOKEN), params)
 					} else {
 						params["server"] = "false"
-						a.logMetric("deleteuser", req, params)
+						a.logMetric("deleteuser", req.Header.Get(TP_SESSION_TOKEN), params)
 					}
 
 					//cleanup if any
@@ -528,7 +546,7 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 							res.Write([]byte(STATUS_ERR_UPDATING_TOKEN))
 							return
 						} else {
-							a.logMetric("userlogin", req, nil)
+							a.logMetric("userlogin", sessionToken.Id, nil)
 							res.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
 							sendModelAsRes(res, results[i])
 							return
@@ -571,7 +589,7 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 			res.Write([]byte(STATUS_ERR_GENTERATING_TOKEN))
 			return
 		} else {
-			a.logMetric("serverlogin", req, nil)
+			a.logMetricAsServer("serverlogin", sessionToken.Id, nil)
 			res.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
 			res.WriteHeader(http.StatusOK)
 			return
@@ -683,7 +701,7 @@ func (a *Api) ManageIdHashPair(res http.ResponseWriter, req *http.Request, vars 
 
 			params := makeMetricsParams()
 			params["verb"] = req.Method
-			a.logMetricForUser(usr.Id, "name", manageprivatepair, params)
+			a.logMetricForUser(usr.Id, "manageprivatepair", req.Header.Get(TP_SESSION_TOKEN), params)
 
 			switch req.Method {
 			case "GET":
