@@ -111,11 +111,6 @@ func getGivenDetail(req *http.Request) (d map[string]string) {
 	return d
 }
 
-//create an empty map that we will use for metrics parameters
-func makeMetricsParams() map[string]string {
-	return make(map[string]string)
-}
-
 //send metric
 func (a *Api) logMetric(name, token string, params map[string]string) {
 	if token == "" {
@@ -123,7 +118,7 @@ func (a *Api) logMetric(name, token string, params map[string]string) {
 		return
 	}
 	if params == nil {
-		params = makeMetricsParams()
+		params = make(map[string]string)
 	}
 	log.Printf("log metric name[%s] params[%v]", name, params)
 	a.metrics.PostThisUser(name, token, params)
@@ -136,7 +131,7 @@ func (a *Api) logMetricAsServer(name, token string, params map[string]string) {
 		return
 	}
 	if params == nil {
-		params = makeMetricsParams()
+		params = make(map[string]string)
 	}
 	log.Printf("log metric as server name[%s] params[%v]", name, params)
 	a.metrics.PostServer(name, token, params)
@@ -149,7 +144,7 @@ func (a *Api) logMetricForUser(id, name, token string, params map[string]string)
 		return
 	}
 	if params == nil {
-		params = makeMetricsParams()
+		params = make(map[string]string)
 	}
 	log.Printf("log metric id[%s] name[%s] params[%v]", id, name, params)
 	a.metrics.PostWithUser(id, name, token, params)
@@ -384,13 +379,10 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 						res.Write([]byte(STATUS_ERR_UPDATING_USR))
 						return
 					} else {
-						metricsParams := makeMetricsParams()
 						if td.IsServer {
-							metricsParams["server"] = "true"
-							a.logMetricForUser(id, "userupdated", req.Header.Get(TP_SESSION_TOKEN), metricsParams)
+							a.logMetricForUser(id, "userupdated", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "true"})
 						} else {
-							metricsParams["server"] = "false"
-							a.logMetric("userupdated", req.Header.Get(TP_SESSION_TOKEN), metricsParams)
+							a.logMetric("userupdated", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "false"})
 						}
 						res.WriteHeader(http.StatusOK)
 						return
@@ -436,13 +428,10 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 				return
 			} else if results != nil {
 
-				metricsParams := makeMetricsParams()
 				if td.IsServer {
-					metricsParams["server"] = "true"
-					a.logMetricForUser(id, "getuserinfo", req.Header.Get(TP_SESSION_TOKEN), metricsParams)
+					a.logMetricForUser(id, "getuserinfo", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "true"})
 				} else {
-					metricsParams["server"] = "false"
-					a.logMetric("getuserinfo", req.Header.Get(TP_SESSION_TOKEN), metricsParams)
+					a.logMetric("getuserinfo", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "false"})
 				}
 
 				/*
@@ -490,13 +479,10 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 			if err = toDelete.HashPassword(pw, a.Config.Salt); err == nil {
 				if err = a.Store.RemoveUser(toDelete); err == nil {
 
-					params := makeMetricsParams()
 					if td.IsServer {
-						params["server"] = "true"
-						a.logMetricForUser(id, "deleteuser", req.Header.Get(TP_SESSION_TOKEN), params)
+						a.logMetricForUser(id, "deleteuser", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "true"})
 					} else {
-						params["server"] = "false"
-						a.logMetric("deleteuser", req.Header.Get(TP_SESSION_TOKEN), params)
+						a.logMetric("deleteuser", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "false"})
 					}
 
 					//cleanup if any
@@ -699,9 +685,7 @@ func (a *Api) ManageIdHashPair(res http.ResponseWriter, req *http.Request, vars 
 			return
 		} else {
 
-			params := makeMetricsParams()
-			params["verb"] = req.Method
-			a.logMetricForUser(usr.Id, "manageprivatepair", req.Header.Get(TP_SESSION_TOKEN), params)
+			a.logMetricForUser(usr.Id, "manageprivatepair", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"verb": req.Method})
 
 			switch req.Method {
 			case "GET":
