@@ -65,8 +65,6 @@ func (d MongoStoreClient) FindUser(user *models.User) (result *models.User, err 
 		}
 	}
 
-	log.Printf("found: %v", result)
-
 	return result, nil
 }
 
@@ -87,8 +85,6 @@ func (d MongoStoreClient) FindUsers(user *models.User) (results []*models.User, 
 	if len(user.Emails) > 0 {
 		fieldsToMatch = append(fieldsToMatch, bson.M{"emails": bson.M{"$in": user.Emails}})
 	}
-
-	log.Printf("looking for ... [%v] ", fieldsToMatch)
 
 	if err = d.usersC.Find(bson.M{"$or": fieldsToMatch}).All(&results); err != nil {
 		return results, err

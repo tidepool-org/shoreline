@@ -1,21 +1,24 @@
 package api
 
 import (
-	"./../clients"
-	"./../models"
 	"encoding/base64"
 	"encoding/json"
-	"github.com/gorilla/mux"
 	"log"
 	"net/http"
 	"strconv"
 	"strings"
+
+	"./../clients"
+	"./../models"
+	"github.com/gorilla/mux"
+	"github.com/tidepool-org/go-common/clients/highwater"
 )
 
 type (
 	Api struct {
-		Store  clients.StoreClient
-		Config Config
+		Store   clients.StoreClient
+		Config  Config
+		metrics highwater.Client
 	}
 	Config struct {
 		ServerSecret string `json:"serverSecret"` //used for services
@@ -46,10 +49,11 @@ const (
 	STATUS_ERR_SENDING_EMAIL     = "Error sending email"
 )
 
-func InitApi(cfg Config, store clients.StoreClient) *Api {
+func InitApi(cfg Config, store clients.StoreClient, metrics highwater.Client) *Api {
 	return &Api{
-		Store:  store,
-		Config: cfg,
+		Store:   store,
+		Config:  cfg,
+		metrics: metrics,
 	}
 }
 
@@ -105,6 +109,45 @@ func getGivenDetail(req *http.Request) (d map[string]string) {
 		}
 	}
 	return d
+}
+
+//send metric
+func (a *Api) logMetric(name, token string, params map[string]string) {
+	if token == "" {
+		log.Println("Missing token so couldn't log metric")
+		return
+	}
+	if params == nil {
+		params = make(map[string]string)
+	}
+	log.Printf("log metric name[%s] params[%v]", name, params)
+	a.metrics.PostThisUser(name, token, params)
+}
+
+//send metric
+func (a *Api) logMetricAsServer(name, token string, params map[string]string) {
+	if token == "" {
+		log.Println("Missing token so couldn't log metric")
+		return
+	}
+	if params == nil {
+		params = make(map[string]string)
+	}
+	log.Printf("log metric as server name[%s] params[%v]", name, params)
+	a.metrics.PostServer(name, token, params)
+}
+
+//send metric
+func (a *Api) logMetricForUser(id, name, token string, params map[string]string) {
+	if token == "" {
+		log.Println("Missing token so couldn't log metric")
+		return
+	}
+	if params == nil {
+		params = make(map[string]string)
+	}
+	log.Printf("log metric id[%s] name[%s] params[%v]", id, name, params)
+	a.metrics.PostWithUser(id, name, token, params)
 }
 
 //get the token from the req header
@@ -240,6 +283,7 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 					res.Write([]byte(STATUS_ERR_GENTERATING_TOKEN))
 					return
 				} else {
+					a.logMetric("usercreated", sessionToken.Id, nil)
 					res.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
 					sendModelAsResWithStatus(res, usr, http.StatusCreated)
 					return
@@ -335,6 +379,11 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 						res.Write([]byte(STATUS_ERR_UPDATING_USR))
 						return
 					} else {
+						if td.IsServer {
+							a.logMetricForUser(id, "userupdated", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "true"})
+						} else {
+							a.logMetric("userupdated", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "false"})
+						}
 						res.WriteHeader(http.StatusOK)
 						return
 					}
@@ -378,6 +427,13 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 				res.Write([]byte(STATUS_ERR_FINDING_USR))
 				return
 			} else if results != nil {
+
+				if td.IsServer {
+					a.logMetricForUser(id, "getuserinfo", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "true"})
+				} else {
+					a.logMetric("getuserinfo", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "false"})
+				}
+
 				/*
 					TODO: sort this out
 					if len(results) == 1 && usr.Pw != "" {
@@ -422,6 +478,13 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 
 			if err = toDelete.HashPassword(pw, a.Config.Salt); err == nil {
 				if err = a.Store.RemoveUser(toDelete); err == nil {
+
+					if td.IsServer {
+						a.logMetricForUser(id, "deleteuser", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "true"})
+					} else {
+						a.logMetric("deleteuser", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "false"})
+					}
+
 					//cleanup if any
 					if td.IsServer == false {
 						usrToken := &models.SessionToken{Id: req.Header.Get(TP_SESSION_TOKEN)}
@@ -469,6 +532,7 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 							res.Write([]byte(STATUS_ERR_UPDATING_TOKEN))
 							return
 						} else {
+							a.logMetric("userlogin", sessionToken.Id, nil)
 							res.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
 							sendModelAsRes(res, results[i])
 							return
@@ -511,6 +575,7 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 			res.Write([]byte(STATUS_ERR_GENTERATING_TOKEN))
 			return
 		} else {
+			a.logMetricAsServer("serverlogin", sessionToken.Id, nil)
 			res.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
 			res.WriteHeader(http.StatusOK)
 			return
@@ -619,6 +684,9 @@ func (a *Api) ManageIdHashPair(res http.ResponseWriter, req *http.Request, vars 
 			res.Write([]byte(STATUS_ERR_FINDING_USR))
 			return
 		} else {
+
+			a.logMetricForUser(usr.Id, "manageprivatepair", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"verb": req.Method})
+
 			switch req.Method {
 			case "GET":
 				if foundUsr.Private != nil && foundUsr.Private[theKey] != nil {
