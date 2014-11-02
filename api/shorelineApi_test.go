@@ -108,7 +108,7 @@ func TestCreateUser_StatusBadRequest_WhenNoParamsGiven(t *testing.T) {
 
 	body, _ := ioutil.ReadAll(response.Body)
 
-	if string(body) != STATUS_MISSING_USR_DETAILS {
+	if string(body) != `{"code":400,"reason":"Not all required details were given"}` {
 		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_MISSING_USR_DETAILS)
 	}
 
@@ -191,7 +191,7 @@ func TestCreateUser_StatusConflict_ForDuplicates(t *testing.T) {
 
 	body, _ := ioutil.ReadAll(response.Body)
 
-	if string(body) != STATUS_USR_ALREADY_EXISTS {
+	if string(body) != `{"code":409,"reason":"User aleady exists"}` {
 		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_USR_ALREADY_EXISTS)
 	}
 
@@ -226,7 +226,7 @@ func TestUpdateUser_StatusBadRequest_WhenNoUpdates(t *testing.T) {
 
 	body, _ := ioutil.ReadAll(response.Body)
 
-	if string(body) != STATUS_NO_USR_DETAILS {
+	if string(body) != `{"code":400,"reason":"No user details were given"}` {
 		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_NO_USR_DETAILS)
 	}
 }
@@ -489,7 +489,7 @@ func TestDeleteUser_StatusForbidden_WhenNoPw(t *testing.T) {
 
 	body, _ := ioutil.ReadAll(response.Body)
 
-	if string(body) != STATUS_MISSING_ID_PW {
+	if string(body) != `{"code":403,"reason":"Missing id and/or password"}` {
 		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_MISSING_ID_PW)
 	}
 }
@@ -511,7 +511,7 @@ func TestDeleteUser_StatusForbidden_WhenEmptyPw(t *testing.T) {
 
 	body, _ := ioutil.ReadAll(response.Body)
 
-	if string(body) != STATUS_MISSING_ID_PW {
+	if string(body) != `{"code":403,"reason":"Missing id and/or password"}` {
 		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_MISSING_ID_PW)
 	}
 }
@@ -575,7 +575,7 @@ func TestLogin_StatusBadRequest_WithNoAuth(t *testing.T) {
 
 	body, _ := ioutil.ReadAll(response.Body)
 
-	if string(body) != STATUS_MISSING_ID_PW {
+	if string(body) != `{"code":400,"reason":"Missing id and/or password"}` {
 		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_MISSING_ID_PW)
 	}
 }
@@ -595,7 +595,7 @@ func TestLogin_StatusBadRequest_WithInvalidAuth(t *testing.T) {
 
 	body, _ := ioutil.ReadAll(response.Body)
 
-	if string(body) != STATUS_MISSING_ID_PW {
+	if string(body) != `{"code":400,"reason":"Missing id and/or password"}` {
 		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_MISSING_ID_PW)
 	}
 }
@@ -664,7 +664,7 @@ func TestServerLogin_StatusBadRequest_WhenNoNameOrSecret(t *testing.T) {
 
 	body, _ := ioutil.ReadAll(response.Body)
 
-	if string(body) != STATUS_MISSING_ID_PW {
+	if string(body) != `{"code":400,"reason":"Missing id and/or password"}` {
 		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_MISSING_ID_PW)
 	}
 }
@@ -684,7 +684,7 @@ func TestServerLogin_StatusBadRequest_WhenNoName(t *testing.T) {
 
 	body, _ := ioutil.ReadAll(response.Body)
 
-	if string(body) != STATUS_MISSING_ID_PW {
+	if string(body) != `{"code":400,"reason":"Missing id and/or password"}` {
 		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_MISSING_ID_PW)
 	}
 }
@@ -704,7 +704,7 @@ func TestServerLogin_StatusBadRequest_WhenNoSecret(t *testing.T) {
 
 	body, _ := ioutil.ReadAll(response.Body)
 
-	if string(body) != STATUS_MISSING_ID_PW {
+	if string(body) != `{"code":400,"reason":"Missing id and/or password"}` {
 		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_MISSING_ID_PW)
 	}
 }
@@ -760,7 +760,7 @@ func TestServerLogin_StatusUnauthorized_WhenSecretWrong(t *testing.T) {
 
 	body, _ := ioutil.ReadAll(response.Body)
 
-	if string(body) != STATUS_PW_WRONG {
+	if string(body) != `{"code":401,"reason":"Wrong password"}` {
 		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_PW_WRONG)
 	}
 }
@@ -892,7 +892,7 @@ func TestValidateLongterm_StatusBadRequest_AuthEmpty(t *testing.T) {
 
 	body, _ := ioutil.ReadAll(response.Body)
 
-	if string(body) != STATUS_MISSING_ID_PW {
+	if string(body) != `{"code":400,"reason":"Missing id and/or password"}` {
 		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_MISSING_ID_PW)
 	}
 }
