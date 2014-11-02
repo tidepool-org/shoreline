@@ -117,7 +117,7 @@ func TestCreateUser_StatusBadRequest_WhenNoParamsGiven(t *testing.T) {
 func TestCreateUser_ChildAccount(t *testing.T) {
 
 	//for a child account we do not set either the passowrd or emails
-	var jsonData = []byte(`{"username": "test", "password": "","emails":[""]}`)
+	var jsonData = []byte(`{"username": "test", "password": "","emails":[]}`)
 
 	request, _ := http.NewRequest("POST", "/user", bytes.NewBuffer(jsonData))
 	request.Header.Add("content-type", "application/json")

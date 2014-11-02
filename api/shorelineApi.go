@@ -100,6 +100,7 @@ func getUserDetail(req *http.Request) (ud *models.UserDetail) {
 			return ud
 		}
 	}
+	log.Printf("User details [%v]", ud)
 	return ud
 }
 
@@ -274,7 +275,7 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 	if usrDetails := getUserDetail(req); usrDetails != nil {
 
 		if usr, err := models.NewUser(usrDetails, a.Config.Salt); err == nil {
-			//do they already exist??
+			//they shouldn't already exist
 			if results, _ := a.Store.FindUsers(usr); results == nil || len(results) == 0 {
 
 				if err := a.Store.UpsertUser(usr); err != nil {

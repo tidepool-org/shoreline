@@ -27,6 +27,9 @@ type UserDetail struct {
 func NewUser(details *UserDetail, salt string) (user *User, err error) {
 
 	if details.Name == "" || details.Pw == "" {
+		if details.Name != "" {
+			return NewChildUser(details, salt)
+		}
 		return user, errors.New("both the name and pw are required")
 	}
 	//name is always lowercase
@@ -37,6 +40,18 @@ func NewUser(details *UserDetail, salt string) (user *User, err error) {
 	pwHash, _ := GeneratePasswordHash(id, details.Pw, salt)
 
 	return &User{Id: id, Name: details.Name, Emails: details.Emails, Hash: hash, PwHash: pwHash}, nil
+}
+
+//Child Account are linked to another users account and don't require a password or emails
+func NewChildUser(details *UserDetail, salt string) (user *User, err error) {
+
+	//name is always lowercase
+	details.Name = strings.ToLower(details.Name)
+
+	id, _ := generateUniqueHash([]string{details.Name}, 10)
+	hash, _ := generateUniqueHash([]string{details.Name, id}, 24)
+
+	return &User{Id: id, Name: details.Name, Emails: details.Emails, Hash: hash}, nil
 }
 
 func UserFromDetails(details *UserDetail) (user *User) {
