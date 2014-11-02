@@ -627,6 +627,8 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 	return
 }
 
+// Set the longeterm duration and then process as per Login
+// note: see Login for return codes
 func (a *Api) LongtermLogin(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 
 	const (
@@ -664,12 +666,13 @@ func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars 
 	return
 }
 
+// status: 200
 func (a *Api) Logout(res http.ResponseWriter, req *http.Request) {
 	//lets just try and remove the token
 	st := models.GetSessionToken(req.Header.Get(TP_SESSION_TOKEN))
 	if st.Id != "" {
 		if err := a.Store.RemoveToken(st); err != nil {
-			log.Println("Unable to delete token.", err)
+			log.Printf("Logout  was unable to delete token err[%s]", err.Error())
 		}
 	}
 	//otherwise all good
