@@ -79,11 +79,19 @@ func TestPwHashWithEmptyParams(t *testing.T) {
 
 }
 
-func TestNewUserNoPw(t *testing.T) {
+func TestNewUserAsChild(t *testing.T) {
 
-	if childAcct, err := NewUser(&UserDetail{Name: "jamie", Pw: "", Emails: []string{}}, "some salt"); err != nil {
+	theName := "The Kid"
+
+	if childAcct, err := NewUser(&UserDetail{Name: theName}, "some salt"); err != nil {
 		t.Fatalf("it is legit to create a user withuot a pw - this is known as a Child Account")
 	} else {
+		if childAcct.Name == theName {
+			t.Fatalf("the user name should have been hashed")
+		}
+		if len(childAcct.Name) != 10 {
+			t.Fatalf("the user name should be 10 characters in length")
+		}
 		if childAcct.Hash == "" {
 			t.Fatalf("the user hash should have been set")
 		}
@@ -96,9 +104,15 @@ func TestNewUserNoPw(t *testing.T) {
 		if len(childAcct.Id) != 10 {
 			t.Fatalf("the user id should be 10 characters in length")
 		}
-
 		if len(childAcct.Emails) != 0 {
 			t.Fatalf("there should be no emails")
+		}
+
+		//make another child account with the same name
+		otherChildAcct, _ := NewUser(&UserDetail{Name: theName}, "some salt")
+
+		if otherChildAcct.Name == childAcct.Name {
+			t.Fatalf("the hashed names should be different")
 		}
 	}
 }
