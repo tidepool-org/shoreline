@@ -672,7 +672,7 @@ func (a *Api) Logout(res http.ResponseWriter, req *http.Request) {
 	st := models.GetSessionToken(req.Header.Get(TP_SESSION_TOKEN))
 	if st.Id != "" {
 		if err := a.Store.RemoveToken(st); err != nil {
-			log.Printf("Logout  was unable to delete token err[%s]", err.Error())
+			log.Printf("Logout was unable to delete token err[%s]", err.Error())
 		}
 	}
 	//otherwise all good
@@ -680,12 +680,16 @@ func (a *Api) Logout(res http.ResponseWriter, req *http.Request) {
 	return
 }
 
+// status: 200 AnonIdHashPair
 func (a *Api) AnonymousIdHashPair(res http.ResponseWriter, req *http.Request) {
 	idHashPair := models.NewAnonIdHashPair([]string{a.Config.Salt}, req.URL.Query())
 	sendModelAsRes(res, idHashPair)
 	return
 }
 
+// status: 200 IdHashPair
+// status: 500 STATUS_ERR_FINDING_USR
+// status: 500 STATUS_ERR_UPDATING_USR
 func (a *Api) ManageIdHashPair(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 
 	//we need server token
@@ -697,9 +701,8 @@ func (a *Api) ManageIdHashPair(res http.ResponseWriter, req *http.Request, vars 
 		baseStrings := []string{a.Config.Salt, usr.Id, theKey}
 
 		if foundUsr, err := a.Store.FindUser(usr); err != nil {
-			log.Println(err)
-			res.WriteHeader(http.StatusInternalServerError)
-			res.Write([]byte(STATUS_ERR_FINDING_USR))
+			log.Printf("ManageIdHashPair %s [%s]", STATUS_ERR_FINDING_USR, err.Error())
+			sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_FINDING_USR), http.StatusInternalServerError)
 			return
 		} else {
 
@@ -717,9 +720,8 @@ func (a *Api) ManageIdHashPair(res http.ResponseWriter, req *http.Request, vars 
 					foundUsr.Private[theKey] = models.NewIdHashPair(baseStrings, req.URL.Query())
 
 					if err := a.Store.UpsertUser(foundUsr); err != nil {
-						log.Println(err)
-						res.Write([]byte(STATUS_ERR_UPDATING_USR))
-						res.WriteHeader(http.StatusInternalServerError)
+						log.Printf("ManageIdHashPair %s %s [%s]", req.Method, STATUS_ERR_UPDATING_USR, err.Error())
+						sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_UPDATING_USR), http.StatusInternalServerError)
 						return
 					} else {
 						sendModelAsRes(res, foundUsr.Private[theKey])
@@ -733,15 +735,15 @@ func (a *Api) ManageIdHashPair(res http.ResponseWriter, req *http.Request, vars 
 				foundUsr.Private[theKey] = models.NewIdHashPair(baseStrings, req.URL.Query())
 
 				if err := a.Store.UpsertUser(foundUsr); err != nil {
-					log.Println(err)
-					res.Write([]byte(STATUS_ERR_UPDATING_USR))
-					res.WriteHeader(http.StatusInternalServerError)
+					log.Printf("ManageIdHashPair %s %s [%s]", req.Method, STATUS_ERR_UPDATING_USR, err.Error())
+					sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_UPDATING_USR), http.StatusInternalServerError)
 					return
 				} else {
 					sendModelAsResWithStatus(res, foundUsr.Private[theKey], http.StatusCreated)
 					return
 				}
 			case "DELETE":
+				log.Printf("ManageIdHashPair %s %s", req.Method, "Not Implemented")
 				res.WriteHeader(http.StatusNotImplemented)
 				return
 			}
