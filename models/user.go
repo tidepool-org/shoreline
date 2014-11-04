@@ -28,9 +28,6 @@ type UserDetail struct {
 func NewUser(details *UserDetail, salt string) (user *User, err error) {
 
 	if details.Name == "" || details.Pw == "" {
-		if details.Name != "" {
-			return NewChildUser(details, salt)
-		}
 		return user, errors.New("both the name and pw are required")
 	}
 	//name is always lowercase

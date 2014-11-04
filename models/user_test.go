@@ -83,7 +83,7 @@ func TestNewUserAsChild(t *testing.T) {
 
 	theName := "The Kid"
 
-	if childAcct, err := NewUser(&UserDetail{Name: theName}, "some salt"); err != nil {
+	if childAcct, err := NewChildUser(&UserDetail{Name: theName}, "some salt"); err != nil {
 		t.Fatalf("it is legit to create a user withuot a pw - this is known as a Child Account")
 	} else {
 		if childAcct.Name == theName {
@@ -109,12 +109,20 @@ func TestNewUserAsChild(t *testing.T) {
 		}
 
 		//make another child account with the same name
-		otherChildAcct, _ := NewUser(&UserDetail{Name: theName}, "some salt")
+		otherChildAcct, _ := NewChildUser(&UserDetail{Name: theName}, "some salt")
 
 		if otherChildAcct.Name == childAcct.Name {
 			t.Fatalf("the hashed names should be different")
 		}
 	}
+}
+
+func TestNewUserNoPw(t *testing.T) {
+
+	if _, err := NewUser(&UserDetail{Name: "I have a name", Emails: []string{}}, "some salt"); err == nil {
+		t.Fatalf("should have given error as the pw is not given")
+	}
+
 }
 
 func TestNewUserNoName(t *testing.T) {

@@ -67,6 +67,8 @@ func (a *Api) SetHandlers(prefix string, rtr *mux.Router) {
 	rtr.Handle("/user", varsHandler(a.GetUserInfo)).Methods("GET")
 	rtr.Handle("/user/{userid}", varsHandler(a.GetUserInfo)).Methods("GET")
 
+	rtr.HandleFunc("/childuser", a.CreateChildUser).Methods("POST")
+
 	rtr.HandleFunc("/user", a.CreateUser).Methods("POST")
 	rtr.Handle("/user", varsHandler(a.UpdateUser)).Methods("PUT")
 	rtr.Handle("/user/{userid}", varsHandler(a.UpdateUser)).Methods("PUT")
@@ -230,6 +232,24 @@ func sendModelAsResWithStatus(res http.ResponseWriter, model interface{}, status
 	return
 }
 
+func (a *Api) addUserAndSendStatus(user *models.User, res http.ResponseWriter, req *http.Request) {
+	if err := a.Store.UpsertUser(user); err != nil {
+		log.Printf("addUserAndSendStatus %s err[%s]", STATUS_ERR_CREATING_USR, err.Error())
+		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_CREATING_USR), http.StatusInternalServerError)
+		return
+	}
+	if sessionToken, err := a.createAndSaveToken(tokenDuration(req), user.Id, false); err != nil {
+		log.Printf("addUserAndSendStatus %s err[%s]", STATUS_ERR_GENTERATING_TOKEN, err.Error())
+		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENTERATING_TOKEN), http.StatusInternalServerError)
+		return
+	} else {
+		a.logMetric("usercreated", sessionToken.Id, nil)
+		res.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
+		sendModelAsResWithStatus(res, user, http.StatusCreated)
+		return
+	}
+}
+
 func (a *Api) hasServerToken(tokenString string) bool {
 
 	if td := a.getUnpackedToken(tokenString); td != nil {
@@ -277,22 +297,9 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 		if usr, err := models.NewUser(usrDetails, a.Config.Salt); err == nil {
 			//they shouldn't already exist
 			if results, _ := a.Store.FindUsers(usr); results == nil || len(results) == 0 {
-
-				if err := a.Store.UpsertUser(usr); err != nil {
-					log.Printf("CreateUser %s err[%s]", STATUS_ERR_CREATING_USR, err.Error())
-					sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_CREATING_USR), http.StatusInternalServerError)
-					return
-				}
-				if sessionToken, err := a.createAndSaveToken(tokenDuration(req), usr.Id, false); err != nil {
-					log.Printf("CreateUser %s err[%s]", STATUS_ERR_GENTERATING_TOKEN, err.Error())
-					sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENTERATING_TOKEN), http.StatusInternalServerError)
-					return
-				} else {
-					a.logMetric("usercreated", sessionToken.Id, nil)
-					res.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
-					sendModelAsResWithStatus(res, usr, http.StatusCreated)
-					return
-				}
+				log.Printf("CreateUser adding [%v] ", usr)
+				a.addUserAndSendStatus(usr, res, req)
+				return
 			} else {
 				log.Printf("CreateUser %s ", STATUS_USR_ALREADY_EXISTS)
 				sendModelAsResWithStatus(res, status.NewStatus(http.StatusConflict, STATUS_USR_ALREADY_EXISTS), http.StatusConflict)
@@ -302,8 +309,29 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 			log.Printf("CreateUser %s ", err.Error())
 		}
 	}
-	//incoming details were bad
+	//incoming details missing
 	log.Printf("CreateUser %s ", STATUS_MISSING_USR_DETAILS)
+	sendModelAsResWithStatus(res, status.NewStatus(http.StatusBadRequest, STATUS_MISSING_USR_DETAILS), http.StatusBadRequest)
+	return
+}
+
+// status: 201 User
+// status: 400 STATUS_MISSING_USR_DETAILS
+// status: 500 STATUS_ERR_GENTERATING_TOKEN
+func (a *Api) CreateChildUser(res http.ResponseWriter, req *http.Request) {
+
+	if usrDetails := getUserDetail(req); usrDetails != nil {
+
+		if usr, err := models.NewChildUser(usrDetails, a.Config.Salt); err == nil {
+			log.Printf("CreateChildUser adding [%v] ", usr)
+			a.addUserAndSendStatus(usr, res, req)
+			return
+		} else {
+			log.Printf("CreateChildUser %s ", err.Error())
+		}
+	}
+	//incoming details were missing
+	log.Printf("CreateChildUser %s ", STATUS_MISSING_USR_DETAILS)
 	sendModelAsResWithStatus(res, status.NewStatus(http.StatusBadRequest, STATUS_MISSING_USR_DETAILS), http.StatusBadRequest)
 	return
 }
