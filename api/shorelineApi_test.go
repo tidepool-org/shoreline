@@ -302,7 +302,7 @@ func TestUpdateUser_StatusOK(t *testing.T) {
 	/*
 	 * can update all
 	 */
-	var updateAll = []byte(`{"updates":{"username": "change1","password":"aN3wPw0rD","emails":["change1@new.bar"]}}`)
+	var updateAll = []byte(`{"updates":{"username": "change1","password":"aN3wPw0rD","emails":["change1@new.bar"],"authenticated":"true"}}`)
 
 	requestUpdateAll, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updateAll))
 
@@ -361,6 +361,21 @@ func TestUpdateUser_StatusOK(t *testing.T) {
 
 	if responseUpdateEmail.Code != http.StatusOK {
 		t.Fatalf("Non-expected status code %v:\n\tbody: %v", "200", responseUpdateEmail.Code)
+	}
+
+	/*
+	 * can update authentication
+	 */
+	var updateAuth = []byte(`{"updates":{"authenticated":"true"}}`)
+
+	requestUpdateAuth, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updateAuth))
+	requestUpdateAuth.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
+	requestUpdateAuth.Header.Add("content-type", "application/json")
+	responseUpdateAuth := httptest.NewRecorder()
+	shorelineNoDups.UpdateUser(responseUpdateAuth, requestUpdateAuth, map[string]string{"userid": USR.Id})
+
+	if responseUpdateAuth.Code != http.StatusOK {
+		t.Fatalf("Non-expected status code %v:\n\tbody: %v", "200", responseUpdateAuth.Code)
 	}
 
 }

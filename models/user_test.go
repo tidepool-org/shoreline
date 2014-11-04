@@ -108,6 +108,10 @@ func TestNewUserAsChild(t *testing.T) {
 			t.Fatalf("there should be no emails")
 		}
 
+		if childAcct.Authenticated == false {
+			t.Fatalf("the child account should be authenticated by default")
+		}
+
 		//make another child account with the same name
 		otherChildAcct, _ := NewChildUser(&UserDetail{Name: theName}, "some salt")
 
@@ -163,6 +167,10 @@ func TestNewUser(t *testing.T) {
 
 		if len(user.Emails) != 1 {
 			t.Fatalf("the emails should have been set")
+		}
+
+		if user.Authenticated {
+			t.Fatalf("the user account should not be authenticated by default")
 		}
 	}
 

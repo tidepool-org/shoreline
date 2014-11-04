@@ -375,6 +375,11 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 					return
 				} else if userToUpdate != nil {
 
+					//Authenticate
+					if userToUpdate.Authenticated == false && updatesToApply.Updates.Authenticated {
+						userToUpdate.Authenticated = updatesToApply.Updates.Authenticated
+					}
+
 					//Name and/or Emails and perform dups check
 					if updatesToApply.Updates.Name != "" || len(updatesToApply.Updates.Emails) > 0 {
 						dupCheck := models.UserFromDetails(&models.UserDetail{})
@@ -406,6 +411,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 							return
 						}
 					}
+
 					//All good - now update
 					if err := a.Store.UpsertUser(userToUpdate); err != nil {
 						log.Printf("UpdateUser %s err[%s]", STATUS_ERR_UPDATING_USR, err.Error())
