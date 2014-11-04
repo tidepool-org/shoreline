@@ -3,6 +3,7 @@ package models
 import (
 	"errors"
 	"strings"
+	"time"
 )
 
 type User struct {
@@ -37,6 +38,17 @@ func NewUser(details *UserDetail, salt string) (user *User, err error) {
 	pwHash, _ := GeneratePasswordHash(id, details.Pw, salt)
 
 	return &User{Id: id, Name: details.Name, Emails: details.Emails, Hash: hash, PwHash: pwHash}, nil
+}
+
+//Child Account are linked to another users account and don't require a password or emails
+func NewChildUser(details *UserDetail, salt string) (user *User, err error) {
+
+	//name hashed from the `nice` name you gave us
+	name, _ := generateUniqueHash([]string{details.Name, time.Now().String()}, 10)
+	id, _ := generateUniqueHash([]string{name}, 10)
+	hash, _ := generateUniqueHash([]string{name, id}, 24)
+
+	return &User{Id: id, Name: name, Emails: details.Emails, Hash: hash}, nil
 }
 
 func UserFromDetails(details *UserDetail) (user *User) {

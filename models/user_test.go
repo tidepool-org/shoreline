@@ -79,10 +79,48 @@ func TestPwHashWithEmptyParams(t *testing.T) {
 
 }
 
+func TestNewUserAsChild(t *testing.T) {
+
+	theName := "The Kid"
+
+	if childAcct, err := NewChildUser(&UserDetail{Name: theName}, "some salt"); err != nil {
+		t.Fatalf("it is legit to create a user withuot a pw - this is known as a Child Account")
+	} else {
+		if childAcct.Name == theName {
+			t.Fatalf("the user name should have been hashed")
+		}
+		if len(childAcct.Name) != 10 {
+			t.Fatalf("the user name should be 10 characters in length")
+		}
+		if childAcct.Hash == "" {
+			t.Fatalf("the user hash should have been set")
+		}
+		if len(childAcct.Hash) != 24 {
+			t.Fatalf("the user hash should be 24 characters in length")
+		}
+		if childAcct.Id == "" {
+			t.Fatalf("the user id should have been set")
+		}
+		if len(childAcct.Id) != 10 {
+			t.Fatalf("the user id should be 10 characters in length")
+		}
+		if len(childAcct.Emails) != 0 {
+			t.Fatalf("there should be no emails")
+		}
+
+		//make another child account with the same name
+		otherChildAcct, _ := NewChildUser(&UserDetail{Name: theName}, "some salt")
+
+		if otherChildAcct.Name == childAcct.Name {
+			t.Fatalf("the hashed names should be different")
+		}
+	}
+}
+
 func TestNewUserNoPw(t *testing.T) {
 
-	if _, err := NewUser(&UserDetail{Name: "jamie", Pw: "", Emails: []string{"test@foo.bar"}}, "some salt"); err == nil {
-		t.Fatalf("should have given error as the password is not given")
+	if _, err := NewUser(&UserDetail{Name: "I have a name", Emails: []string{}}, "some salt"); err == nil {
+		t.Fatalf("should have given error as the pw is not given")
 	}
 
 }
