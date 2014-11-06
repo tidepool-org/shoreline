@@ -12,6 +12,7 @@ import (
 	"./../models"
 	"github.com/gorilla/mux"
 	"github.com/tidepool-org/go-common/clients/highwater"
+	"github.com/tidepool-org/go-common/clients/status"
 )
 
 type (
@@ -45,8 +46,10 @@ const (
 	STATUS_ERROR_UPDATING_PW     = "Error updating password"
 	STATUS_MISSING_ID_PW         = "Missing id and/or password"
 	STATUS_NO_MATCH              = "No user matched the given details"
+	STATUS_NO_TOKEN_MATCH        = "No token matched the given details"
 	STATUS_PW_WRONG              = "Wrong password"
 	STATUS_ERR_SENDING_EMAIL     = "Error sending email"
+	STATUS_NO_TOKEN              = "No x-tidepool-session-token was found"
 )
 
 func InitApi(cfg Config, store clients.StoreClient, metrics highwater.Client) *Api {
@@ -63,6 +66,8 @@ func (a *Api) SetHandlers(prefix string, rtr *mux.Router) {
 
 	rtr.Handle("/user", varsHandler(a.GetUserInfo)).Methods("GET")
 	rtr.Handle("/user/{userid}", varsHandler(a.GetUserInfo)).Methods("GET")
+
+	rtr.HandleFunc("/childuser", a.CreateChildUser).Methods("POST")
 
 	rtr.HandleFunc("/user", a.CreateUser).Methods("POST")
 	rtr.Handle("/user", varsHandler(a.UpdateUser)).Methods("PUT")
@@ -97,6 +102,7 @@ func getUserDetail(req *http.Request) (ud *models.UserDetail) {
 			return ud
 		}
 	}
+	log.Printf("User details [%v]", ud)
 	return ud
 }
 
@@ -180,7 +186,7 @@ func unpackAuth(authLine string) (usr *models.User, pw string) {
 		parts := strings.SplitN(authLine, " ", 2)
 		payload := parts[1]
 		if decodedPayload, err := base64.URLEncoding.DecodeString(payload); err != nil {
-			log.Print(err)
+			log.Print("Error unpacking authorization header [%s]", err.Error())
 		} else {
 			details := strings.Split(string(decodedPayload), ":")
 			if details[0] != "" || details[1] != "" {
@@ -226,6 +232,24 @@ func sendModelAsResWithStatus(res http.ResponseWriter, model interface{}, status
 	return
 }
 
+func (a *Api) addUserAndSendStatus(user *models.User, res http.ResponseWriter, req *http.Request) {
+	if err := a.Store.UpsertUser(user); err != nil {
+		log.Printf("addUserAndSendStatus %s err[%s]", STATUS_ERR_CREATING_USR, err.Error())
+		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_CREATING_USR), http.StatusInternalServerError)
+		return
+	}
+	if sessionToken, err := a.createAndSaveToken(tokenDuration(req), user.Id, false); err != nil {
+		log.Printf("addUserAndSendStatus %s err[%s]", STATUS_ERR_GENTERATING_TOKEN, err.Error())
+		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENTERATING_TOKEN), http.StatusInternalServerError)
+		return
+	} else {
+		a.logMetric("usercreated", sessionToken.Id, nil)
+		res.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
+		sendModelAsResWithStatus(res, user, http.StatusCreated)
+		return
+	}
+}
+
 func (a *Api) hasServerToken(tokenString string) bool {
 
 	if td := a.getUnpackedToken(tokenString); td != nil {
@@ -262,48 +286,61 @@ func (a *Api) GetStatus(res http.ResponseWriter, req *http.Request) {
 	return
 }
 
-//Pull the incoming user from the http.Request body and save return http.StatusCreated
+// status: 201 User
+// status: 400 STATUS_MISSING_USR_DETAILS
+// status: 409 STATUS_USR_ALREADY_EXISTS
+// status: 500 STATUS_ERR_GENTERATING_TOKEN
 func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 
 	if usrDetails := getUserDetail(req); usrDetails != nil {
 
 		if usr, err := models.NewUser(usrDetails, a.Config.Salt); err == nil {
-			//do they already exist??
+			//they shouldn't already exist
 			if results, _ := a.Store.FindUsers(usr); results == nil || len(results) == 0 {
-
-				if err := a.Store.UpsertUser(usr); err != nil {
-					log.Println(err)
-					res.WriteHeader(http.StatusInternalServerError)
-					res.Write([]byte(STATUS_ERR_CREATING_USR))
-					return
-				}
-				if sessionToken, err := a.createAndSaveToken(tokenDuration(req), usr.Id, false); err != nil {
-					log.Println(err)
-					res.WriteHeader(http.StatusInternalServerError)
-					res.Write([]byte(STATUS_ERR_GENTERATING_TOKEN))
-					return
-				} else {
-					a.logMetric("usercreated", sessionToken.Id, nil)
-					res.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
-					sendModelAsResWithStatus(res, usr, http.StatusCreated)
-					return
-				}
+				log.Printf("CreateUser adding [%v] ", usr)
+				a.addUserAndSendStatus(usr, res, req)
+				return
 			} else {
-				res.WriteHeader(http.StatusConflict)
-				res.Write([]byte(STATUS_USR_ALREADY_EXISTS))
+				log.Printf("CreateUser %s ", STATUS_USR_ALREADY_EXISTS)
+				sendModelAsResWithStatus(res, status.NewStatus(http.StatusConflict, STATUS_USR_ALREADY_EXISTS), http.StatusConflict)
 				return
 			}
 		} else {
-			log.Println(err)
+			log.Printf("CreateUser %s ", err.Error())
 		}
 	}
-	//incoming details were bad
-	res.WriteHeader(http.StatusBadRequest)
-	res.Write([]byte(STATUS_MISSING_USR_DETAILS))
+	//incoming details missing
+	log.Printf("CreateUser %s ", STATUS_MISSING_USR_DETAILS)
+	sendModelAsResWithStatus(res, status.NewStatus(http.StatusBadRequest, STATUS_MISSING_USR_DETAILS), http.StatusBadRequest)
 	return
 }
 
-//Pull the incoming user updates from http.Request body and save return http.StatusOK
+// status: 201 User
+// status: 400 STATUS_MISSING_USR_DETAILS
+// status: 500 STATUS_ERR_GENTERATING_TOKEN
+func (a *Api) CreateChildUser(res http.ResponseWriter, req *http.Request) {
+
+	if usrDetails := getUserDetail(req); usrDetails != nil {
+
+		if usr, err := models.NewChildUser(usrDetails, a.Config.Salt); err == nil {
+			log.Printf("CreateChildUser adding [%v] ", usr)
+			a.addUserAndSendStatus(usr, res, req)
+			return
+		} else {
+			log.Printf("CreateChildUser %s ", err.Error())
+		}
+	}
+	//incoming details were missing
+	log.Printf("CreateChildUser %s ", STATUS_MISSING_USR_DETAILS)
+	sendModelAsResWithStatus(res, status.NewStatus(http.StatusBadRequest, STATUS_MISSING_USR_DETAILS), http.StatusBadRequest)
+	return
+}
+
+// status: 200
+// status: 400 STATUS_NO_USR_DETAILS
+// status: 409 STATUS_USR_ALREADY_EXISTS
+// status: 500 STATUS_ERR_FINDING_USR
+// status: 500 STATUS_ERR_UPDATING_USR
 func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 
 	if td := a.getUnpackedToken(req.Header.Get(TP_SESSION_TOKEN)); td != nil {
@@ -333,11 +370,15 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 				usrToFind := models.UserFromDetails(&models.UserDetail{Id: id, Emails: []string{id}})
 
 				if userToUpdate, err := a.Store.FindUser(usrToFind); err != nil {
-					log.Println(err)
-					res.WriteHeader(http.StatusInternalServerError)
-					res.Write([]byte(STATUS_ERR_FINDING_USR))
+					log.Printf("UpdateUser %s err[%s]", STATUS_ERR_FINDING_USR, err.Error())
+					sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_FINDING_USR), http.StatusInternalServerError)
 					return
 				} else if userToUpdate != nil {
+
+					//Authenticate
+					if userToUpdate.Authenticated == false && updatesToApply.Updates.Authenticated {
+						userToUpdate.Authenticated = updatesToApply.Updates.Authenticated
+					}
 
 					//Name and/or Emails and perform dups check
 					if updatesToApply.Updates.Name != "" || len(updatesToApply.Updates.Emails) > 0 {
@@ -352,13 +393,12 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 						}
 						//check if unique
 						if results, err := a.Store.FindUsers(dupCheck); err != nil {
-							log.Println(err)
-							res.WriteHeader(http.StatusInternalServerError)
+							log.Printf("UpdateUser %s err[%s]", STATUS_ERR_FINDING_USR, err.Error())
+							sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_FINDING_USR), http.StatusInternalServerError)
 							return
 						} else if len(results) > 0 {
-							log.Println(STATUS_USR_ALREADY_EXISTS)
-							res.WriteHeader(http.StatusBadRequest)
-							res.Write([]byte(STATUS_USR_ALREADY_EXISTS))
+							log.Printf("UpdateUser %s ", STATUS_USR_ALREADY_EXISTS)
+							sendModelAsResWithStatus(res, status.NewStatus(http.StatusConflict, STATUS_USR_ALREADY_EXISTS), http.StatusConflict)
 							return
 						}
 					}
@@ -366,17 +406,16 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 					if updatesToApply.Updates.Pw != "" {
 
 						if err := userToUpdate.HashPassword(updatesToApply.Updates.Pw, a.Config.Salt); err != nil {
-							log.Println(err)
-							res.WriteHeader(http.StatusInternalServerError)
-							res.Write([]byte(STATUS_ERR_UPDATING_USR))
+							log.Printf("UpdateUser %s err[%s]", STATUS_ERR_UPDATING_USR, err.Error())
+							sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_UPDATING_USR), http.StatusInternalServerError)
 							return
 						}
 					}
+
 					//All good - now update
 					if err := a.Store.UpsertUser(userToUpdate); err != nil {
-						log.Println(err)
-						res.WriteHeader(http.StatusInternalServerError)
-						res.Write([]byte(STATUS_ERR_UPDATING_USR))
+						log.Printf("UpdateUser %s err[%s]", STATUS_ERR_UPDATING_USR, err.Error())
+						sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_UPDATING_USR), http.StatusInternalServerError)
 						return
 					} else {
 						if td.IsServer {
@@ -390,10 +429,9 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 				}
 			}
 		}
-		res.WriteHeader(http.StatusBadRequest)
-		res.Write([]byte(STATUS_NO_USR_DETAILS))
+		log.Printf("UpdateUser %s ", STATUS_NO_USR_DETAILS)
+		sendModelAsResWithStatus(res, status.NewStatus(http.StatusBadRequest, STATUS_NO_USR_DETAILS), http.StatusBadRequest)
 		return
-
 	}
 	res.WriteHeader(http.StatusUnauthorized)
 	return
@@ -499,8 +537,7 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 			res.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		res.WriteHeader(http.StatusForbidden)
-		res.Write([]byte(STATUS_MISSING_ID_PW))
+		sendModelAsResWithStatus(res, status.NewStatus(http.StatusForbidden, STATUS_MISSING_ID_PW), http.StatusForbidden)
 		return
 
 	}
@@ -508,13 +545,17 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 	return
 }
 
+// status: 200 TP_SESSION_TOKEN,
+// status: 400 STATUS_MISSING_ID_PW
+// status: 401 STATUS_NO_MATCH
+// status: 500 STATUS_ERR_FINDING_USR
+// status: 500 STATUS_ERR_UPDATING_TOKEN
 func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 	if usr, pw := unpackAuth(req.Header.Get("Authorization")); usr != nil {
 
 		if results, err := a.Store.FindUsers(usr); err != nil {
-			log.Println(err)
-			res.WriteHeader(http.StatusInternalServerError)
-			res.Write([]byte(STATUS_ERR_FINDING_USR))
+			log.Printf("Login %s [%s]", STATUS_ERR_FINDING_USR, err.Error())
+			sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_FINDING_USR), http.StatusInternalServerError)
 			return
 		} else {
 			if len(results) > 0 {
@@ -527,9 +568,8 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 							results[i].Id,
 							false,
 						); err != nil {
-							log.Println(err)
-							res.WriteHeader(http.StatusInternalServerError)
-							res.Write([]byte(STATUS_ERR_UPDATING_TOKEN))
+							log.Printf("Login %s [%s]", STATUS_ERR_UPDATING_TOKEN, err.Error())
+							sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_UPDATING_TOKEN), http.StatusInternalServerError)
 							return
 						} else {
 							a.logMetric("userlogin", sessionToken.Id, nil)
@@ -538,29 +578,29 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 							return
 						}
 					}
-					res.WriteHeader(http.StatusUnauthorized)
-					res.Write([]byte(STATUS_PW_WRONG))
-					return
 				}
-			} else {
-				res.WriteHeader(http.StatusNoContent)
-				res.Write([]byte(STATUS_NO_MATCH))
-				return
 			}
+			log.Printf("Login %s [%s] from the [%d] users we found", STATUS_NO_MATCH, usr.Name, len(results))
+			sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_MATCH), http.StatusUnauthorized)
+			return
 		}
 	}
-	res.WriteHeader(http.StatusBadRequest)
-	res.Write([]byte(STATUS_MISSING_ID_PW))
+	log.Printf("Login %s ", STATUS_MISSING_ID_PW)
+	sendModelAsResWithStatus(res, status.NewStatus(http.StatusBadRequest, STATUS_MISSING_ID_PW), http.StatusBadRequest)
 	return
 }
 
+// status: 200 TP_SESSION_TOKEN
+// status: 400 STATUS_MISSING_ID_PW
+// status: 401 STATUS_PW_WRONG
+// status: 500 STATUS_ERR_UPDATING_TOKEN
 func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 
 	server, pw := req.Header.Get(TP_SERVER_NAME), req.Header.Get(TP_SERVER_SECRET)
 
 	if server == "" || pw == "" {
-		res.WriteHeader(http.StatusBadRequest)
-		res.Write([]byte(STATUS_MISSING_ID_PW))
+		log.Print("ServerLogin " + STATUS_MISSING_ID_PW)
+		sendModelAsResWithStatus(res, status.NewStatus(http.StatusBadRequest, STATUS_MISSING_ID_PW), http.StatusBadRequest)
 		return
 	}
 	if pw == a.Config.ServerSecret {
@@ -570,22 +610,23 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 			server,
 			true,
 		); err != nil {
-			log.Println(err)
-			res.WriteHeader(http.StatusInternalServerError)
-			res.Write([]byte(STATUS_ERR_GENTERATING_TOKEN))
+			log.Printf("ServerLogin %s err[%s]", STATUS_MISSING_ID_PW, err.Error())
+			sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENTERATING_TOKEN), http.StatusInternalServerError)
 			return
 		} else {
 			a.logMetricAsServer("serverlogin", sessionToken.Id, nil)
 			res.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
-			res.WriteHeader(http.StatusOK)
 			return
 		}
 	}
-	res.WriteHeader(http.StatusUnauthorized)
-	res.Write([]byte(STATUS_PW_WRONG))
+	log.Printf("ServerLogin %s ", STATUS_PW_WRONG)
+	sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_PW_WRONG), http.StatusUnauthorized)
 	return
 }
 
+// status: 200 TP_SESSION_TOKEN, TokenData
+// status: 401 STATUS_NO_TOKEN
+// status: 500 STATUS_ERR_GENTERATING_TOKEN
 func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 
 	if td := a.getUnpackedToken(req.Header.Get(TP_SESSION_TOKEN)); td != nil {
@@ -602,9 +643,8 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 			td.UserId,
 			td.IsServer,
 		); err != nil {
-			log.Println(err)
-			res.WriteHeader(http.StatusInternalServerError)
-			res.Write([]byte(STATUS_ERR_GENTERATING_TOKEN))
+			log.Printf("RefreshSession %s err[%s]", STATUS_ERR_GENTERATING_TOKEN, err.Error())
+			sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENTERATING_TOKEN), http.StatusInternalServerError)
 			return
 		} else {
 			res.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
@@ -613,10 +653,12 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 		}
 
 	}
-	res.WriteHeader(http.StatusUnauthorized)
+	sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_TOKEN), http.StatusUnauthorized)
 	return
 }
 
+// Set the longeterm duration and then process as per Login
+// note: see Login for return codes
 func (a *Api) LongtermLogin(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 
 	const (
@@ -632,6 +674,9 @@ func (a *Api) LongtermLogin(res http.ResponseWriter, req *http.Request, vars map
 	a.Login(res, req)
 }
 
+// status: 200 TP_SESSION_TOKEN, TokenData
+// status: 401 STATUS_NO_TOKEN
+// status: 404 STATUS_NO_TOKEN_MATCH
 func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 
 	if a.hasServerToken(req.Header.Get(TP_SESSION_TOKEN)) {
@@ -642,19 +687,22 @@ func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars 
 			sendModelAsRes(res, td)
 			return
 		}
-		res.WriteHeader(http.StatusNotFound)
+		log.Printf("ServerCheckToken %s", STATUS_NO_TOKEN_MATCH)
+		sendModelAsResWithStatus(res, status.NewStatus(http.StatusNotFound, STATUS_NO_TOKEN_MATCH), http.StatusNotFound)
 		return
 	}
-	res.WriteHeader(http.StatusUnauthorized)
+	log.Printf("ServerCheckToken %s", STATUS_NO_TOKEN)
+	sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_TOKEN), http.StatusUnauthorized)
 	return
 }
 
+// status: 200
 func (a *Api) Logout(res http.ResponseWriter, req *http.Request) {
 	//lets just try and remove the token
 	st := models.GetSessionToken(req.Header.Get(TP_SESSION_TOKEN))
 	if st.Id != "" {
 		if err := a.Store.RemoveToken(st); err != nil {
-			log.Println("Unable to delete token.", err)
+			log.Printf("Logout was unable to delete token err[%s]", err.Error())
 		}
 	}
 	//otherwise all good
@@ -662,12 +710,16 @@ func (a *Api) Logout(res http.ResponseWriter, req *http.Request) {
 	return
 }
 
+// status: 200 AnonIdHashPair
 func (a *Api) AnonymousIdHashPair(res http.ResponseWriter, req *http.Request) {
 	idHashPair := models.NewAnonIdHashPair([]string{a.Config.Salt}, req.URL.Query())
 	sendModelAsRes(res, idHashPair)
 	return
 }
 
+// status: 200 IdHashPair
+// status: 500 STATUS_ERR_FINDING_USR
+// status: 500 STATUS_ERR_UPDATING_USR
 func (a *Api) ManageIdHashPair(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 
 	//we need server token
@@ -679,9 +731,8 @@ func (a *Api) ManageIdHashPair(res http.ResponseWriter, req *http.Request, vars 
 		baseStrings := []string{a.Config.Salt, usr.Id, theKey}
 
 		if foundUsr, err := a.Store.FindUser(usr); err != nil {
-			log.Println(err)
-			res.WriteHeader(http.StatusInternalServerError)
-			res.Write([]byte(STATUS_ERR_FINDING_USR))
+			log.Printf("ManageIdHashPair %s [%s]", STATUS_ERR_FINDING_USR, err.Error())
+			sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_FINDING_USR), http.StatusInternalServerError)
 			return
 		} else {
 
@@ -699,9 +750,8 @@ func (a *Api) ManageIdHashPair(res http.ResponseWriter, req *http.Request, vars 
 					foundUsr.Private[theKey] = models.NewIdHashPair(baseStrings, req.URL.Query())
 
 					if err := a.Store.UpsertUser(foundUsr); err != nil {
-						log.Println(err)
-						res.Write([]byte(STATUS_ERR_UPDATING_USR))
-						res.WriteHeader(http.StatusInternalServerError)
+						log.Printf("ManageIdHashPair %s %s [%s]", req.Method, STATUS_ERR_UPDATING_USR, err.Error())
+						sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_UPDATING_USR), http.StatusInternalServerError)
 						return
 					} else {
 						sendModelAsRes(res, foundUsr.Private[theKey])
@@ -715,15 +765,15 @@ func (a *Api) ManageIdHashPair(res http.ResponseWriter, req *http.Request, vars 
 				foundUsr.Private[theKey] = models.NewIdHashPair(baseStrings, req.URL.Query())
 
 				if err := a.Store.UpsertUser(foundUsr); err != nil {
-					log.Println(err)
-					res.Write([]byte(STATUS_ERR_UPDATING_USR))
-					res.WriteHeader(http.StatusInternalServerError)
+					log.Printf("ManageIdHashPair %s %s [%s]", req.Method, STATUS_ERR_UPDATING_USR, err.Error())
+					sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_UPDATING_USR), http.StatusInternalServerError)
 					return
 				} else {
 					sendModelAsResWithStatus(res, foundUsr.Private[theKey], http.StatusCreated)
 					return
 				}
 			case "DELETE":
+				log.Printf("ManageIdHashPair %s %s", req.Method, "Not Implemented")
 				res.WriteHeader(http.StatusNotImplemented)
 				return
 			}

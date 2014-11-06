@@ -108,7 +108,7 @@ func TestCreateUser_StatusBadRequest_WhenNoParamsGiven(t *testing.T) {
 
 	body, _ := ioutil.ReadAll(response.Body)
 
-	if string(body) != STATUS_MISSING_USR_DETAILS {
+	if string(body) != `{"code":400,"reason":"Not all required details were given"}` {
 		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_MISSING_USR_DETAILS)
 	}
 
@@ -126,6 +126,46 @@ func TestCreateUser_StatusCreated(t *testing.T) {
 	shorelineNoDups.SetHandlers("", rtr)
 
 	shorelineNoDups.CreateUser(response, request)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("Non-expected status code %v:\n\tbody: %v", "201", response.Code)
+	}
+
+	if response.Header().Get(TP_SESSION_TOKEN) == "" {
+		t.Fatal("the resp should have a session token")
+	}
+
+	if response.Header().Get("content-type") != "application/json" {
+		t.Fatal("the resp should be json")
+	}
+
+	body, _ := ioutil.ReadAll(response.Body)
+
+	var usrData map[string]string
+	_ = json.Unmarshal(body, &usrData)
+
+	if usrData == nil {
+		t.Fatal("body should have been returned")
+	}
+
+	if usrData["userid"] == "" {
+		t.Fatal("body should have the userid")
+	}
+
+}
+
+func TestCreateChildUser_StatusCreated(t *testing.T) {
+
+	var jsonData = []byte(`{"username": "child user"}`)
+
+	request, _ := http.NewRequest("POST", "/childuser", bytes.NewBuffer(jsonData))
+	request.Header.Add("content-type", "application/json")
+
+	response := httptest.NewRecorder()
+
+	shorelineNoDups.SetHandlers("", rtr)
+
+	shorelineNoDups.CreateChildUser(response, request)
 
 	if response.Code != http.StatusCreated {
 		t.Fatalf("Non-expected status code %v:\n\tbody: %v", "201", response.Code)
@@ -191,7 +231,7 @@ func TestCreateUser_StatusConflict_ForDuplicates(t *testing.T) {
 
 	body, _ := ioutil.ReadAll(response.Body)
 
-	if string(body) != STATUS_USR_ALREADY_EXISTS {
+	if string(body) != `{"code":409,"reason":"User aleady exists"}` {
 		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_USR_ALREADY_EXISTS)
 	}
 
@@ -226,7 +266,7 @@ func TestUpdateUser_StatusBadRequest_WhenNoUpdates(t *testing.T) {
 
 	body, _ := ioutil.ReadAll(response.Body)
 
-	if string(body) != STATUS_NO_USR_DETAILS {
+	if string(body) != `{"code":400,"reason":"No user details were given"}` {
 		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_NO_USR_DETAILS)
 	}
 }
@@ -262,7 +302,7 @@ func TestUpdateUser_StatusOK(t *testing.T) {
 	/*
 	 * can update all
 	 */
-	var updateAll = []byte(`{"updates":{"username": "change1","password":"aN3wPw0rD","emails":["change1@new.bar"]}}`)
+	var updateAll = []byte(`{"updates":{"username": "change1","password":"aN3wPw0rD","emails":["change1@new.bar"],"authenticated":"true"}}`)
 
 	requestUpdateAll, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updateAll))
 
@@ -321,6 +361,21 @@ func TestUpdateUser_StatusOK(t *testing.T) {
 
 	if responseUpdateEmail.Code != http.StatusOK {
 		t.Fatalf("Non-expected status code %v:\n\tbody: %v", "200", responseUpdateEmail.Code)
+	}
+
+	/*
+	 * can update authentication
+	 */
+	var updateAuth = []byte(`{"updates":{"authenticated":"true"}}`)
+
+	requestUpdateAuth, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updateAuth))
+	requestUpdateAuth.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
+	requestUpdateAuth.Header.Add("content-type", "application/json")
+	responseUpdateAuth := httptest.NewRecorder()
+	shorelineNoDups.UpdateUser(responseUpdateAuth, requestUpdateAuth, map[string]string{"userid": USR.Id})
+
+	if responseUpdateAuth.Code != http.StatusOK {
+		t.Fatalf("Non-expected status code %v:\n\tbody: %v", "200", responseUpdateAuth.Code)
 	}
 
 }
@@ -489,7 +544,7 @@ func TestDeleteUser_StatusForbidden_WhenNoPw(t *testing.T) {
 
 	body, _ := ioutil.ReadAll(response.Body)
 
-	if string(body) != STATUS_MISSING_ID_PW {
+	if string(body) != `{"code":403,"reason":"Missing id and/or password"}` {
 		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_MISSING_ID_PW)
 	}
 }
@@ -511,7 +566,7 @@ func TestDeleteUser_StatusForbidden_WhenEmptyPw(t *testing.T) {
 
 	body, _ := ioutil.ReadAll(response.Body)
 
-	if string(body) != STATUS_MISSING_ID_PW {
+	if string(body) != `{"code":403,"reason":"Missing id and/or password"}` {
 		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_MISSING_ID_PW)
 	}
 }
@@ -575,7 +630,7 @@ func TestLogin_StatusBadRequest_WithNoAuth(t *testing.T) {
 
 	body, _ := ioutil.ReadAll(response.Body)
 
-	if string(body) != STATUS_MISSING_ID_PW {
+	if string(body) != `{"code":400,"reason":"Missing id and/or password"}` {
 		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_MISSING_ID_PW)
 	}
 }
@@ -595,7 +650,7 @@ func TestLogin_StatusBadRequest_WithInvalidAuth(t *testing.T) {
 
 	body, _ := ioutil.ReadAll(response.Body)
 
-	if string(body) != STATUS_MISSING_ID_PW {
+	if string(body) != `{"code":400,"reason":"Missing id and/or password"}` {
 		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_MISSING_ID_PW)
 	}
 }
@@ -664,7 +719,7 @@ func TestServerLogin_StatusBadRequest_WhenNoNameOrSecret(t *testing.T) {
 
 	body, _ := ioutil.ReadAll(response.Body)
 
-	if string(body) != STATUS_MISSING_ID_PW {
+	if string(body) != `{"code":400,"reason":"Missing id and/or password"}` {
 		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_MISSING_ID_PW)
 	}
 }
@@ -684,7 +739,7 @@ func TestServerLogin_StatusBadRequest_WhenNoName(t *testing.T) {
 
 	body, _ := ioutil.ReadAll(response.Body)
 
-	if string(body) != STATUS_MISSING_ID_PW {
+	if string(body) != `{"code":400,"reason":"Missing id and/or password"}` {
 		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_MISSING_ID_PW)
 	}
 }
@@ -704,7 +759,7 @@ func TestServerLogin_StatusBadRequest_WhenNoSecret(t *testing.T) {
 
 	body, _ := ioutil.ReadAll(response.Body)
 
-	if string(body) != STATUS_MISSING_ID_PW {
+	if string(body) != `{"code":400,"reason":"Missing id and/or password"}` {
 		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_MISSING_ID_PW)
 	}
 }
@@ -760,7 +815,7 @@ func TestServerLogin_StatusUnauthorized_WhenSecretWrong(t *testing.T) {
 
 	body, _ := ioutil.ReadAll(response.Body)
 
-	if string(body) != STATUS_PW_WRONG {
+	if string(body) != `{"code":401,"reason":"Wrong password"}` {
 		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_PW_WRONG)
 	}
 }
@@ -892,7 +947,7 @@ func TestValidateLongterm_StatusBadRequest_AuthEmpty(t *testing.T) {
 
 	body, _ := ioutil.ReadAll(response.Body)
 
-	if string(body) != STATUS_MISSING_ID_PW {
+	if string(body) != `{"code":400,"reason":"Missing id and/or password"}` {
 		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_MISSING_ID_PW)
 	}
 }

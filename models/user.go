@@ -3,25 +3,28 @@ package models
 import (
 	"errors"
 	"strings"
+	"time"
 )
 
 type User struct {
-	Id      string                 `json:"userid"   bson:"userid,omitempty"` // map userid to id
-	Name    string                 `json:"username" bson:"username"`
-	Emails  []string               `json:"emails" 	bson:"emails"`
-	PwHash  string                 `json:"-" 		bson:"pwhash"`
-	Hash    string                 `json:"-" 		bson:"userhash"`
-	Private map[string]*IdHashPair `json:"-" 		bson:"private"`
+	Id            string                 `json:"userid"   bson:"userid,omitempty"` // map userid to id
+	Name          string                 `json:"username" bson:"username"`
+	Emails        []string               `json:"emails" 	bson:"emails"`
+	Authenticated bool                   `json:"-" 	bson:"authenticated"`
+	PwHash        string                 `json:"-" 		bson:"pwhash"`
+	Hash          string                 `json:"-" 		bson:"userhash"`
+	Private       map[string]*IdHashPair `json:"-" 		bson:"private"`
 }
 
 /*
  * Incoming user details used to create or update a `User`
  */
 type UserDetail struct {
-	Id     string   //no tag as we aren't getting it from json
-	Name   string   `json:"username"`
-	Emails []string `json:"emails"`
-	Pw     string   `json:"password"`
+	Id            string   //no tag as we aren't getting it from json
+	Name          string   `json:"username"`
+	Emails        []string `json:"emails"`
+	Pw            string   `json:"password"`
+	Authenticated bool     `json:"authenticated"`
 }
 
 func NewUser(details *UserDetail, salt string) (user *User, err error) {
@@ -36,7 +39,18 @@ func NewUser(details *UserDetail, salt string) (user *User, err error) {
 	hash, _ := generateUniqueHash([]string{details.Name, details.Pw, id}, 24)
 	pwHash, _ := GeneratePasswordHash(id, details.Pw, salt)
 
-	return &User{Id: id, Name: details.Name, Emails: details.Emails, Hash: hash, PwHash: pwHash}, nil
+	return &User{Id: id, Name: details.Name, Emails: details.Emails, Hash: hash, PwHash: pwHash, Authenticated: false}, nil
+}
+
+//Child Account are linked to another users account and don't require a password or emails
+func NewChildUser(details *UserDetail, salt string) (user *User, err error) {
+
+	//name hashed from the `nice` name you gave us
+	name, _ := generateUniqueHash([]string{details.Name, time.Now().String()}, 10)
+	id, _ := generateUniqueHash([]string{name}, 10)
+	hash, _ := generateUniqueHash([]string{name, id}, 24)
+
+	return &User{Id: id, Name: name, Emails: details.Emails, Hash: hash, Authenticated: true}, nil
 }
 
 func UserFromDetails(details *UserDetail) (user *User) {
