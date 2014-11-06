@@ -546,16 +546,15 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 }
 
 // status: 200 TP_SESSION_TOKEN,
-// status: 204 STATUS_NO_MATCH
 // status: 400 STATUS_MISSING_ID_PW
-// status: 401 STATUS_PW_WRONG
+// status: 401 STATUS_NO_MATCH
 // status: 500 STATUS_ERR_FINDING_USR
 // status: 500 STATUS_ERR_UPDATING_TOKEN
 func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 	if usr, pw := unpackAuth(req.Header.Get("Authorization")); usr != nil {
 
 		if results, err := a.Store.FindUsers(usr); err != nil {
-			log.Printf("Error trying to find user when logging in [%s]", err.Error())
+			log.Printf("Login %s [%s]", STATUS_ERR_FINDING_USR, err.Error())
 			sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_FINDING_USR), http.StatusInternalServerError)
 			return
 		} else {
@@ -569,7 +568,7 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 							results[i].Id,
 							false,
 						); err != nil {
-							log.Printf("Error trying to update the users token [%s]", err.Error())
+							log.Printf("Login %s [%s]", STATUS_ERR_UPDATING_TOKEN, err.Error())
 							sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_UPDATING_TOKEN), http.StatusInternalServerError)
 							return
 						} else {
@@ -579,16 +578,14 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 							return
 						}
 					}
-					//hmmm
-					sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_PW_WRONG), http.StatusUnauthorized)
-					return
 				}
-			} else {
-				sendModelAsResWithStatus(res, status.NewStatus(http.StatusNoContent, STATUS_NO_MATCH), http.StatusNoContent)
-				return
 			}
+			log.Printf("Login %s [%s] from the [%d] users we found", STATUS_NO_MATCH, usr.Name, len(results))
+			sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_MATCH), http.StatusUnauthorized)
+			return
 		}
 	}
+	log.Printf("Login %s ", STATUS_MISSING_ID_PW)
 	sendModelAsResWithStatus(res, status.NewStatus(http.StatusBadRequest, STATUS_MISSING_ID_PW), http.StatusBadRequest)
 	return
 }
@@ -615,7 +612,6 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 		); err != nil {
 			log.Printf("ServerLogin %s err[%s]", STATUS_MISSING_ID_PW, err.Error())
 			sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENTERATING_TOKEN), http.StatusInternalServerError)
-			return
 			return
 		} else {
 			a.logMetricAsServer("serverlogin", sessionToken.Id, nil)
