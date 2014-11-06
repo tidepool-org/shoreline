@@ -31,25 +31,25 @@ type (
 )
 
 const (
-	TP_SERVER_NAME               = "x-tidepool-server-name"
-	TP_SERVER_SECRET             = "x-tidepool-server-secret"
-	TP_SESSION_TOKEN             = "x-tidepool-session-token"
-	TP_TOKEN_DURATION            = "tokenduration"
-	STATUS_NO_USR_DETAILS        = "No user details were given"
-	STATUS_ERR_FINDING_USR       = "Error finding user"
-	STATUS_ERR_CREATING_USR      = "Error creating the user"
-	STATUS_ERR_UPDATING_USR      = "Error updating user"
-	STATUS_USR_ALREADY_EXISTS    = "User aleady exists"
-	STATUS_ERR_GENTERATING_TOKEN = "Error generating the token"
-	STATUS_ERR_UPDATING_TOKEN    = "Error updating token"
-	STATUS_MISSING_USR_DETAILS   = "Not all required details were given"
-	STATUS_ERROR_UPDATING_PW     = "Error updating password"
-	STATUS_MISSING_ID_PW         = "Missing id and/or password"
-	STATUS_NO_MATCH              = "No user matched the given details"
-	STATUS_NO_TOKEN_MATCH        = "No token matched the given details"
-	STATUS_PW_WRONG              = "Wrong password"
-	STATUS_ERR_SENDING_EMAIL     = "Error sending email"
-	STATUS_NO_TOKEN              = "No x-tidepool-session-token was found"
+	TP_SERVER_NAME              = "x-tidepool-server-name"
+	TP_SERVER_SECRET            = "x-tidepool-server-secret"
+	TP_SESSION_TOKEN            = "x-tidepool-session-token"
+	TP_TOKEN_DURATION           = "tokenduration"
+	STATUS_NO_USR_DETAILS       = "No user details were given"
+	STATUS_ERR_FINDING_USR      = "Error finding user"
+	STATUS_ERR_CREATING_USR     = "Error creating the user"
+	STATUS_ERR_UPDATING_USR     = "Error updating user"
+	STATUS_USR_ALREADY_EXISTS   = "User aleady exists"
+	STATUS_ERR_GENERATING_TOKEN = "Error generating the token"
+	STATUS_ERR_UPDATING_TOKEN   = "Error updating token"
+	STATUS_MISSING_USR_DETAILS  = "Not all required details were given"
+	STATUS_ERROR_UPDATING_PW    = "Error updating password"
+	STATUS_MISSING_ID_PW        = "Missing id and/or password"
+	STATUS_NO_MATCH             = "No user matched the given details"
+	STATUS_NO_TOKEN_MATCH       = "No token matched the given details"
+	STATUS_PW_WRONG             = "Wrong password"
+	STATUS_ERR_SENDING_EMAIL    = "Error sending email"
+	STATUS_NO_TOKEN             = "No x-tidepool-session-token was found"
 )
 
 func InitApi(cfg Config, store clients.StoreClient, metrics highwater.Client) *Api {
@@ -239,8 +239,8 @@ func (a *Api) addUserAndSendStatus(user *models.User, res http.ResponseWriter, r
 		return
 	}
 	if sessionToken, err := a.createAndSaveToken(tokenDuration(req), user.Id, false); err != nil {
-		log.Printf("addUserAndSendStatus %s err[%s]", STATUS_ERR_GENTERATING_TOKEN, err.Error())
-		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENTERATING_TOKEN), http.StatusInternalServerError)
+		log.Printf("addUserAndSendStatus %s err[%s]", STATUS_ERR_GENERATING_TOKEN, err.Error())
+		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN), http.StatusInternalServerError)
 		return
 	} else {
 		a.logMetric("usercreated", sessionToken.Id, nil)
@@ -289,7 +289,7 @@ func (a *Api) GetStatus(res http.ResponseWriter, req *http.Request) {
 // status: 201 User
 // status: 400 STATUS_MISSING_USR_DETAILS
 // status: 409 STATUS_USR_ALREADY_EXISTS
-// status: 500 STATUS_ERR_GENTERATING_TOKEN
+// status: 500 STATUS_ERR_GENERATING_TOKEN
 func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 
 	if usrDetails := getUserDetail(req); usrDetails != nil {
@@ -317,7 +317,7 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 
 // status: 201 User
 // status: 400 STATUS_MISSING_USR_DETAILS
-// status: 500 STATUS_ERR_GENTERATING_TOKEN
+// status: 500 STATUS_ERR_GENERATING_TOKEN
 func (a *Api) CreateChildUser(res http.ResponseWriter, req *http.Request) {
 
 	if usrDetails := getUserDetail(req); usrDetails != nil {
@@ -611,7 +611,7 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 			true,
 		); err != nil {
 			log.Printf("ServerLogin %s err[%s]", STATUS_MISSING_ID_PW, err.Error())
-			sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENTERATING_TOKEN), http.StatusInternalServerError)
+			sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN), http.StatusInternalServerError)
 			return
 		} else {
 			a.logMetricAsServer("serverlogin", sessionToken.Id, nil)
@@ -626,7 +626,7 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 
 // status: 200 TP_SESSION_TOKEN, TokenData
 // status: 401 STATUS_NO_TOKEN
-// status: 500 STATUS_ERR_GENTERATING_TOKEN
+// status: 500 STATUS_ERR_GENERATING_TOKEN
 func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 
 	if td := a.getUnpackedToken(req.Header.Get(TP_SESSION_TOKEN)); td != nil {
@@ -643,8 +643,8 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 			td.UserId,
 			td.IsServer,
 		); err != nil {
-			log.Printf("RefreshSession %s err[%s]", STATUS_ERR_GENTERATING_TOKEN, err.Error())
-			sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENTERATING_TOKEN), http.StatusInternalServerError)
+			log.Printf("RefreshSession %s err[%s]", STATUS_ERR_GENERATING_TOKEN, err.Error())
+			sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN), http.StatusInternalServerError)
 			return
 		} else {
 			res.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
