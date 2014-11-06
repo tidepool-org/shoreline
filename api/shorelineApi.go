@@ -593,7 +593,7 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 // status: 200 TP_SESSION_TOKEN
 // status: 400 STATUS_MISSING_ID_PW
 // status: 401 STATUS_PW_WRONG
-// status: 500 STATUS_ERR_UPDATING_TOKEN
+// status: 500 STATUS_ERR_GENERATING_TOKEN
 func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 
 	server, pw := req.Header.Get(TP_SERVER_NAME), req.Header.Get(TP_SERVER_SECRET)
@@ -610,7 +610,7 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 			server,
 			true,
 		); err != nil {
-			log.Printf("ServerLogin %s err[%s]", STATUS_MISSING_ID_PW, err.Error())
+			log.Printf("ServerLogin %s err[%s]", STATUS_ERR_GENERATING_TOKEN, err.Error())
 			sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN), http.StatusInternalServerError)
 			return
 		} else {
