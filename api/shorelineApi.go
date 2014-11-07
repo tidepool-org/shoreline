@@ -559,6 +559,8 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 			return
 		} else {
 			if len(results) > 0 {
+				matched := false
+			PwCheck:
 				for i := range results {
 					//ensure a pw match
 					if results[i] != nil && results[i].PwsMatch(pw, a.Config.Salt) {
@@ -570,14 +572,19 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 						); err != nil {
 							log.Printf("Login %s [%s]", STATUS_ERR_UPDATING_TOKEN, err.Error())
 							sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_UPDATING_TOKEN), http.StatusInternalServerError)
-							return
+							break PwCheck
 						} else {
 							a.logMetric("userlogin", sessionToken.Id, nil)
 							res.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
 							sendModelAsRes(res, results[i])
-							return
+							matched = true
+							break PwCheck
 						}
 					}
+				}
+				if matched {
+					//we are done
+					return
 				}
 			}
 			log.Printf("Login %s [%s] from the [%d] users we found", STATUS_NO_MATCH, usr.Name, len(results))
