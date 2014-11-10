@@ -545,6 +545,24 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 	return
 }
 
+// do the actual Login for this user
+func (a *Api) performLogin(usr *models.User, res http.ResponseWriter, req *http.Request) {
+	if sessionToken, err := a.createAndSaveToken(
+		tokenDuration(req),
+		usr.Id,
+		false,
+	); err != nil {
+		log.Printf("Login %s [%s]", STATUS_ERR_UPDATING_TOKEN, err.Error())
+		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_UPDATING_TOKEN), http.StatusInternalServerError)
+		return
+	} else {
+		a.logMetric("userlogin", sessionToken.Id, nil)
+		res.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
+		sendModelAsRes(res, usr)
+		return
+	}
+}
+
 // status: 200 TP_SESSION_TOKEN,
 // status: 400 STATUS_MISSING_ID_PW
 // status: 401 STATUS_NO_MATCH
@@ -559,33 +577,21 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 			return
 		} else {
 			if len(results) > 0 {
-				matched := false
-			PwCheck:
+				var usr *models.User
 				for i := range results {
 					//ensure a pw match
 					if results[i] != nil && results[i].PwsMatch(pw, a.Config.Salt) {
 						//a match so login
-						if sessionToken, err := a.createAndSaveToken(
-							tokenDuration(req),
-							results[i].Id,
-							false,
-						); err != nil {
-							log.Printf("Login %s [%s]", STATUS_ERR_UPDATING_TOKEN, err.Error())
-							sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_UPDATING_TOKEN), http.StatusInternalServerError)
-							break PwCheck
-						} else {
-							a.logMetric("userlogin", sessionToken.Id, nil)
-							res.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
-							sendModelAsRes(res, results[i])
-							matched = true
-							break PwCheck
-						}
+						usr = results[i]
+						break
 					}
 				}
-				if matched {
-					//we are done
+				if usr != nil {
+					log.Printf("Login has found a match [%v]", usr)
+					a.performLogin(usr, res, req)
 					return
 				}
+				log.Print("Login has no a match from the [%d] users we found", len(results))
 			}
 			log.Printf("Login %s [%s] from the [%d] users we found", STATUS_NO_MATCH, usr.Name, len(results))
 			sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_MATCH), http.StatusUnauthorized)
