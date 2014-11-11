@@ -549,7 +549,7 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 }
 
 // do the actual Login for this user
-func (a *Api) performLogin(usr *models.User, res http.ResponseWriter, req *http.Request) {
+func (a *Api) doLogin(usr *models.User, res http.ResponseWriter, req *http.Request) {
 	if sessionToken, err := a.createAndSaveToken(
 		tokenDuration(req),
 		usr.Id,
@@ -578,28 +578,22 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 			log.Printf("Login %s [%s]", STATUS_ERR_FINDING_USR, err.Error())
 			sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_FINDING_USR), http.StatusInternalServerError)
 			return
-		} else {
-			if len(results) > 0 {
-				var usr *models.User
-				for i := range results {
-					//ensure a pw match
-					if results[i] != nil && results[i].PwsMatch(pw, a.Config.Salt) {
-						//a match so login
-						usr = results[i]
-						break
-					}
-				}
-				if usr != nil {
-					log.Printf("Login has found a match [%v]", usr)
-					a.performLogin(usr, res, req)
+		} else if len(results) > 0 {
+			for i := range results {
+				if results[i] != nil && results[i].PwsMatch(pw, a.Config.Salt) {
+					doLogin(results[i], res, req)
 					return
 				}
-				log.Print("Login has no a match from the [%d] users we found", len(results))
 			}
 			log.Printf("Login %s [%s] from the [%d] users we found", STATUS_NO_MATCH, usr.Name, len(results))
 			sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_MATCH), http.StatusUnauthorized)
 			return
+		} else {
+			log.Printf("Login %s for [%s]", STATUS_NO_MATCH, usr.Name)
+			sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_MATCH), http.StatusUnauthorized)
+			return
 		}
+
 	}
 	log.Printf("Login %s ", STATUS_MISSING_ID_PW)
 	sendModelAsResWithStatus(res, status.NewStatus(http.StatusBadRequest, STATUS_MISSING_ID_PW), http.StatusBadRequest)
