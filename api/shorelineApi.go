@@ -128,6 +128,7 @@ func (a *Api) logMetric(name, token string, params map[string]string) {
 	}
 	log.Printf("log metric name[%s] params[%v]", name, params)
 	a.metrics.PostThisUser(name, token, params)
+	return
 }
 
 //send metric
@@ -141,6 +142,7 @@ func (a *Api) logMetricAsServer(name, token string, params map[string]string) {
 	}
 	log.Printf("log metric as server name[%s] params[%v]", name, params)
 	a.metrics.PostServer(name, token, params)
+	return
 }
 
 //send metric
@@ -154,6 +156,7 @@ func (a *Api) logMetricForUser(id, name, token string, params map[string]string)
 	}
 	log.Printf("log metric id[%s] name[%s] params[%v]", id, name, params)
 	a.metrics.PostWithUser(id, name, token, params)
+	return
 }
 
 //get the token from the req header
