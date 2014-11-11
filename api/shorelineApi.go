@@ -578,22 +578,34 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 			log.Printf("Login %s [%s]", STATUS_ERR_FINDING_USR, err.Error())
 			sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_FINDING_USR), http.StatusInternalServerError)
 			return
-		} else if len(results) > 0 {
-			for i := range results {
-				if results[i] != nil && results[i].PwsMatch(pw, a.Config.Salt) {
-					a.doLogin(results[i], res, req)
+		} else {
+			if len(results) > 0 {
+				for i := range results {
+					if results[i] != nil && results[i].PwsMatch(pw, a.Config.Salt) {
+						if sessionToken, err := a.createAndSaveToken(
+							tokenDuration(req),
+							results[i].Id,
+							false,
+						); err != nil {
+							log.Printf("Login %s [%s]", STATUS_ERR_UPDATING_TOKEN, err.Error())
+							sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_UPDATING_TOKEN), http.StatusInternalServerError)
+							return
+						} else {
+							a.logMetric("userlogin", sessionToken.Id, nil)
+							res.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
+							sendModelAsRes(res, results[i])
+							return
+						}
+					}
+					log.Printf("Login %s [%s] from the [%d] users we found", STATUS_NO_MATCH, usr.Name, len(results))
+					sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_MATCH), http.StatusUnauthorized)
 					return
 				}
 			}
-			log.Printf("Login %s [%s] from the [%d] users we found", STATUS_NO_MATCH, usr.Name, len(results))
-			sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_MATCH), http.StatusUnauthorized)
-			return
-		} else {
 			log.Printf("Login %s for [%s]", STATUS_NO_MATCH, usr.Name)
 			sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_MATCH), http.StatusUnauthorized)
 			return
 		}
-
 	}
 	log.Printf("Login %s ", STATUS_MISSING_ID_PW)
 	sendModelAsResWithStatus(res, status.NewStatus(http.StatusBadRequest, STATUS_MISSING_ID_PW), http.StatusBadRequest)
