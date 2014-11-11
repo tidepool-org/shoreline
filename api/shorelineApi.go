@@ -127,7 +127,7 @@ func (a *Api) logMetric(name, token string, params map[string]string) {
 		params = make(map[string]string)
 	}
 	log.Printf("log metric name[%s] params[%v]", name, params)
-	a.metrics.PostThisUser(name, token, params)
+	//a.metrics.PostThisUser(name, token, params)
 	return
 }
 
@@ -141,7 +141,7 @@ func (a *Api) logMetricAsServer(name, token string, params map[string]string) {
 		params = make(map[string]string)
 	}
 	log.Printf("log metric as server name[%s] params[%v]", name, params)
-	a.metrics.PostServer(name, token, params)
+	//a.metrics.PostServer(name, token, params)
 	return
 }
 
@@ -155,7 +155,7 @@ func (a *Api) logMetricForUser(id, name, token string, params map[string]string)
 		params = make(map[string]string)
 	}
 	log.Printf("log metric id[%s] name[%s] params[%v]", id, name, params)
-	a.metrics.PostWithUser(id, name, token, params)
+	//a.metrics.PostWithUser(id, name, token, params)
 	return
 }
 
@@ -546,24 +546,6 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 	}
 	res.WriteHeader(http.StatusUnauthorized)
 	return
-}
-
-// do the actual Login for this user
-func (a *Api) doLogin(usr *models.User, res http.ResponseWriter, req *http.Request) {
-	if sessionToken, err := a.createAndSaveToken(
-		tokenDuration(req),
-		usr.Id,
-		false,
-	); err != nil {
-		log.Printf("Login %s [%s]", STATUS_ERR_UPDATING_TOKEN, err.Error())
-		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_UPDATING_TOKEN), http.StatusInternalServerError)
-		return
-	} else {
-		a.logMetric("userlogin", sessionToken.Id, nil)
-		res.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
-		sendModelAsRes(res, usr)
-		return
-	}
 }
 
 // status: 200 TP_SESSION_TOKEN,
