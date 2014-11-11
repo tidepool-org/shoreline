@@ -581,7 +581,7 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 		} else if len(results) > 0 {
 			for i := range results {
 				if results[i] != nil && results[i].PwsMatch(pw, a.Config.Salt) {
-					doLogin(results[i], res, req)
+					a.doLogin(results[i], res, req)
 					return
 				}
 			}
