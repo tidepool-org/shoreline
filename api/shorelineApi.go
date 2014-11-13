@@ -349,92 +349,96 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 	if td := a.getUnpackedToken(req.Header.Get(TP_SESSION_TOKEN)); td != nil {
 
 		var (
-			id string
 			//structure that the update are given to us in
 			updatesToApply struct {
 				Updates *models.UserDetail `json:"updates"`
 			}
 		)
 
-		id = vars["userid"]
+		usrId := vars["userid"]
 
-		if id == "" {
-			id = td.UserId
+		if usrId == "" && td.UserId == "" {
+			//go no further
+			log.Printf("UpdateUser id [%s] token id [%s] ", usrId, td.UserId)
+			log.Printf("UpdateUser %s ", STATUS_NO_USR_DETAILS)
+			sendModelAsResWithStatus(res, status.NewStatus(http.StatusBadRequest, STATUS_NO_USR_DETAILS), http.StatusBadRequest)
+			return
+		} else if usrId == "" && td.UserId != "" {
+			//use the id from the token
+			usrId = td.UserId
 		}
 
-		if id != "" { // get out quick
+		if req.ContentLength > 0 {
+			_ = json.NewDecoder(req.Body).Decode(&updatesToApply)
+		}
 
-			if req.ContentLength > 0 {
-				_ = json.NewDecoder(req.Body).Decode(&updatesToApply)
-			}
+		if updatesToApply.Updates != nil {
 
-			if updatesToApply.Updates != nil {
+			log.Printf("UpdateUser: applying updates ... [%v]", updatesToApply.Updates)
 
-				usrToFind := models.UserFromDetails(&models.UserDetail{Id: id, Emails: []string{id}})
+			usrToFind := models.UserFromDetails(&models.UserDetail{Id: usrId, Emails: []string{usrId}})
 
-				if userToUpdate, err := a.Store.FindUser(usrToFind); err != nil {
-					log.Printf("UpdateUser %s err[%s]", STATUS_ERR_FINDING_USR, err.Error())
-					sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_FINDING_USR), http.StatusInternalServerError)
-					return
-				} else if userToUpdate != nil {
+			log.Printf("UpdateUser: updating ... [%v]", usrToFind)
 
-					//Authenticate
-					if userToUpdate.Authenticated == false && updatesToApply.Updates.Authenticated {
-						userToUpdate.Authenticated = updatesToApply.Updates.Authenticated
+			if userToUpdate, err := a.Store.FindUser(usrToFind); err != nil {
+				log.Printf("UpdateUser %s err[%s]", STATUS_ERR_FINDING_USR, err.Error())
+				sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_FINDING_USR), http.StatusInternalServerError)
+				return
+			} else if userToUpdate != nil {
+
+				//Authenticate
+				if userToUpdate.Authenticated == false && updatesToApply.Updates.Authenticated {
+					userToUpdate.Authenticated = updatesToApply.Updates.Authenticated
+				}
+
+				//Name and/or Emails and perform dups check
+				if updatesToApply.Updates.Name != "" || len(updatesToApply.Updates.Emails) > 0 {
+					dupCheck := models.UserFromDetails(&models.UserDetail{})
+					if updatesToApply.Updates.Name != "" {
+						userToUpdate.Name = updatesToApply.Updates.Name
+						dupCheck.Name = userToUpdate.Name
 					}
-
-					//Name and/or Emails and perform dups check
-					if updatesToApply.Updates.Name != "" || len(updatesToApply.Updates.Emails) > 0 {
-						dupCheck := models.UserFromDetails(&models.UserDetail{})
-						if updatesToApply.Updates.Name != "" {
-							userToUpdate.Name = updatesToApply.Updates.Name
-							dupCheck.Name = userToUpdate.Name
-						}
-						if len(updatesToApply.Updates.Emails) > 0 {
-							userToUpdate.Emails = updatesToApply.Updates.Emails
-							dupCheck.Emails = userToUpdate.Emails
-						}
-						//check if unique
-						if results, err := a.Store.FindUsers(dupCheck); err != nil {
-							log.Printf("UpdateUser %s err[%s]", STATUS_ERR_FINDING_USR, err.Error())
-							sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_FINDING_USR), http.StatusInternalServerError)
-							return
-						} else if len(results) > 0 {
-							log.Printf("UpdateUser %s ", STATUS_USR_ALREADY_EXISTS)
-							sendModelAsResWithStatus(res, status.NewStatus(http.StatusConflict, STATUS_USR_ALREADY_EXISTS), http.StatusConflict)
-							return
-						}
+					if len(updatesToApply.Updates.Emails) > 0 {
+						userToUpdate.Emails = updatesToApply.Updates.Emails
+						dupCheck.Emails = userToUpdate.Emails
 					}
-					//Rehash the pw if needed
-					if updatesToApply.Updates.Pw != "" {
-
-						if err := userToUpdate.HashPassword(updatesToApply.Updates.Pw, a.Config.Salt); err != nil {
-							log.Printf("UpdateUser %s err[%s]", STATUS_ERR_UPDATING_USR, err.Error())
-							sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_UPDATING_USR), http.StatusInternalServerError)
-							return
-						}
-					}
-
-					//All good - now update
-					if err := a.Store.UpsertUser(userToUpdate); err != nil {
-						log.Printf("UpdateUser %s err[%s]", STATUS_ERR_UPDATING_USR, err.Error())
-						sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_UPDATING_USR), http.StatusInternalServerError)
+					//check if unique
+					if results, err := a.Store.FindUsers(dupCheck); err != nil {
+						log.Printf("UpdateUser %s err[%s]", STATUS_ERR_FINDING_USR, err.Error())
+						sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_FINDING_USR), http.StatusInternalServerError)
 						return
-					} else {
-						if td.IsServer {
-							a.logMetricForUser(id, "userupdated", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "true"})
-						} else {
-							a.logMetric("userupdated", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "false"})
-						}
-						res.WriteHeader(http.StatusOK)
+					} else if len(results) > 0 {
+						log.Printf("UpdateUser %s ", STATUS_USR_ALREADY_EXISTS)
+						sendModelAsResWithStatus(res, status.NewStatus(http.StatusConflict, STATUS_USR_ALREADY_EXISTS), http.StatusConflict)
 						return
 					}
 				}
+				//Rehash the pw if needed
+				if updatesToApply.Updates.Pw != "" {
+
+					if err := userToUpdate.HashPassword(updatesToApply.Updates.Pw, a.Config.Salt); err != nil {
+						log.Printf("UpdateUser %s err[%s]", STATUS_ERR_UPDATING_USR, err.Error())
+						sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_UPDATING_USR), http.StatusInternalServerError)
+						return
+					}
+				}
+
+				//All good - now update
+				if err := a.Store.UpsertUser(userToUpdate); err != nil {
+					log.Printf("UpdateUser %s err[%s]", STATUS_ERR_UPDATING_USR, err.Error())
+					sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_UPDATING_USR), http.StatusInternalServerError)
+					return
+				} else {
+					if td.IsServer {
+						a.logMetricForUser(usrId, "userupdated", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "true"})
+					} else {
+						a.logMetric("userupdated", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "false"})
+					}
+					res.WriteHeader(http.StatusOK)
+					return
+				}
 			}
 		}
-		log.Printf("UpdateUser %s ", STATUS_NO_USR_DETAILS)
-		sendModelAsResWithStatus(res, status.NewStatus(http.StatusBadRequest, STATUS_NO_USR_DETAILS), http.StatusBadRequest)
-		return
 	}
 	res.WriteHeader(http.StatusUnauthorized)
 	return
@@ -487,9 +491,12 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 						}
 					} else*/
 				if len(results) == 1 {
+					log.Printf("found user [%v]", results[0])
 					sendModelAsRes(res, results[0])
 					return
 				}
+
+				log.Printf("found users [%v]", results)
 				sendModelsAsRes(res, results)
 				return
 			}
