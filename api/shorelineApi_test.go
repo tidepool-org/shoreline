@@ -250,27 +250,6 @@ func TestUpdateUser_StatusUnauthorized_WhenNoToken(t *testing.T) {
 	}
 }
 
-func TestUpdateUser_StatusBadRequest_WhenNoUpdates(t *testing.T) {
-	request, _ := http.NewRequest("PUT", "/user", nil)
-	request.Header.Add("content-type", "application/json")
-	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
-	response := httptest.NewRecorder()
-
-	shoreline.SetHandlers("", rtr)
-
-	shoreline.UpdateUser(response, request, NO_PARAMS)
-
-	if response.Code != http.StatusBadRequest {
-		t.Fatalf("Non-expected status code %v:\n\tbody: %v", "400", response.Code)
-	}
-
-	body, _ := ioutil.ReadAll(response.Body)
-
-	if string(body) != `{"code":400,"reason":"No user details were given"}` {
-		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_NO_USR_DETAILS)
-	}
-}
-
 func TestUpdateUser_IdFromToken_StatusOK(t *testing.T) {
 
 	shorelineNoDups.SetHandlers("", rtr)
