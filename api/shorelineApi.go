@@ -660,10 +660,10 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 func (a *Api) LongtermLogin(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 
 	const (
-		DAY_AS_MILLI = 1 * 24 * 60 * 60
+		DAY_AS_SECS = 1 * 24 * 60 * 60
 	)
 	log.Print("LongtermLogin: logging in using the longtermkey")
-	duration := a.Config.LongTermDaysDuration * DAY_AS_MILLI
+	duration := a.Config.LongTermDaysDuration * DAY_AS_SECS
 	longtermkey := vars["longtermkey"]
 
 	if longtermkey == a.Config.LongTermKey {
