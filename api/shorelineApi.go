@@ -22,10 +22,11 @@ type (
 		metrics highwater.Client
 	}
 	Config struct {
-		ServerSecret string `json:"serverSecret"` //used for services
-		LongTermKey  string `json:"longTermKey"`
-		Salt         string `json:"salt"`      //used for pw
-		Secret       string `json:"apiSecret"` //used for token
+		ServerSecret         string `json:"serverSecret"` //used for services
+		LongTermKey          string `json:"longTermKey"`
+		LongTermDaysDuration int    `json:"longTermDaysDuration"`
+		Salt                 string `json:"salt"`      //used for pw
+		Secret               string `json:"apiSecret"` //used for token
 	}
 	varsHandler func(http.ResponseWriter, *http.Request, map[string]string)
 )
@@ -34,7 +35,6 @@ const (
 	TP_SERVER_NAME              = "x-tidepool-server-name"
 	TP_SERVER_SECRET            = "x-tidepool-server-secret"
 	TP_SESSION_TOKEN            = "x-tidepool-session-token"
-	TP_TOKEN_DURATION           = "tokenduration"
 	STATUS_NO_USR_DETAILS       = "No user details were given"
 	STATUS_ERR_FINDING_USR      = "Error finding user"
 	STATUS_ERR_CREATING_USR     = "Error creating the user"
@@ -169,18 +169,6 @@ func (a *Api) getUnpackedToken(tokenString string) *models.TokenData {
 	return nil
 }
 
-//has a duration been set?
-func tokenDuration(req *http.Request) (dur float64) {
-
-	durString := req.Header.Get(TP_TOKEN_DURATION)
-
-	if durString != "" {
-		dur, _ = strconv.ParseFloat(durString, 64)
-	}
-
-	return dur
-}
-
 // Extract the username and password from the authorization
 // line of an HTTP header. This function will handle the
 // parsing and decoding of the line.
@@ -193,7 +181,7 @@ func unpackAuth(authLine string) (usr *models.User, pw string) {
 		} else {
 			details := strings.Split(string(decodedPayload), ":")
 			if details[0] != "" || details[1] != "" {
-				//Note the incoming `name` coule infact be id, email or the username
+				//Note the incoming `name` could infact be id, email or the username
 				return models.UserFromDetails(&models.UserDetail{Id: details[0], Name: details[0], Emails: []string{details[0]}}), details[1]
 			}
 		}
@@ -644,13 +632,12 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 		const TWO_HOURS_IN_SECS = 60 * 60 * 2
 
 		if td.IsServer == false && td.DurationSecs > TWO_HOURS_IN_SECS {
-			//long-duration, it's not renewable, so just return it
-			sendModelAsRes(res, td)
-			return
+			//long-duration let us know detail and keep it rolling
+			log.Printf("RefreshSession this is a long-duration token set for [%f] ", td.DurationSecs)
 		}
 		//refresh
 		if sessionToken, err := a.createAndSaveToken(
-			tokenDuration(req),
+			td.DurationSecs,
 			td.UserId,
 			td.IsServer,
 		); err != nil {
@@ -673,12 +660,18 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 func (a *Api) LongtermLogin(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 
 	const (
-		THIRTY_DAYS = 30 * 24 * 60 * 60
+		DAY_AS_MILLI = 1 * 24 * 60 * 60
 	)
+	log.Print("LongtermLogin: logging in using the longtermkey")
+	duration := a.Config.LongTermDaysDuration * DAY_AS_MILLI
 	longtermkey := vars["longtermkey"]
 
 	if longtermkey == a.Config.LongTermKey {
-		req.Header.Add(TP_TOKEN_DURATION, string(THIRTY_DAYS))
+		log.Printf("LongtermLogin: setting the duration of the token as [%d] ", duration)
+		req.Header.Add(TP_TOKEN_DURATION, strconv.FormatFloat(float64(duration), 'f', -1, 64))
+	} else {
+		//tell us there was no match
+		log.Printf("LongtermLogin: tried to login using the longtermkey [%s] but it didn't match the stored key ", longtermkey)
 	}
 
 	//and now login
