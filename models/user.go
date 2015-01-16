@@ -73,3 +73,7 @@ func (u *User) PwsMatch(pw, salt string) bool {
 	}
 	return false
 }
+
+func (u *User) IsAuthenticated() bool {
+	return u.Authenticated
+}
