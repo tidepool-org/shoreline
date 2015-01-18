@@ -1,13 +1,13 @@
 package clients
 
 import (
-	"./../models"
-	"encoding/json"
-	"github.com/tidepool-org/go-common/clients/mongo"
-	"io/ioutil"
-	"labix.org/v2/mgo"
 	"strings"
 	"testing"
+
+	"github.com/tidepool-org/go-common/clients/mongo"
+	"labix.org/v2/mgo"
+
+	"./../models"
 )
 
 func TestMongoStoreUserOperations(t *testing.T) {
