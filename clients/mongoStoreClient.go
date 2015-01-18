@@ -16,8 +16,6 @@ const (
 
 type MongoStoreClient struct {
 	session *mgo.Session
-	usersC  *mgo.Collection
-	tokensC *mgo.Collection
 }
 
 func NewMongoStoreClient(config *mongo.Config) *MongoStoreClient {
@@ -29,9 +27,17 @@ func NewMongoStoreClient(config *mongo.Config) *MongoStoreClient {
 
 	return &MongoStoreClient{
 		session: mongoSession,
-		usersC:  mongoSession.DB("").C(USERS_COLLECTION),
-		tokensC: mongoSession.DB("").C(TOKENS_COLLECTION),
 	}
+}
+
+//wrapper to get the Users collection
+func getUsersCollection(sessionCpy *mgo.Session) *mgo.Collection {
+	return sessionCpy.DB("").C(USERS_COLLECTION)
+}
+
+//wrapper to get the Tokens collection
+func getTokensCollection(sessionCpy *mgo.Session) *mgo.Collection {
+	return sessionCpy.DB("").C(TOKENS_COLLECTION)
 }
 
 func (d MongoStoreClient) Close() {
@@ -50,8 +56,13 @@ func (d MongoStoreClient) Ping() error {
 
 func (d MongoStoreClient) UpsertUser(user *models.User) error {
 
+	cpy := d.session
+	defer cpy.Close()
+
+	usersC := getUsersCollection(cpy)
+
 	// if the user already exists we update otherwise we add
-	if _, err := d.usersC.Upsert(bson.M{"userid": user.Id}, user); err != nil {
+	if _, err := usersC.Upsert(bson.M{"userid": user.Id}, user); err != nil {
 		return err
 	}
 	return nil
@@ -59,8 +70,13 @@ func (d MongoStoreClient) UpsertUser(user *models.User) error {
 
 func (d MongoStoreClient) FindUser(user *models.User) (result *models.User, err error) {
 
+	cpy := d.session
+	defer cpy.Close()
+
+	usersC := getUsersCollection(cpy)
+
 	if user.Id != "" {
-		if err = d.usersC.Find(bson.M{"userid": user.Id}).One(&result); err != nil {
+		if err = usersC.Find(bson.M{"userid": user.Id}).One(&result); err != nil {
 			return result, err
 		}
 	}
@@ -86,7 +102,12 @@ func (d MongoStoreClient) FindUsers(user *models.User) (results []*models.User, 
 		fieldsToMatch = append(fieldsToMatch, bson.M{"emails": bson.M{"$in": user.Emails}})
 	}
 
-	if err = d.usersC.Find(bson.M{"$or": fieldsToMatch}).All(&results); err != nil {
+	cpy := d.session
+	defer cpy.Close()
+
+	usersC := getUsersCollection(cpy)
+
+	if err = usersC.Find(bson.M{"$or": fieldsToMatch}).All(&results); err != nil {
 		return results, err
 	}
 
@@ -99,7 +120,12 @@ func (d MongoStoreClient) FindUsers(user *models.User) (results []*models.User, 
 }
 
 func (d MongoStoreClient) RemoveUser(user *models.User) (err error) {
-	if err = d.usersC.Remove(bson.M{"userid": user.Id}); err != nil {
+	cpy := d.session
+	defer cpy.Close()
+
+	usersC := getUsersCollection(cpy)
+
+	if err = usersC.Remove(bson.M{"userid": user.Id}); err != nil {
 		return err
 	}
 	return nil
@@ -108,7 +134,12 @@ func (d MongoStoreClient) RemoveUser(user *models.User) (err error) {
 func (d MongoStoreClient) AddToken(st *models.SessionToken) error {
 	//map to the structure we want to save to mongo as
 	token := bson.M{"_id": st.Id, "time": st.Time}
-	if _, err := d.tokensC.Upsert(bson.M{"_id": st.Id}, token); err != nil {
+	cpy := d.session
+	defer cpy.Close()
+
+	tokensC := getTokensCollection(cpy)
+
+	if _, err := tokensC.Upsert(bson.M{"_id": st.Id}, token); err != nil {
 		return err
 	}
 	return nil
@@ -117,7 +148,12 @@ func (d MongoStoreClient) AddToken(st *models.SessionToken) error {
 func (d MongoStoreClient) FindToken(st *models.SessionToken) (*models.SessionToken, error) {
 
 	var result map[string]interface{}
-	if err := d.tokensC.Find(bson.M{"_id": st.Id}).One(&result); err != nil {
+	cpy := d.session
+	defer cpy.Close()
+
+	tokensC := getTokensCollection(cpy)
+
+	if err := tokensC.Find(bson.M{"_id": st.Id}).One(&result); err != nil {
 		return nil, err
 	}
 	//map to the token structure the service uses
@@ -127,7 +163,12 @@ func (d MongoStoreClient) FindToken(st *models.SessionToken) (*models.SessionTok
 }
 
 func (d MongoStoreClient) RemoveToken(st *models.SessionToken) (err error) {
-	if err = d.tokensC.Remove(bson.M{"_id": st.Id}); err != nil {
+
+	cpy := d.session
+	defer cpy.Close()
+
+	tokensC := getTokensCollection(cpy)
+	if err = tokensC.Remove(bson.M{"_id": st.Id}); err != nil {
 		return err
 	}
 	return nil
