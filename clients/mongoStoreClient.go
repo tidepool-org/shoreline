@@ -16,8 +16,6 @@ const (
 
 type MongoStoreClient struct {
 	session *mgo.Session
-	usersC  *mgo.Collection
-	tokensC *mgo.Collection
 }
 
 func NewMongoStoreClient(config *mongo.Config) *MongoStoreClient {
@@ -29,9 +27,15 @@ func NewMongoStoreClient(config *mongo.Config) *MongoStoreClient {
 
 	return &MongoStoreClient{
 		session: mongoSession,
-		usersC:  mongoSession.DB("").C(USERS_COLLECTION),
-		tokensC: mongoSession.DB("").C(TOKENS_COLLECTION),
 	}
+}
+
+func mgoUsersCollection(cpy *mgo.Session) *mgo.Collection {
+	return cpy.DB("").C(USERS_COLLECTION)
+}
+
+func mgoTokensCollection(cpy *mgo.Session) *mgo.Collection {
+	return cpy.DB("").C(TOKENS_COLLECTION)
 }
 
 func (d MongoStoreClient) Close() {
@@ -50,8 +54,11 @@ func (d MongoStoreClient) Ping() error {
 
 func (d MongoStoreClient) UpsertUser(user *models.User) error {
 
+	cpy := d.session.Copy()
+	defer cpy.Close()
+
 	// if the user already exists we update otherwise we add
-	if _, err := d.usersC.Upsert(bson.M{"userid": user.Id}, user); err != nil {
+	if _, err := mgoUsersCollection(cpy).Upsert(bson.M{"userid": user.Id}, user); err != nil {
 		return err
 	}
 	return nil
@@ -60,7 +67,10 @@ func (d MongoStoreClient) UpsertUser(user *models.User) error {
 func (d MongoStoreClient) FindUser(user *models.User) (result *models.User, err error) {
 
 	if user.Id != "" {
-		if err = d.usersC.Find(bson.M{"userid": user.Id}).One(&result); err != nil {
+		cpy := d.session.Copy()
+		defer cpy.Close()
+
+		if err = mgoUsersCollection(cpy).Find(bson.M{"userid": user.Id}).One(&result); err != nil {
 			return result, err
 		}
 	}
@@ -86,7 +96,10 @@ func (d MongoStoreClient) FindUsers(user *models.User) (results []*models.User, 
 		fieldsToMatch = append(fieldsToMatch, bson.M{"emails": bson.M{"$in": user.Emails}})
 	}
 
-	if err = d.usersC.Find(bson.M{"$or": fieldsToMatch}).All(&results); err != nil {
+	cpy := d.session.Copy()
+	defer cpy.Close()
+
+	if err = mgoUsersCollection(cpy).Find(bson.M{"$or": fieldsToMatch}).All(&results); err != nil {
 		return results, err
 	}
 
@@ -99,7 +112,10 @@ func (d MongoStoreClient) FindUsers(user *models.User) (results []*models.User, 
 }
 
 func (d MongoStoreClient) RemoveUser(user *models.User) (err error) {
-	if err = d.usersC.Remove(bson.M{"userid": user.Id}); err != nil {
+	cpy := d.session.Copy()
+	defer cpy.Close()
+
+	if err = mgoUsersCollection(cpy).Remove(bson.M{"userid": user.Id}); err != nil {
 		return err
 	}
 	return nil
@@ -108,7 +124,10 @@ func (d MongoStoreClient) RemoveUser(user *models.User) (err error) {
 func (d MongoStoreClient) AddToken(st *models.SessionToken) error {
 	//map to the structure we want to save to mongo as
 	token := bson.M{"_id": st.Id, "time": st.Time}
-	if _, err := d.tokensC.Upsert(bson.M{"_id": st.Id}, token); err != nil {
+	cpy := d.session.Copy()
+	defer cpy.Close()
+
+	if _, err := mgoTokensCollection(cpy).Upsert(bson.M{"_id": st.Id}, token); err != nil {
 		return err
 	}
 	return nil
@@ -117,7 +136,10 @@ func (d MongoStoreClient) AddToken(st *models.SessionToken) error {
 func (d MongoStoreClient) FindToken(st *models.SessionToken) (*models.SessionToken, error) {
 
 	var result map[string]interface{}
-	if err := d.tokensC.Find(bson.M{"_id": st.Id}).One(&result); err != nil {
+	cpy := d.session.Copy()
+	defer cpy.Close()
+
+	if err := mgoTokensCollection(cpy).Find(bson.M{"_id": st.Id}).One(&result); err != nil {
 		return nil, err
 	}
 	//map to the token structure the service uses
@@ -127,7 +149,11 @@ func (d MongoStoreClient) FindToken(st *models.SessionToken) (*models.SessionTok
 }
 
 func (d MongoStoreClient) RemoveToken(st *models.SessionToken) (err error) {
-	if err = d.tokensC.Remove(bson.M{"_id": st.Id}); err != nil {
+
+	cpy := d.session.Copy()
+	defer cpy.Close()
+
+	if err = mgoTokensCollection(cpy).Remove(bson.M{"_id": st.Id}); err != nil {
 		return err
 	}
 	return nil
