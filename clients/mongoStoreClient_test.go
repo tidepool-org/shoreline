@@ -12,14 +12,7 @@ import (
 
 func TestMongoStoreUserOperations(t *testing.T) {
 
-	type (
-		Config struct {
-			Mongo *mongo.Config `json:"mongo"`
-		}
-	)
-
 	var (
-		config           Config
 		ORIG_USR_DETAIL  = &models.UserDetail{Name: "Test User", Emails: []string{"test@foo.bar"}, Pw: "myT35t"}
 		OTHER_USR_DETAIL = &models.UserDetail{Name: "Second User", Emails: ORIG_USR_DETAIL.Emails, Pw: "my0th3rT35t"}
 	)
@@ -33,11 +26,13 @@ func TestMongoStoreUserOperations(t *testing.T) {
 	/*
 	 * INIT THE TEST - we use a clean copy of the collection before we start
 	 */
+	cpy := mc.session.Copy()
+	defer cpy.Close()
 
 	//just drop and don't worry about any errors
-	mc.session.DB("").C(USERS_COLLECTION).DropCollection()
+	mgoUsersCollection(cpy).DropCollection()
 
-	if err := mc.session.DB("").C(USERS_COLLECTION).Create(&mgo.CollectionInfo{}); err != nil {
+	if err := mgoUsersCollection(cpy).Create(&mgo.CollectionInfo{}); err != nil {
 		t.Fatalf("We couldn't created the users collection for these tests ", err)
 	}
 
@@ -160,13 +155,8 @@ func TestMongoStoreUserOperations(t *testing.T) {
 
 func TestMongoStoreTokenOperations(t *testing.T) {
 
-	type Config struct {
-		Mongo *mongo.Config `json:"mongo"`
-	}
-
 	var (
-		config Config
-		TD     = &models.TokenData{UserId: "2341", IsServer: true, DurationSecs: 3600}
+		TD = &models.TokenData{UserId: "2341", IsServer: true, DurationSecs: 3600}
 	)
 
 	const (
@@ -180,12 +170,14 @@ func TestMongoStoreTokenOperations(t *testing.T) {
 	/*
 	 * INIT THE TEST - we use a clean copy of the collection before we start
 	 */
+	cpy := mc.session.Copy()
+	defer cpy.Close()
 
 	//drop and don't worry about any errors
 	//just drop and don't worry about any errors
-	mc.session.DB("").C(TOKENS_COLLECTION).DropCollection()
+	mgoTokensCollection(cpy).DropCollection()
 
-	if err := mc.session.DB("").C(TOKENS_COLLECTION).Create(&mgo.CollectionInfo{}); err != nil {
+	if err := mgoTokensCollection(cpy).Create(&mgo.CollectionInfo{}); err != nil {
 		t.Fatalf("We couldn't created the token collection for these tests ", err)
 	}
 
