@@ -44,7 +44,7 @@ const (
 	STATUS_ERROR_UPDATING_PW    = "Error updating password"
 	STATUS_MISSING_ID_PW        = "Missing id and/or password"
 	STATUS_NO_MATCH             = "No user matched the given details"
-	STATUS_NOT_AUTHENTICATED    = "The user hasn't authenticated this account yet"
+	STATUS_NOT_VERIFIED         = "The user hasn't verified this account yet"
 	STATUS_NO_TOKEN_MATCH       = "No token matched the given details"
 	STATUS_PW_WRONG             = "Wrong password"
 	STATUS_ERR_SENDING_EMAIL    = "Error sending email"
@@ -362,7 +362,7 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 // status: 200 TP_SESSION_TOKEN,
 // status: 400 STATUS_MISSING_ID_PW
 // status: 401 STATUS_NO_MATCH
-// status: 403 STATUS_NOT_AUTHENTICATED
+// status: 403 STATUS_NOT_VERIFIED
 // status: 500 STATUS_ERR_FINDING_USR
 // status: 500 STATUS_ERR_UPDATING_TOKEN
 func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
@@ -394,8 +394,8 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 								return
 							}
 						}
-						log.Printf("Login %s for [%s]", STATUS_NOT_AUTHENTICATED, usr.Id)
-						sendModelAsResWithStatus(res, status.NewStatus(http.StatusForbidden, STATUS_NOT_AUTHENTICATED), http.StatusForbidden)
+						log.Printf("Login %s for [%s]", STATUS_NOT_VERIFIED, usr.Id)
+						sendModelAsResWithStatus(res, status.NewStatus(http.StatusForbidden, STATUS_NOT_VERIFIED), http.StatusForbidden)
 						return
 					}
 					log.Printf("Login %s [%s] from the [%d] users we found", STATUS_NO_MATCH, usr.Name, len(results))
