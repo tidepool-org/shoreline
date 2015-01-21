@@ -1,12 +1,10 @@
 package api
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"log"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"./../clients"
 	"./../models"
@@ -46,6 +44,7 @@ const (
 	STATUS_ERROR_UPDATING_PW    = "Error updating password"
 	STATUS_MISSING_ID_PW        = "Missing id and/or password"
 	STATUS_NO_MATCH             = "No user matched the given details"
+	STATUS_NOT_VERIFIED         = "The user hasn't verified this account yet"
 	STATUS_NO_TOKEN_MATCH       = "No token matched the given details"
 	STATUS_PW_WRONG             = "Wrong password"
 	STATUS_ERR_SENDING_EMAIL    = "Error sending email"
@@ -92,178 +91,6 @@ func (a *Api) SetHandlers(prefix string, rtr *mux.Router) {
 func (h varsHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 	h(res, req, vars)
-}
-
-//Docode the http.Request parsing out the user details
-func getUserDetail(req *http.Request) (ud *models.UserDetail) {
-	if req.ContentLength > 0 {
-		if err := json.NewDecoder(req.Body).Decode(&ud); err != nil {
-			log.Println("error trying to decode user detail ", err)
-			return ud
-		}
-	}
-	log.Printf("User details [%v]", ud)
-	return ud
-}
-
-//Docode the http.Request parsing out the user details
-func getGivenDetail(req *http.Request) (d map[string]string) {
-	if req.ContentLength > 0 {
-		if err := json.NewDecoder(req.Body).Decode(&d); err != nil {
-			log.Println("error trying to decode user detail ", err)
-			return nil
-		}
-	}
-	return d
-}
-
-//send metric
-func (a *Api) logMetric(name, token string, params map[string]string) {
-	if token == "" {
-		log.Println("Missing token so couldn't log metric")
-		return
-	}
-	if params == nil {
-		params = make(map[string]string)
-	}
-	log.Printf("log metric name[%s] params[%v]", name, params)
-	//a.metrics.PostThisUser(name, token, params)
-	return
-}
-
-//send metric
-func (a *Api) logMetricAsServer(name, token string, params map[string]string) {
-	if token == "" {
-		log.Println("Missing token so couldn't log metric")
-		return
-	}
-	if params == nil {
-		params = make(map[string]string)
-	}
-	log.Printf("log metric as server name[%s] params[%v]", name, params)
-	//a.metrics.PostServer(name, token, params)
-	return
-}
-
-//send metric
-func (a *Api) logMetricForUser(id, name, token string, params map[string]string) {
-	if token == "" {
-		log.Println("Missing token so couldn't log metric")
-		return
-	}
-	if params == nil {
-		params = make(map[string]string)
-	}
-	log.Printf("log metric id[%s] name[%s] params[%v]", id, name, params)
-	//a.metrics.PostWithUser(id, name, token, params)
-	return
-}
-
-//get the token from the req header
-func (a *Api) getUnpackedToken(tokenString string) *models.TokenData {
-	if st := models.GetSessionToken(tokenString); st.Id != "" {
-		if td := st.UnpackAndVerify(a.Config.Secret); td != nil && td.Valid == true {
-			return td
-		}
-	}
-	return nil
-}
-
-// Extract the username and password from the authorization
-// line of an HTTP header. This function will handle the
-// parsing and decoding of the line.
-func unpackAuth(authLine string) (usr *models.User, pw string) {
-	if authLine != "" {
-		parts := strings.SplitN(authLine, " ", 2)
-		payload := parts[1]
-		if decodedPayload, err := base64.URLEncoding.DecodeString(payload); err != nil {
-			log.Print("Error unpacking authorization header [%s]", err.Error())
-		} else {
-			details := strings.Split(string(decodedPayload), ":")
-			if details[0] != "" || details[1] != "" {
-				//Note the incoming `name` could infact be id, email or the username
-				return models.UserFromDetails(&models.UserDetail{Id: details[0], Name: details[0], Emails: []string{details[0]}}), details[1]
-			}
-		}
-	}
-	return nil, ""
-}
-
-func sendModelsAsRes(res http.ResponseWriter, models ...interface{}) {
-
-	res.Header().Set("content-type", "application/json")
-	res.WriteHeader(http.StatusOK)
-
-	res.Write([]byte("["))
-	for i := range models {
-		if jsonDetails, err := json.Marshal(models[i]); err != nil {
-			log.Println(err)
-		} else {
-			res.Write(jsonDetails)
-		}
-	}
-	res.Write([]byte("]"))
-	return
-}
-
-func sendModelAsRes(res http.ResponseWriter, model interface{}) {
-	sendModelAsResWithStatus(res, model, http.StatusOK)
-	return
-}
-
-func sendModelAsResWithStatus(res http.ResponseWriter, model interface{}, statusCode int) {
-	res.Header().Set("content-type", "application/json")
-	res.WriteHeader(statusCode)
-
-	if jsonDetails, err := json.Marshal(model); err != nil {
-		log.Println(err)
-	} else {
-		res.Write(jsonDetails)
-	}
-	return
-}
-
-func (a *Api) addUserAndSendStatus(user *models.User, res http.ResponseWriter, req *http.Request) {
-	if err := a.Store.UpsertUser(user); err != nil {
-		log.Printf("addUserAndSendStatus %s err[%s]", STATUS_ERR_CREATING_USR, err.Error())
-		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_CREATING_USR), http.StatusInternalServerError)
-		return
-	}
-	if sessionToken, err := a.createAndSaveToken(tokenDuration(req), user.Id, false); err != nil {
-		log.Printf("addUserAndSendStatus %s err[%s]", STATUS_ERR_GENERATING_TOKEN, err.Error())
-		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN), http.StatusInternalServerError)
-		return
-	} else {
-		a.logMetric("usercreated", sessionToken.Id, nil)
-		res.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
-		sendModelAsResWithStatus(res, user, http.StatusCreated)
-		return
-	}
-}
-
-func (a *Api) hasServerToken(tokenString string) bool {
-
-	if td := a.getUnpackedToken(tokenString); td != nil {
-		return td.IsServer
-	}
-	return false
-}
-
-func (a *Api) createAndSaveToken(dur float64, id string, isServer bool) (*models.SessionToken, error) {
-	sessionToken, _ := models.NewSessionToken(
-		&models.TokenData{
-			UserId:       id,
-			IsServer:     isServer,
-			DurationSecs: dur,
-		},
-		a.Config.Secret,
-	)
-
-	if err := a.Store.AddToken(sessionToken); err == nil {
-		return sessionToken, nil
-	} else {
-		return nil, err
-	}
 }
 
 func (a *Api) GetStatus(res http.ResponseWriter, req *http.Request) {
@@ -467,17 +294,6 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 					a.logMetric("getuserinfo", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "false"})
 				}
 
-				/*
-					TODO: sort this out
-					if len(results) == 1 && usr.Pw != "" {
-						if results[0].PwsMatch(usr, a.Config.Salt) {
-							sendModelAsRes(res, results[0])
-							return
-						} else {
-							res.WriteHeader(http.StatusNoContent)
-							return
-						}
-					} else*/
 				if len(results) == 1 {
 					log.Printf("found user [%v]", results[0])
 					sendModelAsRes(res, results[0])
@@ -546,6 +362,7 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 // status: 200 TP_SESSION_TOKEN,
 // status: 400 STATUS_MISSING_ID_PW
 // status: 401 STATUS_NO_MATCH
+// status: 403 STATUS_NOT_VERIFIED
 // status: 500 STATUS_ERR_FINDING_USR
 // status: 500 STATUS_ERR_UPDATING_TOKEN
 func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
@@ -559,20 +376,27 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 			if len(results) > 0 {
 				for i := range results {
 					if results[i] != nil && results[i].PwsMatch(pw, a.Config.Salt) {
-						if sessionToken, err := a.createAndSaveToken(
-							tokenDuration(req),
-							results[i].Id,
-							false,
-						); err != nil {
-							log.Printf("Login %s [%s]", STATUS_ERR_UPDATING_TOKEN, err.Error())
-							sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_UPDATING_TOKEN), http.StatusInternalServerError)
-							return
-						} else {
-							a.logMetric("userlogin", sessionToken.Id, nil)
-							res.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
-							sendModelAsRes(res, results[i])
-							return
+
+						if results[i].IsAuthenticated() {
+
+							if sessionToken, err := a.createAndSaveToken(
+								tokenDuration(req),
+								results[i].Id,
+								false,
+							); err != nil {
+								log.Printf("Login %s [%s]", STATUS_ERR_UPDATING_TOKEN, err.Error())
+								sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_UPDATING_TOKEN), http.StatusInternalServerError)
+								return
+							} else {
+								a.logMetric("userlogin", sessionToken.Id, nil)
+								res.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
+								sendModelAsRes(res, results[i])
+								return
+							}
 						}
+						log.Printf("Login %s for [%s]", STATUS_NOT_VERIFIED, usr.Id)
+						sendModelAsResWithStatus(res, status.NewStatus(http.StatusForbidden, STATUS_NOT_VERIFIED), http.StatusForbidden)
+						return
 					}
 					log.Printf("Login %s [%s] from the [%d] users we found", STATUS_NO_MATCH, usr.Name, len(results))
 					sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_MATCH), http.StatusUnauthorized)
