@@ -14,6 +14,7 @@
     "apiSecret": "This is a local API secret for everyone. BsscSHqSHiwrBMJsEGqbvXiuIUPAjQXU",
     "longTermKey": "abcdefghijklmnopqrstuvwxyz",
     "longTermDaysDuration": 30,
-    "salt" : "ADihSEI7tOQQP9xfXMO9HfRpXKu1NpIJ"
+    "salt" : "ADihSEI7tOQQP9xfXMO9HfRpXKu1NpIJ",
+    "verificationSecret" : ""
   }
 }

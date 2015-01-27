@@ -7,24 +7,24 @@ import (
 )
 
 type User struct {
-	Id            string                 `json:"userid"   bson:"userid,omitempty"` // map userid to id
-	Name          string                 `json:"username" bson:"username"`
-	Emails        []string               `json:"emails" 	bson:"emails"`
-	Authenticated bool                   `json:"-" 	bson:"authenticated"`
-	PwHash        string                 `json:"-" 		bson:"pwhash"`
-	Hash          string                 `json:"-" 		bson:"userhash"`
-	Private       map[string]*IdHashPair `json:"-" 		bson:"private"`
+	Id       string                 `json:"userid"   bson:"userid,omitempty"` // map userid to id
+	Name     string                 `json:"username" bson:"username"`
+	Emails   []string               `json:"emails" 	bson:"emails"`
+	Verified bool                   `json:"-" 	bson:"authenticated"` //tag is name `authenticated` for historical reasons
+	PwHash   string                 `json:"-" 		bson:"pwhash"`
+	Hash     string                 `json:"-" 		bson:"userhash"`
+	Private  map[string]*IdHashPair `json:"-" 		bson:"private"`
 }
 
 /*
  * Incoming user details used to create or update a `User`
  */
 type UserDetail struct {
-	Id            string   //no tag as we aren't getting it from json
-	Name          string   `json:"username"`
-	Emails        []string `json:"emails"`
-	Pw            string   `json:"password"`
-	Authenticated bool     `json:"authenticated"`
+	Id       string   //no tag as we aren't getting it from json
+	Name     string   `json:"username"`
+	Emails   []string `json:"emails"`
+	Pw       string   `json:"password"`
+	Verified bool     `json:"authenticated"` //tag is name `authenticated` for historical reasons
 }
 
 func NewUser(details *UserDetail, salt string) (user *User, err error) {
@@ -39,7 +39,7 @@ func NewUser(details *UserDetail, salt string) (user *User, err error) {
 	hash, _ := generateUniqueHash([]string{details.Name, details.Pw, id}, 24)
 	pwHash, _ := GeneratePasswordHash(id, details.Pw, salt)
 
-	return &User{Id: id, Name: details.Name, Emails: details.Emails, Hash: hash, PwHash: pwHash, Authenticated: false}, nil
+	return &User{Id: id, Name: details.Name, Emails: details.Emails, Hash: hash, PwHash: pwHash, Verified: false}, nil
 }
 
 //Child Account are linked to another users account and don't require a password or emails
@@ -50,7 +50,7 @@ func NewChildUser(details *UserDetail, salt string) (user *User, err error) {
 	id, _ := generateUniqueHash([]string{name}, 10)
 	hash, _ := generateUniqueHash([]string{name, id}, 24)
 
-	return &User{Id: id, Name: name, Emails: details.Emails, Hash: hash, Authenticated: true}, nil
+	return &User{Id: id, Name: name, Emails: details.Emails, Hash: hash, Verified: true}, nil
 }
 
 func UserFromDetails(details *UserDetail) (user *User) {
@@ -74,6 +74,15 @@ func (u *User) PwsMatch(pw, salt string) bool {
 	return false
 }
 
-func (u *User) IsAuthenticated() bool {
-	return u.Authenticated
+func (u *User) IsVerified(secret string) bool {
+	//allows override for dev and test purposes
+	if secret != "" {
+		for i := range u.Emails {
+			if strings.Contains(u.Emails[i], secret) {
+				return true
+			}
+		}
+		return false
+	}
+	return u.Verified
 }

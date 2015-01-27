@@ -44,11 +44,11 @@ func (d MockStoreClient) FindUsers(user *models.User) (found []*models.User, err
 
 	if user.Name != "" {
 		found, _ := models.NewUser(&models.UserDetail{Name: user.Name, Pw: "123youknoWm3", Emails: []string{}}, d.salt)
-		found.Authenticated = true
+		found.Verified = true
 
 		return []*models.User{found}, nil
 	}
-	user.Authenticated = true
+	user.Verified = true
 
 	return []*models.User{user}, nil
 
@@ -63,16 +63,16 @@ func (d MockStoreClient) FindUser(user *models.User) (found *models.User, err er
 
 	if d.returnDifferent {
 		other, _ := models.NewUser(&models.UserDetail{Name: "Some One Else", Pw: "123youknoWm3", Emails: []string{}}, d.salt)
-		other.Authenticated = true
+		other.Verified = true
 		return other, nil
 	}
 
 	if user.Name != "" {
 		found, _ := models.NewUser(&models.UserDetail{Name: user.Name, Pw: "123youknoWm3", Emails: []string{}}, d.salt)
-		found.Authenticated = true
+		found.Verified = true
 		return found, nil
 	}
-	user.Authenticated = true
+	user.Verified = true
 	return user, nil
 }
 
