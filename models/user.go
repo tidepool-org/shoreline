@@ -7,13 +7,13 @@ import (
 )
 
 type User struct {
-	Id       string                 `json:"userid"   bson:"userid,omitempty"` // map userid to id
+	Id       string                 `json:"userid" bson:"userid,omitempty"` // map userid to id
 	Name     string                 `json:"username" bson:"username"`
-	Emails   []string               `json:"emails" 	bson:"emails"`
-	Verified bool                   `json:"-" 	bson:"authenticated"` //tag is name `authenticated` for historical reasons
-	PwHash   string                 `json:"-" 		bson:"pwhash"`
-	Hash     string                 `json:"-" 		bson:"userhash"`
-	Private  map[string]*IdHashPair `json:"-" 		bson:"private"`
+	Emails   []string               `json:"emails" bson:"emails"`
+	Verified bool                   `json:"-" bson:"authenticated"` //tag is name `authenticated` for historical reasons
+	PwHash   string                 `json:"-" bson:"pwhash"`
+	Hash     string                 `json:"-" bson:"userhash"`
+	Private  map[string]*IdHashPair `json:"-" bson:"private"`
 }
 
 /*
@@ -74,9 +74,9 @@ func (u *User) PwsMatch(pw, salt string) bool {
 	return false
 }
 
-func (u *User) IsVerified(secret string) bool {
+func (u *User) IsVerified(canSkip bool, secret string) bool {
 	//allows override for dev and test purposes
-	if secret != "" {
+	if canSkip && secret != "" {
 		for i := range u.Emails {
 			if strings.Contains(u.Emails[i], secret) {
 				return true
