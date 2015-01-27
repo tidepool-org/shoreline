@@ -15,7 +15,6 @@
     "longTermKey": "abcdefghijklmnopqrstuvwxyz",
     "longTermDaysDuration": 30,
     "salt" : "ADihSEI7tOQQP9xfXMO9HfRpXKu1NpIJ",
-    "verificationSkipped" : false,
     "verificationSecret" : "+skip"
   }
 }

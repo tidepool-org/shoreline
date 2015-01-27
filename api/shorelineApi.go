@@ -23,10 +23,9 @@ type (
 		ServerSecret         string `json:"serverSecret"` //used for services
 		LongTermKey          string `json:"longTermKey"`
 		LongTermDaysDuration int    `json:"longTermDaysDuration"`
-		Salt                 string `json:"salt"`                //used for pw
-		Secret               string `json:"apiSecret"`           //used for token
-		VerificationSkipped  bool   `json:"verificationSkipped"` //allows for the skipping of verification for testing
-		VerificationSecret   string `json:"verificationSecret"`  //allows for the skipping of verification for testing
+		Salt                 string `json:"salt"`               //used for pw
+		Secret               string `json:"apiSecret"`          //used for token
+		VerificationSecret   string `json:"verificationSecret"` //allows for the skipping of verification for testing
 	}
 	varsHandler func(http.ResponseWriter, *http.Request, map[string]string)
 )
@@ -379,7 +378,7 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 				for i := range results {
 					if results[i] != nil && results[i].PwsMatch(pw, a.Config.Salt) {
 
-						if results[i].IsVerified(a.Config.VerificationSkipped, a.Config.VerificationSecret) {
+						if results[i].IsVerified(a.Config.VerificationSecret) {
 
 							if sessionToken, err := a.createAndSaveToken(tokenDuration(req), results[i].Id, false); err != nil {
 								log.Printf("Login %s [%s]", STATUS_ERR_UPDATING_TOKEN, err.Error())

@@ -173,20 +173,20 @@ func Test_IsVerified(t *testing.T) {
 	user, _ := NewUser(&UserDetail{Name: "two", Pw: "3th3Hardw0y", Emails: []string{"test@foo.bar"}}, "some salt")
 
 	//no secret
-	if userWithSecret.IsVerified(true, "") == true {
+	if userWithSecret.IsVerified("") == true {
 		t.Fatalf("the user should not have been verified")
 	}
 
-	if user.IsVerified(true, "") == true {
+	if user.IsVerified("") == true {
 		t.Fatalf("the user should not have been verified")
 	}
 
 	//with secret
-	if userWithSecret.IsVerified(true, "+secret") == false {
+	if userWithSecret.IsVerified("+secret") == false {
 		t.Fatalf("the user should say they are verified as we both have the secret")
 	}
 
-	if user.IsVerified(true, "+secret") == true {
+	if user.IsVerified("+secret") == true {
 		t.Fatalf("the user should say they are verified as they don't have the secret")
 	}
 

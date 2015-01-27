@@ -74,15 +74,14 @@ func (u *User) PwsMatch(pw, salt string) bool {
 	return false
 }
 
-func (u *User) IsVerified(canSkip bool, secret string) bool {
+func (u *User) IsVerified(secret string) bool {
 	//allows override for dev and test purposes
-	if canSkip && secret != "" {
+	if secret != "" {
 		for i := range u.Emails {
 			if strings.Contains(u.Emails[i], secret) {
 				return true
 			}
 		}
-		return false
 	}
 	return u.Verified
 }
