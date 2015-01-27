@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestName(t *testing.T) {
+func Test_Name(t *testing.T) {
 
 	casedName := "A Name"
 
@@ -20,8 +20,7 @@ func TestName(t *testing.T) {
 	}
 
 }
-
-func TestId(t *testing.T) {
+func Test_Id(t *testing.T) {
 
 	id := "123-your-id"
 	user := UserFromDetails(&UserDetail{Id: id})
@@ -30,8 +29,7 @@ func TestId(t *testing.T) {
 		t.Fatalf("the id should have been set")
 	}
 }
-
-func TestEmails(t *testing.T) {
+func Test_Emails(t *testing.T) {
 
 	e1 := "test@foo.bar"
 	e2 := "TEST@two.bar"
@@ -51,8 +49,7 @@ func TestEmails(t *testing.T) {
 		t.Fatalf("the emails should keep the case as they were added")
 	}
 }
-
-func TestPwHash(t *testing.T) {
+func Test_HashPassword(t *testing.T) {
 	user := User{Id: "123-user-id-you-know-me"}
 
 	if err := user.HashPassword("my pw", "the salt"); err == nil {
@@ -64,8 +61,7 @@ func TestPwHash(t *testing.T) {
 	}
 
 }
-
-func TestPwHashWithEmptyParams(t *testing.T) {
+func Test_HashPassword_WithEmptyParams(t *testing.T) {
 	user := User{Id: "123-user-id-you-know-me"}
 
 	if err := user.HashPassword("", ""); err == nil {
@@ -78,8 +74,7 @@ func TestPwHashWithEmptyParams(t *testing.T) {
 	}
 
 }
-
-func TestNewUserAsChild(t *testing.T) {
+func Test_NewUser_AsChild(t *testing.T) {
 
 	theName := "The Kid"
 
@@ -108,8 +103,8 @@ func TestNewUserAsChild(t *testing.T) {
 			t.Fatalf("there should be no emails")
 		}
 
-		if childAcct.Authenticated == false {
-			t.Fatalf("the child account should be authenticated by default")
+		if childAcct.Verified == false {
+			t.Fatalf("the child account should be verified by default")
 		}
 
 		//make another child account with the same name
@@ -120,24 +115,21 @@ func TestNewUserAsChild(t *testing.T) {
 		}
 	}
 }
-
-func TestNewUserNoPw(t *testing.T) {
+func Test_NewUser_NoPw(t *testing.T) {
 
 	if _, err := NewUser(&UserDetail{Name: "I have a name", Emails: []string{}}, "some salt"); err == nil {
 		t.Fatalf("should have given error as the pw is not given")
 	}
 
 }
-
-func TestNewUserNoName(t *testing.T) {
+func Test_NewUser_NoName(t *testing.T) {
 
 	if _, err := NewUser(&UserDetail{Name: "", Pw: "3th3Hardw0y", Emails: []string{}}, "some salt"); err == nil {
 		t.Fatalf("should have given error as the name is not given")
 	}
 
 }
-
-func TestNewUser(t *testing.T) {
+func Test_NewUser(t *testing.T) {
 
 	name := "MixeD caSe"
 
@@ -169,9 +161,33 @@ func TestNewUser(t *testing.T) {
 			t.Fatalf("the emails should have been set")
 		}
 
-		if user.Authenticated {
-			t.Fatalf("the user account should not be authenticated by default")
+		if user.Verified {
+			t.Fatalf("the user account should not be verified by default")
 		}
+	}
+
+}
+func Test_IsVerified(t *testing.T) {
+
+	userWithSecret, _ := NewUser(&UserDetail{Name: "one", Pw: "3th3Hardw0y", Emails: []string{"test+secret@foo.bar"}}, "some salt")
+	user, _ := NewUser(&UserDetail{Name: "two", Pw: "3th3Hardw0y", Emails: []string{"test@foo.bar"}}, "some salt")
+
+	//no secret
+	if userWithSecret.IsVerified("") == true {
+		t.Fatalf("the user should not have been verified")
+	}
+
+	if user.IsVerified("") == true {
+		t.Fatalf("the user should not have been verified")
+	}
+
+	//with secret
+	if userWithSecret.IsVerified("+secret") == false {
+		t.Fatalf("the user should say they are verified as we both have the secret")
+	}
+
+	if user.IsVerified("+secret") == true {
+		t.Fatalf("the user should say they are verified as they don't have the secret")
 	}
 
 }
