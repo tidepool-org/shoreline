@@ -22,10 +22,11 @@ const (
 var (
 	NO_PARAMS   = map[string]string{}
 	FAKE_CONFIG = Config{
-		ServerSecret: "shhh! don't tell",
-		Secret:       "shhh! don't tell *2",
-		LongTermKey:  "the longetermkey",
-		Salt:         "a mineral substance composed primarily of sodium chloride",
+		ServerSecret:       "shhh! don't tell",
+		Secret:             "shhh! don't tell *2",
+		LongTermKey:        "the longetermkey",
+		Salt:               "a mineral substance composed primarily of sodium chloride",
+		VerificationSecret: "",
 	}
 	/*
 	 * users and tokens
