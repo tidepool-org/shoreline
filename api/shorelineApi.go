@@ -238,6 +238,10 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 						return
 					}
 				}
+				//Updated Terms
+				if updatesToApply.Updates.Terms != "" {
+					userToUpdate.Terms = updatesToApply.Updates.Terms
+				}
 
 				//All good - now update
 				if err := a.Store.UpsertUser(userToUpdate); err != nil {

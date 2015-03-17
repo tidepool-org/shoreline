@@ -10,6 +10,7 @@ type User struct {
 	Id       string                 `json:"userid" bson:"userid,omitempty"` // map userid to id
 	Name     string                 `json:"username" bson:"username"`
 	Emails   []string               `json:"emails" bson:"emails"`
+	Terms    string                 `json:"terms" bson:"terms"`
 	Verified bool                   `json:"-" bson:"authenticated"` //tag is name `authenticated` for historical reasons
 	PwHash   string                 `json:"-" bson:"pwhash"`
 	Hash     string                 `json:"-" bson:"userhash"`
@@ -23,6 +24,7 @@ type UserDetail struct {
 	Id       string   //no tag as we aren't getting it from json
 	Name     string   `json:"username"`
 	Emails   []string `json:"emails"`
+	Terms    string   `json:"terms"`
 	Pw       string   `json:"password"`
 	Verified bool     `json:"authenticated"` //tag is name `authenticated` for historical reasons
 }
@@ -50,11 +52,11 @@ func NewChildUser(details *UserDetail, salt string) (user *User, err error) {
 	id, _ := generateUniqueHash([]string{name}, 10)
 	hash, _ := generateUniqueHash([]string{name, id}, 24)
 
-	return &User{Id: id, Name: name, Emails: details.Emails, Hash: hash, Verified: true}, nil
+	return &User{Id: id, Name: name, Emails: details.Emails, Hash: hash, Verified: true, Terms: details.Terms}, nil
 }
 
 func UserFromDetails(details *UserDetail) (user *User) {
-	return &User{Id: details.Id, Name: strings.ToLower(details.Name), Emails: details.Emails}
+	return &User{Id: details.Id, Name: strings.ToLower(details.Name), Emails: details.Emails, Terms: details.Terms}
 }
 
 func (u *User) HashPassword(pw, salt string) (err error) {

@@ -49,6 +49,17 @@ func Test_Emails(t *testing.T) {
 		t.Fatalf("the emails should keep the case as they were added")
 	}
 }
+
+func Test_Terms(t *testing.T) {
+
+	terms := "2015/03/15"
+	user := UserFromDetails(&UserDetail{Terms: terms})
+
+	if user.Terms != terms {
+		t.Fatalf("there terms date should have been set")
+	}
+}
+
 func Test_HashPassword(t *testing.T) {
 	user := User{Id: "123-user-id-you-know-me"}
 
@@ -77,12 +88,16 @@ func Test_HashPassword_WithEmptyParams(t *testing.T) {
 func Test_NewUser_AsChild(t *testing.T) {
 
 	theName := "The Kid"
+	terms := "2015/03/15"
 
-	if childAcct, err := NewChildUser(&UserDetail{Name: theName}, "some salt"); err != nil {
+	if childAcct, err := NewChildUser(&UserDetail{Name: theName, Terms: terms}, "some salt"); err != nil {
 		t.Fatalf("it is legit to create a user withuot a pw - this is known as a Child Account")
 	} else {
 		if childAcct.Name == theName {
 			t.Fatalf("the user name should have been hashed")
+		}
+		if childAcct.Terms != terms {
+			t.Fatalf("the terms should have been set")
 		}
 		if len(childAcct.Name) != 10 {
 			t.Fatalf("the user name should be 10 characters in length")
