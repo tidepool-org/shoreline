@@ -56,7 +56,7 @@ func Test_Terms(t *testing.T) {
 	user := UserFromDetails(&UserDetail{Terms: terms})
 
 	if user.Terms != terms {
-		t.Fatalf("there terms date should have been set")
+		t.Fatalf("the terms date should have been set")
 	}
 }
 
