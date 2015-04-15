@@ -116,7 +116,7 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 		if usr, err := models.NewUser(usrDetails, a.Config.Salt); err == nil {
 			//they shouldn't already exist
 			if results, _ := a.Store.FindUsers(usr); results == nil || len(results) == 0 {
-				log.Printf("CreateUser adding [%v] ", usr)
+				log.Printf("CreateUser: about to add user")
 				a.addUserAndSendStatus(usr, res, req)
 				return
 			} else {
@@ -142,7 +142,7 @@ func (a *Api) CreateChildUser(res http.ResponseWriter, req *http.Request) {
 	if usrDetails := getUserDetail(req); usrDetails != nil {
 
 		if usr, err := models.NewChildUser(usrDetails, a.Config.Salt); err == nil {
-			log.Printf("CreateChildUser adding [%v] ", usr)
+			log.Printf("CreateChildUser: adding new child user")
 			a.addUserAndSendStatus(usr, res, req)
 			return
 		} else {
@@ -175,7 +175,6 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 
 		if usrId == "" && td.UserId == "" {
 			//go no further
-			log.Printf("UpdateUser id [%s] token id [%s] ", usrId, td.UserId)
 			log.Printf("UpdateUser %s ", STATUS_NO_USR_DETAILS)
 			sendModelAsResWithStatus(res, status.NewStatus(http.StatusBadRequest, STATUS_NO_USR_DETAILS), http.StatusBadRequest)
 			return
@@ -190,11 +189,9 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 
 		if updatesToApply.Updates != nil {
 
-			log.Printf("UpdateUser: applying updates ... [%v]", updatesToApply.Updates)
+			log.Printf("UpdateUser: applying updates ...")
 
 			usrToFind := models.UserFromDetails(&models.UserDetail{Id: usrId, Emails: []string{usrId}})
-
-			log.Printf("UpdateUser: updating ... [%v]", usrToFind)
 
 			if userToUpdate, err := a.Store.FindUser(usrToFind); err != nil {
 				log.Printf("UpdateUser %s err[%s]", STATUS_ERR_FINDING_USR, err.Error())
@@ -296,12 +293,12 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 				}
 
 				if len(results) == 1 {
-					log.Printf("found user [%v]", results[0])
+					log.Printf("found user")
 					sendModelAsRes(res, results[0])
 					return
 				}
 
-				log.Printf("found users [%v]", results)
+				log.Printf("found [%d] users ", len(results))
 				sendModelsAsRes(res, results)
 				return
 			}
@@ -395,12 +392,12 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 						sendModelAsResWithStatus(res, status.NewStatus(http.StatusForbidden, STATUS_NOT_VERIFIED), http.StatusForbidden)
 						return
 					}
-					log.Printf("Login %s [%s] from the [%d] users we found", STATUS_NO_MATCH, usr.Name, len(results))
+					log.Printf("Login %s from the [%d] users we found", STATUS_NO_MATCH, len(results))
 					sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_MATCH), http.StatusUnauthorized)
 					return
 				}
 			}
-			log.Printf("Login %s for [%s]", STATUS_NO_MATCH, usr.Name)
+			log.Printf("Login %s ", STATUS_NO_MATCH)
 			sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_MATCH), http.StatusUnauthorized)
 			return
 		}
@@ -598,7 +595,7 @@ func (a *Api) ManageIdHashPair(res http.ResponseWriter, req *http.Request, vars 
 					return
 				}
 			case "DELETE":
-				log.Printf("ManageIdHashPair %s %s", req.Method, "Not Implemented")
+				log.Printf("ManageIdHashPair [%s] Not Implemented", req.Method)
 				res.WriteHeader(http.StatusNotImplemented)
 				return
 			}
