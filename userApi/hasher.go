@@ -1,4 +1,4 @@
-package models
+package userapi
 
 import (
 	"crypto/sha1"

@@ -1,4 +1,4 @@
-package api
+package userapi
 
 import (
 	"encoding/json"
@@ -6,8 +6,6 @@ import (
 	"net/http"
 	"strconv"
 
-	"./../clients"
-	"./../models"
 	"github.com/gorilla/mux"
 	"github.com/tidepool-org/go-common/clients/highwater"
 	"github.com/tidepool-org/go-common/clients/status"
@@ -15,7 +13,7 @@ import (
 
 type (
 	Api struct {
-		Store   clients.StoreClient
+		Store   StoreClient
 		Config  Config
 		metrics highwater.Client
 	}
@@ -52,7 +50,7 @@ const (
 	STATUS_NO_TOKEN             = "No x-tidepool-session-token was found"
 )
 
-func InitApi(cfg Config, store clients.StoreClient, metrics highwater.Client) *Api {
+func InitApi(cfg Config, store StoreClient, metrics highwater.Client) *Api {
 	return &Api{
 		Store:   store,
 		Config:  cfg,
@@ -113,7 +111,7 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 
 	if usrDetails := getUserDetail(req); usrDetails != nil {
 
-		if usr, err := models.NewUser(usrDetails, a.Config.Salt); err == nil {
+		if usr, err := NewUser(usrDetails, a.Config.Salt); err == nil {
 			//they shouldn't already exist
 			if results, _ := a.Store.FindUsers(usr); results == nil || len(results) == 0 {
 				log.Printf("CreateUser adding [%v] ", usr)
@@ -141,7 +139,7 @@ func (a *Api) CreateChildUser(res http.ResponseWriter, req *http.Request) {
 
 	if usrDetails := getUserDetail(req); usrDetails != nil {
 
-		if usr, err := models.NewChildUser(usrDetails, a.Config.Salt); err == nil {
+		if usr, err := NewChildUser(usrDetails, a.Config.Salt); err == nil {
 			log.Printf("CreateChildUser adding [%v] ", usr)
 			a.addUserAndSendStatus(usr, res, req)
 			return
@@ -167,7 +165,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 		var (
 			//structure that the update are given to us in
 			updatesToApply struct {
-				Updates *models.UserDetail `json:"updates"`
+				Updates *UserDetail `json:"updates"`
 			}
 		)
 
@@ -192,7 +190,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 
 			log.Printf("UpdateUser: applying updates ... [%v]", updatesToApply.Updates)
 
-			usrToFind := models.UserFromDetails(&models.UserDetail{Id: usrId, Emails: []string{usrId}})
+			usrToFind := UserFromDetails(&UserDetail{Id: usrId, Emails: []string{usrId}})
 
 			log.Printf("UpdateUser: updating ... [%v]", usrToFind)
 
@@ -209,7 +207,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 
 				//Name and/or Emails and perform dups check
 				if updatesToApply.Updates.Name != "" || len(updatesToApply.Updates.Emails) > 0 {
-					dupCheck := models.UserFromDetails(&models.UserDetail{})
+					dupCheck := UserFromDetails(&UserDetail{})
 					if updatesToApply.Updates.Name != "" {
 						userToUpdate.Name = updatesToApply.Updates.Name
 						dupCheck.Name = userToUpdate.Name
@@ -266,15 +264,15 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 
 	if td := a.getUnpackedToken(req.Header.Get(TP_SESSION_TOKEN)); td != nil {
 
-		var usr *models.User
+		var usr *User
 
 		id := vars["userid"]
 		if id != "" {
 			//the `userid` could infact be an email
-			usr = models.UserFromDetails(&models.UserDetail{Id: id, Emails: []string{id}})
+			usr = UserFromDetails(&UserDetail{Id: id, Emails: []string{id}})
 		} else {
 			//use the token to find the userid
-			usr = models.UserFromDetails(&models.UserDetail{Id: td.UserId})
+			usr = UserFromDetails(&UserDetail{Id: td.UserId})
 		}
 
 		if usr == nil {
@@ -327,7 +325,7 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 		if id != "" && pw != "" {
 
 			var err error
-			toDelete := models.UserFromDetails(&models.UserDetail{Id: id})
+			toDelete := UserFromDetails(&UserDetail{Id: id})
 
 			if err = toDelete.HashPassword(pw, a.Config.Salt); err == nil {
 				if err = a.Store.RemoveUser(toDelete); err == nil {
@@ -340,7 +338,7 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 
 					//cleanup if any
 					if td.IsServer == false {
-						usrToken := &models.SessionToken{Id: req.Header.Get(TP_SESSION_TOKEN)}
+						usrToken := &SessionToken{Id: req.Header.Get(TP_SESSION_TOKEN)}
 						a.Store.RemoveToken(usrToken)
 					}
 					//all good
@@ -507,7 +505,7 @@ func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars 
 	if a.hasServerToken(req.Header.Get(TP_SESSION_TOKEN)) {
 		tokenString := vars["token"]
 
-		svrToken := &models.SessionToken{Id: tokenString}
+		svrToken := &SessionToken{Id: tokenString}
 		if td := svrToken.UnpackAndVerify(a.Config.Secret); td != nil && td.Valid {
 			sendModelAsRes(res, td)
 			return
@@ -524,7 +522,7 @@ func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars 
 // status: 200
 func (a *Api) Logout(res http.ResponseWriter, req *http.Request) {
 	//lets just try and remove the token
-	st := models.GetSessionToken(req.Header.Get(TP_SESSION_TOKEN))
+	st := GetSessionToken(req.Header.Get(TP_SESSION_TOKEN))
 	if st.Id != "" {
 		if err := a.Store.RemoveToken(st); err != nil {
 			log.Printf("Logout was unable to delete token err[%s]", err.Error())
@@ -537,7 +535,7 @@ func (a *Api) Logout(res http.ResponseWriter, req *http.Request) {
 
 // status: 200 AnonIdHashPair
 func (a *Api) AnonymousIdHashPair(res http.ResponseWriter, req *http.Request) {
-	idHashPair := models.NewAnonIdHashPair([]string{a.Config.Salt}, req.URL.Query())
+	idHashPair := NewAnonIdHashPair([]string{a.Config.Salt}, req.URL.Query())
 	sendModelAsRes(res, idHashPair)
 	return
 }
@@ -550,7 +548,7 @@ func (a *Api) ManageIdHashPair(res http.ResponseWriter, req *http.Request, vars 
 	//we need server token
 	if a.hasServerToken(req.Header.Get(TP_SESSION_TOKEN)) {
 
-		usr := models.UserFromDetails(&models.UserDetail{Id: vars["userid"]})
+		usr := UserFromDetails(&UserDetail{Id: vars["userid"]})
 		theKey := vars["key"]
 
 		baseStrings := []string{a.Config.Salt, usr.Id, theKey}
@@ -570,9 +568,9 @@ func (a *Api) ManageIdHashPair(res http.ResponseWriter, req *http.Request, vars 
 					return
 				} else {
 					if foundUsr.Private == nil {
-						foundUsr.Private = make(map[string]*models.IdHashPair)
+						foundUsr.Private = make(map[string]*IdHashPair)
 					}
-					foundUsr.Private[theKey] = models.NewIdHashPair(baseStrings, req.URL.Query())
+					foundUsr.Private[theKey] = NewIdHashPair(baseStrings, req.URL.Query())
 
 					if err := a.Store.UpsertUser(foundUsr); err != nil {
 						log.Printf("ManageIdHashPair %s %s [%s]", req.Method, STATUS_ERR_UPDATING_USR, err.Error())
@@ -585,9 +583,9 @@ func (a *Api) ManageIdHashPair(res http.ResponseWriter, req *http.Request, vars 
 				}
 			case "POST", "PUT":
 				if foundUsr.Private == nil {
-					foundUsr.Private = make(map[string]*models.IdHashPair)
+					foundUsr.Private = make(map[string]*IdHashPair)
 				}
-				foundUsr.Private[theKey] = models.NewIdHashPair(baseStrings, req.URL.Query())
+				foundUsr.Private[theKey] = NewIdHashPair(baseStrings, req.URL.Query())
 
 				if err := a.Store.UpsertUser(foundUsr); err != nil {
 					log.Printf("ManageIdHashPair %s %s [%s]", req.Method, STATUS_ERR_UPDATING_USR, err.Error())

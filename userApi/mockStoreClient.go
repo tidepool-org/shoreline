@@ -1,7 +1,6 @@
-package clients
+package userapi
 
 import (
-	"./../models"
 	"errors"
 )
 
@@ -24,14 +23,14 @@ func (d MockStoreClient) Ping() error {
 	return nil
 }
 
-func (d MockStoreClient) UpsertUser(user *models.User) error {
+func (d MockStoreClient) UpsertUser(user *User) error {
 	if d.doBad {
 		return errors.New("UpsertUser failure")
 	}
 	return nil
 }
 
-func (d MockStoreClient) FindUsers(user *models.User) (found []*models.User, err error) {
+func (d MockStoreClient) FindUsers(user *User) (found []*User, err error) {
 	//`find` a pretend one we just made
 
 	if d.doBad {
@@ -39,22 +38,22 @@ func (d MockStoreClient) FindUsers(user *models.User) (found []*models.User, err
 	}
 
 	if d.returnDifferent {
-		return []*models.User{}, nil
+		return []*User{}, nil
 	}
 
 	if user.Name != "" {
-		found, _ := models.NewUser(&models.UserDetail{Name: user.Name, Pw: "123youknoWm3", Emails: []string{}}, d.salt)
+		found, _ := NewUser(&UserDetail{Name: user.Name, Pw: "123youknoWm3", Emails: []string{}}, d.salt)
 		found.Verified = true
 
-		return []*models.User{found}, nil
+		return []*User{found}, nil
 	}
 	user.Verified = true
 
-	return []*models.User{user}, nil
+	return []*User{user}, nil
 
 }
 
-func (d MockStoreClient) FindUser(user *models.User) (found *models.User, err error) {
+func (d MockStoreClient) FindUser(user *User) (found *User, err error) {
 
 	if d.doBad {
 		return found, errors.New("FindUser failure")
@@ -62,13 +61,13 @@ func (d MockStoreClient) FindUser(user *models.User) (found *models.User, err er
 	//`find` a pretend one we just made
 
 	if d.returnDifferent {
-		other, _ := models.NewUser(&models.UserDetail{Name: "Some One Else", Pw: "123youknoWm3", Emails: []string{}}, d.salt)
+		other, _ := NewUser(&UserDetail{Name: "Some One Else", Pw: "123youknoWm3", Emails: []string{}}, d.salt)
 		other.Verified = true
 		return other, nil
 	}
 
 	if user.Name != "" {
-		found, _ := models.NewUser(&models.UserDetail{Name: user.Name, Pw: "123youknoWm3", Emails: []string{}}, d.salt)
+		found, _ := NewUser(&UserDetail{Name: user.Name, Pw: "123youknoWm3", Emails: []string{}}, d.salt)
 		found.Verified = true
 		return found, nil
 	}
@@ -76,21 +75,21 @@ func (d MockStoreClient) FindUser(user *models.User) (found *models.User, err er
 	return user, nil
 }
 
-func (d MockStoreClient) RemoveUser(user *models.User) error {
+func (d MockStoreClient) RemoveUser(user *User) error {
 	if d.doBad {
 		return errors.New("RemoveUser failure")
 	}
 	return nil
 }
 
-func (d MockStoreClient) AddToken(token *models.SessionToken) error {
+func (d MockStoreClient) AddToken(token *SessionToken) error {
 	if d.doBad {
 		return errors.New("AddToken failure")
 	}
 	return nil
 }
 
-func (d MockStoreClient) FindToken(token *models.SessionToken) (*models.SessionToken, error) {
+func (d MockStoreClient) FindToken(token *SessionToken) (*SessionToken, error) {
 	if d.doBad {
 		return token, errors.New("FindToken failure")
 	}
@@ -98,7 +97,7 @@ func (d MockStoreClient) FindToken(token *models.SessionToken) (*models.SessionT
 	return token, nil
 }
 
-func (d MockStoreClient) RemoveToken(token *models.SessionToken) error {
+func (d MockStoreClient) RemoveToken(token *SessionToken) error {
 	if d.doBad {
 		return errors.New("RemoveToken failure")
 	}

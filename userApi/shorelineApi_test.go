@@ -1,4 +1,4 @@
-package api
+package userapi
 
 import (
 	"bytes"
@@ -9,8 +9,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"./../clients"
-	"./../models"
 	"github.com/tidepool-org/go-common/clients/highwater"
 )
 
@@ -31,11 +29,11 @@ var (
 	/*
 	 * users and tokens
 	 */
-	USR           = &models.User{Id: "123-99-100", Name: "Test One", Emails: []string{"test@new.bar"}}
-	usrTknData    = &models.TokenData{UserId: USR.Id, IsServer: false, DurationSecs: 3600}
-	USR_TOKEN, _  = models.NewSessionToken(usrTknData, FAKE_CONFIG.Secret)
-	sverTknData   = &models.TokenData{UserId: "shoreline", IsServer: true, DurationSecs: 36000}
-	SRVR_TOKEN, _ = models.NewSessionToken(sverTknData, FAKE_CONFIG.Secret)
+	USR           = &User{Id: "123-99-100", Name: "Test One", Emails: []string{"test@new.bar"}}
+	usrTknData    = &TokenData{UserId: USR.Id, IsServer: false, DurationSecs: 3600}
+	USR_TOKEN, _  = NewSessionToken(usrTknData, FAKE_CONFIG.Secret)
+	sverTknData   = &TokenData{UserId: "shoreline", IsServer: true, DurationSecs: 36000}
+	SRVR_TOKEN, _ = NewSessionToken(sverTknData, FAKE_CONFIG.Secret)
 	/*
 	 * basics setup
 	 */
@@ -43,18 +41,18 @@ var (
 	/*
 	 * expected path
 	 */
-	mockStore   = clients.NewMockStoreClient(FAKE_CONFIG.Salt, false, false)
+	mockStore   = NewMockStoreClient(FAKE_CONFIG.Salt, false, false)
 	mockMetrics = highwater.NewMock()
 	shoreline   = InitApi(FAKE_CONFIG, mockStore, mockMetrics)
 	/*
 	 *
 	 */
-	mockNoDupsStore = clients.NewMockStoreClient(FAKE_CONFIG.Salt, true, false)
+	mockNoDupsStore = NewMockStoreClient(FAKE_CONFIG.Salt, true, false)
 	shorelineNoDups = InitApi(FAKE_CONFIG, mockNoDupsStore, mockMetrics)
 	/*
 	 * failure path
 	 */
-	mockStoreFails = clients.NewMockStoreClient(FAKE_CONFIG.Salt, false, MAKE_IT_FAIL)
+	mockStoreFails = NewMockStoreClient(FAKE_CONFIG.Salt, false, MAKE_IT_FAIL)
 	shorelineFails = InitApi(FAKE_CONFIG, mockStoreFails, mockMetrics)
 )
 
@@ -853,7 +851,7 @@ func TestRefreshSession_StatusOK(t *testing.T) {
 
 	body, _ := ioutil.ReadAll(response.Body)
 
-	var tokenData models.TokenData
+	var tokenData TokenData
 	_ = json.Unmarshal(body, &tokenData)
 
 	if tokenData.UserId != USR.Id {
@@ -1034,7 +1032,7 @@ func TestServerCheckToken_StatusOK(t *testing.T) {
 
 	body, _ := ioutil.ReadAll(checkTokenResponse.Body)
 
-	var tokenData models.TokenData
+	var tokenData TokenData
 	_ = json.Unmarshal(body, &tokenData)
 
 	t.Log("token data returned ", tokenData)
@@ -1132,7 +1130,7 @@ func TestAnonymousIdHashPair_StatusOK(t *testing.T) {
 
 	body, _ := ioutil.ReadAll(response.Body)
 
-	var anonIdHashPair models.AnonIdHashPair
+	var anonIdHashPair AnonIdHashPair
 	_ = json.Unmarshal(body, &anonIdHashPair)
 
 	if anonIdHashPair.Name != "" {
@@ -1165,7 +1163,7 @@ func TestAnonymousIdHashPair_StatusOK_EvenWhenNoURLParams(t *testing.T) {
 
 	body, _ := ioutil.ReadAll(response.Body)
 
-	var anonIdHashPair models.AnonIdHashPair
+	var anonIdHashPair AnonIdHashPair
 	_ = json.Unmarshal(body, &anonIdHashPair)
 
 	if anonIdHashPair.Name != "" {
@@ -1273,7 +1271,7 @@ func TestManageIdHashPair_StatusOK(t *testing.T) {
 
 	body, _ := ioutil.ReadAll(response.Body)
 
-	var idHashPair models.IdHashPair
+	var idHashPair IdHashPair
 	_ = json.Unmarshal(body, &idHashPair)
 
 	if idHashPair.Id == "" {
@@ -1333,7 +1331,7 @@ func TestManageIdHashPair_StatusCreated_WhenPost(t *testing.T) {
 
 	body, _ := ioutil.ReadAll(mngIdPairResponse.Body)
 
-	var idHashPair models.IdHashPair
+	var idHashPair IdHashPair
 	_ = json.Unmarshal(body, &idHashPair)
 
 	if idHashPair.Id == "" {
@@ -1378,7 +1376,7 @@ func TestManageIdHashPair_StatusCreated_WhenPut(t *testing.T) {
 
 	body, _ := ioutil.ReadAll(mngIdPairResponse.Body)
 
-	var idHashPair models.IdHashPair
+	var idHashPair IdHashPair
 	_ = json.Unmarshal(body, &idHashPair)
 
 	if idHashPair.Id == "" {

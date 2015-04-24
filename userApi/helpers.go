@@ -1,4 +1,4 @@
-package api
+package userapi
 
 import (
 	"encoding/base64"
@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 
-	"./../models"
 	"github.com/tidepool-org/go-common/clients/status"
 )
 
@@ -32,7 +31,7 @@ func tokenDuration(req *http.Request) (dur float64) {
 }
 
 //Docode the http.Request parsing out the user details
-func getUserDetail(req *http.Request) (ud *models.UserDetail) {
+func getUserDetail(req *http.Request) (ud *UserDetail) {
 	if req.ContentLength > 0 {
 		if err := json.NewDecoder(req.Body).Decode(&ud); err != nil {
 			log.Println("error trying to decode user detail ", err)
@@ -57,7 +56,7 @@ func getGivenDetail(req *http.Request) (d map[string]string) {
 // Extract the username and password from the authorization
 // line of an HTTP header. This function will handle the
 // parsing and decoding of the line.
-func unpackAuth(authLine string) (usr *models.User, pw string) {
+func unpackAuth(authLine string) (usr *User, pw string) {
 	if authLine != "" {
 		parts := strings.SplitN(authLine, " ", 2)
 		payload := parts[1]
@@ -67,7 +66,7 @@ func unpackAuth(authLine string) (usr *models.User, pw string) {
 			details := strings.Split(string(decodedPayload), ":")
 			if details[0] != "" || details[1] != "" {
 				//Note the incoming `name` could infact be id, email or the username
-				return models.UserFromDetails(&models.UserDetail{Id: details[0], Name: details[0], Emails: []string{details[0]}}), details[1]
+				return UserFromDetails(&UserDetail{Id: details[0], Name: details[0], Emails: []string{details[0]}}), details[1]
 			}
 		}
 	}
@@ -159,8 +158,8 @@ func (a *Api) logMetricForUser(id, name, token string, params map[string]string)
 }
 
 //get the token from the req header
-func (a *Api) getUnpackedToken(tokenString string) *models.TokenData {
-	if st := models.GetSessionToken(tokenString); st.Id != "" {
+func (a *Api) getUnpackedToken(tokenString string) *TokenData {
+	if st := GetSessionToken(tokenString); st.Id != "" {
 		if td := st.UnpackAndVerify(a.Config.Secret); td != nil && td.Valid == true {
 			return td
 		}
@@ -168,7 +167,7 @@ func (a *Api) getUnpackedToken(tokenString string) *models.TokenData {
 	return nil
 }
 
-func (a *Api) addUserAndSendStatus(user *models.User, res http.ResponseWriter, req *http.Request) {
+func (a *Api) addUserAndSendStatus(user *User, res http.ResponseWriter, req *http.Request) {
 	if err := a.Store.UpsertUser(user); err != nil {
 		log.Printf("addUserAndSendStatus %s err[%s]", STATUS_ERR_CREATING_USR, err.Error())
 		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_CREATING_USR), http.StatusInternalServerError)
@@ -186,9 +185,9 @@ func (a *Api) addUserAndSendStatus(user *models.User, res http.ResponseWriter, r
 	}
 }
 
-func (a *Api) createAndSaveToken(dur float64, id string, isServer bool) (*models.SessionToken, error) {
-	sessionToken, _ := models.NewSessionToken(
-		&models.TokenData{
+func (a *Api) createAndSaveToken(dur float64, id string, isServer bool) (*SessionToken, error) {
+	sessionToken, _ := NewSessionToken(
+		&TokenData{
 			UserId:       id,
 			IsServer:     isServer,
 			DurationSecs: dur,

@@ -1,4 +1,4 @@
-package api
+package userapi
 
 import (
 	"net/http"

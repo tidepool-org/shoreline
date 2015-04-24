@@ -1,7 +1,6 @@
-package clients
+package userapi
 
 import (
-	"./../models"
 	"fmt"
 	"github.com/tidepool-org/go-common/clients/mongo"
 	"labix.org/v2/mgo"
@@ -52,7 +51,7 @@ func (d MongoStoreClient) Ping() error {
 	return nil
 }
 
-func (d MongoStoreClient) UpsertUser(user *models.User) error {
+func (d MongoStoreClient) UpsertUser(user *User) error {
 
 	cpy := d.session.Copy()
 	defer cpy.Close()
@@ -64,7 +63,7 @@ func (d MongoStoreClient) UpsertUser(user *models.User) error {
 	return nil
 }
 
-func (d MongoStoreClient) FindUser(user *models.User) (result *models.User, err error) {
+func (d MongoStoreClient) FindUser(user *User) (result *User, err error) {
 
 	if user.Id != "" {
 		cpy := d.session.Copy()
@@ -78,7 +77,7 @@ func (d MongoStoreClient) FindUser(user *models.User) (result *models.User, err 
 	return result, nil
 }
 
-func (d MongoStoreClient) FindUsers(user *models.User) (results []*models.User, err error) {
+func (d MongoStoreClient) FindUsers(user *User) (results []*User, err error) {
 
 	fieldsToMatch := []bson.M{}
 	const (
@@ -105,13 +104,13 @@ func (d MongoStoreClient) FindUsers(user *models.User) (results []*models.User, 
 
 	if results == nil {
 		log.Print("no users found ")
-		results = []*models.User{}
+		results = []*User{}
 	}
 
 	return results, nil
 }
 
-func (d MongoStoreClient) RemoveUser(user *models.User) (err error) {
+func (d MongoStoreClient) RemoveUser(user *User) (err error) {
 	cpy := d.session.Copy()
 	defer cpy.Close()
 
@@ -121,7 +120,7 @@ func (d MongoStoreClient) RemoveUser(user *models.User) (err error) {
 	return nil
 }
 
-func (d MongoStoreClient) AddToken(st *models.SessionToken) error {
+func (d MongoStoreClient) AddToken(st *SessionToken) error {
 	//map to the structure we want to save to mongo as
 	token := bson.M{"_id": st.Id, "time": st.Time}
 	cpy := d.session.Copy()
@@ -133,7 +132,7 @@ func (d MongoStoreClient) AddToken(st *models.SessionToken) error {
 	return nil
 }
 
-func (d MongoStoreClient) FindToken(st *models.SessionToken) (*models.SessionToken, error) {
+func (d MongoStoreClient) FindToken(st *SessionToken) (*SessionToken, error) {
 
 	var result map[string]interface{}
 	cpy := d.session.Copy()
@@ -143,12 +142,12 @@ func (d MongoStoreClient) FindToken(st *models.SessionToken) (*models.SessionTok
 		return nil, err
 	}
 	//map to the token structure the service uses
-	tkn := &models.SessionToken{Id: result["_id"].(string), Time: result["time"].(int64)}
+	tkn := &SessionToken{Id: result["_id"].(string), Time: result["time"].(int64)}
 
 	return tkn, nil
 }
 
-func (d MongoStoreClient) RemoveToken(st *models.SessionToken) (err error) {
+func (d MongoStoreClient) RemoveToken(st *SessionToken) (err error) {
 
 	cpy := d.session.Copy()
 	defer cpy.Close()

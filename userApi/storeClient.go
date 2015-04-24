@@ -1,8 +1,4 @@
-package clients
-
-import (
-	"./../models"
-)
+package userapi
 
 type StoreClient interface {
 	Close()

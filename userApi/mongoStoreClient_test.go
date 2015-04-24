@@ -1,4 +1,4 @@
-package clients
+package userapi
 
 import (
 	"strings"
@@ -6,15 +6,13 @@ import (
 
 	"github.com/tidepool-org/go-common/clients/mongo"
 	"labix.org/v2/mgo"
-
-	"./../models"
 )
 
 func TestMongoStoreUserOperations(t *testing.T) {
 
 	var (
-		ORIG_USR_DETAIL  = &models.UserDetail{Name: "Test User", Emails: []string{"test@foo.bar"}, Pw: "myT35t"}
-		OTHER_USR_DETAIL = &models.UserDetail{Name: "Second User", Emails: ORIG_USR_DETAIL.Emails, Pw: "my0th3rT35t"}
+		ORIG_USR_DETAIL  = &UserDetail{Name: "Test User", Emails: []string{"test@foo.bar"}, Pw: "myT35t"}
+		OTHER_USR_DETAIL = &UserDetail{Name: "Second User", Emails: ORIG_USR_DETAIL.Emails, Pw: "my0th3rT35t"}
 	)
 
 	const FAKE_SALT = "some fake salt for the tests"
@@ -39,7 +37,7 @@ func TestMongoStoreUserOperations(t *testing.T) {
 	/*
 	 * THE TESTS
 	 */
-	user, _ := models.NewUser(ORIG_USR_DETAIL, FAKE_SALT)
+	user, _ := NewUser(ORIG_USR_DETAIL, FAKE_SALT)
 
 	if err := mc.UpsertUser(user); err != nil {
 		t.Fatalf("we could not create the user %v", err)
@@ -49,7 +47,7 @@ func TestMongoStoreUserOperations(t *testing.T) {
 	 * Find by Name
 	 */
 
-	toFindByOriginalName := &models.User{Name: user.Name}
+	toFindByOriginalName := &User{Name: user.Name}
 
 	if found, err := mc.FindUsers(toFindByOriginalName); err != nil {
 		t.Fatalf("we could not find the the user by name: err[%v]", err)
@@ -59,7 +57,7 @@ func TestMongoStoreUserOperations(t *testing.T) {
 		}
 	}
 	//UPPER CASE
-	byUpperName := &models.User{Name: strings.ToUpper(user.Name)}
+	byUpperName := &User{Name: strings.ToUpper(user.Name)}
 
 	if found, err := mc.FindUsers(byUpperName); err != nil {
 		t.Fatalf("we could not find the the user by name: err[%v]", err)
@@ -71,7 +69,7 @@ func TestMongoStoreUserOperations(t *testing.T) {
 		}
 	}
 	//lower case
-	byLowerName := &models.User{Name: strings.ToLower(user.Name)}
+	byLowerName := &User{Name: strings.ToLower(user.Name)}
 
 	if found, err := mc.FindUsers(byLowerName); err != nil {
 		t.Fatalf("we could not find the the user by name: err[%v]", err)
@@ -91,7 +89,7 @@ func TestMongoStoreUserOperations(t *testing.T) {
 	}
 
 	//By Name
-	toFindByName := &models.User{Name: user.Name}
+	toFindByName := &User{Name: user.Name}
 
 	if found, err := mc.FindUsers(toFindByName); err != nil {
 		t.Fatalf("we could not find the the user by name: err[%v]", err)
@@ -110,7 +108,7 @@ func TestMongoStoreUserOperations(t *testing.T) {
 	 */
 
 	//By Email
-	byEmails := &models.User{Emails: user.Emails}
+	byEmails := &User{Emails: user.Emails}
 
 	if found, err := mc.FindUsers(byEmails); err != nil {
 		t.Fatalf("we could not find the the user by emails %v", byEmails)
@@ -125,7 +123,7 @@ func TestMongoStoreUserOperations(t *testing.T) {
 	}
 
 	//By Id
-	toFindById := &models.User{Id: user.Id}
+	toFindById := &User{Id: user.Id}
 
 	if found, err := mc.FindUser(toFindById); err != nil {
 		t.Fatalf("we could not find the the user by id err[%v]", err)
@@ -136,13 +134,13 @@ func TestMongoStoreUserOperations(t *testing.T) {
 	}
 
 	//Find many By Email - user and userTwo have the same emails addresses
-	userTwo, _ := models.NewUser(OTHER_USR_DETAIL, FAKE_SALT)
+	userTwo, _ := NewUser(OTHER_USR_DETAIL, FAKE_SALT)
 
 	if err := mc.UpsertUser(userTwo); err != nil {
 		t.Fatalf("we could not create the user %v", err)
 	}
 
-	toMultipleByEmails := &models.User{Emails: user.Emails}
+	toMultipleByEmails := &User{Emails: user.Emails}
 
 	if found, err := mc.FindUsers(toMultipleByEmails); err != nil {
 		t.Fatalf("we could not find the the users by emails %v", toMultipleByEmails)
@@ -156,7 +154,7 @@ func TestMongoStoreUserOperations(t *testing.T) {
 func TestMongoStoreTokenOperations(t *testing.T) {
 
 	var (
-		TD = &models.TokenData{UserId: "2341", IsServer: true, DurationSecs: 3600}
+		TD = &TokenData{UserId: "2341", IsServer: true, DurationSecs: 3600}
 	)
 
 	const (
@@ -184,7 +182,7 @@ func TestMongoStoreTokenOperations(t *testing.T) {
 	/*
 	 * THE TESTS
 	 */
-	sessionToken, _ := models.NewSessionToken(TD, FAKE_SECRET)
+	sessionToken, _ := NewSessionToken(TD, FAKE_SECRET)
 
 	if err := mc.AddToken(sessionToken); err != nil {
 		t.Fatalf("we could not save the token %v", err)
