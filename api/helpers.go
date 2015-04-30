@@ -39,7 +39,6 @@ func getUserDetail(req *http.Request) (ud *models.UserDetail) {
 			return ud
 		}
 	}
-	log.Printf("User details [%v]", ud)
 	return ud
 }
 
