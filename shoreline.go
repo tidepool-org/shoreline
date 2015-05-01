@@ -63,14 +63,31 @@ func main() {
 		WithConfig(&config.HighwaterConfig.HighwaterClientConfig).
 		Build()
 
-	/*
-	 * Shoreline setup
-	 */
-	store := user.NewMongoStoreClient(&config.Mongo)
-
 	rtr := mux.NewRouter()
-	userapi := user.InitApi(config.User, store, highwater)
+
+	/*
+	 * User-Api setup
+	 */
+
+	userapi := user.InitApi(config.User, user.NewMongoStoreClient(&config.Mongo), highwater)
 	userapi.SetHandlers("", rtr)
+
+	/*
+	 * Oauth setup
+	 */
+
+	userClient := user.NewUserClient(userapi)
+
+	permsClient := clients.NewGatekeeperClientBuilder().
+		WithHostGetter(config.GatekeeperConfig.ToHostGetter(hakkenClient)).
+		WithHttpClient(httpClient).
+		WithTokenProvider(userClient).
+		Build()
+
+	log.Print("## now add oauth ##")
+
+	oauthapi := oauth2.InitApi(config.Oauth2, oauth2.NewOAuthStorage(&config.Mongo), userClient, permsClient)
+	oauthapi.SetHandlers("", rtr)
 
 	/*
 	 * Serve it up and publish

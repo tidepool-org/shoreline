@@ -17,6 +17,7 @@ type MongoStoreClient struct {
 	session *mgo.Session
 }
 
+//We implement the interface from user.Storage
 func NewMongoStoreClient(config *mongo.Config) *MongoStoreClient {
 
 	mongoSession, err := mongo.Connect(config)

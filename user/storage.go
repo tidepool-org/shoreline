@@ -1,6 +1,6 @@
 package user
 
-type StoreClient interface {
+type Storage interface {
 	Close()
 	Ping() error
 	UpsertUser(user *User) error

@@ -26,6 +26,7 @@ const (
 //filter used to exclude the mongo _id from being returned
 var selectFilter = bson.M{"_id": 0}
 
+//We implement the interface from osin.Storage
 func NewOAuthStorage(config *mongo.Config) *OAuthStorage {
 
 	mongoSession, err := mongo.Connect(config)

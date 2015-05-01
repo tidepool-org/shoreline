@@ -13,7 +13,7 @@ import (
 
 type (
 	Api struct {
-		Store     StoreClient
+		Store     Storage
 		ApiConfig ApiConfig
 		metrics   highwater.Client
 	}
@@ -50,7 +50,7 @@ const (
 	STATUS_NO_TOKEN             = "No x-tidepool-session-token was found"
 )
 
-func InitApi(cfg ApiConfig, store StoreClient, metrics highwater.Client) *Api {
+func InitApi(cfg ApiConfig, store Storage, metrics highwater.Client) *Api {
 	return &Api{
 		Store:     store,
 		ApiConfig: cfg,
