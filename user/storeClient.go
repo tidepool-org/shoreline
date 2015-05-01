@@ -1,4 +1,4 @@
-package userapi
+package user
 
 type StoreClient interface {
 	Close()

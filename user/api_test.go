@@ -1,4 +1,4 @@
-package userapi
+package user
 
 import (
 	"bytes"
@@ -19,7 +19,7 @@ const (
 
 var (
 	NO_PARAMS   = map[string]string{}
-	FAKE_CONFIG = Config{
+	FAKE_CONFIG = ApiConfig{
 		ServerSecret:       "shhh! don't tell",
 		Secret:             "shhh! don't tell *2",
 		LongTermKey:        "the longetermkey",

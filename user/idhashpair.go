@@ -1,4 +1,4 @@
-package userapi
+package user
 
 type (
 	AnonIdHashPair struct {

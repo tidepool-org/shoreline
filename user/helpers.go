@@ -1,4 +1,4 @@
-package userapi
+package user
 
 import (
 	"encoding/base64"
@@ -160,7 +160,7 @@ func (a *Api) logMetricForUser(id, name, token string, params map[string]string)
 //get the token from the req header
 func (a *Api) getUnpackedToken(tokenString string) *TokenData {
 	if st := GetSessionToken(tokenString); st.Id != "" {
-		if td := st.UnpackAndVerify(a.Config.Secret); td != nil && td.Valid == true {
+		if td := st.UnpackAndVerify(a.ApiConfig.Secret); td != nil && td.Valid == true {
 			return td
 		}
 	}
@@ -192,7 +192,7 @@ func (a *Api) createAndSaveToken(dur float64, id string, isServer bool) (*Sessio
 			IsServer:     isServer,
 			DurationSecs: dur,
 		},
-		a.Config.Secret,
+		a.ApiConfig.Secret,
 	)
 
 	if err := a.Store.AddToken(sessionToken); err == nil {

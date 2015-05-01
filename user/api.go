@@ -1,4 +1,4 @@
-package userapi
+package user
 
 import (
 	"encoding/json"
@@ -13,11 +13,11 @@ import (
 
 type (
 	Api struct {
-		Store   StoreClient
-		Config  Config
-		metrics highwater.Client
+		Store     StoreClient
+		ApiConfig ApiConfig
+		metrics   highwater.Client
 	}
-	Config struct {
+	ApiConfig struct {
 		ServerSecret         string `json:"serverSecret"` //used for services
 		LongTermKey          string `json:"longTermKey"`
 		LongTermDaysDuration int    `json:"longTermDaysDuration"`
@@ -50,11 +50,11 @@ const (
 	STATUS_NO_TOKEN             = "No x-tidepool-session-token was found"
 )
 
-func InitApi(cfg Config, store StoreClient, metrics highwater.Client) *Api {
+func InitApi(cfg ApiConfig, store StoreClient, metrics highwater.Client) *Api {
 	return &Api{
-		Store:   store,
-		Config:  cfg,
-		metrics: metrics,
+		Store:     store,
+		ApiConfig: cfg,
+		metrics:   metrics,
 	}
 }
 
@@ -111,7 +111,7 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 
 	if usrDetails := getUserDetail(req); usrDetails != nil {
 
-		if usr, err := NewUser(usrDetails, a.Config.Salt); err == nil {
+		if usr, err := NewUser(usrDetails, a.ApiConfig.Salt); err == nil {
 			//they shouldn't already exist
 			if results, _ := a.Store.FindUsers(usr); results == nil || len(results) == 0 {
 				log.Printf("CreateUser adding [%v] ", usr)
@@ -139,7 +139,7 @@ func (a *Api) CreateChildUser(res http.ResponseWriter, req *http.Request) {
 
 	if usrDetails := getUserDetail(req); usrDetails != nil {
 
-		if usr, err := NewChildUser(usrDetails, a.Config.Salt); err == nil {
+		if usr, err := NewChildUser(usrDetails, a.ApiConfig.Salt); err == nil {
 			log.Printf("CreateChildUser adding [%v] ", usr)
 			a.addUserAndSendStatus(usr, res, req)
 			return
@@ -230,7 +230,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 				//Rehash the pw if needed
 				if updatesToApply.Updates.Pw != "" {
 
-					if err := userToUpdate.HashPassword(updatesToApply.Updates.Pw, a.Config.Salt); err != nil {
+					if err := userToUpdate.HashPassword(updatesToApply.Updates.Pw, a.ApiConfig.Salt); err != nil {
 						log.Printf("UpdateUser %s err[%s]", STATUS_ERR_UPDATING_USR, err.Error())
 						sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_UPDATING_USR), http.StatusInternalServerError)
 						return
@@ -327,7 +327,7 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 			var err error
 			toDelete := UserFromDetails(&UserDetail{Id: id})
 
-			if err = toDelete.HashPassword(pw, a.Config.Salt); err == nil {
+			if err = toDelete.HashPassword(pw, a.ApiConfig.Salt); err == nil {
 				if err = a.Store.RemoveUser(toDelete); err == nil {
 
 					if td.IsServer {
@@ -374,9 +374,9 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 		} else {
 			if len(results) > 0 {
 				for i := range results {
-					if results[i] != nil && results[i].PwsMatch(pw, a.Config.Salt) {
+					if results[i] != nil && results[i].PwsMatch(pw, a.ApiConfig.Salt) {
 
-						if results[i].IsVerified(a.Config.VerificationSecret) {
+						if results[i].IsVerified(a.ApiConfig.VerificationSecret) {
 
 							if sessionToken, err := a.createAndSaveToken(tokenDuration(req), results[i].Id, false); err != nil {
 								log.Printf("Login %s [%s]", STATUS_ERR_UPDATING_TOKEN, err.Error())
@@ -421,7 +421,7 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 		sendModelAsResWithStatus(res, status.NewStatus(http.StatusBadRequest, STATUS_MISSING_ID_PW), http.StatusBadRequest)
 		return
 	}
-	if pw == a.Config.ServerSecret {
+	if pw == a.ApiConfig.ServerSecret {
 		//generate new token
 		if sessionToken, err := a.createAndSaveToken(
 			tokenDuration(req),
@@ -482,10 +482,10 @@ func (a *Api) LongtermLogin(res http.ResponseWriter, req *http.Request, vars map
 		DAY_AS_SECS = 1 * 24 * 60 * 60
 	)
 	log.Print("LongtermLogin: logging in using the longtermkey")
-	duration := a.Config.LongTermDaysDuration * DAY_AS_SECS
+	duration := a.ApiConfig.LongTermDaysDuration * DAY_AS_SECS
 	longtermkey := vars["longtermkey"]
 
-	if longtermkey == a.Config.LongTermKey {
+	if longtermkey == a.ApiConfig.LongTermKey {
 		log.Printf("LongtermLogin: setting the duration of the token as [%d] ", duration)
 		req.Header.Add(TP_TOKEN_DURATION, strconv.FormatFloat(float64(duration), 'f', -1, 64))
 	} else {
@@ -506,7 +506,7 @@ func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars 
 		tokenString := vars["token"]
 
 		svrToken := &SessionToken{Id: tokenString}
-		if td := svrToken.UnpackAndVerify(a.Config.Secret); td != nil && td.Valid {
+		if td := svrToken.UnpackAndVerify(a.ApiConfig.Secret); td != nil && td.Valid {
 			sendModelAsRes(res, td)
 			return
 		}
@@ -535,7 +535,7 @@ func (a *Api) Logout(res http.ResponseWriter, req *http.Request) {
 
 // status: 200 AnonIdHashPair
 func (a *Api) AnonymousIdHashPair(res http.ResponseWriter, req *http.Request) {
-	idHashPair := NewAnonIdHashPair([]string{a.Config.Salt}, req.URL.Query())
+	idHashPair := NewAnonIdHashPair([]string{a.ApiConfig.Salt}, req.URL.Query())
 	sendModelAsRes(res, idHashPair)
 	return
 }
@@ -551,7 +551,7 @@ func (a *Api) ManageIdHashPair(res http.ResponseWriter, req *http.Request, vars 
 		usr := UserFromDetails(&UserDetail{Id: vars["userid"]})
 		theKey := vars["key"]
 
-		baseStrings := []string{a.Config.Salt, usr.Id, theKey}
+		baseStrings := []string{a.ApiConfig.Salt, usr.Id, theKey}
 
 		if foundUsr, err := a.Store.FindUser(usr); err != nil {
 			log.Printf("ManageIdHashPair %s [%s]", STATUS_ERR_FINDING_USR, err.Error())

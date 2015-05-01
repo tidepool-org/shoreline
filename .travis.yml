@@ -4,7 +4,6 @@ services:
   - mongodb
 
 go:
- - 1.3
  - 1.4
  - tip
 
@@ -15,6 +14,5 @@ install:
 
 script:
  - source ./build
- - cd api && go test -v
- - cd ../clients && go test -v
- - cd ../models && go test -v
+ - cd user && go test -v
+ - cd ../oauth2 && go test -v

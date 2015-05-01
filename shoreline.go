@@ -1,7 +1,8 @@
 package main
 
 import (
-	"./userapi"
+	"./oauth2"
+	"./user"
 	"crypto/tls"
 	"github.com/gorilla/mux"
 	"github.com/tidepool-org/go-common"
@@ -22,7 +23,8 @@ type (
 		clients.Config
 		Service disc.ServiceListing `json:"service"`
 		Mongo   mongo.Config        `json:"mongo"`
-		Api     userapi.Config      `json:"shoreline"`
+		User    user.ApiConfig      `json:"user"`
+		Oauth2  oauth2.ApiConfig    `json:"oauth2"`
 	}
 )
 
@@ -64,11 +66,11 @@ func main() {
 	/*
 	 * Shoreline setup
 	 */
-	store := userapi.NewMongoStoreClient(&config.Mongo)
+	store := user.NewMongoStoreClient(&config.Mongo)
 
 	rtr := mux.NewRouter()
-	user := userapi.InitApi(config.Api, store, highwater)
-	user.SetHandlers("", rtr)
+	userapi := user.InitApi(config.User, store, highwater)
+	userapi.SetHandlers("", rtr)
 
 	/*
 	 * Serve it up and publish

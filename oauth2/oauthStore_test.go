@@ -1,4 +1,4 @@
-package oauth2api
+package oauth2
 
 import (
 	//"log"

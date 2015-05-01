@@ -1,20 +1,20 @@
-package oauth2api
+package oauth2
 
 import (
 	"net/url"
 	"strings"
 	"testing"
 
-	tpClients "github.com/tidepool-org/go-common/clients"
+	"github.com/tidepool-org/go-common/clients"
 )
 
-func Test_signupScope(t *testing.T) {
+func Test_selectedScopes(t *testing.T) {
 
 	formData := make(url.Values)
 	formData[scopeView.name] = []string{scopeView.name}
 	formData[scopeUpload.name] = []string{scopeUpload.name}
 
-	scope := signupScope(formData)
+	scope := selectedScopes(formData)
 
 	expectedScope := scopeView.name + "," + scopeUpload.name
 
@@ -28,10 +28,11 @@ func Test_signupFormValid(t *testing.T) {
 	formData := make(url.Values)
 	formData["usr_name"] = []string{"other"}
 	formData["password"] = []string{"stuff"}
+	formData["password_confirm"] = []string{"stuff"}
 	formData["uri"] = []string{"and"}
 	formData["email"] = []string{"some@more.org"}
 
-	valid := signupFormValid(formData)
+	_, valid := signupFormValid(formData)
 
 	if valid == false {
 		t.Fatalf("form %v should be valid", formData)
@@ -47,7 +48,7 @@ func Test_signupFormValid_false(t *testing.T) {
 	formData["uri"] = []string{"and"}
 	formData["email"] = []string{"some@more.org"}
 
-	valid := signupFormValid(formData)
+	_, valid := signupFormValid(formData)
 
 	if valid {
 		t.Fatalf("form %v should NOT be valid", formData)
@@ -57,9 +58,9 @@ func Test_signupFormValid_false(t *testing.T) {
 
 func Test_applyPermissons(t *testing.T) {
 
-	mockPerms := tpClients.NewGatekeeperMock(nil, nil)
+	mockPerms := clients.NewGatekeeperMock(nil, nil)
 
-	api := OAuthApi{permsApi: mockPerms}
+	api := Api{permsApi: mockPerms}
 
 	done := api.applyPermissons("123", "456", "view,upload")
 
@@ -85,7 +86,7 @@ func Test_makeScopeOption(t *testing.T) {
 		t.Fatal("makeScopeOption should include the scope name")
 	}
 
-	if strings.Contains(option, scopeUpload.detail) == false {
+	if strings.Contains(option, scopeUpload.requestMsg) == false {
 		t.Fatal("makeScopeOption should include the scope detail")
 	}
 
