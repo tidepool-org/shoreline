@@ -6,7 +6,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/tidepool-org/go-common/clients/shoreline"
+	commonUserApi "github.com/tidepool-org/go-common/clients/shoreline"
 	"github.com/tidepool-org/go-common/clients/status"
 	"io/ioutil"
 	"log"
@@ -14,8 +14,8 @@ import (
 	"net/http/httptest"
 )
 
-func extractUserData(data string) (*shoreline.UserData, error) {
-	var ud shoreline.UserData
+func extractUserData(data string) (*commonUserApi.UserData, error) {
+	var ud commonUserApi.UserData
 
 	if err := json.Unmarshal([]byte(data), &ud); err != nil {
 		return nil, err
@@ -34,7 +34,7 @@ func NewUserClient(api *Api) *UserClient {
 func (client *UserClient) Close()       {}
 func (client *UserClient) Start() error { return nil }
 
-func (client *UserClient) Signup(username, password, email string) (*shoreline.UserData, error) {
+func (client *UserClient) Signup(username, password, email string) (*commonUserApi.UserData, error) {
 
 	data := []byte(fmt.Sprintf(`{"username": "%s", "password": "%s","emails":["%s"]}`, username, password, email))
 	request, _ := http.NewRequest("POST", "/user", bytes.NewBuffer(data))
@@ -59,7 +59,7 @@ func (client *UserClient) Signup(username, password, email string) (*shoreline.U
 	}
 }
 
-func (client *UserClient) Login(username, password string) (*shoreline.UserData, string, error) {
+func (client *UserClient) Login(username, password string) (*commonUserApi.UserData, string, error) {
 
 	request, _ := http.NewRequest("POST", "", nil)
 	request.SetBasicAuth(username, password)
@@ -84,7 +84,7 @@ func (client *UserClient) Login(username, password string) (*shoreline.UserData,
 	}
 }
 
-func (client *UserClient) CheckToken(token string) *shoreline.TokenData {
+func (client *UserClient) CheckToken(token string) *commonUserApi.TokenData {
 
 	serverToken := client.TokenProvide()
 
@@ -97,7 +97,7 @@ func (client *UserClient) CheckToken(token string) *shoreline.TokenData {
 
 	switch res.Code {
 	case 200:
-		var td shoreline.TokenData
+		var td commonUserApi.TokenData
 
 		if err := json.Unmarshal([]byte(string(body)), &td); err != nil {
 			log.Printf("Error parsing JSON results [%s]", err.Error())
