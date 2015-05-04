@@ -28,11 +28,15 @@ type (
 	}
 )
 
+const (
+	shoreline_service_prefix = "shoreline "
+)
+
 func main() {
 	var config Config
 
 	if err := common.LoadConfig([]string{"./config/env.json", "./config/server.json"}, &config); err != nil {
-		log.Panic("Problem loading config", err)
+		log.Panic(shoreline_service_prefix, "Problem loading config", err)
 	}
 
 	/*
@@ -43,7 +47,7 @@ func main() {
 		Build()
 
 	if err := hakkenClient.Start(); err != nil {
-		log.Fatal(err)
+		log.Fatal(shoreline_service_prefix, err)
 	}
 	defer hakkenClient.Close()
 
@@ -69,6 +73,8 @@ func main() {
 	 * User-Api setup
 	 */
 
+	log.Print(shoreline_service_prefix, "adding ", user.USER_API_PREFIX)
+
 	userapi := user.InitApi(config.User, user.NewMongoStoreClient(&config.Mongo), highwater)
 	userapi.SetHandlers("", rtr)
 
@@ -84,7 +90,7 @@ func main() {
 		WithTokenProvider(userClient).
 		Build()
 
-	log.Print("## now add oauth ##")
+	log.Print(shoreline_service_prefix, "adding ", oauth2.OAUTH2_API_PREFIX)
 
 	oauthapi := oauth2.InitApi(config.Oauth2, oauth2.NewOAuthStorage(&config.Mongo), userClient, permsClient)
 	oauthapi.SetHandlers("", rtr)
@@ -106,7 +112,7 @@ func main() {
 		start = func() error { return server.ListenAndServe() }
 	}
 	if err := start(); err != nil {
-		log.Fatal(err)
+		log.Fatal(shoreline_service_prefix, err)
 	}
 
 	hakkenClient.Publish(&config.Service)
@@ -116,7 +122,7 @@ func main() {
 	go func() {
 		for {
 			sig := <-signals
-			log.Printf("Got signal [%s]", sig)
+			log.Printf(shoreline_service_prefix+"Got signal [%s]", sig)
 
 			if sig == syscall.SIGINT || sig == syscall.SIGTERM {
 				server.Close()

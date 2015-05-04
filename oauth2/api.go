@@ -41,7 +41,7 @@ var (
 
 const (
 	//api
-	OAUTH2_API_PREFIX = "api/oauth2: "
+	OAUTH2_API_PREFIX = "api/oauth2 "
 
 	//errors
 	error_signup_details           = "sorry but look like something was wrong with your signup details!"
@@ -68,7 +68,7 @@ const (
 	placeholder_name         = "Application Name"
 
 	oneDayInSecs = 86400
-	//TODO: get prefix from router??
+
 	authPostAction = "/auth/oauth2/authorize?response_type=%s&client_id=%s&state=%s&scope=%s&redirect_uri=%s"
 	//TODO: stop gap for styling
 	btnCss   = "input[type=submit]{background:#0b9eb3;color:#fff;}"
