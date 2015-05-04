@@ -32,9 +32,10 @@ const (
 	//api logging prefix
 	USER_API_PREFIX = "api/user "
 
-	TP_SERVER_NAME              = "x-tidepool-server-name"
-	TP_SERVER_SECRET            = "x-tidepool-server-secret"
-	TP_SESSION_TOKEN            = "x-tidepool-session-token"
+	TP_SERVER_NAME   = "x-tidepool-server-name"
+	TP_SERVER_SECRET = "x-tidepool-server-secret"
+	TP_SESSION_TOKEN = "x-tidepool-session-token"
+
 	STATUS_NO_USR_DETAILS       = "No user details were given"
 	STATUS_ERR_FINDING_USR      = "Error finding user"
 	STATUS_ERR_CREATING_USR     = "Error creating the user"
@@ -365,8 +366,7 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 // status: 400 STATUS_MISSING_ID_PW
 // status: 401 STATUS_NO_MATCH
 // status: 403 STATUS_NOT_VERIFIED
-// status: 500 STATUS_ERR_FINDING_USR
-// status: 500 STATUS_ERR_UPDATING_TOKEN
+// status: 500 STATUS_ERR_FINDING_USR, STATUS_ERR_UPDATING_TOKEN
 func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 	if usr, pw := unpackAuth(req.Header.Get("Authorization")); usr != nil {
 
