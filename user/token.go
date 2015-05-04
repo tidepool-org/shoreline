@@ -62,7 +62,7 @@ func NewSessionToken(data *TokenData, secret string) (token *SessionToken, err e
 func (t *SessionToken) unpackToken(secret string) *TokenData {
 
 	if jwtToken, err := jwt.Parse(t.Id, func(t *jwt.Token) ([]byte, error) { return []byte(secret), nil }); err != nil {
-		log.Println("unpackToken ", err)
+		log.Print(USER_API_PREFIX, "unpackToken ", err)
 		return nil
 	} else {
 		return &TokenData{

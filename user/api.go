@@ -29,8 +29,8 @@ type (
 )
 
 const (
-	//api
-	USER_API_PREFIX = "api/user: "
+	//api logging prefix
+	USER_API_PREFIX = "api/user "
 
 	TP_SERVER_NAME              = "x-tidepool-server-name"
 	TP_SERVER_SECRET            = "x-tidepool-server-secret"

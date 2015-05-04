@@ -22,7 +22,7 @@ func NewMongoStoreClient(config *mongo.Config) *MongoStoreClient {
 
 	mongoSession, err := mongo.Connect(config)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal(USER_API_PREFIX, err)
 	}
 
 	return &MongoStoreClient{
@@ -39,7 +39,7 @@ func mgoTokensCollection(cpy *mgo.Session) *mgo.Collection {
 }
 
 func (d MongoStoreClient) Close() {
-	log.Println("Close the session")
+	log.Print(USER_API_PREFIX, "Close the session")
 	d.session.Close()
 	return
 }
@@ -104,7 +104,7 @@ func (d MongoStoreClient) FindUsers(user *User) (results []*User, err error) {
 	}
 
 	if results == nil {
-		log.Print("no users found ")
+		log.Print(USER_API_PREFIX, "no users found ")
 		results = []*User{}
 	}
 
