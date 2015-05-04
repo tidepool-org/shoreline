@@ -1,6 +1,7 @@
 package oauth2
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -12,6 +13,8 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/tidepool-org/go-common/clients"
 	"github.com/tidepool-org/go-common/clients/shoreline"
+
+	"../common"
 )
 
 type (
@@ -39,6 +42,9 @@ var (
 )
 
 const (
+	//api
+	OAUTH2_API_PREFIX = "api/oauth2: "
+
 	//errors
 	error_signup_details           = "sorry but look like something was wrong with your signup details!"
 	error_signup_pw_match          = "sorry but your passwords don't match"
@@ -65,7 +71,7 @@ const (
 
 	oneDayInSecs = 86400
 	//TODO: get prefix from router??
-	authPostAction = "/oauth/authorize?response_type=%s&client_id=%s&state=%s&scope=%s&redirect_uri=%s"
+	authPostAction = "/auth/oauth2/authorize?response_type=%s&client_id=%s&state=%s&scope=%s&redirect_uri=%s"
 	//TODO: stop gap for styling
 	btnCss   = "input[type=submit]{background:#0b9eb3;color:#fff;}"
 	inputCss = "input{width:80%%;height:37px;margin:5px;font-size:18px;}"
@@ -93,17 +99,19 @@ func InitApi(
 		ApiConfig:   config,
 	}
 }
-
 func (o *Api) SetHandlers(prefix string, rtr *mux.Router) {
 
-	log.Print("Api attaching handlers ...")
+	//log.Print("OAuthApi attaching handlers ...")
 
-	rtr.HandleFunc(prefix+"/signup", o.showSignup).Methods("GET")
-	rtr.HandleFunc(prefix+"/signup", o.processSignup).Methods("POST")
-	rtr.HandleFunc(prefix+"/authorize", o.showAuthorize).Methods("GET")
-	rtr.HandleFunc(prefix+"/authorize", o.processAuthorize).Methods("POST")
-	rtr.HandleFunc(prefix+"/token", o.token).Methods("GET")
-	rtr.HandleFunc(prefix+"/info", o.info).Methods("GET")
+	common.LogLine(OAUTH2_API_PREFIX, "attaching handlers ...")
+	//signup user and give them secret and id required for oauth2 usage
+	rtr.HandleFunc("/oauth2/signup", o.signup).Methods("GET", "POST")
+
+	//the oauth2 specific part of the api
+	rtr.HandleFunc("/oauth2/authorize", o.authorize).Methods("GET", "POST")
+	rtr.HandleFunc("/oauth2/token", o.token).Methods("POST")
+	rtr.HandleFunc("/oauth2/info", o.info).Methods("GET")
+	rtr.HandleFunc("/oauth2/revoke", o.revoke).Methods("POST")
 
 }
 
@@ -150,46 +158,14 @@ func getAllScopes() string {
 	return fmt.Sprintf("%s,%s", scopeView.name, scopeUpload.name)
 }
 
-//wrapper to write error and display to the user
-func writeError(w http.ResponseWriter, errorMessage string, statusCode int) {
-	w.WriteHeader(statusCode)
-	w.Write([]byte("<html><body>"))
-	w.Write([]byte("<i>" + errorMessage + "</i>"))
-	w.Write([]byte("</body></html>"))
-	return
-}
-
 //attach basic styles to the rendered components
 func applyStyle(w http.ResponseWriter) {
 	style := fmt.Sprintf("<head><style type=\"text/css\">%s%s%s</style></head>", mfwCss, inputCss, btnCss)
 	w.Write([]byte(style))
 }
 
-// Apply the requested permissons for the app on authorizing users account
-func (o *Api) applyPermissons(authorizingUserId, appUserId, scope string) bool {
-
-	log.Printf("applyPermissons: raw scope asked for %s", scope)
-
-	var empty struct{}
-	scopes := strings.Split(scope, ",")
-	permsToApply := make(clients.Permissions)
-
-	for i := range scopes {
-		permsToApply[scopes[i]] = empty
-	}
-
-	log.Printf("applyPermissons: permissons to apply %v", permsToApply)
-
-	if appliedPerms, err := o.permsApi.SetPermissions(appUserId, authorizingUserId, permsToApply); err != nil {
-		log.Printf("applyPermissons: err %v setting the permissons %v", err, appliedPerms)
-		return false
-	}
-	log.Printf("applyPermissons: permissons %v set", permsToApply)
-	return true
-}
-
-// Show the signup from so an external user can signup to the tidepool platform
-func (o *Api) showSignup(w http.ResponseWriter, r *http.Request) {
+//show the signup from so an external user can signup to the tidepool platform
+func showSignupForm(w http.ResponseWriter) {
 
 	//TODO: as a template
 	w.Write([]byte("<html>"))
@@ -218,145 +194,25 @@ func (o *Api) showSignup(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("</body></html>"))
 }
 
-//Process signup for the app user
-func (o *Api) processSignup(w http.ResponseWriter, r *http.Request) {
+//show details on successful signup
+func showSignupSuccess(w http.ResponseWriter, signedUp *osin.DefaultClient) {
+	signedUpIdMsg := fmt.Sprintf("client_id=%s", signedUp.Id)
+	signedUpSecretMsg := fmt.Sprintf("client_secret=%s", signedUp.Secret)
+	log.Printf("showSignupSuccess: complete [%v] [%s] ", signedUpIdMsg, signedUpSecretMsg)
+
+	w.Write([]byte("<html>"))
 	applyStyle(w)
+	w.Write([]byte("<body>"))
+	w.Write([]byte("<h2>" + msg_signup_complete + "</h2>"))
+	w.Write([]byte("<p>" + msg_signup_save_details + "</p>"))
 
-	r.ParseForm()
-
-	validationMsg, formValid := signupFormValid(r.Form)
-
-	if formValid {
-
-		if signupResp, err := o.userApi.Signup(r.Form.Get("usr_name"), r.Form.Get("password"), r.Form.Get("email")); err != nil {
-			log.Printf("processSignup: error[%s] status[%s]", error_signup_account, err.Error())
-			writeError(w, error_signup_account, http.StatusInternalServerError)
-		} else {
-			secret, _ := GenerateHash(signupResp.UserID, r.Form.Get("uri"), time.Now().String())
-
-			theClient := &osin.DefaultClient{
-				Id:          signupResp.UserID,
-				Secret:      secret,
-				RedirectUri: r.Form.Get("uri"),
-				UserData:    map[string]interface{}{"AppName": signupResp.UserName},
-			}
-
-			authData := &osin.AuthorizeData{
-				Client:      theClient,
-				Scope:       getAllScopes(),
-				RedirectUri: theClient.RedirectUri,
-				ExpiresIn:   int32(o.ApiConfig.ExpireDays * oneDayInSecs),
-				CreatedAt:   time.Now(),
-			}
-
-			// generate token code
-			code, err := o.oauthServer.AuthorizeTokenGen.GenerateAuthorizeToken(authData)
-			if err != nil {
-				log.Print("processSignup: err[%s]", err.Error())
-				writeError(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-
-			authData.Code = code
-
-			log.Printf("processSignup: AuthorizeData %v", authData)
-			if saveErr := o.storage.SaveAuthorize(authData); saveErr != nil {
-				log.Printf("processSignup: error during SaveAuthorize: %s", saveErr.Error())
-				writeError(w, error_generic, http.StatusInternalServerError)
-			}
-
-			if setErr := o.storage.SetClient(theClient.Id, theClient); setErr != nil {
-				log.Printf("signup error during SetClient: %s", setErr.Error())
-				writeError(w, error_generic, http.StatusInternalServerError)
-			}
-			log.Print("processSignup: about to announce the details")
-			//Inform of the results
-			signedUpIdMsg := fmt.Sprintf("client_id=%s", theClient.Id)
-			signedUpSecretMsg := fmt.Sprintf("client_secret=%s", theClient.Secret)
-			//TODO: as a template
-			w.Write([]byte("<html>"))
-			applyStyle(w)
-			w.Write([]byte("<body>"))
-			w.Write([]byte("<h2>" + msg_signup_complete + "</h2>"))
-			w.Write([]byte("<p>" + msg_signup_save_details + "</p>"))
-
-			w.Write([]byte(signedUpIdMsg + " <br/>"))
-			w.Write([]byte(signedUpSecretMsg + " <br/>"))
-			w.Write([]byte("</html></body>"))
-
-			log.Printf("processSignup: complete [%v] [%s] [%s] ", authData.Client, signedUpIdMsg, signedUpSecretMsg)
-		}
-	} else if formValid == false {
-		log.Printf("processSignup: error[%s]", validationMsg)
-		writeError(w, validationMsg, http.StatusBadRequest)
-	}
+	w.Write([]byte(signedUpIdMsg + " <br/>"))
+	w.Write([]byte(signedUpSecretMsg + " <br/>"))
+	w.Write([]byte("</html></body>"))
 }
 
-//Start the authorize process showing the Tidepool login form to the user
-func (o *Api) showAuthorize(w http.ResponseWriter, r *http.Request) {
-
-	resp := o.oauthServer.NewResponse()
-	defer resp.Close()
-
-	log.Print("showAuthorize: off to handle auth request via oauthServer")
-
-	if ar := o.oauthServer.HandleAuthorizeRequest(resp, r); ar != nil {
-		log.Print("showAuthorize: show the login")
-		o.showLogin(ar, w, r)
-	}
-	if resp.IsError && resp.InternalError != nil {
-		log.Printf("showAuthorize: stink bro it's all gone pete tong error[%s] code[%d] ", resp.InternalError.Error(), resp.StatusCode)
-		//writeError(w, resp.InternalError.Error(), resp.StatusCode)
-	}
-	osin.OutputJSON(resp, w, r)
-}
-
-//Process the authorization request for the Tidepool user
-func (o *Api) processAuthorize(w http.ResponseWriter, r *http.Request) {
-	applyStyle(w)
-
-	resp := o.oauthServer.NewResponse()
-	defer resp.Close()
-
-	log.Print("processAuthorize: off to handle auth request via oauthServer")
-	if ar := o.oauthServer.HandleAuthorizeRequest(resp, r); ar != nil {
-		log.Print("processAuthorize: lets do the user login")
-
-		if loggedInId := o.doLogin(ar, w, r); loggedInId == "" {
-			log.Print("processAuthorize: " + error_check_tidepool_creds)
-			//we don't give any other details from the platform
-			o.showLogin(ar, w, r)
-			writeError(w, error_check_tidepool_creds, http.StatusUnauthorized)
-		} else {
-			log.Print("processAuthorize: user logged in so applying permissons on user")
-			log.Printf("Request %v", ar)
-
-			if o.applyPermissons(loggedInId, ar.Client.GetId(), ar.Scope) {
-				log.Printf("processAuthorize: apply permissons[%s] to userid[%s]", ar.Scope, loggedInId)
-				ar.Authorized = true
-				o.oauthServer.FinishAuthorizeRequest(resp, r, ar)
-			} else {
-				log.Printf("processAuthorize: error[%s]", error_applying_permissons)
-				writeError(w, error_applying_permissons, http.StatusInternalServerError)
-			}
-		}
-	}
-	if resp.IsError && resp.InternalError != nil {
-		log.Printf("processAuthorize: error[%s] status[%d]", resp.InternalError.Error(), resp.StatusCode)
-		//writeError(w, resp.InternalError.Error(), resp.StatusCode)
-	}
-	//TODO: sort this out
-	givenCode := fmt.Sprintf("code=%s", resp.Output["code"])
-	givenState := fmt.Sprintf("state=%s", resp.Output["state"])
-	log.Printf("processAuthorize: resp code[%s] state[%s] ", givenCode, givenState)
-	w.Write([]byte(givenCode + " <br/>"))
-	w.Write([]byte(givenState + " <br/>"))
-	osin.OutputJSON(resp, w, r)
-}
-
-//show the login form for authorization
-func (o *Api) showLogin(ar *osin.AuthorizeRequest, w http.ResponseWriter, r *http.Request) {
-	//TODO: as a template
+//show login form for user giving authorization
+func showLoginForm(ar *osin.AuthorizeRequest, w http.ResponseWriter) {
 	ud := ar.Client.GetUserData().(map[string]interface{})
 
 	w.Write([]byte("<html>"))
@@ -380,32 +236,171 @@ func (o *Api) showLogin(ar *osin.AuthorizeRequest, w http.ResponseWriter, r *htt
 	w.Write([]byte("</body></html>"))
 }
 
-//process the login form
-func (o *Api) doLogin(ar *osin.AuthorizeRequest, w http.ResponseWriter, r *http.Request) string {
-	log.Print("processLogin: do the login")
-	r.ParseForm()
-
-	log.Printf("form data %s %s", r.Form.Get("login"), r.Form.Get("password"))
-
-	if r.Form.Get("login") != "" && r.Form.Get("password") != "" {
-		log.Print("processLogin: about to login to the platform")
-		if usr, _, err := o.userApi.Login(r.Form.Get("login"), r.Form.Get("password")); err != nil {
-			log.Printf("processLogin: err during account login: %s", err.Error())
-		} else if err == nil && usr == nil {
-			log.Print("processLogin: no user was found")
-		} else if usr != nil {
-			log.Printf("processLogin: tidepool login success for userid[%s] ", usr.UserID)
-			return usr.UserID
-		}
-	}
-	return ""
+//wrapper to write error and show to the user
+func showError(w http.ResponseWriter, errorMessage string, statusCode int) {
+	w.WriteHeader(statusCode)
+	applyStyle(w)
+	w.Write([]byte("<html><body><i>" + errorMessage + "</i></body></html>"))
+	return
 }
 
-// Access token endpoint
+// Apply the requested permissons for the app on authorizing users account
+func (o *Api) applyPermissons(authorizingUserId, appUserId, scope string) bool {
+
+	log.Printf("applyPermissons: raw scope asked for %s", scope)
+
+	var empty struct{}
+	scopes := strings.Split(scope, ",")
+	permsToApply := make(clients.Permissions)
+
+	for i := range scopes {
+		permsToApply[scopes[i]] = empty
+	}
+
+	log.Printf("applyPermissons: permissons to apply %v", permsToApply)
+
+	if appliedPerms, err := o.permsApi.SetPermissions(appUserId, authorizingUserId, permsToApply); err != nil {
+		log.Printf("applyPermissons: err %v setting the permissons %v", err, appliedPerms)
+		return false
+	}
+	log.Printf("applyPermissons: permissons %v set", permsToApply)
+	return true
+}
+
+//try login the user to the platform and apply requested permissons
+func (o *Api) applyAuthorization(user, password string, ar *osin.AuthorizeRequest) error {
+	log.Print("applyAuthorization")
+
+	if usr, _, err := o.userApi.Login(user, password); err != nil {
+		log.Printf("applyAuthorization: err during account login: %s", err.Error())
+		return err
+	} else if usr != nil {
+		log.Printf("applyAuthorization: tidepool login success for userid[%s] now applying permissons", usr.UserID)
+		if o.applyPermissons(usr.UserID, ar.Client.GetId(), getAllScopes()) {
+			return nil
+		} else {
+			log.Printf("applyAuthorization: error[%s]", error_applying_permissons)
+			return errors.New(error_applying_permissons)
+		}
+	}
+	log.Printf("applyAuthorization: no user or error from login returning[%s] ", error_check_tidepool_creds)
+	return errors.New(error_check_tidepool_creds)
+}
+
+//login page for user that is authroizing access to thier tidepool account
+func (o *Api) handleLoginPage(ar *osin.AuthorizeRequest, w http.ResponseWriter, r *http.Request) bool {
+
+	r.ParseForm()
+
+	if r.Method == "POST" && r.Form.Get("login") != "" && r.Form.Get("password") != "" {
+
+		if err := o.applyAuthorization(r.Form.Get("login"), r.Form.Get("password"), ar); err == nil {
+			return true
+		} else {
+			showError(w, error_check_tidepool_creds, http.StatusBadRequest)
+		}
+	}
+
+	log.Printf("handleLoginPage: host[%s] url[%v] uri[%s]", r.Host, r.URL, r.RequestURI)
+
+	showLoginForm(ar, w)
+	return false
+}
+
+//Process signup for the app user
+func (o *Api) signup(w http.ResponseWriter, r *http.Request) {
+	r.ParseForm()
+
+	validationMsg, formValid := signupFormValid(r.Form)
+
+	if r.Method == "POST" && formValid {
+
+		if signupResp, err := o.userApi.Signup(r.Form.Get("usr_name"), r.Form.Get("password"), r.Form.Get("email")); err != nil {
+			log.Printf("processSignup: error[%s] status[%s]", error_signup_account, err.Error())
+			showError(w, error_signup_account, http.StatusInternalServerError)
+		} else {
+			secret, _ := GenerateHash(signupResp.UserID, r.Form.Get("uri"), time.Now().String())
+
+			theClient := &osin.DefaultClient{
+				Id:          signupResp.UserID,
+				Secret:      secret,
+				RedirectUri: r.Form.Get("uri"),
+				UserData:    map[string]interface{}{"AppName": signupResp.UserName},
+			}
+
+			authData := &osin.AuthorizeData{
+				Client:      theClient,
+				Scope:       getAllScopes(),
+				RedirectUri: theClient.RedirectUri,
+				ExpiresIn:   int32(o.ApiConfig.ExpireDays * oneDayInSecs),
+				CreatedAt:   time.Now(),
+			}
+
+			// generate token code
+			code, err := o.oauthServer.AuthorizeTokenGen.GenerateAuthorizeToken(authData)
+			if err != nil {
+				log.Print("processSignup: err[%s]", err.Error())
+				showError(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			authData.Code = code
+
+			log.Printf("processSignup: AuthorizeData %v", authData)
+			if saveErr := o.storage.SaveAuthorize(authData); saveErr != nil {
+				log.Printf("processSignup: error during SaveAuthorize: %s", saveErr.Error())
+				showError(w, error_generic, http.StatusInternalServerError)
+			}
+
+			if setErr := o.storage.SetClient(theClient.Id, theClient); setErr != nil {
+				log.Printf("signup error during SetClient: %s", setErr.Error())
+				showError(w, error_generic, http.StatusInternalServerError)
+			}
+			log.Print("processSignup: about to announce the details")
+			showSignupSuccess(w, theClient)
+		}
+		return
+	} else if r.Method == "POST" && formValid == false {
+		log.Printf("processSignup: error[%s]", validationMsg)
+		showError(w, validationMsg, http.StatusBadRequest)
+		return
+	} else if r.Method == "GET" {
+		showSignupForm(w)
+	}
+}
+
+/***
+ * Implementation of OAuth2 endpoints
+ **/
+
+//OAuth2 authorize endpoint
+func (o *Api) authorize(w http.ResponseWriter, r *http.Request) {
+
+	resp := o.oauthServer.NewResponse()
+	defer resp.Close()
+
+	log.Print("authorize: off to handle auth request via oauthServer")
+
+	if ar := o.oauthServer.HandleAuthorizeRequest(resp, r); ar != nil {
+		log.Print("authorize: show the login")
+
+		if o.handleLoginPage(ar, w, r) == false {
+			return
+		}
+		log.Printf("authorize: resp code[%s] state[%s] ", resp.Output["code"], resp.Output["state"])
+		ar.Authorized = true
+		o.oauthServer.FinishAuthorizeRequest(resp, r, ar)
+	}
+	if resp.IsError && resp.InternalError != nil {
+		log.Printf("authorize: stink bro it's all gone pete tong error[%s] code[%d] ", resp.InternalError.Error(), resp.StatusCode)
+	}
+	osin.OutputJSON(resp, w, r)
+}
+
+// OAuth2 token endpoint
 func (o *Api) token(w http.ResponseWriter, r *http.Request) {
 
 	log.Print("token: getting token")
-	applyStyle(w)
 
 	resp := o.oauthServer.NewResponse()
 	defer resp.Close()
@@ -416,17 +411,14 @@ func (o *Api) token(w http.ResponseWriter, r *http.Request) {
 	}
 	if resp.IsError && resp.InternalError != nil {
 		log.Printf("token: error[%s] status[%d]", resp.InternalError.Error(), resp.StatusCode)
-		//TODO: sort out error's seems to always be 200
-		//writeError(w, resp.InternalError.Error(), resp.StatusCode)
 	}
 	osin.OutputJSON(resp, w, r)
 }
 
-// Information endpoint
+// OAuth2 information endpoint
 func (o *Api) info(w http.ResponseWriter, r *http.Request) {
 
-	log.Print("Api: info")
-	applyStyle(w)
+	log.Print("OAuthApi: info")
 
 	resp := o.oauthServer.NewResponse()
 	defer resp.Close()
@@ -435,4 +427,12 @@ func (o *Api) info(w http.ResponseWriter, r *http.Request) {
 		o.oauthServer.FinishInfoRequest(resp, r, ir)
 	}
 	osin.OutputJSON(resp, w, r)
+}
+
+// OAuth2 revoke endpoint
+func (o *Api) revoke(w http.ResponseWriter, r *http.Request) {
+
+	log.Print("OAuthApi: revoke")
+	w.WriteHeader(http.StatusNotImplemented)
+
 }
