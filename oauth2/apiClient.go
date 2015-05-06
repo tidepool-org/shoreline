@@ -23,10 +23,10 @@ func NewOAuth2Client(api *Api) *OAuth2Client {
 func (client *OAuth2Client) CheckToken(token string) (Data, error) {
 
 	if data, err := client.oauth2api.storage.LoadAccess(token); err != nil {
-		log.Print(OAUTH2_API_PREFIX, "OAuth2Client CheckToken", err.Error())
+		log.Print(OAUTH2_API_PREFIX, "OAuth2Client CheckToken ", err.Error())
 		return nil, err
 	} else if data == nil {
-		log.Print(OAUTH2_API_PREFIX, "OAuth2Client CheckToken", "nothing found")
+		log.Print(OAUTH2_API_PREFIX, "OAuth2Client CheckToken ", "nothing found")
 		return nil, errors.New("nothing found")
 	} else {
 		returnData := Data{}
