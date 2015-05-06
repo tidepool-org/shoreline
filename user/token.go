@@ -27,7 +27,7 @@ const (
 	TOKEN_DURATION_KEY = "tokenduration"
 )
 
-func NewSessionToken(data *TokenData, secret string) (token *SessionToken, err error) {
+func CreateSessionToken(data *TokenData, secret string) (token *SessionToken, err error) {
 
 	const seconds_in_one_hour = 3600
 
@@ -63,17 +63,9 @@ func NewSessionToken(data *TokenData, secret string) (token *SessionToken, err e
 	return nil, errors.New("The duration for the token was 0 seconds")
 }
 
-func (t *SessionToken) Save(store Storage) error {
-	if err := store.AddToken(t); err != nil {
-		log.Print(USER_API_PREFIX, "error saving SessionToken", err.Error())
-		return err
-	}
-	return nil
-}
+func CreateSessionTokenAndSave(data *TokenData, secret string, store Storage) (token *SessionToken, err error) {
 
-func NewSavedSessionToken(data *TokenData, secret string, store Storage) (token *SessionToken, err error) {
-
-	if sessionToken, err := NewSessionToken(
+	if sessionToken, err := CreateSessionToken(
 		data,
 		secret,
 	); err != nil {
@@ -87,6 +79,14 @@ func NewSavedSessionToken(data *TokenData, secret string, store Storage) (token 
 			return sessionToken, nil
 		}
 	}
+}
+
+func (t *SessionToken) Save(store Storage) error {
+	if err := store.AddToken(t); err != nil {
+		log.Print(USER_API_PREFIX, "error saving SessionToken", err.Error())
+		return err
+	}
+	return nil
 }
 
 func (t *SessionToken) UnpackAndVerify(secret string) *TokenData {

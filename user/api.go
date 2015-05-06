@@ -392,7 +392,7 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 
 						if results[i].IsVerified(a.ApiConfig.VerificationSecret) {
 
-							if sessionToken, err := NewSavedSessionToken(&TokenData{DurationSecs: extractTokenDuration(req), UserId: results[i].Id, IsServer: false}, a.ApiConfig.Secret, a.Store); err != nil {
+							if sessionToken, err := CreateSessionTokenAndSave(&TokenData{DurationSecs: extractTokenDuration(req), UserId: results[i].Id, IsServer: false}, a.ApiConfig.Secret, a.Store); err != nil {
 								log.Printf(USER_API_PREFIX+"Login %s [%s]", STATUS_ERR_UPDATING_TOKEN, err.Error())
 								sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_UPDATING_TOKEN), http.StatusInternalServerError)
 								return
@@ -437,7 +437,7 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 	}
 	if pw == a.ApiConfig.ServerSecret {
 		//generate new token
-		if sessionToken, err := NewSavedSessionToken(
+		if sessionToken, err := CreateSessionTokenAndSave(
 			&TokenData{DurationSecs: extractTokenDuration(req), UserId: server, IsServer: true},
 			a.ApiConfig.Secret,
 			a.Store,
@@ -479,7 +479,7 @@ func (a *Api) oauth2Login(w http.ResponseWriter, r *http.Request) {
 
 				log.Printf(USER_API_PREFIX+"oauth2Login data%v err[%s]", result, err)
 
-				if sessionToken, err := NewSavedSessionToken(
+				if sessionToken, err := CreateSessionTokenAndSave(
 					&TokenData{DurationSecs: 0, UserId: result["userid"].(string), IsServer: false},
 					a.ApiConfig.Secret,
 					a.Store,
@@ -515,7 +515,7 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 			log.Printf(USER_API_PREFIX+"RefreshSession this is a long-duration token set for [%f] ", td.DurationSecs)
 		}
 		//refresh
-		if sessionToken, err := NewSavedSessionToken(
+		if sessionToken, err := CreateSessionTokenAndSave(
 			td,
 			a.ApiConfig.Secret,
 			a.Store,

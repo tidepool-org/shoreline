@@ -182,7 +182,7 @@ func TestMongoStoreTokenOperations(t *testing.T) {
 	/*
 	 * THE TESTS
 	 */
-	sessionToken, _ := NewSessionToken(TD, FAKE_SECRET)
+	sessionToken, _ := CreateSessionToken(TD, FAKE_SECRET)
 
 	if err := mc.AddToken(sessionToken); err != nil {
 		t.Fatalf("we could not save the token %v", err)
