@@ -1,7 +1,6 @@
 package oauth2
 
 import (
-	//"log"
 	"testing"
 
 	"github.com/RangelReale/osin"
@@ -21,10 +20,19 @@ var (
 		Client: a_client,
 	}
 
+	access_data_other = &osin.AccessData{
+		AccessToken:   "13456",
+		Client:        a_client,
+		Scope:         "upload,view",
+		AuthorizeData: auth_data,
+	}
+
 	access_data = &osin.AccessData{
-		AccessToken: "4321",
-		Client:      a_client,
-		Scope:       "upload,view",
+		AccessToken:   "4321",
+		Client:        a_client,
+		Scope:         "upload,view",
+		AuthorizeData: auth_data,
+		AccessData:    access_data_other,
 	}
 
 	testingConfig = &mongo.Config{ConnectionString: "mongodb://localhost/oauth_test"}

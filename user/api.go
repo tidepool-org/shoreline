@@ -5,10 +5,14 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gorilla/mux"
 	"github.com/tidepool-org/go-common/clients/highwater"
 	"github.com/tidepool-org/go-common/clients/status"
+
+	"../common"
+	"../oauth2"
 )
 
 type (
@@ -16,6 +20,7 @@ type (
 		Store     Storage
 		ApiConfig ApiConfig
 		metrics   highwater.Client
+		oauth     oauth2.Client
 	}
 	ApiConfig struct {
 		ServerSecret         string `json:"serverSecret"` //used for services
@@ -62,6 +67,10 @@ func InitApi(cfg ApiConfig, store Storage, metrics highwater.Client) *Api {
 	}
 }
 
+func (a *Api) AttachOauth(client oauth2.Client) {
+	a.oauth = client
+}
+
 func (a *Api) SetHandlers(prefix string, rtr *mux.Router) {
 
 	rtr.HandleFunc("/status", a.GetStatus).Methods("GET")
@@ -79,6 +88,8 @@ func (a *Api) SetHandlers(prefix string, rtr *mux.Router) {
 	rtr.HandleFunc("/login", a.Login).Methods("POST")
 	rtr.HandleFunc("/login", a.RefreshSession).Methods("GET")
 	rtr.Handle("/login/{longtermkey}", varsHandler(a.LongtermLogin)).Methods("POST")
+
+	rtr.HandleFunc("/access_token", a.oauth2Login).Methods("POST")
 
 	rtr.HandleFunc("/serverlogin", a.ServerLogin).Methods("POST")
 
@@ -164,7 +175,7 @@ func (a *Api) CreateChildUser(res http.ResponseWriter, req *http.Request) {
 // status: 500 STATUS_ERR_UPDATING_USR
 func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 
-	if td := a.getUnpackedToken(req.Header.Get(TP_SESSION_TOKEN)); td != nil {
+	if td := getUnpackedToken(req.Header.Get(TP_SESSION_TOKEN), a.ApiConfig.Secret); td != nil {
 
 		var (
 			//structure that the update are given to us in
@@ -266,7 +277,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 //find any matches returning them with return http.StatusOK
 func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 
-	if td := a.getUnpackedToken(req.Header.Get(TP_SESSION_TOKEN)); td != nil {
+	if td := getUnpackedToken(req.Header.Get(TP_SESSION_TOKEN), a.ApiConfig.Secret); td != nil {
 
 		var usr *User
 
@@ -315,7 +326,7 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 
 func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 
-	if td := a.getUnpackedToken(req.Header.Get(TP_SESSION_TOKEN)); td != nil {
+	if td := getUnpackedToken(req.Header.Get(TP_SESSION_TOKEN), a.ApiConfig.Secret); td != nil {
 
 		var id string
 		if td.IsServer == true {
@@ -381,7 +392,7 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 
 						if results[i].IsVerified(a.ApiConfig.VerificationSecret) {
 
-							if sessionToken, err := a.createAndSaveToken(tokenDuration(req), results[i].Id, false); err != nil {
+							if sessionToken, err := NewSavedSessionToken(&TokenData{DurationSecs: extractTokenDuration(req), UserId: results[i].Id, IsServer: false}, a.ApiConfig.Secret, a.Store); err != nil {
 								log.Printf(USER_API_PREFIX+"Login %s [%s]", STATUS_ERR_UPDATING_TOKEN, err.Error())
 								sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_UPDATING_TOKEN), http.StatusInternalServerError)
 								return
@@ -426,10 +437,10 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 	}
 	if pw == a.ApiConfig.ServerSecret {
 		//generate new token
-		if sessionToken, err := a.createAndSaveToken(
-			tokenDuration(req),
-			server,
-			true,
+		if sessionToken, err := NewSavedSessionToken(
+			&TokenData{DurationSecs: extractTokenDuration(req), UserId: server, IsServer: true},
+			a.ApiConfig.Secret,
+			a.Store,
 		); err != nil {
 			log.Printf(USER_API_PREFIX+"ServerLogin %s err[%s]", STATUS_ERR_GENERATING_TOKEN, err.Error())
 			sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN), http.StatusInternalServerError)
@@ -445,12 +456,58 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 	return
 }
 
+// status: 200 TP_SESSION_TOKEN
+// status: 400 invalid_request
+// status: 401 invalid_token
+// status: 403 insufficient_scope
+func (a *Api) oauth2Login(w http.ResponseWriter, r *http.Request) {
+
+	//oauth is not enabled
+	if a.oauth == nil {
+		log.Print(USER_API_PREFIX, "OAuth is not enabled")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		return
+	}
+
+	if ah := r.Header.Get("Authorization"); ah != "" {
+		if len(ah) > 6 && strings.ToUpper(ah[0:6]) == "BEARER" {
+
+			if auth_token := ah[7:]; auth_token != "" {
+				log.Println(USER_API_PREFIX, "oauth2Login looking good ....", auth_token)
+
+				result, err := a.oauth.CheckToken(auth_token)
+
+				log.Printf(USER_API_PREFIX+"oauth2Login data%v err[%s]", result, err)
+
+				if sessionToken, err := NewSavedSessionToken(
+					&TokenData{DurationSecs: 0, UserId: result["userid"].(string), IsServer: false},
+					a.ApiConfig.Secret,
+					a.Store,
+				); err != nil {
+					log.Print(USER_API_PREFIX, "oauth2Login error creating session token", err.Error())
+					common.OutputJSON(w, http.StatusOK, map[string]interface{}{"token": auth_token})
+					return
+				} else {
+					log.Print(USER_API_PREFIX, "oauth2Login all good creating session token", sessionToken)
+					w.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
+					w.WriteHeader(http.StatusOK)
+					return
+				}
+			}
+		}
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	w.WriteHeader(http.StatusBadRequest)
+	return
+}
+
 // status: 200 TP_SESSION_TOKEN, TokenData
 // status: 401 STATUS_NO_TOKEN
 // status: 500 STATUS_ERR_GENERATING_TOKEN
 func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 
-	if td := a.getUnpackedToken(req.Header.Get(TP_SESSION_TOKEN)); td != nil {
+	if td := getUnpackedToken(req.Header.Get(TP_SESSION_TOKEN), a.ApiConfig.Secret); td != nil {
 		const TWO_HOURS_IN_SECS = 60 * 60 * 2
 
 		if td.IsServer == false && td.DurationSecs > TWO_HOURS_IN_SECS {
@@ -458,10 +515,10 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 			log.Printf(USER_API_PREFIX+"RefreshSession this is a long-duration token set for [%f] ", td.DurationSecs)
 		}
 		//refresh
-		if sessionToken, err := a.createAndSaveToken(
-			td.DurationSecs,
-			td.UserId,
-			td.IsServer,
+		if sessionToken, err := NewSavedSessionToken(
+			td,
+			a.ApiConfig.Secret,
+			a.Store,
 		); err != nil {
 			log.Printf(USER_API_PREFIX+"RefreshSession %s err[%s]", STATUS_ERR_GENERATING_TOKEN, err.Error())
 			sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN), http.StatusInternalServerError)
@@ -481,16 +538,15 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 // note: see Login for return codes
 func (a *Api) LongtermLogin(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 
-	const (
-		DAY_AS_SECS = 1 * 24 * 60 * 60
-	)
+	const DAY_AS_SECS = 1 * 24 * 60 * 60
+
 	log.Print(USER_API_PREFIX, "LongtermLogin: logging in using the longtermkey")
 	duration := a.ApiConfig.LongTermDaysDuration * DAY_AS_SECS
 	longtermkey := vars["longtermkey"]
 
 	if longtermkey == a.ApiConfig.LongTermKey {
 		log.Printf(USER_API_PREFIX+"LongtermLogin: setting the duration of the token as [%d] ", duration)
-		req.Header.Add(TP_TOKEN_DURATION, strconv.FormatFloat(float64(duration), 'f', -1, 64))
+		req.Header.Add(TOKEN_DURATION_KEY, strconv.FormatFloat(float64(duration), 'f', -1, 64))
 	} else {
 		//tell us there was no match
 		log.Printf(USER_API_PREFIX+"LongtermLogin: tried to login using the longtermkey [%s] but it didn't match the stored key ", longtermkey)
@@ -505,7 +561,7 @@ func (a *Api) LongtermLogin(res http.ResponseWriter, req *http.Request, vars map
 // status: 404 STATUS_NO_TOKEN_MATCH
 func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 
-	if a.hasServerToken(req.Header.Get(TP_SESSION_TOKEN)) {
+	if hasServerToken(req.Header.Get(TP_SESSION_TOKEN), a.ApiConfig.Secret) {
 		tokenString := vars["token"]
 
 		svrToken := &SessionToken{Id: tokenString}
@@ -549,7 +605,7 @@ func (a *Api) AnonymousIdHashPair(res http.ResponseWriter, req *http.Request) {
 func (a *Api) ManageIdHashPair(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 
 	//we need server token
-	if a.hasServerToken(req.Header.Get(TP_SESSION_TOKEN)) {
+	if hasServerToken(req.Header.Get(TP_SESSION_TOKEN), a.ApiConfig.Secret) {
 
 		usr := UserFromDetails(&UserDetail{Id: vars["userid"]})
 		theKey := vars["key"]

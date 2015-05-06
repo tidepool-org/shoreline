@@ -10,11 +10,17 @@ import (
 	"testing"
 
 	"github.com/tidepool-org/go-common/clients/highwater"
+
+	"../oauth2"
 )
 
 const (
 	THE_SECRET   = "shhh! don't tell"
 	MAKE_IT_FAIL = true
+)
+
+type (
+	MockOAuth struct{}
 )
 
 var (
@@ -669,6 +675,93 @@ func TestLogin_Failure(t *testing.T) {
 	}
 }
 
+//basic mock required for OAuth
+func (m *MockOAuth) CheckToken(token string) (oauth2.Data, error) {
+	d := oauth2.Data{}
+	d["userid"] = "1234"
+	return d, nil
+}
+
+func Test_oauth2Login(t *testing.T) {
+	r, _ := http.NewRequest("POST", "/", nil)
+	w := httptest.NewRecorder()
+	shoreline.SetHandlers("", rtr)
+
+	//add mock
+	mock := &MockOAuth{}
+	shoreline.AttachOauth(mock)
+
+	//no header passed
+	shoreline.oauth2Login(w, r)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("Expected [%v] and got [%v]", http.StatusInternalServerError, w.Code)
+	}
+
+	//with header but no token
+	r.Header.Set("Authorization", "bearer")
+	w_header := httptest.NewRecorder()
+	shoreline.oauth2Login(w_header, r)
+
+	if w_header.Code != http.StatusUnauthorized {
+		t.Fatalf("Expected [%v] and got [%v]", http.StatusUnauthorized, w_header.Code)
+	}
+
+	//req now sets header
+}
+
+func Test_oauth2Login_noheader(t *testing.T) {
+	r, _ := http.NewRequest("POST", "/", nil)
+	w := httptest.NewRecorder()
+	shoreline.SetHandlers("", rtr)
+
+	//add mock
+	mock := &MockOAuth{}
+	shoreline.AttachOauth(mock)
+
+	//no header passed
+	shoreline.oauth2Login(w, r)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("Expected [%v] and got [%v]", http.StatusInternalServerError, w.Code)
+	}
+
+}
+func Test_oauth2Login_invalid_header(t *testing.T) {
+	r, _ := http.NewRequest("POST", "/", nil)
+	//add mock
+	mock := &MockOAuth{}
+	shoreline.AttachOauth(mock)
+	//with header but no token
+	r.Header.Set("Authorization", "bearer")
+	w_header := httptest.NewRecorder()
+	shoreline.oauth2Login(w_header, r)
+
+	if w_header.Code != http.StatusUnauthorized {
+		t.Fatalf("Expected [%v] and got [%v]", http.StatusUnauthorized, w_header.Code)
+	}
+
+	//req now sets header
+}
+func Test_oauth2Login_validheader(t *testing.T) {
+	r, _ := http.NewRequest("POST", "/", nil)
+	//add mock
+	mock := &MockOAuth{}
+	shoreline.AttachOauth(mock)
+	//with header but no token
+	r.Header.Set("Authorization", "bearer xxx")
+	w_header := httptest.NewRecorder()
+	shoreline.oauth2Login(w_header, r)
+
+	if w_header.Code != http.StatusOK {
+		t.Fatalf("Expected [%v] and got [%v]", http.StatusOK, w_header.Code)
+	}
+
+	if w_header.Header().Get(TP_SESSION_TOKEN) == "" {
+		t.Fatal("Expected the TP_SESSION_TOKEN header to be attached")
+	}
+}
+
 func TestLogin_StatusUnauthorized_WhenWrongCreds(t *testing.T) {
 	request, _ := http.NewRequest("POST", "/", nil)
 	request.SetBasicAuth("test", "")
@@ -887,7 +980,7 @@ func TestValidateLongterm_StatusOK(t *testing.T) {
 		t.Fatalf("the status code should be %v set but got %v", http.StatusOK, response.Code)
 	}
 
-	if response.Header().Get(TP_TOKEN_DURATION) != "" {
+	if response.Header().Get(TOKEN_DURATION_KEY) != "" {
 		t.Fatal("there should be a token duration set")
 	}
 
@@ -943,33 +1036,6 @@ func TestValidateLongterm_StatusUnauthorized_WithNoAuthSet(t *testing.T) {
 	}
 }
 
-func TestHasServerToken_False_WhenWrongTokenGiven(t *testing.T) {
-
-	shoreline.SetHandlers("", rtr)
-
-	if shoreline.hasServerToken(USR_TOKEN.Id) {
-		t.Fatal("No server token was give so should have failed")
-	}
-}
-
-func TestHasServerToken_False_WhenUserTokenGiven(t *testing.T) {
-
-	shoreline.SetHandlers("", rtr)
-
-	if shoreline.hasServerToken("not this token") {
-		t.Fatal("No server token was give so should have failed")
-	}
-}
-
-func TestHasServerToken_False_WhenNoSessionTokenHeaderGiven(t *testing.T) {
-
-	shoreline.SetHandlers("", rtr)
-
-	if shoreline.hasServerToken("") {
-		t.Fatal("No server token was give so should have failed")
-	}
-}
-
 func TestHasServerToken_True(t *testing.T) {
 
 	shoreline.SetHandlers("", rtr)
@@ -990,7 +1056,7 @@ func TestHasServerToken_True(t *testing.T) {
 		t.Fatal("The session token should have been set")
 	}
 
-	if shoreline.hasServerToken(response.Header().Get(TP_SESSION_TOKEN)) == false {
+	if hasServerToken(response.Header().Get(TP_SESSION_TOKEN), shoreline.ApiConfig.Secret) == false {
 		t.Fatal("The token should have been a valid server token")
 	}
 }

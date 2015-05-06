@@ -122,5 +122,7 @@ func (client *UserClient) TokenProvide() string {
 
 	client.userapi.ServerLogin(response, request)
 
+	log.Print(USER_API_PREFIX, "UserClient.TokenProvide")
+
 	return response.Header().Get(TP_SESSION_TOKEN)
 }

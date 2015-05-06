@@ -1,7 +1,10 @@
 package user
 
 import (
+	"encoding/json"
 	"errors"
+	"log"
+	"net/http"
 	"strings"
 	"time"
 )
@@ -84,4 +87,15 @@ func (u *User) IsVerified(secret string) bool {
 		}
 	}
 	return u.Verified
+}
+
+func getUserDetail(req *http.Request) (ud *UserDetail) {
+	if req.ContentLength > 0 {
+		if err := json.NewDecoder(req.Body).Decode(&ud); err != nil {
+			log.Print(USER_API_PREFIX, "error trying to decode user detail ", err)
+			return ud
+		}
+	}
+	log.Printf(USER_API_PREFIX+"User details [%v]", ud)
+	return ud
 }

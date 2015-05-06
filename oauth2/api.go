@@ -77,11 +77,7 @@ const (
 	basicCss = "<style type=\"text/css\"></style>"
 )
 
-func InitApi(
-	config ApiConfig,
-	storage *OAuthStorage,
-	userApi shoreline.Client,
-	permsApi clients.Gatekeeper) *Api {
+func InitApi(config ApiConfig, storage *OAuthStorage, user shoreline.Client, perms clients.Gatekeeper) *Api {
 
 	log.Println(OAUTH2_API_PREFIX, "Api setting up ...")
 
@@ -92,11 +88,12 @@ func InitApi(
 	return &Api{
 		storage:     storage,
 		oauthServer: osin.NewServer(sconfig, storage),
-		userApi:     userApi,
-		permsApi:    permsApi,
 		ApiConfig:   config,
+		permsApi:    perms,
+		userApi:     user,
 	}
 }
+
 func (o *Api) SetHandlers(prefix string, rtr *mux.Router) {
 
 	log.Println(OAUTH2_API_PREFIX, "attaching handlers ...")
@@ -109,13 +106,6 @@ func (o *Api) SetHandlers(prefix string, rtr *mux.Router) {
 	rtr.HandleFunc("/oauth2/info", o.info).Methods("GET")
 	rtr.HandleFunc("/oauth2/revoke", o.revoke).Methods("POST")
 
-}
-
-func makeScopeOption(theScope scope) string {
-	//disabled and selected by default at this stage
-	selected := "checked"
-	disabled := "return false"
-	return fmt.Sprintf("<input type=\"checkbox\" name=\"%s\"  value=\"%s\" %s onclick=\"%s\" /> %s", theScope.name, theScope.name, theScope.requestMsg, selected, disabled)
 }
 
 //check we have all the fields we require
@@ -135,21 +125,7 @@ func signupFormValid(formData url.Values) (string, bool) {
 	return error_signup_details, false
 }
 
-//return requested scope as a comma seperated list
-func selectedScopes(formData url.Values) string {
-
-	scopes := []string{}
-
-	if formData.Get(scopeView.name) != "" {
-		scopes = append(scopes, scopeView.name)
-	}
-	if formData.Get(scopeUpload.name) != "" {
-		scopes = append(scopes, scopeUpload.name)
-	}
-
-	return strings.Join(scopes, ",")
-}
-
+//As we only have the two available for now
 func getAllScopes() string {
 	return fmt.Sprintf("%s,%s", scopeView.name, scopeUpload.name)
 }
@@ -178,8 +154,6 @@ func showSignupForm(w http.ResponseWriter) {
 	w.Write([]byte("<li>" + scopeUpload.requestMsg + " </li>"))
 	w.Write([]byte("</ol>"))
 	//TODO: enable the ability to choose but hardcode for now
-	//w.Write([]byte(makeScopeOption(scopeUpload) + "<br />"))
-	//w.Write([]byte(makeScopeOption(scopeView) + "<br />"))
 	w.Write([]byte("<h4>Account Information:</h4>"))
 	w.Write([]byte(fmt.Sprintf("<input type=\"email\" name=\"email\" placeholder=\"%s\" /><br/>", placeholder_email)))
 	w.Write([]byte(fmt.Sprintf("<input type=\"password\" name=\"password\" placeholder=\"%s\" /><br/>", placeholder_pw)))
@@ -273,6 +247,15 @@ func (o *Api) applyAuthorization(user, password string, ar *osin.AuthorizeReques
 	} else if usr != nil {
 		log.Printf(OAUTH2_API_PREFIX+"applyAuthorization: tidepool login success for userid[%s] now applying permissons", usr.UserID)
 		if o.applyPermissons(usr.UserID, ar.Client.GetId(), getAllScopes()) {
+
+			ar.Client = &osin.DefaultClient{
+				Id:          ar.Client.GetId(),
+				Secret:      ar.Client.GetSecret(),
+				RedirectUri: ar.Client.GetRedirectUri(),
+				UserData:    map[string]interface{}{"AppUser": usr.UserID},
+			}
+
+			log.Print(OAUTH2_API_PREFIX, "applyAuthorization: user data set", ar.UserData)
 			return nil
 		} else {
 			log.Printf(OAUTH2_API_PREFIX+"applyAuthorization: error[%s]", error_applying_permissons)
@@ -291,6 +274,7 @@ func (o *Api) handleLoginPage(ar *osin.AuthorizeRequest, w http.ResponseWriter, 
 	if r.Method == "POST" && r.Form.Get("login") != "" && r.Form.Get("password") != "" {
 
 		if err := o.applyAuthorization(r.Form.Get("login"), r.Form.Get("password"), ar); err == nil {
+			log.Print(OAUTH2_API_PREFIX, "handleLoginPage: auth applied", ar)
 			return true
 		} else {
 			showError(w, error_check_tidepool_creds, http.StatusBadRequest)
@@ -385,6 +369,7 @@ func (o *Api) authorize(w http.ResponseWriter, r *http.Request) {
 		}
 		log.Printf(OAUTH2_API_PREFIX+"authorize: resp code[%s] state[%s] ", resp.Output["code"], resp.Output["state"])
 		ar.Authorized = true
+		log.Print(OAUTH2_API_PREFIX, "set user data?", ar.UserData)
 		o.oauthServer.FinishAuthorizeRequest(resp, r, ar)
 	}
 	if resp.IsError && resp.InternalError != nil {

@@ -5,42 +5,10 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/tidepool-org/go-common/clients/status"
 )
-
-const (
-	TP_TOKEN_DURATION = "tokenduration"
-)
-
-//has a duration been set?
-func tokenDuration(req *http.Request) (dur float64) {
-
-	durString := req.Header.Get(TP_TOKEN_DURATION)
-
-	if durString != "" {
-		log.Printf(USER_API_PREFIX+"tokenDuration: given duration [%s]", durString)
-		dur, _ = strconv.ParseFloat(durString, 64)
-	}
-
-	log.Printf(USER_API_PREFIX+"tokenDuration: set to [%f]", dur)
-
-	return dur
-}
-
-//Docode the http.Request parsing out the user details
-func getUserDetail(req *http.Request) (ud *UserDetail) {
-	if req.ContentLength > 0 {
-		if err := json.NewDecoder(req.Body).Decode(&ud); err != nil {
-			log.Print(USER_API_PREFIX, "error trying to decode user detail ", err)
-			return ud
-		}
-	}
-	log.Printf(USER_API_PREFIX+"User details [%v]", ud)
-	return ud
-}
 
 //Docode the http.Request parsing out the user details
 func getGivenDetail(req *http.Request) (d map[string]string) {
@@ -107,14 +75,6 @@ func sendModelAsResWithStatus(res http.ResponseWriter, model interface{}, status
 	return
 }
 
-func (a *Api) hasServerToken(tokenString string) bool {
-
-	if td := a.getUnpackedToken(tokenString); td != nil {
-		return td.IsServer
-	}
-	return false
-}
-
 //send metric
 func (a *Api) logMetric(name, token string, params map[string]string) {
 	if token == "" {
@@ -157,23 +117,13 @@ func (a *Api) logMetricForUser(id, name, token string, params map[string]string)
 	return
 }
 
-//get the token from the req header
-func (a *Api) getUnpackedToken(tokenString string) *TokenData {
-	if st := GetSessionToken(tokenString); st.Id != "" {
-		if td := st.UnpackAndVerify(a.ApiConfig.Secret); td != nil && td.Valid == true {
-			return td
-		}
-	}
-	return nil
-}
-
 func (a *Api) addUserAndSendStatus(user *User, res http.ResponseWriter, req *http.Request) {
 	if err := a.Store.UpsertUser(user); err != nil {
 		log.Printf(USER_API_PREFIX+"addUserAndSendStatus %s err[%s]", STATUS_ERR_CREATING_USR, err.Error())
 		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_CREATING_USR), http.StatusInternalServerError)
 		return
 	}
-	if sessionToken, err := a.createAndSaveToken(tokenDuration(req), user.Id, false); err != nil {
+	if sessionToken, err := NewSavedSessionToken(&TokenData{DurationSecs: extractTokenDuration(req), UserId: user.Id, IsServer: false}, a.ApiConfig.Secret, a.Store); err != nil {
 		log.Printf(USER_API_PREFIX+"addUserAndSendStatus %s err[%s]", STATUS_ERR_GENERATING_TOKEN, err.Error())
 		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN), http.StatusInternalServerError)
 		return
@@ -182,22 +132,5 @@ func (a *Api) addUserAndSendStatus(user *User, res http.ResponseWriter, req *htt
 		res.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
 		sendModelAsResWithStatus(res, user, http.StatusCreated)
 		return
-	}
-}
-
-func (a *Api) createAndSaveToken(dur float64, id string, isServer bool) (*SessionToken, error) {
-	sessionToken, _ := NewSessionToken(
-		&TokenData{
-			UserId:       id,
-			IsServer:     isServer,
-			DurationSecs: dur,
-		},
-		a.ApiConfig.Secret,
-	)
-
-	if err := a.Store.AddToken(sessionToken); err == nil {
-		return sessionToken, nil
-	} else {
-		return nil, err
 	}
 }

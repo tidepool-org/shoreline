@@ -57,15 +57,22 @@ func NewOAuthStorage(config *mongo.Config) *OAuthStorage {
 func getUserData(raw interface{}) map[string]interface{} {
 	if raw != nil {
 		userDataM := raw.(bson.M)
-		return map[string]interface{}{"AppName": userDataM["AppName"]}
+
+		if userDataM["AppName"] != nil {
+			return map[string]interface{}{"AppName": userDataM["AppName"]}
+		} else if userDataM["AppUser"] != nil {
+			return map[string]interface{}{"AppUser": userDataM["AppUser"]}
+		}
 	}
 	log.Print(OAUTH2_API_PREFIX, "getUserData has no raw data to process")
-	return nil
+	return map[string]interface{}{}
 }
 
 func getClient(raw interface{}) *osin.DefaultClient {
 
-	if raw != nil {
+	log.Printf("getClient %v", raw)
+
+	if raw != nil && raw.(bson.M) != nil {
 
 		clientM := raw.(bson.M)
 
@@ -164,14 +171,19 @@ func (store *OAuthStorage) RemoveAuthorize(code string) error {
 	return authorizations.Remove(bson.M{"code": code})
 }
 
+// SaveAccess writes AccessData.
+// If RefreshToken is not blank, it must save in a way that can be loaded using LoadRefresh.
 func (store *OAuthStorage) SaveAccess(data *osin.AccessData) error {
 	log.Printf(OAUTH2_API_PREFIX+"SaveAccess for token[%s]", data.AccessToken)
 	cpy := store.session.Copy()
 	defer cpy.Close()
 
-	//see https://github.com/RangelReale/osin/issues/40
+	// see https://github.com/RangelReale/osin/issues/40
 	data.UserData = data.Client.(*osin.DefaultClient)
 	data.Client = nil
+	// see note on LoadAccess, but we don't bother persisting these
+	data.AuthorizeData = nil
+	data.AccessData = nil
 
 	accesses := cpy.DB(db_name).C(access_collection)
 
@@ -182,22 +194,25 @@ func (store *OAuthStorage) SaveAccess(data *osin.AccessData) error {
 	return nil
 }
 
-func (store *OAuthStorage) LoadAccess(token string) (*osin.AccessData, error) {
-	log.Printf(OAUTH2_API_PREFIX+"LoadAccess for token[%s]", token)
+// LoadAccess retrieves access data by token. Client information MUST be loaded together.
+// AuthorizeData and AccessData DON'T NEED to be loaded if not easily available.
+// Optionally can return error if expired.
+func (store *OAuthStorage) LoadAccess(token string) (ad *osin.AccessData, err error) {
+	log.Print(OAUTH2_API_PREFIX, "LoadAccess for token ", token)
 	cpy := store.session.Copy()
 	defer cpy.Close()
 	accesses := cpy.DB(db_name).C(access_collection)
-	data := &osin.AccessData{}
-	if err := accesses.Find(bson.M{"accesstoken": token}).Select(selectFilter).One(data); err != nil {
-		log.Printf(OAUTH2_API_PREFIX+"LoadAccess error[%s]", err.Error())
+
+	if err = accesses.Find(bson.M{"accesstoken": token}).Select(selectFilter).One(&ad); err != nil {
+		log.Print(OAUTH2_API_PREFIX, "LoadAccess error ", err.Error())
 		return nil, err
 	}
-	log.Printf(OAUTH2_API_PREFIX+"LoadAccess found %v", data)
-	//see https://github.com/RangelReale/osin/issues/40
-	data.Client = getClient(data.UserData)
-	data.UserData = nil
 
-	return data, nil
+	//see https://github.com/RangelReale/osin/issues/40
+	ad.Client = getClient(ad.UserData)
+	ad.UserData = nil
+
+	return ad, nil
 }
 
 func (store *OAuthStorage) RemoveAccess(token string) error {

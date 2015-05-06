@@ -4,6 +4,8 @@ import (
 	"errors"
 	jwt "github.com/dgrijalva/jwt-go"
 	"log"
+	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -21,11 +23,13 @@ type (
 	}
 )
 
+const (
+	TOKEN_DURATION_KEY = "tokenduration"
+)
+
 func NewSessionToken(data *TokenData, secret string) (token *SessionToken, err error) {
 
-	const (
-		HOUR_SECS = 3600
-	)
+	const seconds_in_one_hour = 3600
 
 	if data.UserId == "" {
 		return nil, errors.New("No userId was given for the token")
@@ -48,7 +52,7 @@ func NewSessionToken(data *TokenData, secret string) (token *SessionToken, err e
 		}
 		token.Claims["usr"] = data.UserId
 		token.Claims["dur"] = data.DurationSecs
-		token.Claims["exp"] = time.Now().Add(time.Duration(data.DurationSecs/HOUR_SECS) * time.Hour).Unix()
+		token.Claims["exp"] = time.Now().Add(time.Duration(data.DurationSecs/seconds_in_one_hour) * time.Hour).Unix()
 
 		// Sign and get the complete encoded token as a string
 		tokenString, _ := token.SignedString([]byte(secret))
@@ -57,6 +61,46 @@ func NewSessionToken(data *TokenData, secret string) (token *SessionToken, err e
 	}
 
 	return nil, errors.New("The duration for the token was 0 seconds")
+}
+
+func (t *SessionToken) Save(store Storage) error {
+	if err := store.AddToken(t); err != nil {
+		log.Print(USER_API_PREFIX, "error saving SessionToken", err.Error())
+		return err
+	}
+	return nil
+}
+
+func NewSavedSessionToken(data *TokenData, secret string, store Storage) (token *SessionToken, err error) {
+
+	if sessionToken, err := NewSessionToken(
+		data,
+		secret,
+	); err != nil {
+		log.Print(USER_API_PREFIX, "error creating new SessionToken", err.Error())
+		return nil, err
+	} else {
+		if err = sessionToken.Save(store); err != nil {
+			log.Print(USER_API_PREFIX, "error saving SessionToken", err.Error())
+			return nil, err
+		} else {
+			return sessionToken, nil
+		}
+	}
+}
+
+func (t *SessionToken) UnpackAndVerify(secret string) *TokenData {
+
+	if t.Id == "" {
+		return nil
+	}
+
+	return t.unpackToken(secret)
+	//return t.TokenData.Valid
+}
+
+func GetSessionToken(tokenString string) *SessionToken {
+	return &SessionToken{Id: tokenString}
 }
 
 func (t *SessionToken) unpackToken(secret string) *TokenData {
@@ -74,16 +118,34 @@ func (t *SessionToken) unpackToken(secret string) *TokenData {
 	}
 }
 
-func (t *SessionToken) UnpackAndVerify(secret string) *TokenData {
+func extractTokenDuration(r *http.Request) (dur float64) {
 
-	if t.Id == "" {
-		return nil
+	durString := r.Header.Get(TOKEN_DURATION_KEY)
+
+	if durString != "" {
+		log.Printf(USER_API_PREFIX+"tokenDuration: given duration [%s]", durString)
+		dur, _ = strconv.ParseFloat(durString, 64)
+		log.Printf(USER_API_PREFIX+"tokenDuration: set to [%f]", dur)
+		return dur
 	}
 
-	return t.unpackToken(secret)
-	//return t.TokenData.Valid
+	log.Print(USER_API_PREFIX, "tokenDuration: was not set so setting to zero")
+	return 0
 }
 
-func GetSessionToken(tokenString string) *SessionToken {
-	return &SessionToken{Id: tokenString}
+func getUnpackedToken(tokenString, secret string) *TokenData {
+	if st := GetSessionToken(tokenString); st.Id != "" {
+		if td := st.UnpackAndVerify(secret); td != nil && td.Valid == true {
+			return td
+		}
+	}
+	return nil
+}
+
+func hasServerToken(tokenString, secret string) bool {
+
+	if td := getUnpackedToken(tokenString, secret); td != nil {
+		return td.IsServer
+	}
+	return false
 }
