@@ -760,6 +760,17 @@ func Test_oauth2Login_validheader(t *testing.T) {
 	if w_header.Header().Get(TP_SESSION_TOKEN) == "" {
 		t.Fatal("Expected the TP_SESSION_TOKEN header to be attached")
 	}
+
+	// parse output json
+	output := make(map[string]interface{})
+	if err := json.Unmarshal(w_header.Body.Bytes(), &output); err != nil {
+		t.Fatalf("Could not decode output json: %s", err)
+	}
+
+	if output["userid"] == "" {
+		t.Fatalf("we need to be given a user id but got %v", output)
+	}
+
 }
 
 func TestLogin_StatusUnauthorized_WhenWrongCreds(t *testing.T) {

@@ -485,12 +485,12 @@ func (a *Api) oauth2Login(w http.ResponseWriter, r *http.Request) {
 					a.Store,
 				); err != nil {
 					log.Print(USER_API_PREFIX, "oauth2Login error creating session token", err.Error())
-					common.OutputJSON(w, http.StatusOK, map[string]interface{}{"token": auth_token})
+					common.OutputJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "invalid_token"})
 					return
 				} else {
 					log.Print(USER_API_PREFIX, "oauth2Login all good creating session token", sessionToken)
 					w.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
-					w.WriteHeader(http.StatusOK)
+					common.OutputJSON(w, http.StatusOK, map[string]interface{}{"userid": result["userid"].(string)})
 					return
 				}
 			}
