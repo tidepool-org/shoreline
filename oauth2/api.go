@@ -248,11 +248,15 @@ func (o *Api) applyAuthorization(user, password string, ar *osin.AuthorizeReques
 		log.Printf(OAUTH2_API_PREFIX+"applyAuthorization: tidepool login success for userid[%s] now applying permissons", usr.UserID)
 		if o.applyPermissons(usr.UserID, ar.Client.GetId(), getAllScopes()) {
 
+			//make sure we persist any existing client userdata
+			ud := ar.Client.GetUserData().(map[string]interface{})
+			ud["AppUser"] = usr.UserID
+
 			ar.Client = &osin.DefaultClient{
 				Id:          ar.Client.GetId(),
 				Secret:      ar.Client.GetSecret(),
 				RedirectUri: ar.Client.GetRedirectUri(),
-				UserData:    map[string]interface{}{"AppUser": usr.UserID},
+				UserData:    ud,
 			}
 
 			log.Print(OAUTH2_API_PREFIX, "applyAuthorization: user data set", ar.UserData)
@@ -282,6 +286,8 @@ func (o *Api) handleLoginPage(ar *osin.AuthorizeRequest, w http.ResponseWriter, 
 	}
 
 	log.Printf(OAUTH2_API_PREFIX+"handleLoginPage: host[%s] url[%v] uri[%s]", r.Host, r.URL, r.RequestURI)
+
+	log.Printf(" ## the url ##  %v", r.URL)
 
 	showLoginForm(ar, w)
 	return false
