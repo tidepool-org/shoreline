@@ -89,7 +89,7 @@ func (a *Api) SetHandlers(prefix string, rtr *mux.Router) {
 	rtr.HandleFunc("/login", a.RefreshSession).Methods("GET")
 	rtr.Handle("/login/{longtermkey}", varsHandler(a.LongtermLogin)).Methods("POST")
 
-	rtr.HandleFunc("/access_token", a.oauth2Login).Methods("POST")
+	rtr.HandleFunc("/oauthlogin", a.oauth2Login).Methods("POST")
 
 	rtr.HandleFunc("/serverlogin", a.ServerLogin).Methods("POST")
 
@@ -475,10 +475,23 @@ func (a *Api) oauth2Login(w http.ResponseWriter, r *http.Request) {
 			if auth_token := ah[7:]; auth_token != "" {
 				log.Println(USER_API_PREFIX, "oauth2Login looking good ....", auth_token)
 
+				//check the actual token
 				result, err := a.oauth.CheckToken(auth_token)
+				if err != nil || result == nil {
+					log.Printf(USER_API_PREFIX, "oauth2Login error checking token ", err)
+					w.WriteHeader(http.StatusUnauthorized)
+					return
+				}
 
-				log.Printf(USER_API_PREFIX+"oauth2Login data%v err[%s]", result, err)
+				//check the corresponding user
+				fndUsr, errUsr := a.Store.FindUser(&User{Id: result["userid"].(string)})
+				if errUsr != nil || fndUsr == nil {
+					log.Printf(USER_API_PREFIX, "oauth2Login error getting user ", errUsr.Error())
+					w.WriteHeader(http.StatusUnauthorized)
+					return
+				}
 
+				//generate token and send the response
 				if sessionToken, err := CreateSessionTokenAndSave(
 					&TokenData{DurationSecs: 0, UserId: result["userid"].(string), IsServer: false},
 					a.ApiConfig.Secret,
@@ -488,9 +501,15 @@ func (a *Api) oauth2Login(w http.ResponseWriter, r *http.Request) {
 					common.OutputJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "invalid_token"})
 					return
 				} else {
-					log.Print(USER_API_PREFIX, "oauth2Login all good creating session token", sessionToken)
+
+					log.Print(USER_API_PREFIX, "oauth2Login all good creating session token and redirecting ", sessionToken)
+					//We are redirecting to the app
 					w.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
-					common.OutputJSON(w, http.StatusOK, map[string]interface{}{"userid": result["userid"].(string)})
+					sendModelAsRes(w, fndUsr)
+					//common.OutputJSON(w, http.StatusOK, map[string]interface{}{"user": fndUsr})
+					//w.Header().Add("Location", "http://localhost:3000")
+					//w.WriteHeader(http.StatusFound)
+					//common.OutputJSON(w, http.StatusFound, map[string]interface{}{"userid": result["userid"].(string)})
 					return
 				}
 			}
