@@ -54,15 +54,10 @@ func NewOAuthStorage(config *mongo.Config) *OAuthStorage {
 	return storage
 }
 
-func getUserData(raw interface{}) map[string]interface{} {
+func getUserData(raw interface{}) (ud map[string]interface{}) {
 	if raw != nil {
 		userDataM := raw.(bson.M)
-
-		if userDataM["AppName"] != nil {
-			return map[string]interface{}{"AppName": userDataM["AppName"]}
-		} else if userDataM["AppUser"] != nil {
-			return map[string]interface{}{"AppUser": userDataM["AppUser"]}
-		}
+		return map[string]interface{}{"AppName": userDataM["AppName"], "AppUser": userDataM["AppUser"]}
 	}
 	log.Print(OAUTH2_API_PREFIX, "getUserData has no raw data to process")
 	return map[string]interface{}{}
@@ -142,6 +137,9 @@ func (store *OAuthStorage) SaveAuthorize(data *osin.AuthorizeData) error {
 	return nil
 }
 
+// LoadAuthorize looks up AuthorizeData by a code.
+// Client information MUST be loaded together.
+// Optionally can return error if expired.
 func (store *OAuthStorage) LoadAuthorize(code string) (*osin.AuthorizeData, error) {
 	log.Printf(OAUTH2_API_PREFIX+"LoadAuthorize for code[%s]", code)
 	cpy := store.session.Copy()
@@ -158,7 +156,7 @@ func (store *OAuthStorage) LoadAuthorize(code string) (*osin.AuthorizeData, erro
 
 	//see https://github.com/RangelReale/osin/issues/40
 	data.Client = getClient(data.UserData)
-	data.UserData = nil
+	//data.UserData = nil
 
 	return data, nil
 }
@@ -179,7 +177,7 @@ func (store *OAuthStorage) SaveAccess(data *osin.AccessData) error {
 	defer cpy.Close()
 
 	// see https://github.com/RangelReale/osin/issues/40
-	data.UserData = data.Client.(*osin.DefaultClient)
+	data.UserData = data.AuthorizeData.UserData //we want to save all the details that where set on Authorization
 	data.Client = nil
 	// see note on LoadAccess, but we don't bother persisting these
 	data.AuthorizeData = nil
@@ -210,7 +208,6 @@ func (store *OAuthStorage) LoadAccess(token string) (ad *osin.AccessData, err er
 
 	//see https://github.com/RangelReale/osin/issues/40
 	ad.Client = getClient(ad.UserData)
-	ad.UserData = nil
 
 	return ad, nil
 }
