@@ -30,7 +30,20 @@ func (client *OAuth2Client) CheckToken(token string) (Data, error) {
 		return nil, errors.New("nothing found")
 	} else {
 		returnData := Data{}
-		returnData["userid"] = data.Client.GetId()
+		returnData["userId"] = data.Client.GetId()
+		ud := data.Client.GetUserData().(map[string]interface{})
+
+		log.Printf(OAUTH2_API_PREFIX+"OAuth2Client CheckToken user data %v", data.UserData)
+		log.Printf(OAUTH2_API_PREFIX+"OAuth2Client CheckToken client user data %v", data.Client.GetUserData())
+
+		//so that we have the details of the user that has given authorization via the oauth2 authorize process
+		if ud["AppUser"] != nil {
+			log.Print(OAUTH2_API_PREFIX, "OAuth2Client CheckToken setting the authUserId")
+			returnData["authUserId"] = ud["AppUser"]
+		} else {
+			log.Print(OAUTH2_API_PREFIX, "OAuth2Client CheckToken no authUserId found")
+		}
+
 		log.Print(OAUTH2_API_PREFIX, "OAuth2Client CheckToken ", returnData)
 		return returnData, nil
 	}

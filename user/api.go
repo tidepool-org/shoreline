@@ -484,7 +484,7 @@ func (a *Api) oauth2Login(w http.ResponseWriter, r *http.Request) {
 				}
 
 				//check the corresponding user
-				fndUsr, errUsr := a.Store.FindUser(&User{Id: result["userid"].(string)})
+				fndUsr, errUsr := a.Store.FindUser(&User{Id: result["userId"].(string)})
 				if errUsr != nil || fndUsr == nil {
 					log.Printf(USER_API_PREFIX, "oauth2Login error getting user ", errUsr.Error())
 					w.WriteHeader(http.StatusUnauthorized)
@@ -493,7 +493,7 @@ func (a *Api) oauth2Login(w http.ResponseWriter, r *http.Request) {
 
 				//generate token and send the response
 				if sessionToken, err := CreateSessionTokenAndSave(
-					&TokenData{DurationSecs: 0, UserId: result["userid"].(string), IsServer: false},
+					&TokenData{DurationSecs: 0, UserId: result["userId"].(string), IsServer: false},
 					a.ApiConfig.Secret,
 					a.Store,
 				); err != nil {
@@ -505,11 +505,8 @@ func (a *Api) oauth2Login(w http.ResponseWriter, r *http.Request) {
 					log.Print(USER_API_PREFIX, "oauth2Login all good creating session token and redirecting ", sessionToken)
 					//We are redirecting to the app
 					w.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
-					sendModelAsRes(w, fndUsr)
-					//common.OutputJSON(w, http.StatusOK, map[string]interface{}{"user": fndUsr})
-					//w.Header().Add("Location", "http://localhost:3000")
-					//w.WriteHeader(http.StatusFound)
-					//common.OutputJSON(w, http.StatusFound, map[string]interface{}{"userid": result["userid"].(string)})
+					//sendModelAsRes(w, fndUsr)
+					common.OutputJSON(w, http.StatusOK, map[string]interface{}{"oauthUser": fndUsr, "oauthTarget": result["authUserId"]})
 					return
 				}
 			}
