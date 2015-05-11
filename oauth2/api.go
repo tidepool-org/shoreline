@@ -35,8 +35,8 @@ type (
 
 var (
 	//Available scopes's
-	scopeView   scope = scope{name: "view", requestMsg: "Requests uploading of data on behalf", grantMsg: "Allow uploading of data on your behalf"}
-	scopeUpload scope = scope{name: "upload", requestMsg: "Requests viewing of data on behalf", grantMsg: "Allow viewing of data on your behalf"}
+	scopeView   scope = scope{name: "view", requestMsg: "Requests uploading of data on behalf", grantMsg: "Upload data on your behalf"}
+	scopeUpload scope = scope{name: "upload", requestMsg: "Requests viewing of data on behalf", grantMsg: "View your data"}
 )
 
 const (
