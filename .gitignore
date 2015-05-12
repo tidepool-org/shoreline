@@ -1,5 +1,10 @@
 bin
-src
+
+!src/
+
+src/*
+!src/code.google.com/
+
 pkg
 dist
 .idea
