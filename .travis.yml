@@ -16,3 +16,4 @@ script:
  - source ./build
  - cd ./user && go test -v
  - cd ../oauth2 && go test -v
+ - cd ../common && go test -v
