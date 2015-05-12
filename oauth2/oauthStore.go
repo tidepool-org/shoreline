@@ -156,7 +156,6 @@ func (store *OAuthStorage) LoadAuthorize(code string) (*osin.AuthorizeData, erro
 
 	//see https://github.com/RangelReale/osin/issues/40
 	data.Client = getClient(data.UserData)
-	//data.UserData = nil
 
 	return data, nil
 }
@@ -177,7 +176,7 @@ func (store *OAuthStorage) SaveAccess(data *osin.AccessData) error {
 	defer cpy.Close()
 
 	// see https://github.com/RangelReale/osin/issues/40
-	data.UserData = data.AuthorizeData.UserData //we want to save all the details that where set on Authorization
+	data.UserData = data.AuthorizeData.UserData //Note: we want to save all the details that where set on Authorization
 	data.Client = nil
 	// see note on LoadAccess, but we don't bother persisting these
 	data.AuthorizeData = nil

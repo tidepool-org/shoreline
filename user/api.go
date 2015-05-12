@@ -456,7 +456,7 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 	return
 }
 
-// status: 200 TP_SESSION_TOKEN
+// status: 200 TP_SESSION_TOKEN, oauthUser, oauthTarget
 // status: 400 invalid_request
 // status: 401 invalid_token
 // status: 403 insufficient_scope

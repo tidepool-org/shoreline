@@ -70,6 +70,7 @@ func Test_applyPermissons(t *testing.T) {
 }
 
 func Test_authorize(t *testing.T) {
+	//TODO: pre-reqs still need to be set
 	r, _ := http.NewRequest("POST", "/", nil)
 	w := httptest.NewRecorder()
 	api.authorize(w, r)
@@ -89,6 +90,7 @@ func Test_authorize(t *testing.T) {
 }
 
 func Test_token(t *testing.T) {
+	//TODO: pre-reqs still need to be set
 	r, _ := http.NewRequest("POST", "/", nil)
 	w := httptest.NewRecorder()
 	api.token(w, r)
@@ -108,20 +110,5 @@ func Test_token(t *testing.T) {
 }
 
 func Test_info(t *testing.T) {
-	/*r, _ := http.NewRequest("GET", "/", nil)
-	w := httptest.NewRecorder()
-	api.info(w, r)
-
-	if w.Code != http.StatusOK {
-		t.Fatalf("Expected [%v] and got [%v]", http.StatusOK, w.Code)
-	}
-
-	output := make(map[string]interface{})
-	if err := json.Unmarshal(w.Body.Bytes(), &output); err != nil {
-		t.Fatalf("Could not decode output json: %s", err)
-	}
-
-	if output["error"] != nil {
-		t.Fatalf("We don't expect an error details: %v", output["error"])
-	}*/
+	//TODO
 }
