@@ -678,7 +678,8 @@ func TestLogin_Failure(t *testing.T) {
 //basic mock required for OAuth
 func (m *MockOAuth) CheckToken(token string) (oauth2.Data, error) {
 	d := oauth2.Data{}
-	d["userid"] = "1234"
+	d["userId"] = "1234"
+	d["authUserId"] = "4567"
 	return d, nil
 }
 
@@ -767,7 +768,11 @@ func Test_oauth2Login_validheader(t *testing.T) {
 		t.Fatalf("Could not decode output json: %s", err)
 	}
 
-	if output["userid"] == "" {
+	if output["oauthUser"] == nil {
+		t.Fatalf("we need to be given a user id but got %v", output)
+	}
+
+	if output["oauthTarget"] == nil {
 		t.Fatalf("we need to be given a user id but got %v", output)
 	}
 
