@@ -129,7 +129,7 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 		if usr, err := NewUser(usrDetails, a.ApiConfig.Salt); err == nil {
 			//they shouldn't already exist
 			if results, _ := a.Store.FindUsers(usr); results == nil || len(results) == 0 {
-				log.Printf(USER_API_PREFIX+"CreateUser adding [%v] ", usr)
+				log.Print(USER_API_PREFIX, "CreateUser: about to add user")
 				a.addUserAndSendStatus(usr, res, req)
 				return
 			} else {
@@ -155,7 +155,7 @@ func (a *Api) CreateChildUser(res http.ResponseWriter, req *http.Request) {
 	if usrDetails := getUserDetail(req); usrDetails != nil {
 
 		if usr, err := NewChildUser(usrDetails, a.ApiConfig.Salt); err == nil {
-			log.Printf(USER_API_PREFIX+"CreateChildUser adding [%v] ", usr)
+			log.Print(USER_API_PREFIX + "CreateChildUser adding new child user ")
 			a.addUserAndSendStatus(usr, res, req)
 			return
 		} else {
@@ -188,7 +188,6 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 
 		if usrId == "" && td.UserId == "" {
 			//go no further
-			log.Printf(USER_API_PREFIX+"UpdateUser id [%s] token id [%s] ", usrId, td.UserId)
 			log.Printf(USER_API_PREFIX+"UpdateUser %s ", STATUS_NO_USR_DETAILS)
 			sendModelAsResWithStatus(res, status.NewStatus(http.StatusBadRequest, STATUS_NO_USR_DETAILS), http.StatusBadRequest)
 			return
@@ -203,11 +202,8 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 
 		if updatesToApply.Updates != nil {
 
-			log.Printf(USER_API_PREFIX+"UpdateUser: applying updates ... [%v]", updatesToApply.Updates)
-
+			log.Print(USER_API_PREFIX, "UpdateUser: applying updates ... ")
 			usrToFind := UserFromDetails(&UserDetail{Id: usrId, Emails: []string{usrId}})
-
-			log.Printf(USER_API_PREFIX+"UpdateUser: updating ... [%v]", usrToFind)
 
 			if userToUpdate, err := a.Store.FindUser(usrToFind); err != nil {
 				log.Printf(USER_API_PREFIX+"UpdateUser %s err[%s]", STATUS_ERR_FINDING_USR, err.Error())
@@ -309,12 +305,12 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 				}
 
 				if len(results) == 1 {
-					log.Printf(USER_API_PREFIX+"found user [%v]", results[0])
+					log.Print(USER_API_PREFIX, "found user")
 					sendModelAsRes(res, results[0])
 					return
 				}
 
-				log.Printf(USER_API_PREFIX+"found users [%v]", results)
+				log.Printf(USER_API_PREFIX+"found [%d] users ", len(results))
 				sendModelsAsRes(res, results)
 				return
 			}
@@ -407,12 +403,12 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 						sendModelAsResWithStatus(res, status.NewStatus(http.StatusForbidden, STATUS_NOT_VERIFIED), http.StatusForbidden)
 						return
 					}
-					log.Printf(USER_API_PREFIX+"Login %s [%s] from the [%d] users we found", STATUS_NO_MATCH, usr.Name, len(results))
+					log.Printf(USER_API_PREFIX+"Login %s from the [%d] users we found", STATUS_NO_MATCH, len(results))
 					sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_MATCH), http.StatusUnauthorized)
 					return
 				}
 			}
-			log.Printf(USER_API_PREFIX+"Login %s for [%s]", STATUS_NO_MATCH, usr.Name)
+			log.Print(USER_API_PREFIX, "Login ", STATUS_NO_MATCH)
 			sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_MATCH), http.StatusUnauthorized)
 			return
 		}
