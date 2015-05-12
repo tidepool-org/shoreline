@@ -189,7 +189,7 @@ func showLoginForm(ar *osin.AuthorizeRequest, w http.ResponseWriter) {
 	applyStyle(w)
 	w.Write([]byte("<body>"))
 	w.Write([]byte("<h2>" + msg_tidepool_account_access + "</h2>"))
-	w.Write([]byte("<b>" + fmt.Sprintf(msg_tidepool_permissons_granted, ud["AppName"]) + "</b>"))
+	w.Write([]byte("<p>" + fmt.Sprintf(msg_tidepool_permissons_granted, ud["AppName"]) + "</p>"))
 	w.Write([]byte(fmt.Sprintf("<form action="+authPostAction+" method=\"POST\">",
 		ar.Type, ar.Client.GetId(), ar.State, ar.Scope, url.QueryEscape(ar.RedirectUri))))
 	//TODO: defaulted at this stage for initial implementation e.g. strings.Contains(ar.Scope, scopeView.name)
