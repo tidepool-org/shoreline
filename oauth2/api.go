@@ -56,7 +56,7 @@ const (
 	msg_signup_complete             = "Your Tidepool developer account has been created"
 	msg_signup_save_details         = "Please save these details"
 	msg_tidepool_account_access     = "Login to grant access to Tidepool"
-	msg_tidepool_permissons_granted = "With access to your Tidepool account %s can:"
+	msg_tidepool_permissons_granted = "With access to your Tidepool account <b>%s</b> can:"
 	//form text
 	btn_authorize            = "Grant access to Tidepool"
 	btn_no_authorize         = "Deny access to Tidepool"
