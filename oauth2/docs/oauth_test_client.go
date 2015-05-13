@@ -13,14 +13,13 @@ import (
 )
 
 type (
-	OAuthClient struct{ Id, Secret string }
+	OAuthClient struct{ Id, Secret, TidepoolApiUrl string }
 )
 
 const (
 	//just so it doesn't look super bad :)
 	basicCss    = "<style type=\"text/css\">body{margin:40px auto;max-width:650px;line-height:1.6;font-size:18px;color:#444;padding:0 10px}h1,h2,h3{line-height:1.2}</style>"
 	clientUrl   = "http://localhost:14000"
-	tidepoolUrl = "http://localhost:8009"
 	appauthPath = "/appauth/code"
 )
 
@@ -32,11 +31,12 @@ func main() {
 
 	id := flag.String("client_id", "", "your registered client_id")
 	secret := flag.String("client_secret", "", "your registered client_secret")
+	tp_api := flag.String("tp_api", "http://localhost:8009", "url of tidepool api your working with e.g(local, dev, stage ...)")
 
 	flag.Parse()
 
 	if *id != "" && *secret != "" {
-		client := &OAuthClient{Id: *id, Secret: *secret}
+		client := &OAuthClient{Id: *id, Secret: *secret, TidepoolApiUrl: *tp_api}
 
 		log.Printf("running for client_id=%s client_secret=%s", client.Id, client.Secret)
 
@@ -44,6 +44,7 @@ func main() {
 		http.HandleFunc("/", client.app)
 
 		log.Printf("go to [%s]", clientUrl)
+		log.Printf("using api [%s]", client.TidepoolApiUrl)
 
 		http.ListenAndServe(":14000", nil)
 	}
@@ -88,7 +89,7 @@ func (o *OAuthClient) code(w http.ResponseWriter, r *http.Request) {
 	// if parse, download and parse json
 	if r.Form.Get("doparse") == "1" {
 
-		err := downloadAccessToken(fmt.Sprintf(tidepoolUrl+"%s", tokenUrl), &osin.BasicAuth{o.Id, o.Secret}, jr)
+		err := downloadAccessToken(fmt.Sprintf(o.TidepoolApiUrl+"%s", tokenUrl), &osin.BasicAuth{o.Id, o.Secret}, jr)
 		if err != nil {
 			w.Write([]byte("Error downloading token: " + err.Error()))
 			w.Write([]byte("<br/>"))
@@ -130,7 +131,7 @@ func (o *OAuthClient) app(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(fmt.Sprintf("<html><head>%s</head><body>", basicCss)))
 	w.Write([]byte(fmt.Sprintf(
 		"<a href=\"%s/auth/oauth2/authorize?response_type=code&client_id=%s&redirect_uri=%s\">Tidepool Login</a><br/>",
-		tidepoolUrl,
+		o.TidepoolApiUrl,
 		o.Id,
 		url.QueryEscape(clientUrl+appauthPath),
 	)))
