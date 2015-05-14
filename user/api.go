@@ -377,43 +377,69 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 	if usr, pw := unpackAuth(req.Header.Get("Authorization")); usr != nil {
 
-		if results, err := a.Store.FindUsers(usr); err != nil {
-			log.Printf(USER_API_PREFIX+"Login %s [%s]", STATUS_ERR_FINDING_USR, err.Error())
-			sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_FINDING_USR), http.StatusInternalServerError)
-			return
-		} else {
-			if len(results) > 0 {
-				for i := range results {
-					if results[i] != nil && results[i].PwsMatch(pw, a.ApiConfig.Salt) {
+		if results, err := a.Store.FindUsers(usr); results != nil && len(results) > 0 {
+			for i := range results {
+				//TODO: remove BELOW
+				log.Printf(USER_API_PREFIX+"Login found %v check against given %v", results[i], usr)
+				//TODO: remove ABOVE
 
-						if results[i].IsVerified(a.ApiConfig.VerificationSecret) {
+				if results[i].PwsMatch(pw, a.ApiConfig.Salt) && results[i].IsVerified(a.ApiConfig.VerificationSecret) {
+					//passwords match and the user is verified
+					td := &TokenData{DurationSecs: extractTokenDuration(req), UserId: results[i].Id, IsServer: false}
 
-							if sessionToken, err := CreateSessionTokenAndSave(&TokenData{DurationSecs: extractTokenDuration(req), UserId: results[i].Id, IsServer: false}, a.ApiConfig.Secret, a.Store); err != nil {
-								log.Printf(USER_API_PREFIX+"Login %s [%s]", STATUS_ERR_UPDATING_TOKEN, err.Error())
-								sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_UPDATING_TOKEN), http.StatusInternalServerError)
-								return
-							} else {
-								a.logMetric("userlogin", sessionToken.Id, nil)
-								res.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
-								sendModelAsRes(res, results[i])
-								return
-							}
-						}
+					if sessionToken, err := CreateSessionTokenAndSave(td, a.ApiConfig.Secret, a.Store); sessionToken != nil && err == nil {
+						//YAY it's all is good so lets tell people!
+						a.logMetric("userlogin", sessionToken.Id, nil)
+						res.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
+						sendModelAsRes(res, results[i])
+						return
+					} else if err != nil {
+
+						log.Printf(USER_API_PREFIX+"Login %s [%s]", STATUS_ERR_UPDATING_TOKEN, err.Error())
+						sendModelAsResWithStatus(
+							res,
+							status.NewStatus(http.StatusInternalServerError, STATUS_ERR_UPDATING_TOKEN),
+							http.StatusInternalServerError,
+						)
+						return
+					}
+				} else {
+
+					if results[i].PwsMatch(pw, a.ApiConfig.Salt) == false { //no password matches?
+						log.Printf(USER_API_PREFIX+"Login %s from the [%d] users we found", STATUS_NO_MATCH, len(results))
+						sendModelAsResWithStatus(
+							res,
+							status.NewStatus(http.StatusUnauthorized, STATUS_NO_MATCH),
+							http.StatusUnauthorized,
+						)
+						return
+					}
+
+					if results[i].IsVerified(a.ApiConfig.VerificationSecret) == false { //not yet verified?
 						log.Printf(USER_API_PREFIX+"Login %s for [%s]", STATUS_NOT_VERIFIED, usr.Id)
 						sendModelAsResWithStatus(res, status.NewStatus(http.StatusForbidden, STATUS_NOT_VERIFIED), http.StatusForbidden)
 						return
 					}
-					log.Printf(USER_API_PREFIX+"Login %s from the [%d] users we found", STATUS_NO_MATCH, len(results))
-					sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_MATCH), http.StatusUnauthorized)
-					return
 				}
+				//try next
+				log.Print(USER_API_PREFIX, "Login not valid for that user so checking the next")
 			}
-			log.Print(USER_API_PREFIX, "Login ", STATUS_NO_MATCH)
-			sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_MATCH), http.StatusUnauthorized)
-			return
+		} else {
+			// was there an error?
+			if err != nil {
+				log.Printf(USER_API_PREFIX+"Login %s [%s]", STATUS_ERR_FINDING_USR, err.Error())
+				sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_FINDING_USR), http.StatusInternalServerError)
+				return
+			}
+			//or just no user was found
+			if results == nil || len(results) == 0 {
+				log.Print(USER_API_PREFIX, "Login ", STATUS_NO_MATCH)
+				sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_MATCH), http.StatusUnauthorized)
+				return
+			}
 		}
 	}
-	log.Printf(USER_API_PREFIX+"Login %s ", STATUS_MISSING_ID_PW)
+	log.Print(USER_API_PREFIX, "Login ", STATUS_MISSING_ID_PW)
 	sendModelAsResWithStatus(res, status.NewStatus(http.StatusBadRequest, STATUS_MISSING_ID_PW), http.StatusBadRequest)
 	return
 }
