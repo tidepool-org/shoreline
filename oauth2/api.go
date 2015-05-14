@@ -69,7 +69,7 @@ const (
 
 	oneDayInSecs = 86400
 
-	authPostAction = "/auth/oauth2/authorize?response_type=%s&client_id=%s&state=%s&scope=%s&redirect_uri=%s"
+	authPostAction = "https://devel-api.tidepool.io/auth/oauth2/authorize?response_type=%s&client_id=%s&state=%s&scope=%s&redirect_uri=%s"
 	//TODO: stop gap for styling
 	btnCss   = "input[type=submit]{background:#0b9eb3;color:#fff;}"
 	inputCss = "input{width:80%%;height:37px;margin:5px;font-size:18px;}"
