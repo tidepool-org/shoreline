@@ -7,7 +7,9 @@ Shoreline is the entrance to the ocean; in our case it manages logins and user a
 
 ## Building
 
-We are doing our own dependancy managment using the Comedeps file. To build as expected then run the command below
+We are doing our own dependancy managment using the Comedeps file. Our `come_deps.sh` is available in the [tools](https://github.com/tidepool-org/tools 'tidepool-org: tools') repository.
+
+To get dependencies and build, use:
 
 ```
 $ source ./build
