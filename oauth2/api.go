@@ -69,7 +69,7 @@ const (
 
 	oneDayInSecs = 86400
 
-	authPostAction = "https://devel-api.tidepool.io/auth/oauth2/authorize?response_type=%s&client_id=%s&state=%s&scope=%s&redirect_uri=%s"
+	authPostAction = "%s://%s/auth/oauth2/authorize?response_type=%s&client_id=%s&state=%s&scope=%s&redirect_uri=%s"
 	//TODO: stop gap for styling
 	btnCss   = "input[type=submit]{background:#0b9eb3;color:#fff;}"
 	inputCss = "input{width:80%%;height:37px;margin:5px;font-size:18px;}"
@@ -185,13 +185,16 @@ func showSignupSuccess(w http.ResponseWriter, signedUp *osin.DefaultClient) {
 func showLoginForm(ar *osin.AuthorizeRequest, w http.ResponseWriter) {
 	ud := ar.Client.GetUserData().(map[string]interface{})
 
+	//TODO this is defaulted at this stage
+	scheme := "https"
+
 	w.Write([]byte("<html>"))
 	applyStyle(w)
 	w.Write([]byte("<body>"))
 	w.Write([]byte("<h2>" + msg_tidepool_account_access + "</h2>"))
 	w.Write([]byte("<p>" + fmt.Sprintf(msg_tidepool_permissons_granted, ud["AppName"]) + "</p>"))
 	w.Write([]byte(fmt.Sprintf("<form action="+authPostAction+" method=\"POST\">",
-		ar.Type, ar.Client.GetId(), ar.State, ar.Scope, url.QueryEscape(ar.RedirectUri))))
+		scheme, ar.HttpRequest.Host, ar.Type, ar.Client.GetId(), ar.State, ar.Scope, url.QueryEscape(ar.RedirectUri))))
 	//TODO: defaulted at this stage for initial implementation e.g. strings.Contains(ar.Scope, scopeView.name)
 	w.Write([]byte("<ol>"))
 	w.Write([]byte("<li>" + scopeView.grantMsg + " </li>"))
@@ -284,11 +287,7 @@ func (o *Api) handleLoginPage(ar *osin.AuthorizeRequest, w http.ResponseWriter, 
 			showError(w, error_check_tidepool_creds, http.StatusBadRequest)
 		}
 	}
-
-	log.Printf(OAUTH2_API_PREFIX+"handleLoginPage: host[%s] url[%v] uri[%s]", r.Host, r.URL, r.RequestURI)
-
-	log.Printf(" ## the url ##  %v", r.URL)
-
+	log.Printf(OAUTH2_API_PREFIX+"handleLoginPage: host[%s]", ar.HttpRequest.Host)
 	showLoginForm(ar, w)
 	return false
 }
