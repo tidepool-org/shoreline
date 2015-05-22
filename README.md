@@ -7,14 +7,31 @@ Shoreline is the entrance to the ocean; in our case it manages logins and user a
 
 ## Building
 
-We are doing our own dependancy managment using the Comedeps file. Our `come_deps.sh` is available in the [tools](https://github.com/tidepool-org/tools 'tidepool-org: tools') repository.
+### As part of the platform
 
-To get dependencies and build, use:
+If you are running Shoreline as part of [runservers](http://developer.tidepool.io/starting-up-services/ 'Tidepool: Starting up services') the service will already be built and the dependecies located in the `src` directory
+
+### In isolation
+
+If you are building Shoreline in isolation then you need to move a copy of the our [come_deps.sh](https://github.com/tidepool-org/tools/blob/master/come_deps.sh) file into the root of the repository.
+
+Then to get dependencies and build, use:
 
 ```
 $ source ./build
 ```
 
-### Running the Tests
+## Running the Tests
 
-To run the tests locally, the simplest way is to fire up all services with [runservers](http://developer.tidepool.io/starting-up-services/ 'Tidepool: Starting up services') (this is how the dependencies will be fetched), then use `go test -v` within each directory that contains go tests.
+### All tests
+
+To run all tests for this repo then in the root directory use:
+
+```
+$ source gotest
+```
+
+### Tests for a specific package
+
+Go into the package directory e.g. `oauth2` then use `go test -v` within that directory.
+
