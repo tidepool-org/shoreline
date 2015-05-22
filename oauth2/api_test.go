@@ -2,9 +2,11 @@ package oauth2
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/tidepool-org/go-common/clients"
@@ -24,6 +26,17 @@ var (
 		clients.NewGatekeeperMock(),
 	)
 )
+
+//using the attached mongo session setup and required data for testing.
+//NOTE: we just blow away the test data for each test
+func setupClientForTest() {
+	cpy := api.storage.session.Copy()
+	defer cpy.Close()
+	//just drop and don't worry about any errors
+	cpy.DB("").DropDatabase()
+	//TODO: we are reusing `a_client` from the oauthStore_test.go tests. We need to do this in a nicer way
+	api.storage.SetClient(a_client.GetId(), a_client)
+}
 
 func Test_signupFormValid(t *testing.T) {
 
@@ -69,9 +82,9 @@ func Test_applyPermissons(t *testing.T) {
 	}
 }
 
-func Test_authorize(t *testing.T) {
+func Test_POST_authorize(t *testing.T) {
 	//TODO: pre-reqs still need to be set
-	r, _ := http.NewRequest("POST", "/", nil)
+	r, _ := http.NewRequest("POST", fmt.Sprintf("/?response_type=code&client_id=%s&redirect_uri=%s", a_client.GetId(), a_client.GetRedirectUri()), nil)
 	w := httptest.NewRecorder()
 	api.authorize(w, r)
 
@@ -79,14 +92,45 @@ func Test_authorize(t *testing.T) {
 		t.Fatalf("Expected [%v] and got [%v]", http.StatusOK, w.Code)
 	}
 
-	output := make(map[string]interface{})
-	if err := json.Unmarshal(w.Body.Bytes(), &output); err != nil {
-		t.Fatalf("Could not decode output json: %s", err)
-	}
+	t.Logf("output from Test_POST_authorize %s", string(w.Body.Bytes()[:]))
 
 	/*if output["error"] != nil {
 		t.Fatalf("We don't expect an error details: %v", output["error"])
 	}*/
+}
+
+func Test_GET_authorize(t *testing.T) {
+
+	setupClientForTest()
+
+	r, _ := http.NewRequest("GET", fmt.Sprintf("/?response_type=code&client_id=%s&redirect_uri=%s", a_client.GetId(), a_client.GetRedirectUri()), nil)
+	w := httptest.NewRecorder()
+	api.authorize(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("Expected [%v] and got [%v]", http.StatusOK, w.Code)
+	}
+
+	authPage := string(w.Body.Bytes()[:])
+
+	//What we are looking for
+	expectedAuthFormParts := []string{
+		"action=https://devel-api.tidepool.io/auth/oauth2/authorize?response_type=code&client_id=1234&state=&scope=&redirect_uri=http%3A%2F%2Flocalhost%3A14000",
+		"method=\"POST\"",                                                        //it should be a POST
+		scopeView.grantMsg,                                                       //should show user would be granting view permissons
+		scopeUpload.grantMsg,                                                     //should show user would be granting upload permissons
+		"<input type=\"text\" name=\"login\" placeholder=\"Email\" />",           //should ask for users email address
+		"<input type=\"password\" name=\"password\" placeholder=\"Password\" />", //should ask for users password
+		"<input type=\"submit\" value=\"Grant access to Tidepool\"/>",            //should allow them to submit
+	}
+
+	for i := range expectedAuthFormParts {
+		if strings.Contains(authPage, expectedAuthFormParts[i]) == false {
+			t.Logf("expected [%s]", authPage)
+			t.Logf("to contain [%s]", expectedAuthFormParts[i])
+			t.Fatal("Test_GET_authorize didn't render the expected authorize form")
+		}
+	}
 }
 
 func Test_token(t *testing.T) {
