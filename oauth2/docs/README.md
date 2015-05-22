@@ -9,7 +9,7 @@ Before you can start using OAuth2 with your application, you’ll need to tell T
 
 ## Register your application here.
 
-``http://localhost:8009/oauth/signup``
+``http://localhost:8009/auth/oauth2/signup``
 
 Tell us about the app
 * Set your application name
@@ -32,20 +32,20 @@ client_secret=dd85baba6e0816662e4b16d32242f6526cf3e35a
 
 ### Notes:
 
-* What is a platfrom user?
- * This is your applications account on the Tidepool platfrom
+* What is a platform user?
+ * This is your application's account on the Tidepool platform
 
 * What is the redirect URI?
  * The redirect URI is the URL within your application that will receive the OAuth2 credentials.
 
 * Scopes available:
-  * Requests uploading of data on behalf
-  * Requests viewing of data on behalf
+  * Requests uploading of data on behalf of the user that grants the permisson
+  * Requests viewing of data on behalf of the user that grants the permisson
 
 
 # Authorizing
 
-First, direct your user to ``http://localhost:8009/oauth/authorize`` through a ``GET`` request with the following parameters:
+First, direct your user to ``http://localhost:8009/auth/oauth2/authorize`` through a ``GET`` request with the following parameters:
 
 ## Parameters:
 
@@ -86,7 +86,7 @@ Once your application has completed the above section and gotten an authorizatio
 
 Access Token: The access token is what’s needed to sign your API requests to Tidepool.
 
-To get the ``access_token``, you’ll need to make a ``POST`` request to http://localhost:8009/oauth/token with the following parameters:
+To get the ``access_token``, you’ll need to make a ``POST`` request to http://localhost:8009/auth/oauth2/token with the following parameters:
 
 * ``grant_type``
  * Must be authorization_code
