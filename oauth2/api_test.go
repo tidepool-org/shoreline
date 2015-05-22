@@ -115,7 +115,7 @@ func Test_GET_authorize(t *testing.T) {
 
 	//What we are looking for
 	expectedAuthFormParts := []string{
-		"action=https://devel-api.tidepool.io/auth/oauth2/authorize?response_type=code&client_id=1234&state=&scope=&redirect_uri=http%3A%2F%2Flocalhost%3A14000",
+		"/auth/oauth2/authorize?response_type=code&client_id=1234&state=&scope=&redirect_uri=http%3A%2F%2Flocalhost%3A14000",
 		"method=\"POST\"",                                                        //it should be a POST
 		scopeView.grantMsg,                                                       //should show user would be granting view permissons
 		scopeUpload.grantMsg,                                                     //should show user would be granting upload permissons
