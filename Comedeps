@@ -5,3 +5,4 @@ github.com/gorilla/context git https://github.com/gorilla/context.git 14f550f51a
 github.com/dgrijalva/jwt-go git https://github.com/dgrijalva/jwt-go.git v1.0.1
 github.com/RangelReale/osin git https://github.com/RangelReale/osin.git 9f043d7e6be414ff4c71af39d2cfffc10ccc7ea4
 github.com/tidepool-org/go-common git https://github.com/tidepool-org/go-common.git 114eea506f355e745f1d94b2aeb650e80b35dc27
+github.com/satori/go.uuid git https://github.com/satori/go.uuid.git afe1e2ddf0f05b7c29d388a3f8e76cb15c2231ca
