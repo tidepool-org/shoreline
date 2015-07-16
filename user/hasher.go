@@ -11,8 +11,8 @@ import (
 func generateUniqueHash(strings []string, length int) (string, error) {
 
 	//require a minimum of three pieces of info via strings
-	if len(strings) < 3 {
-		return "", errors.New("generateUniqueHash: at least three strings are needed")
+	if len(strings) < 1 {
+		return "", errors.New("generateUniqueHash: at least one string is needed")
 	}
 	if length <= 0 {
 		return "", errors.New("generateUniqueHash: hash length is required")
@@ -34,8 +34,11 @@ func generateUniqueHash(strings []string, length int) (string, error) {
 
 func GeneratePasswordHash(id, pw, salt string) (string, error) {
 
-	if salt == "" || id == "" {
-		return "", errors.New("id and salt are required")
+	if salt == "" {
+		return "", errors.New("salt is required")
+	}
+	if id == "" {
+		return "", errors.New("id is required")
 	}
 
 	hash := sha1.New()

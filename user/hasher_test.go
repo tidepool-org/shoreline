@@ -12,17 +12,9 @@ func TestGenerateUniqueHashWithNoStringsParam(t *testing.T) {
 
 }
 
-func TestGenerateUniqueHashWithLessThanThreeStrings(t *testing.T) {
+func TestGenerateUniqueHashWithOneString(t *testing.T) {
 
-	if _, err := generateUniqueHash([]string{"only", "two"}, 5); err == nil {
-		t.Fatalf("this should have thrown an error as only two strings were given")
-	}
-
-}
-
-func TestGenerateUniqueHashWithThreeStrings(t *testing.T) {
-
-	if _, err := generateUniqueHash([]string{"only", "two", "three"}, 5); err != nil {
+	if _, err := generateUniqueHash([]string{"only one"}, 5); err != nil {
 		t.Fatalf("this should have NOT thrown an error as three strings were given")
 	}
 

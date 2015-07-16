@@ -14,25 +14,37 @@ type (
 	}
 )
 
-func NewAnonIdHashPair(baseStrings []string) *AnonIdHashPair {
+func NewAnonIdHashPair(baseStrings []string) (*AnonIdHashPair, error) {
 	//deal with extra `randomness` here rather than rely on it being provided
 	baseStrings = append(baseStrings, uuid.NewV4().String(), uuid.NewV4().String())
 
-	id, _ := generateUniqueHash(baseStrings, 10)
-	hash, _ := generateUniqueHash(baseStrings, 24)
+	id, err := generateUniqueHash(baseStrings, 10)
+	if err != nil {
+		return nil, err
+	}
+	hash, err := generateUniqueHash(baseStrings, 24)
+	if err != nil {
+		return nil, err
+	}
 
-	return &AnonIdHashPair{Name: "", Id: id, Hash: hash}
+	return &AnonIdHashPair{Name: "", Id: id, Hash: hash}, nil
 }
 
-func NewIdHashPair(baseStrings []string, params map[string][]string) *IdHashPair {
+func NewIdHashPair(baseStrings []string, params map[string][]string) (*IdHashPair, error) {
 
 	for k, v := range params {
 		baseStrings = append(baseStrings, k)
 		baseStrings = append(baseStrings, v[0])
 	}
 
-	id, _ := generateUniqueHash(baseStrings, 10)
-	hash, _ := generateUniqueHash(baseStrings, 24)
+	id, err := generateUniqueHash(baseStrings, 10)
+	if err != nil {
+		return nil, err
+	}
+	hash, err := generateUniqueHash(baseStrings, 24)
+	if err != nil {
+		return nil, err
+	}
 
-	return &IdHashPair{Id: id, Hash: hash}
+	return &IdHashPair{Id: id, Hash: hash}, nil
 }

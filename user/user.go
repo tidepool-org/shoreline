@@ -30,28 +30,50 @@ type UserDetail struct {
 	Verified bool     `json:"authenticated"` //tag is name `authenticated` for historical reasons
 }
 
-func NewUser(details *UserDetail, salt string) (user *User, err error) {
+func NewUser(details *UserDetail, salt string) (*User, error) {
 
 	if details.Name == "" || details.Pw == "" {
-		return user, errors.New("both the name and pw are required")
+		return nil, errors.New("both the name and pw are required")
 	}
 	//name is always lowercase
 	details.Name = strings.ToLower(details.Name)
-
-	id, _ := generateUniqueHash([]string{details.Name, details.Pw}, 10)
-	hash, _ := generateUniqueHash([]string{details.Name, details.Pw, id}, 24)
-	pwHash, _ := GeneratePasswordHash(id, details.Pw, salt)
-
+	//generate the hashes
+	id, err := generateUniqueHash([]string{details.Name, details.Pw}, 10)
+	if err != nil {
+		return nil, err
+	}
+	hash, err := generateUniqueHash([]string{details.Name, details.Pw, id}, 24)
+	if err != nil {
+		return nil, err
+	}
+	pwHash, err := GeneratePasswordHash(id, details.Pw, salt)
+	if err != nil {
+		return nil, err
+	}
+	//all good we have a user
 	return &User{Id: id, Name: details.Name, Emails: details.Emails, Hash: hash, PwHash: pwHash, Verified: false}, nil
 }
 
 //Child Account are linked to another users account and don't require a password or emails
-func NewChildUser(details *UserDetail, salt string) (user *User, err error) {
+func NewChildUser(details *UserDetail, salt string) (*User, error) {
+
+	if details.Name == "" {
+		return nil, errors.New("name is required")
+	}
 
 	//name hashed from the `nice` name you gave us
-	name, _ := generateUniqueHash([]string{details.Name, time.Now().String()}, 10)
-	id, _ := generateUniqueHash([]string{name}, 10)
-	hash, _ := generateUniqueHash([]string{name, id}, 24)
+	name, err := generateUniqueHash([]string{details.Name, time.Now().String()}, 10)
+	if err != nil {
+		return nil, err
+	}
+	id, err := generateUniqueHash([]string{name}, 10)
+	if err != nil {
+		return nil, err
+	}
+	hash, err := generateUniqueHash([]string{name, id}, 24)
+	if err != nil {
+		return nil, err
+	}
 
 	return &User{Id: id, Name: name, Emails: details.Emails, Hash: hash, Verified: true}, nil
 }

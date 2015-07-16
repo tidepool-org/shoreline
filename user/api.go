@@ -46,6 +46,7 @@ const (
 	STATUS_ERR_CREATING_USR     = "Error creating the user"
 	STATUS_ERR_UPDATING_USR     = "Error updating user"
 	STATUS_USR_ALREADY_EXISTS   = "User aleady exists"
+	STATUS_ERR_GENERATING_HASH  = "Error generating hash"
 	STATUS_ERR_GENERATING_TOKEN = "Error generating the token"
 	STATUS_ERR_UPDATING_TOKEN   = "Error updating token"
 	STATUS_MISSING_USR_DETAILS  = "Not all required details were given"
@@ -632,7 +633,12 @@ func (a *Api) Logout(res http.ResponseWriter, req *http.Request) {
 
 // status: 200 AnonIdHashPair
 func (a *Api) AnonymousIdHashPair(res http.ResponseWriter, req *http.Request) {
-	idHashPair := NewAnonIdHashPair([]string{a.ApiConfig.Salt})
+	idHashPair, err := NewAnonIdHashPair([]string{a.ApiConfig.Salt})
+	if err != nil {
+		log.Printf(USER_API_PREFIX+"AnonymousIdHashPair %s [%s]", STATUS_ERR_GENERATING_HASH, err.Error())
+		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENERATING_HASH), http.StatusInternalServerError)
+		return
+	}
 	sendModelAsRes(res, idHashPair)
 	return
 }
@@ -667,31 +673,41 @@ func (a *Api) ManageIdHashPair(res http.ResponseWriter, req *http.Request, vars 
 					if foundUsr.Private == nil {
 						foundUsr.Private = make(map[string]*IdHashPair)
 					}
-					foundUsr.Private[theKey] = NewIdHashPair(baseStrings, req.URL.Query())
-
-					if err := a.Store.UpsertUser(foundUsr); err != nil {
+					foundUsr.Private[theKey], err = NewIdHashPair(baseStrings, req.URL.Query())
+					if err != nil {
+						log.Printf(USER_API_PREFIX+"ManageIdHashPair %s %s [%s]", req.Method, STATUS_ERR_GENERATING_HASH, err.Error())
+						sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_UPDATING_USR), http.StatusInternalServerError)
+						return
+					}
+					err = a.Store.UpsertUser(foundUsr)
+					if err != nil {
 						log.Printf(USER_API_PREFIX+"ManageIdHashPair %s %s [%s]", req.Method, STATUS_ERR_UPDATING_USR, err.Error())
 						sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_UPDATING_USR), http.StatusInternalServerError)
 						return
-					} else {
-						sendModelAsRes(res, foundUsr.Private[theKey])
-						return
 					}
+					sendModelAsRes(res, foundUsr.Private[theKey])
+					return
+
 				}
 			case "POST", "PUT":
 				if foundUsr.Private == nil {
 					foundUsr.Private = make(map[string]*IdHashPair)
 				}
-				foundUsr.Private[theKey] = NewIdHashPair(baseStrings, req.URL.Query())
-
-				if err := a.Store.UpsertUser(foundUsr); err != nil {
+				foundUsr.Private[theKey], err = NewIdHashPair(baseStrings, req.URL.Query())
+				if err != nil {
+					log.Printf(USER_API_PREFIX+"ManageIdHashPair %s %s [%s]", req.Method, STATUS_ERR_GENERATING_HASH, err.Error())
+					sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_UPDATING_USR), http.StatusInternalServerError)
+					return
+				}
+				err = a.Store.UpsertUser(foundUsr)
+				if err != nil {
 					log.Printf(USER_API_PREFIX+"ManageIdHashPair %s %s [%s]", req.Method, STATUS_ERR_UPDATING_USR, err.Error())
 					sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_UPDATING_USR), http.StatusInternalServerError)
 					return
-				} else {
-					sendModelAsResWithStatus(res, foundUsr.Private[theKey], http.StatusCreated)
-					return
 				}
+				sendModelAsResWithStatus(res, foundUsr.Private[theKey], http.StatusCreated)
+				return
+
 			case "DELETE":
 				log.Printf(USER_API_PREFIX+"ManageIdHashPair %s %s", req.Method, "Not Implemented")
 				res.WriteHeader(http.StatusNotImplemented)
