@@ -632,7 +632,7 @@ func (a *Api) Logout(res http.ResponseWriter, req *http.Request) {
 
 // status: 200 AnonIdHashPair
 func (a *Api) AnonymousIdHashPair(res http.ResponseWriter, req *http.Request) {
-	idHashPair := NewAnonIdHashPair([]string{a.ApiConfig.Salt}, req.URL.Query())
+	idHashPair := NewAnonIdHashPair([]string{a.ApiConfig.Salt})
 	sendModelAsRes(res, idHashPair)
 	return
 }

@@ -1,5 +1,7 @@
 package user
 
+import "github.com/satori/go.uuid"
+
 type (
 	AnonIdHashPair struct {
 		Name string `json:"name"`
@@ -12,12 +14,9 @@ type (
 	}
 )
 
-func NewAnonIdHashPair(baseStrings []string, params map[string][]string) *AnonIdHashPair {
-
-	for k, v := range params {
-		baseStrings = append(baseStrings, k)
-		baseStrings = append(baseStrings, v[0])
-	}
+func NewAnonIdHashPair(baseStrings []string) *AnonIdHashPair {
+	//deal with extra `randomness` here rather than rely on it being provided
+	baseStrings = append(baseStrings, uuid.NewV4().String(), uuid.NewV4().String())
 
 	id, _ := generateUniqueHash(baseStrings, 10)
 	hash, _ := generateUniqueHash(baseStrings, 24)
