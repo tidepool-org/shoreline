@@ -10,30 +10,35 @@ import (
 
 func generateUniqueHash(strings []string, length int) (string, error) {
 
-	if len(strings) > 0 && length > 0 {
-
-		hash := sha1.New()
-
-		for i := range strings {
-			hash.Write([]byte(strings[i]))
-		}
-
-		hash.Write([]byte(strconv.FormatInt(time.Now().Unix(), 10)))
-		//delay just a bit to make sure that we have move on in time
-		time.Sleep(1 * time.Millisecond)
-		hashString := hex.EncodeToString(hash.Sum(nil))
-
-		return string([]rune(hashString)[0:length]), nil
+	//require a minimum of one piece of info via strings
+	if len(strings) < 1 || strings[0] == "" {
+		return "", errors.New("generateUniqueHash: at least one string is needed")
+	}
+	if length <= 0 {
+		return "", errors.New("generateUniqueHash: hash length is required")
 	}
 
-	return "", errors.New("both strings and length are required")
+	hash := sha1.New()
 
+	for i := range strings {
+		hash.Write([]byte(strings[i]))
+	}
+
+	hash.Write([]byte(strconv.FormatInt(time.Now().UnixNano(), 10)))
+	//delay just a bit to make sure that we have move on in time
+	time.Sleep(1 * time.Millisecond)
+	hashString := hex.EncodeToString(hash.Sum(nil))
+
+	return string([]rune(hashString)[0:length]), nil
 }
 
 func GeneratePasswordHash(id, pw, salt string) (string, error) {
 
-	if salt == "" || id == "" {
-		return "", errors.New("id and salt are required")
+	if salt == "" {
+		return "", errors.New("salt is required")
+	}
+	if id == "" {
+		return "", errors.New("id is required")
 	}
 
 	hash := sha1.New()
