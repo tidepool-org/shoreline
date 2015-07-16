@@ -20,6 +20,14 @@ func TestGenerateUniqueHashWithOneString(t *testing.T) {
 
 }
 
+func TestGenerateUniqueHashWithOneStringCantBeEmptyString(t *testing.T) {
+
+	if _, err := generateUniqueHash([]string{""}, 5); err == nil {
+		t.Fatalf("this should have thrown an error as the string is empty")
+	}
+
+}
+
 func TestGenerateUniqueHashWithNoLengthParam(t *testing.T) {
 
 	if _, err := generateUniqueHash([]string{"one", "two", "miss a few", "99", "100"}, 0); err == nil {

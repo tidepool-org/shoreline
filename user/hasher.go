@@ -10,8 +10,8 @@ import (
 
 func generateUniqueHash(strings []string, length int) (string, error) {
 
-	//require a minimum of three pieces of info via strings
-	if len(strings) < 1 {
+	//require a minimum of one piece of info via strings
+	if len(strings) < 1 || strings[0] == "" {
 		return "", errors.New("generateUniqueHash: at least one string is needed")
 	}
 	if length <= 0 {
