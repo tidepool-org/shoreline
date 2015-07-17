@@ -20,7 +20,7 @@ func generateUniqueHash(strings []string, length int) (string, error) {
 			hash.Write([]byte(strings[i]))
 		}
 		//add some extra randomness
-		randStuff := make([]byte, 16)
+		randStuff := make([]byte, 32)
 		_, err := rand.Read(randStuff)
 		if err != nil {
 			return "", err
