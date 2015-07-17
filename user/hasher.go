@@ -1,7 +1,9 @@
 package user
 
 import (
+	"crypto/rand"
 	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"strconv"
@@ -12,17 +14,21 @@ func generateUniqueHash(strings []string, length int) (string, error) {
 
 	if len(strings) > 0 && length > 0 {
 
-		hash := sha1.New()
+		hash := sha256.New()
 
 		for i := range strings {
 			hash.Write([]byte(strings[i]))
 		}
-
-		hash.Write([]byte(strconv.FormatInt(time.Now().Unix(), 10)))
-		//delay just a bit to make sure that we have move on in time
-		time.Sleep(1 * time.Millisecond)
+		//add some extra randomness
+		randStuff := make([]byte, 16)
+		_, err := rand.Read(randStuff)
+		if err != nil {
+			return "", err
+		}
+		hash.Write([]byte(string(randStuff)))
+		//and use unix nano
+		hash.Write([]byte(strconv.FormatInt(time.Now().UnixNano(), 10)))
 		hashString := hex.EncodeToString(hash.Sum(nil))
-
 		return string([]rune(hashString)[0:length]), nil
 	}
 

@@ -3,11 +3,13 @@ package user
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/gorilla/mux"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
+
+	"github.com/gorilla/mux"
 
 	"github.com/tidepool-org/go-common/clients/highwater"
 
@@ -1467,4 +1469,60 @@ func TestManageIdHashPair_StatusCreated_WhenPut(t *testing.T) {
 	if idHashPair.Hash == "" {
 		t.Fatalf("should have an Hash but was %v", idHashPair.Hash)
 	}
+}
+
+func TestAnonIdHashPair_InBulk(t *testing.T) {
+
+	req, _ := http.NewRequest("GET", "/", nil)
+	res := httptest.NewRecorder()
+	shoreline.SetHandlers("", rtr)
+
+	// we ask for 10000 AnonymousIdHashPair to be created
+	ask := make([]AnonIdHashPair, 10000)
+	var generated []AnonIdHashPair
+
+	var wg sync.WaitGroup
+
+	for _, hash := range ask {
+		wg.Add(1)
+		go func(hash AnonIdHashPair) {
+			defer wg.Done()
+			shoreline.AnonymousIdHashPair(res, req)
+			body, _ := ioutil.ReadAll(res.Body)
+			json.Unmarshal(body, &hash)
+			generated = append(generated, hash)
+		}(hash)
+
+	}
+	wg.Wait()
+
+	// need a more elogent way for this
+	id1 := generated[1].Id
+	matches1 := 0
+
+	id999 := generated[999].Id
+	matches999 := 0
+
+	id4567 := generated[4567].Id
+	matches4567 := 0
+
+	for i := range generated {
+		if id1 == generated[i].Id {
+			matches1++
+		}
+		if id999 == generated[i].Id {
+			matches999++
+		}
+		if id4567 == generated[i].Id {
+			matches4567++
+		}
+	}
+
+	if matches1 > 1 || matches999 > 1 || matches4567 > 1 {
+		t.Log("id: ", id1, "has ", matches1, "matches")
+		t.Log("id: ", id999, "has ", matches999, "matches")
+		t.Log("id: ", id4567, "has ", matches4567, "matches")
+		t.Fatal("Hashed Ids should be unique")
+	}
+
 }
