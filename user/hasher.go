@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"math/big"
 	"strconv"
 	"time"
 )
@@ -19,13 +20,15 @@ func generateUniqueHash(strings []string, length int) (string, error) {
 		for i := range strings {
 			hash.Write([]byte(strings[i]))
 		}
-		//add some extra randomness
-		randStuff := make([]byte, 32)
-		_, err := rand.Read(randStuff)
+
+		max := big.NewInt(9999999999)
+
+		n, err := rand.Int(rand.Reader, max)
+
 		if err != nil {
 			return "", err
 		}
-		hash.Write([]byte(string(randStuff)))
+		hash.Write([]byte(n.String()))
 		//and use unix nano
 		hash.Write([]byte(strconv.FormatInt(time.Now().UnixNano(), 10)))
 		hashString := hex.EncodeToString(hash.Sum(nil))
