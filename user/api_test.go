@@ -1477,8 +1477,8 @@ func TestAnonIdHashPair_InBulk(t *testing.T) {
 	res := httptest.NewRecorder()
 	shoreline.SetHandlers("", rtr)
 
-	// we ask for 10000 AnonymousIdHashPair to be created
-	ask := make([]AnonIdHashPair, 10000)
+	// we ask for 500 AnonymousIdHashPair to be created
+	ask := make([]AnonIdHashPair, 500)
 	var generated []AnonIdHashPair
 
 	var wg sync.WaitGroup
@@ -1500,10 +1500,10 @@ func TestAnonIdHashPair_InBulk(t *testing.T) {
 	id1 := generated[1].Id
 	matches1 := 0
 
-	id999 := generated[999].Id
+	id999 := generated[66].Id
 	matches999 := 0
 
-	id4567 := generated[4567].Id
+	id4567 := generated[398].Id
 	matches4567 := 0
 
 	for i := range generated {
