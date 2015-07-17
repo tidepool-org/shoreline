@@ -1478,6 +1478,7 @@ func TestAnonIdHashPair_InBulk(t *testing.T) {
 	shoreline.SetHandlers("", rtr)
 
 	// we ask for 100 AnonymousIdHashPair to be created
+	//NOTE: while we can run more loaccly travis dosen't like it so 100 should be good enough
 	ask := make([]AnonIdHashPair, 100)
 	var generated []AnonIdHashPair
 
