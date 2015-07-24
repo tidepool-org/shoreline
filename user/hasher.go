@@ -22,7 +22,7 @@ func generateUniqueHash(strings []string, length int) (string, error) {
 		}
 
 		max := big.NewInt(9999999999)
-
+		//add some randomness
 		n, err := rand.Int(rand.Reader, max)
 
 		if err != nil {
