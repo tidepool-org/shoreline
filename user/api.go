@@ -26,6 +26,7 @@ type (
 		ServerSecret         string `json:"serverSecret"` //used for services
 		LongTermKey          string `json:"longTermKey"`
 		LongTermDaysDuration int    `json:"longTermDaysDuration"`
+		TokenHoursDuration   int    `json:"tokenHoursDuration"` //so we can change the default lifetime of the token
 		Salt                 string `json:"salt"`               //used for pw
 		Secret               string `json:"apiSecret"`          //used for token
 		VerificationSecret   string `json:"verificationSecret"` //allows for the skipping of verification for testing
@@ -387,7 +388,7 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 					//passwords match and the user is verified
 					td := &TokenData{DurationSecs: extractTokenDuration(req), UserId: results[i].Id, IsServer: false}
 
-					if sessionToken, err := CreateSessionTokenAndSave(td, a.ApiConfig.Secret, a.Store); sessionToken != nil && err == nil {
+					if sessionToken, err := CreateSessionTokenAndSave(td, TokenConfig{DurationHours: a.ApiConfig.TokenHoursDuration, Secret: a.ApiConfig.Secret}, a.Store); sessionToken != nil && err == nil {
 						//YAY it's all is good so lets tell people!
 						a.logMetric("userlogin", sessionToken.Id, nil)
 						res.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
@@ -461,7 +462,7 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 		//generate new token
 		if sessionToken, err := CreateSessionTokenAndSave(
 			&TokenData{DurationSecs: extractTokenDuration(req), UserId: server, IsServer: true},
-			a.ApiConfig.Secret,
+			TokenConfig{DurationHours: a.ApiConfig.TokenHoursDuration, Secret: a.ApiConfig.Secret},
 			a.Store,
 		); err != nil {
 			log.Printf(USER_API_PREFIX+"ServerLogin %s err[%s]", STATUS_ERR_GENERATING_TOKEN, err.Error())
@@ -500,7 +501,7 @@ func (a *Api) oauth2Login(w http.ResponseWriter, r *http.Request) {
 				//check the actual token
 				result, err := a.oauth.CheckToken(auth_token)
 				if err != nil || result == nil {
-					log.Printf(USER_API_PREFIX, "oauth2Login error checking token ", err)
+					log.Print(USER_API_PREFIX, "oauth2Login error checking token ", err)
 					w.WriteHeader(http.StatusUnauthorized)
 					return
 				}
@@ -508,7 +509,7 @@ func (a *Api) oauth2Login(w http.ResponseWriter, r *http.Request) {
 				//check the corresponding user
 				fndUsr, errUsr := a.Store.FindUser(&User{Id: result["userId"].(string)})
 				if errUsr != nil || fndUsr == nil {
-					log.Printf(USER_API_PREFIX, "oauth2Login error getting user ", errUsr.Error())
+					log.Print(USER_API_PREFIX, "oauth2Login error getting user ", errUsr.Error())
 					w.WriteHeader(http.StatusUnauthorized)
 					return
 				}
@@ -516,7 +517,7 @@ func (a *Api) oauth2Login(w http.ResponseWriter, r *http.Request) {
 				//generate token and send the response
 				if sessionToken, err := CreateSessionTokenAndSave(
 					&TokenData{DurationSecs: 0, UserId: result["userId"].(string), IsServer: false},
-					a.ApiConfig.Secret,
+					TokenConfig{DurationHours: a.ApiConfig.TokenHoursDuration, Secret: a.ApiConfig.Secret},
 					a.Store,
 				); err != nil {
 					log.Print(USER_API_PREFIX, "oauth2Login error creating session token", err.Error())
@@ -555,7 +556,7 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 		//refresh
 		if sessionToken, err := CreateSessionTokenAndSave(
 			td,
-			a.ApiConfig.Secret,
+			TokenConfig{DurationHours: a.ApiConfig.TokenHoursDuration, Secret: a.ApiConfig.Secret},
 			a.Store,
 		); err != nil {
 			log.Printf(USER_API_PREFIX+"RefreshSession %s err[%s]", STATUS_ERR_GENERATING_TOKEN, err.Error())

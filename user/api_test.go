@@ -30,6 +30,7 @@ var (
 	FAKE_CONFIG = ApiConfig{
 		ServerSecret:       "shhh! don't tell",
 		Secret:             "shhh! don't tell *2",
+		TokenHoursDuration: 8,
 		LongTermKey:        "the longetermkey",
 		Salt:               "a mineral substance composed primarily of sodium chloride",
 		VerificationSecret: "",
@@ -39,9 +40,9 @@ var (
 	 */
 	USR           = &User{Id: "123-99-100", Name: "Test One", Emails: []string{"test@new.bar"}}
 	usrTknData    = &TokenData{UserId: USR.Id, IsServer: false, DurationSecs: 3600}
-	USR_TOKEN, _  = CreateSessionToken(usrTknData, FAKE_CONFIG.Secret)
+	USR_TOKEN, _  = CreateSessionToken(usrTknData, TokenConfig{DurationHours: FAKE_CONFIG.TokenHoursDuration, Secret: FAKE_CONFIG.Secret})
 	sverTknData   = &TokenData{UserId: "shoreline", IsServer: true, DurationSecs: 36000}
-	SRVR_TOKEN, _ = CreateSessionToken(sverTknData, FAKE_CONFIG.Secret)
+	SRVR_TOKEN, _ = CreateSessionToken(sverTknData, TokenConfig{DurationHours: FAKE_CONFIG.TokenHoursDuration, Secret: FAKE_CONFIG.Secret})
 	/*
 	 * basics setup
 	 */
