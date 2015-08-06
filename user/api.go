@@ -125,26 +125,43 @@ func (a *Api) GetStatus(res http.ResponseWriter, req *http.Request) {
 // status: 500 STATUS_ERR_GENERATING_TOKEN
 func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 
-	if usrDetails := getUserDetail(req); usrDetails != nil {
+	usrDetails, err := getUserDetail(req)
 
-		if usr, err := NewUser(usrDetails, a.ApiConfig.Salt); err == nil {
-			//they shouldn't already exist
-			if results, _ := a.Store.FindUsers(usr); results == nil || len(results) == 0 {
-				log.Print(USER_API_PREFIX, "CreateUser: about to add user")
-				a.addUserAndSendStatus(usr, res, req)
-				return
-			} else {
-				log.Printf(USER_API_PREFIX+"CreateUser %s ", STATUS_USR_ALREADY_EXISTS)
-				sendModelAsResWithStatus(res, status.NewStatus(http.StatusConflict, STATUS_USR_ALREADY_EXISTS), http.StatusConflict)
-				return
-			}
-		} else {
-			log.Printf(USER_API_PREFIX+"CreateUser %s ", err.Error())
-		}
+	if err != nil {
+		log.Println(USER_API_PREFIX, "CreateUser", STATUS_MISSING_USR_DETAILS, err)
+		sendModelAsResWithStatus(res, status.NewStatus(http.StatusBadRequest, STATUS_MISSING_USR_DETAILS), http.StatusBadRequest)
+		return
 	}
-	//incoming details missing
-	log.Printf(USER_API_PREFIX+"CreateUser %s ", STATUS_MISSING_USR_DETAILS)
-	sendModelAsResWithStatus(res, status.NewStatus(http.StatusBadRequest, STATUS_MISSING_USR_DETAILS), http.StatusBadRequest)
+
+	newUsr, err := NewUser(usrDetails, a.ApiConfig.Salt)
+
+	if err != nil && err == User_error_name_pw_required {
+
+		log.Println(USER_API_PREFIX, "CreateUser", STATUS_MISSING_USR_DETAILS, err)
+		sendModelAsResWithStatus(res, status.NewStatus(http.StatusBadRequest, STATUS_MISSING_USR_DETAILS), http.StatusBadRequest)
+		return
+	} else if err != nil {
+		log.Println(USER_API_PREFIX, "CreateUser", err.Error())
+		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_CREATING_USR), http.StatusInternalServerError)
+		return
+	}
+
+	existingUsr, err := a.Store.FindUsers(newUsr)
+
+	if err != nil {
+		log.Println(USER_API_PREFIX, "CreateUser", err.Error())
+		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_CREATING_USR), http.StatusInternalServerError)
+		return
+	}
+
+	if existingUsr == nil || len(existingUsr) == 0 {
+		log.Println(USER_API_PREFIX, "CreateUser", "adding new user")
+		a.addUserAndSendStatus(newUsr, res, req)
+		return
+	}
+	//duplicate
+	log.Println(USER_API_PREFIX, "CreateUser ", STATUS_USR_ALREADY_EXISTS)
+	sendModelAsResWithStatus(res, status.NewStatus(http.StatusConflict, STATUS_USR_ALREADY_EXISTS), http.StatusConflict)
 	return
 }
 
@@ -153,19 +170,24 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 // status: 500 STATUS_ERR_GENERATING_TOKEN
 func (a *Api) CreateChildUser(res http.ResponseWriter, req *http.Request) {
 
-	if usrDetails := getUserDetail(req); usrDetails != nil {
+	usrDetails, err := getUserDetail(req)
 
-		if usr, err := NewChildUser(usrDetails, a.ApiConfig.Salt); err == nil {
-			log.Print(USER_API_PREFIX + "CreateChildUser adding new child user ")
-			a.addUserAndSendStatus(usr, res, req)
-			return
-		} else {
-			log.Printf(USER_API_PREFIX+"CreateChildUser %s ", err.Error())
-		}
+	if err != nil {
+		log.Println(USER_API_PREFIX, "CreateChildUser", STATUS_MISSING_USR_DETAILS, err.Error())
+		sendModelAsResWithStatus(res, status.NewStatus(http.StatusBadRequest, STATUS_MISSING_USR_DETAILS), http.StatusBadRequest)
+		return
 	}
-	//incoming details were missing
-	log.Printf(USER_API_PREFIX+"CreateChildUser %s ", STATUS_MISSING_USR_DETAILS)
-	sendModelAsResWithStatus(res, status.NewStatus(http.StatusBadRequest, STATUS_MISSING_USR_DETAILS), http.StatusBadRequest)
+
+	newChildUsr, err := NewChildUser(usrDetails, a.ApiConfig.Salt)
+
+	if err != nil {
+		log.Println(USER_API_PREFIX, "CreateChildUser", STATUS_ERR_CREATING_USR, err.Error())
+		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_CREATING_USR), http.StatusInternalServerError)
+		return
+	}
+
+	log.Println(USER_API_PREFIX, "CreateChildUser", "adding new user")
+	a.addUserAndSendStatus(newChildUsr, res, req)
 	return
 }
 
