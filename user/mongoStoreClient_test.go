@@ -155,6 +155,7 @@ func TestMongoStoreTokenOperations(t *testing.T) {
 
 	testing_token_data := &TokenData{UserId: "2341", IsServer: true, DurationSecs: 3600}
 	testing_fake_secret := "some secret for the tests"
+	testing_token_hrs_duration := 12
 	testingConfig := &mongo.Config{ConnectionString: "mongodb://localhost/user_test"}
 
 	mc := NewMongoStoreClient(testingConfig)
@@ -176,7 +177,10 @@ func TestMongoStoreTokenOperations(t *testing.T) {
 	/*
 	 * THE TESTS
 	 */
-	sessionToken, _ := CreateSessionToken(testing_token_data, TokenConfig{DurationHours: 12, Secret: testing_fake_secret})
+	sessionToken, _ := CreateSessionToken(
+		testing_token_data,
+		TokenConfig{DurationHours: testing_token_hrs_duration, Secret: testing_fake_secret},
+	)
 
 	if err := mc.AddToken(sessionToken); err != nil {
 		t.Fatalf("we could not save the token %v", err)
