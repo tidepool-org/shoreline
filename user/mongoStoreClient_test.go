@@ -11,11 +11,11 @@ import (
 func TestMongoStoreUserOperations(t *testing.T) {
 
 	var (
-		ORIG_USR_DETAIL  = &UserDetail{Name: "Test User", Emails: []string{"test@foo.bar"}, Pw: "myT35t"}
-		OTHER_USR_DETAIL = &UserDetail{Name: "Second User", Emails: ORIG_USR_DETAIL.Emails, Pw: "my0th3rT35t"}
+		original_user_detail = &UserDetail{Name: "Test User", Emails: []string{"test@foo.bar"}, Pw: "myT35t"}
+		other_user_detail    = &UserDetail{Name: "Second User", Emails: original_user_detail.Emails, Pw: "my0th3rT35t"}
 	)
 
-	const FAKE_SALT = "some fake salt for the tests"
+	const tests_fake_salt = "some fake salt for the tests"
 
 	testingConfig := &mongo.Config{ConnectionString: "mongodb://localhost/user_test"}
 
@@ -31,13 +31,13 @@ func TestMongoStoreUserOperations(t *testing.T) {
 	mgoUsersCollection(cpy).DropCollection()
 
 	if err := mgoUsersCollection(cpy).Create(&mgo.CollectionInfo{}); err != nil {
-		t.Fatalf("We couldn't created the users collection for these tests ", err)
+		t.Fatal("We couldn't created the users collection for these tests ", err)
 	}
 
 	/*
 	 * THE TESTS
 	 */
-	user, _ := NewUser(ORIG_USR_DETAIL, FAKE_SALT)
+	user, _ := NewUser(original_user_detail, tests_fake_salt)
 
 	if err := mc.UpsertUser(user); err != nil {
 		t.Fatalf("we could not create the user %v", err)
@@ -52,7 +52,7 @@ func TestMongoStoreUserOperations(t *testing.T) {
 	if found, err := mc.FindUsers(toFindByOriginalName); err != nil {
 		t.Fatalf("we could not find the the user by name: err[%v]", err)
 	} else {
-		if len(found) > 0 && found[0].Name != toFindByOriginalName.Name && found[0].Name != ORIG_USR_DETAIL.Name {
+		if len(found) > 0 && found[0].Name != toFindByOriginalName.Name && found[0].Name != original_user_detail.Name {
 			t.Fatalf("the user we found doesn't match what we asked for %v", found)
 		}
 	}
@@ -63,7 +63,7 @@ func TestMongoStoreUserOperations(t *testing.T) {
 		t.Fatalf("we could not find the the user by name: err[%v]", err)
 	} else {
 		if len(found) == 0 {
-			t.Fatalf("No users were found for ", byUpperName.Name)
+			t.Fatal("No users were found for ", byUpperName.Name)
 		} else if strings.ToUpper(found[0].Name) != byUpperName.Name {
 			t.Fatalf("the user we found doesn't match what we asked for %v", found)
 		}
@@ -75,7 +75,7 @@ func TestMongoStoreUserOperations(t *testing.T) {
 		t.Fatalf("we could not find the the user by name: err[%v]", err)
 	} else {
 		if len(found) == 0 {
-			t.Fatalf("No users were found for ", byLowerName.Name)
+			t.Fatal("No users were found for ", byLowerName.Name)
 		} else if strings.ToLower(found[0].Name) != byLowerName.Name {
 			t.Fatalf("the user we found doesn't match what we asked for %v", found)
 		}
@@ -134,7 +134,7 @@ func TestMongoStoreUserOperations(t *testing.T) {
 	}
 
 	//Find many By Email - user and userTwo have the same emails addresses
-	userTwo, _ := NewUser(OTHER_USR_DETAIL, FAKE_SALT)
+	userTwo, _ := NewUser(other_user_detail, tests_fake_salt)
 
 	if err := mc.UpsertUser(userTwo); err != nil {
 		t.Fatalf("we could not create the user %v", err)
@@ -153,14 +153,9 @@ func TestMongoStoreUserOperations(t *testing.T) {
 
 func TestMongoStoreTokenOperations(t *testing.T) {
 
-	var (
-		TD = &TokenData{UserId: "2341", IsServer: true, DurationSecs: 3600}
-	)
-
-	const (
-		FAKE_SECRET = "some secret for the tests"
-	)
-
+	testing_token_data := &TokenData{UserId: "2341", IsServer: true, DurationSecs: 3600}
+	testing_fake_secret := "some secret for the tests"
+	testing_token_hrs_duration := 12
 	testingConfig := &mongo.Config{ConnectionString: "mongodb://localhost/user_test"}
 
 	mc := NewMongoStoreClient(testingConfig)
@@ -176,13 +171,16 @@ func TestMongoStoreTokenOperations(t *testing.T) {
 	mgoTokensCollection(cpy).DropCollection()
 
 	if err := mgoTokensCollection(cpy).Create(&mgo.CollectionInfo{}); err != nil {
-		t.Fatalf("We couldn't created the token collection for these tests ", err)
+		t.Fatal("We couldn't created the token collection for these tests ", err)
 	}
 
 	/*
 	 * THE TESTS
 	 */
-	sessionToken, _ := CreateSessionToken(TD, FAKE_SECRET)
+	sessionToken, _ := CreateSessionToken(
+		testing_token_data,
+		TokenConfig{DurationHours: testing_token_hrs_duration, Secret: testing_fake_secret},
+	)
 
 	if err := mc.AddToken(sessionToken); err != nil {
 		t.Fatalf("we could not save the token %v", err)

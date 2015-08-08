@@ -8,8 +8,13 @@ import (
 )
 
 type tokenTestData struct {
-	data       *TokenData
-	secretUsed string
+	data   *TokenData
+	config TokenConfig
+}
+
+var tokenConfig = TokenConfig{
+	DurationHours: 24,
+	Secret:        "my secret",
 }
 
 func Test_GetSessionToken(t *testing.T) {
@@ -23,42 +28,116 @@ func Test_GetSessionToken(t *testing.T) {
 	}
 }
 
-func Test_GenerateSessionTokenWhenNoUserId(t *testing.T) {
+func Test_GenerateSessionToken(t *testing.T) {
 
-	testData := tokenTestData{data: &TokenData{UserId: "", IsServer: false, DurationSecs: 3600}, secretUsed: "my secret"}
+	testData := tokenTestData{
+		data:   &TokenData{UserId: "12-99-100", IsServer: false, DurationSecs: 3600},
+		config: tokenConfig,
+	}
 
-	if _, err := CreateSessionToken(testData.data, testData.secretUsed); err == nil {
+	//given duration seconds trump the configured duration
+	token, _ := CreateSessionToken(testData.data, testData.config)
+
+	if token.Id == "" {
+		t.Fatalf("should generate a session token with an Id set")
+	}
+
+	td := token.unpackToken(tokenConfig.Secret)
+
+	if td.DurationSecs != testData.data.DurationSecs {
+		t.Fatalf("we should use the DurationSecs if given")
+	}
+}
+
+func Test_GenerateSessionToken_DurationFromConfig(t *testing.T) {
+
+	testData := tokenTestData{
+		data:   &TokenData{UserId: "12-99-100", IsServer: false, DurationSecs: 0},
+		config: tokenConfig,
+	}
+
+	//given duration seconds trump the configured duration
+	token, _ := CreateSessionToken(testData.data, testData.config)
+
+	if token.Id == "" || token.Time == 0 {
+		t.Fatalf("should generate a session token")
+	}
+
+	td := token.unpackToken(tokenConfig.Secret)
+
+	if td.DurationSecs != time.Duration(time.Hour*time.Duration(tokenConfig.DurationHours)).Seconds() {
+		t.Fatalf("the duration should be from config")
+	}
+}
+
+func Test_GenerateSessionToken_DurationSecsTrumpConfig(t *testing.T) {
+
+	testData := tokenTestData{
+		data:   &TokenData{UserId: "12-99-100", IsServer: false, DurationSecs: 5},
+		config: tokenConfig,
+	}
+
+	token, _ := CreateSessionToken(testData.data, testData.config)
+
+	if token.Id == "" || token.Time == 0 {
+		t.Fatalf("should generate a session token")
+	}
+
+	td := token.unpackToken(tokenConfig.Secret)
+
+	if td.DurationSecs != testData.data.DurationSecs {
+		t.Fatalf("the duration should come from the token data")
+	}
+
+}
+
+func Test_GenerateSessionToken_NoUserId(t *testing.T) {
+
+	testData := tokenTestData{
+		data:   &TokenData{UserId: "", IsServer: false, DurationSecs: 3600},
+		config: tokenConfig,
+	}
+
+	if _, err := CreateSessionToken(testData.data, testData.config); err == nil {
 		t.Fatalf("should not generate a session token if there is no userid")
 	}
 }
 
-func Test_GenerateSessionToken(t *testing.T) {
+func Test_GenerateSessionToken_Server(t *testing.T) {
 
-	testData := tokenTestData{data: &TokenData{UserId: "12-99-100", IsServer: false, DurationSecs: 3600}, secretUsed: "my secret"}
+	testData := tokenTestData{
+		data:   &TokenData{UserId: "shoreline", IsServer: true, DurationSecs: 0},
+		config: tokenConfig,
+	}
 
-	if token, _ := CreateSessionToken(testData.data, testData.secretUsed); token.Id == "" || token.Time == 0 {
+	token, _ := CreateSessionToken(testData.data, testData.config)
+
+	if token.Id == "" || token.Time == 0 {
 		t.Fatalf("should generate a session token")
 	}
 
-}
+	td := token.unpackToken(tokenConfig.Secret)
 
-func Test_GenerateSessionTokenForServer(t *testing.T) {
+	if td.IsServer != true {
+		t.Fatal("this should be a server token")
+	}
 
-	testData := tokenTestData{data: &TokenData{UserId: "shoreline", IsServer: true, DurationSecs: 3600}, secretUsed: "my secret"}
-
-	if token, _ := CreateSessionToken(testData.data, testData.secretUsed); token.Id == "" || token.Time == 0 {
-		t.Fatalf("should generate a session token")
+	if td.DurationSecs != (time.Hour * 24).Seconds() {
+		t.Fatal("the duration should be 24hrs")
 	}
 
 }
 
 func Test_UnpackedData(t *testing.T) {
 
-	testData := tokenTestData{data: &TokenData{UserId: "111", IsServer: true, DurationSecs: 3600}, secretUsed: "my other secret"}
+	testData := tokenTestData{
+		data:   &TokenData{UserId: "111", IsServer: true, DurationSecs: 0},
+		config: tokenConfig,
+	}
 
-	token, _ := CreateSessionToken(testData.data, testData.secretUsed)
+	token, _ := CreateSessionToken(testData.data, testData.config)
 
-	if data := token.UnpackAndVerify(testData.secretUsed); data == nil {
+	if data := token.UnpackAndVerify(testData.config.Secret); data == nil {
 		t.Fatalf("unpacked token should be valid")
 	} else {
 
@@ -74,18 +153,20 @@ func Test_UnpackedData(t *testing.T) {
 			t.Fatalf("the user should have been what was given")
 		}
 	}
-
 }
 
 func Test_UnpackTokenExpires(t *testing.T) {
 
-	testData := tokenTestData{data: &TokenData{UserId: "2341", IsServer: false, DurationSecs: 1}, secretUsed: "my secret"}
+	testData := tokenTestData{
+		data:   &TokenData{UserId: "2341", IsServer: false, DurationSecs: 1},
+		config: tokenConfig,
+	}
 
-	token, _ := CreateSessionToken(testData.data, testData.secretUsed)
+	token, _ := CreateSessionToken(testData.data, testData.config)
 
 	time.Sleep(2 * time.Second) //ensure token expires
 
-	if data := token.UnpackAndVerify(testData.secretUsed); data != nil && data.Valid != false {
+	if data := token.UnpackAndVerify(testData.config.Secret); data != nil && data.Valid != false {
 		t.Fatalf("the token should have expired")
 	}
 
@@ -93,11 +174,14 @@ func Test_UnpackTokenExpires(t *testing.T) {
 
 func Test_UnpackAndVerifyStoredToken(t *testing.T) {
 
-	testData := tokenTestData{data: &TokenData{UserId: "2341", IsServer: false, DurationSecs: 1200}, secretUsed: "my secret"}
+	testData := tokenTestData{
+		data:   &TokenData{UserId: "2341", IsServer: false, DurationSecs: 1200},
+		config: tokenConfig,
+	}
 
-	token, _ := CreateSessionToken(testData.data, testData.secretUsed)
+	token, _ := CreateSessionToken(testData.data, testData.config)
 
-	if data := token.UnpackAndVerify(testData.secretUsed); data != nil && data.Valid == false {
+	if data := token.UnpackAndVerify(testData.config.Secret); data != nil && data.Valid == false {
 		t.Fatalf("the token should not have expired")
 	}
 }
@@ -118,11 +202,15 @@ func Test_extractTokenDuration(t *testing.T) {
 }
 
 func Test_getUnpackedToken(t *testing.T) {
-	testData := tokenTestData{data: &TokenData{UserId: "2341", IsServer: false, DurationSecs: 1}, secretUsed: "my secret"}
 
-	token, _ := CreateSessionToken(testData.data, testData.secretUsed)
+	testData := tokenTestData{
+		data:   &TokenData{UserId: "2341", IsServer: false, DurationSecs: 1},
+		config: tokenConfig,
+	}
 
-	if td := getUnpackedToken(token.Id, testData.secretUsed); td == nil {
+	token, _ := CreateSessionToken(testData.data, testData.config)
+
+	if td := getUnpackedToken(token.Id, testData.config.Secret); td == nil {
 		t.Fatal("We should have got TokenData")
 	} else {
 		if td.UserId != testData.data.UserId {
@@ -132,19 +220,28 @@ func Test_getUnpackedToken(t *testing.T) {
 }
 
 func Test_hasServerToken(t *testing.T) {
-	testData := tokenTestData{data: &TokenData{UserId: "2341", IsServer: true, DurationSecs: 1}, secretUsed: "my secret"}
-	token, _ := CreateSessionToken(testData.data, testData.secretUsed)
 
-	if hasServerToken(token.Id, testData.secretUsed) == false {
+	testData := tokenTestData{
+		data:   &TokenData{UserId: "2341", IsServer: true, DurationSecs: 1},
+		config: tokenConfig,
+	}
+
+	token, _ := CreateSessionToken(testData.data, testData.config)
+
+	if hasServerToken(token.Id, testData.config.Secret) == false {
 		t.Fatal("We should have got a server Token")
 	}
 }
 
 func Test_hasServerToken_false(t *testing.T) {
-	testData := tokenTestData{data: &TokenData{UserId: "2341", IsServer: false, DurationSecs: 1}, secretUsed: "my secret"}
-	token, _ := CreateSessionToken(testData.data, testData.secretUsed)
+	testData := tokenTestData{
+		data:   &TokenData{UserId: "2341", IsServer: false, DurationSecs: 1},
+		config: tokenConfig,
+	}
 
-	if hasServerToken(token.Id, testData.secretUsed) != false {
+	token, _ := CreateSessionToken(testData.data, testData.config)
+
+	if hasServerToken(token.Id, testData.config.Secret) != false {
 		t.Fatal("We should have not got a server Token")
 	}
 }

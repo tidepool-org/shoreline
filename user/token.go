@@ -2,11 +2,12 @@ package user
 
 import (
 	"errors"
-	jwt "github.com/dgrijalva/jwt-go"
 	"log"
 	"net/http"
 	"strconv"
 	"time"
+
+	jwt "github.com/dgrijalva/jwt-go"
 )
 
 type (
@@ -21,13 +22,18 @@ type (
 		DurationSecs float64 `json:"-"`
 		Valid        bool    `json:"-"`
 	}
+
+	TokenConfig struct {
+		Secret        string
+		DurationHours int
+	}
 )
 
 const (
 	TOKEN_DURATION_KEY = "tokenduration"
 )
 
-func CreateSessionToken(data *TokenData, secret string) (token *SessionToken, err error) {
+func CreateSessionToken(data *TokenData, config TokenConfig) (token *SessionToken, err error) {
 
 	const seconds_in_one_hour = 3600
 
@@ -36,7 +42,7 @@ func CreateSessionToken(data *TokenData, secret string) (token *SessionToken, er
 	}
 
 	if data.DurationSecs == 0 {
-		data.DurationSecs = (time.Hour * 1).Seconds() //1 hour
+		data.DurationSecs = (time.Hour * time.Duration(config.DurationHours)).Seconds() //As per configuartion
 		if data.IsServer {
 			data.DurationSecs = (time.Hour * 24).Seconds() //24 hours
 		}
@@ -55,7 +61,7 @@ func CreateSessionToken(data *TokenData, secret string) (token *SessionToken, er
 		token.Claims["exp"] = time.Now().Add(time.Duration(data.DurationSecs/seconds_in_one_hour) * time.Hour).Unix()
 
 		// Sign and get the complete encoded token as a string
-		tokenString, _ := token.SignedString([]byte(secret))
+		tokenString, _ := token.SignedString([]byte(config.Secret))
 
 		return &SessionToken{Id: tokenString, Time: time.Now().Unix()}, nil
 	}
@@ -63,11 +69,11 @@ func CreateSessionToken(data *TokenData, secret string) (token *SessionToken, er
 	return nil, errors.New("The duration for the token was 0 seconds")
 }
 
-func CreateSessionTokenAndSave(data *TokenData, secret string, store Storage) (token *SessionToken, err error) {
+func CreateSessionTokenAndSave(data *TokenData, config TokenConfig, store Storage) (token *SessionToken, err error) {
 
 	if sessionToken, err := CreateSessionToken(
 		data,
-		secret,
+		config,
 	); err != nil {
 		log.Print(USER_API_PREFIX, "error creating new SessionToken", err.Error())
 		return nil, err
@@ -96,7 +102,6 @@ func (t *SessionToken) UnpackAndVerify(secret string) *TokenData {
 	}
 
 	return t.unpackToken(secret)
-	//return t.TokenData.Valid
 }
 
 func GetSessionToken(tokenString string) *SessionToken {
