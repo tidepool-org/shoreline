@@ -135,15 +135,16 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 
 	newUsr, err := NewUser(usrDetails, a.ApiConfig.Salt)
 
-	if err != nil && err == User_error_name_pw_required {
-
-		log.Println(USER_API_PREFIX, "CreateUser", STATUS_MISSING_USR_DETAILS, err)
-		sendModelAsResWithStatus(res, status.NewStatus(http.StatusBadRequest, STATUS_MISSING_USR_DETAILS), http.StatusBadRequest)
-		return
-	} else if err != nil {
-		log.Println(USER_API_PREFIX, "CreateUser", err.Error())
-		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_CREATING_USR), http.StatusInternalServerError)
-		return
+	if err != nil {
+		if err == User_error_name_pw_required {
+			log.Println(USER_API_PREFIX, "CreateUser", STATUS_MISSING_USR_DETAILS, err)
+			sendModelAsResWithStatus(res, status.NewStatus(http.StatusBadRequest, STATUS_MISSING_USR_DETAILS), http.StatusBadRequest)
+			return
+		} else {
+			log.Println(USER_API_PREFIX, "CreateUser", err.Error())
+			sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_CREATING_USR), http.StatusInternalServerError)
+			return
+		}
 	}
 
 	existingUsr, err := a.Store.FindUsers(newUsr)

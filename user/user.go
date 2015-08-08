@@ -114,9 +114,9 @@ func (u *User) IsVerified(secret string) bool {
 func getUserDetail(req *http.Request) (ud *UserDetail, err error) {
 	if req.ContentLength > 0 {
 		if err := json.NewDecoder(req.Body).Decode(&ud); err != nil {
-			return ud, err
+			return nil, err
 		}
 		return ud, nil
 	}
-	return ud, User_error_no_details_given
+	return nil, User_error_no_details_given
 }
