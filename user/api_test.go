@@ -289,7 +289,7 @@ func TestUpdateUser_StatusOK(t *testing.T) {
 	/*
 	 * can update all
 	 */
-	var updateAll = []byte(`{"updates":{"username": "change1","password":"aN3wPw0rD","emails":["change1@new.bar"],"authenticated":"true"}}`)
+	var updateAll = []byte(`{"updates":{"username": "change1","password":"aN3wPw0rD","emails":["change1@new.bar"],"authenticated":true}}`)
 
 	requestUpdateAll, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updateAll))
 
@@ -353,7 +353,7 @@ func TestUpdateUser_StatusOK(t *testing.T) {
 	/*
 	 * can update authentication
 	 */
-	var updateAuth = []byte(`{"updates":{"authenticated":"true"}}`)
+	var updateAuth = []byte(`{"updates":{"authenticated":true}}`)
 
 	requestUpdateAuth, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updateAuth))
 	requestUpdateAuth.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)

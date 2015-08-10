@@ -42,7 +42,7 @@ func Test_GenerateSessionToken(t *testing.T) {
 		t.Fatalf("should generate a session token with an Id set")
 	}
 
-	td := token.unpackToken(tokenConfig.Secret)
+	td, _ := token.unpackToken(tokenConfig.Secret)
 
 	if td.DurationSecs != testData.data.DurationSecs {
 		t.Fatalf("we should use the DurationSecs if given")
@@ -63,7 +63,7 @@ func Test_GenerateSessionToken_DurationFromConfig(t *testing.T) {
 		t.Fatalf("should generate a session token")
 	}
 
-	td := token.unpackToken(tokenConfig.Secret)
+	td, _ := token.unpackToken(tokenConfig.Secret)
 
 	if td.DurationSecs != time.Duration(time.Hour*time.Duration(tokenConfig.DurationHours)).Seconds() {
 		t.Fatalf("the duration should be from config")
@@ -83,7 +83,7 @@ func Test_GenerateSessionToken_DurationSecsTrumpConfig(t *testing.T) {
 		t.Fatalf("should generate a session token")
 	}
 
-	td := token.unpackToken(tokenConfig.Secret)
+	td, _ := token.unpackToken(tokenConfig.Secret)
 
 	if td.DurationSecs != testData.data.DurationSecs {
 		t.Fatalf("the duration should come from the token data")
@@ -116,7 +116,7 @@ func Test_GenerateSessionToken_Server(t *testing.T) {
 		t.Fatalf("should generate a session token")
 	}
 
-	td := token.unpackToken(tokenConfig.Secret)
+	td, _ := token.unpackToken(tokenConfig.Secret)
 
 	if td.IsServer != true {
 		t.Fatal("this should be a server token")
@@ -137,22 +137,23 @@ func Test_UnpackedData(t *testing.T) {
 
 	token, _ := CreateSessionToken(testData.data, testData.config)
 
-	if data := token.UnpackAndVerify(testData.config.Secret); data == nil {
-		t.Fatalf("unpacked token should be valid")
-	} else {
-
-		if data.IsServer == false {
-			t.Fatalf(" token should have been what was given")
-		}
-
-		if data.DurationSecs != testData.data.DurationSecs {
-			t.Fatalf("the DurationSecs should have been what was given")
-		}
-
-		if data.UserId != testData.data.UserId {
-			t.Fatalf("the user should have been what was given")
-		}
+	data, err := token.UnpackAndVerify(testData.config.Secret)
+	if err != nil {
+		t.Fatal("unpacked token should be valid", err.Error())
 	}
+
+	if data.IsServer == false {
+		t.Fatal(" token should have been what was given")
+	}
+
+	if data.DurationSecs != testData.data.DurationSecs {
+		t.Fatal("the DurationSecs should have been what was given")
+	}
+
+	if data.UserId != testData.data.UserId {
+		t.Fatal("the user should have been what was given")
+	}
+
 }
 
 func Test_UnpackTokenExpires(t *testing.T) {
@@ -166,8 +167,14 @@ func Test_UnpackTokenExpires(t *testing.T) {
 
 	time.Sleep(2 * time.Second) //ensure token expires
 
-	if data := token.UnpackAndVerify(testData.config.Secret); data != nil && data.Valid != false {
-		t.Fatalf("the token should have expired")
+	data, err := token.UnpackAndVerify(testData.config.Secret)
+
+	if data != nil {
+		t.Fatal("the token should have expired")
+	}
+
+	if err == nil {
+		t.Fatal("there should be an error for an invalid token")
 	}
 
 }
@@ -181,9 +188,16 @@ func Test_UnpackAndVerifyStoredToken(t *testing.T) {
 
 	token, _ := CreateSessionToken(testData.data, testData.config)
 
-	if data := token.UnpackAndVerify(testData.config.Secret); data != nil && data.Valid == false {
-		t.Fatalf("the token should not have expired")
+	data, err := token.UnpackAndVerify(testData.config.Secret)
+
+	if err != nil {
+		t.Fatal("the token should be valid", err.Error())
 	}
+
+	if data.Valid == false {
+		t.Fatal("the token should be valid")
+	}
+
 }
 
 func Test_extractTokenDuration(t *testing.T) {
@@ -210,13 +224,14 @@ func Test_getUnpackedToken(t *testing.T) {
 
 	token, _ := CreateSessionToken(testData.data, testData.config)
 
-	if td := getUnpackedToken(token.Id, testData.config.Secret); td == nil {
+	td, err := getUnpackedToken(token.Id, testData.config.Secret)
+	if err != nil {
 		t.Fatal("We should have got TokenData")
-	} else {
-		if td.UserId != testData.data.UserId {
-			t.Fatalf("got %v expected %v ", td, testData.data)
-		}
 	}
+	if td.UserId != testData.data.UserId {
+		t.Fatalf("got %v expected %v ", td, testData.data)
+	}
+
 }
 
 func Test_hasServerToken(t *testing.T) {

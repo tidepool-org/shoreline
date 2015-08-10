@@ -2,10 +2,13 @@ package user
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/tidepool-org/go-common/clients/highwater"
@@ -21,6 +24,7 @@ type (
 		ApiConfig ApiConfig
 		metrics   highwater.Client
 		oauth     oauth2.Client
+		logger    *log.Logger
 	}
 	ApiConfig struct {
 		ServerSecret         string `json:"serverSecret"` //used for services
@@ -42,22 +46,26 @@ const (
 	TP_SERVER_SECRET = "x-tidepool-server-secret"
 	TP_SESSION_TOKEN = "x-tidepool-session-token"
 
-	STATUS_NO_USR_DETAILS       = "No user details were given"
-	STATUS_ERR_FINDING_USR      = "Error finding user"
-	STATUS_ERR_CREATING_USR     = "Error creating the user"
-	STATUS_ERR_UPDATING_USR     = "Error updating user"
-	STATUS_USR_ALREADY_EXISTS   = "User aleady exists"
-	STATUS_ERR_GENERATING_TOKEN = "Error generating the token"
-	STATUS_ERR_UPDATING_TOKEN   = "Error updating token"
-	STATUS_MISSING_USR_DETAILS  = "Not all required details were given"
-	STATUS_ERROR_UPDATING_PW    = "Error updating password"
-	STATUS_MISSING_ID_PW        = "Missing id and/or password"
-	STATUS_NO_MATCH             = "No user matched the given details"
-	STATUS_NOT_VERIFIED         = "The user hasn't verified this account yet"
-	STATUS_NO_TOKEN_MATCH       = "No token matched the given details"
-	STATUS_PW_WRONG             = "Wrong password"
-	STATUS_ERR_SENDING_EMAIL    = "Error sending email"
-	STATUS_NO_TOKEN             = "No x-tidepool-session-token was found"
+	STATUS_NO_USR_DETAILS        = "No user details were given"
+	STATUS_ERR_FINDING_USR       = "Error finding user"
+	STATUS_ERR_CREATING_USR      = "Error creating the user"
+	STATUS_ERR_UPDATING_USR      = "Error updating user"
+	STATUS_USR_ALREADY_EXISTS    = "User aleady exists"
+	STATUS_ERR_GENERATING_TOKEN  = "Error generating the token"
+	STATUS_ERR_UPDATING_TOKEN    = "Error updating token"
+	STATUS_MISSING_USR_DETAILS   = "Not all required details were given"
+	STATUS_ERROR_UPDATING_PW     = "Error updating password"
+	STATUS_MISSING_ID_PW         = "Missing id and/or password"
+	STATUS_NO_MATCH              = "No user matched the given details"
+	STATUS_NOT_VERIFIED          = "The user hasn't verified this account yet"
+	STATUS_NO_TOKEN_MATCH        = "No token matched the given details"
+	STATUS_PW_WRONG              = "Wrong password"
+	STATUS_ERR_SENDING_EMAIL     = "Error sending email"
+	STATUS_NO_TOKEN              = "No x-tidepool-session-token was found"
+	STATUS_SERVER_TOKEN_REQUIRED = "A server token is required"
+	STATUS_AUTH_HEADER_REQUIRED  = "Authorization header is required"
+	STATUS_AUTH_HEADER_INVLAID   = "Authorization header is invalid"
+	STATUS_GETSTATUS_ERR         = "Error checking service status"
 )
 
 func InitApi(cfg ApiConfig, store Storage, metrics highwater.Client) *Api {
@@ -65,6 +73,7 @@ func InitApi(cfg ApiConfig, store Storage, metrics highwater.Client) *Api {
 		Store:     store,
 		ApiConfig: cfg,
 		metrics:   metrics,
+		logger:    log.New(os.Stdout, USER_API_PREFIX, log.Lshortfile),
 	}
 }
 
@@ -110,7 +119,7 @@ func (h varsHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 
 func (a *Api) GetStatus(res http.ResponseWriter, req *http.Request) {
 	if err := a.Store.Ping(); err != nil {
-		log.Print(USER_API_PREFIX, err)
+		a.logger.Println(http.StatusInternalServerError, STATUS_GETSTATUS_ERR, err.Error())
 		res.WriteHeader(http.StatusInternalServerError)
 		res.Write([]byte(err.Error()))
 		return
@@ -128,7 +137,7 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 	usrDetails, err := getUserDetail(req)
 
 	if err != nil {
-		log.Println(USER_API_PREFIX, "CreateUser", STATUS_MISSING_USR_DETAILS, err)
+		a.logger.Println(http.StatusBadRequest, STATUS_MISSING_USR_DETAILS, err.Error())
 		sendModelAsResWithStatus(res, status.NewStatus(http.StatusBadRequest, STATUS_MISSING_USR_DETAILS), http.StatusBadRequest)
 		return
 	}
@@ -137,11 +146,11 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 
 	if err != nil {
 		if err == User_error_name_pw_required {
-			log.Println(USER_API_PREFIX, "CreateUser", STATUS_MISSING_USR_DETAILS, err)
+			a.logger.Println(http.StatusBadRequest, STATUS_MISSING_USR_DETAILS, err.Error())
 			sendModelAsResWithStatus(res, status.NewStatus(http.StatusBadRequest, STATUS_MISSING_USR_DETAILS), http.StatusBadRequest)
 			return
 		} else {
-			log.Println(USER_API_PREFIX, "CreateUser", err.Error())
+			a.logger.Println(http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err.Error())
 			sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_CREATING_USR), http.StatusInternalServerError)
 			return
 		}
@@ -150,18 +159,18 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 	existingUsr, err := a.Store.FindUsers(newUsr)
 
 	if err != nil {
-		log.Println(USER_API_PREFIX, "CreateUser", err.Error())
+		a.logger.Println(http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err.Error())
 		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_CREATING_USR), http.StatusInternalServerError)
 		return
 	}
 
 	if existingUsr == nil || len(existingUsr) == 0 {
-		log.Println(USER_API_PREFIX, "CreateUser", "adding new user")
+		//yay all is good!
 		a.addUserAndSendStatus(newUsr, res, req)
 		return
 	}
-	//duplicate
-	log.Println(USER_API_PREFIX, "CreateUser ", STATUS_USR_ALREADY_EXISTS)
+
+	a.logger.Println(http.StatusConflict, STATUS_USR_ALREADY_EXISTS)
 	sendModelAsResWithStatus(res, status.NewStatus(http.StatusConflict, STATUS_USR_ALREADY_EXISTS), http.StatusConflict)
 	return
 }
@@ -174,7 +183,7 @@ func (a *Api) CreateChildUser(res http.ResponseWriter, req *http.Request) {
 	usrDetails, err := getUserDetail(req)
 
 	if err != nil {
-		log.Println(USER_API_PREFIX, "CreateChildUser", STATUS_MISSING_USR_DETAILS, err.Error())
+		a.logger.Println(http.StatusBadRequest, STATUS_MISSING_USR_DETAILS, err.Error())
 		sendModelAsResWithStatus(res, status.NewStatus(http.StatusBadRequest, STATUS_MISSING_USR_DETAILS), http.StatusBadRequest)
 		return
 	}
@@ -182,12 +191,10 @@ func (a *Api) CreateChildUser(res http.ResponseWriter, req *http.Request) {
 	newChildUsr, err := NewChildUser(usrDetails, a.ApiConfig.Salt)
 
 	if err != nil {
-		log.Println(USER_API_PREFIX, "CreateChildUser", STATUS_ERR_CREATING_USR, err.Error())
+		a.logger.Println(http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err.Error())
 		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_CREATING_USR), http.StatusInternalServerError)
 		return
 	}
-
-	log.Println(USER_API_PREFIX, "CreateChildUser", "adding new user")
 	a.addUserAndSendStatus(newChildUsr, res, req)
 	return
 }
@@ -199,197 +206,213 @@ func (a *Api) CreateChildUser(res http.ResponseWriter, req *http.Request) {
 // status: 500 STATUS_ERR_UPDATING_USR
 func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 
-	if td := getUnpackedToken(req.Header.Get(TP_SESSION_TOKEN), a.ApiConfig.Secret); td != nil {
+	td, err := getUnpackedToken(req.Header.Get(TP_SESSION_TOKEN), a.ApiConfig.Secret)
 
-		var (
-			//structure that the update are given to us in
-			updatesToApply struct {
-				Updates *UserDetail `json:"updates"`
-			}
-		)
+	if err != nil {
+		a.logger.Println(http.StatusUnauthorized, err.Error())
+		res.WriteHeader(http.StatusUnauthorized)
+		return
+	}
 
-		usrId := vars["userid"]
+	var (
+		//structure that the update are given to us in
+		updatesToApply struct {
+			Updates *UserDetail `json:"updates"`
+		}
+	)
 
-		if usrId == "" && td.UserId == "" {
-			//go no further
-			log.Printf(USER_API_PREFIX+"UpdateUser %s ", STATUS_NO_USR_DETAILS)
-			sendModelAsResWithStatus(res, status.NewStatus(http.StatusBadRequest, STATUS_NO_USR_DETAILS), http.StatusBadRequest)
+	usrId := vars["userid"]
+
+	if usrId == "" && td.UserId == "" {
+		//go no further
+		a.logger.Println(http.StatusBadRequest, STATUS_NO_USR_DETAILS)
+		sendModelAsResWithStatus(res, status.NewStatus(http.StatusBadRequest, STATUS_NO_USR_DETAILS), http.StatusBadRequest)
+		return
+	} else if usrId == "" && td.UserId != "" {
+		//use the id from the token
+		usrId = td.UserId
+	}
+
+	if req.ContentLength > 0 {
+		err := json.NewDecoder(req.Body).Decode(&updatesToApply)
+
+		if err != nil {
+			a.logger.Println(http.StatusInternalServerError, STATUS_NO_USR_DETAILS, err.Error())
+			sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_NO_USR_DETAILS), http.StatusInternalServerError)
 			return
-		} else if usrId == "" && td.UserId != "" {
-			//use the id from the token
-			usrId = td.UserId
 		}
+	}
 
-		if req.ContentLength > 0 {
-			_ = json.NewDecoder(req.Body).Decode(&updatesToApply)
-		}
+	if updatesToApply.Updates != nil {
 
-		if updatesToApply.Updates != nil {
+		//a.logger.Print("UpdateUser: applying updates ... ")
+		usrToFind := UserFromDetails(&UserDetail{Id: usrId, Emails: []string{usrId}})
 
-			log.Print(USER_API_PREFIX, "UpdateUser: applying updates ... ")
-			usrToFind := UserFromDetails(&UserDetail{Id: usrId, Emails: []string{usrId}})
+		if userToUpdate, err := a.Store.FindUser(usrToFind); err != nil {
+			a.logger.Println(http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err.Error())
+			sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_FINDING_USR), http.StatusInternalServerError)
+			return
+		} else if userToUpdate != nil {
 
-			if userToUpdate, err := a.Store.FindUser(usrToFind); err != nil {
-				log.Printf(USER_API_PREFIX+"UpdateUser %s err[%s]", STATUS_ERR_FINDING_USR, err.Error())
-				sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_FINDING_USR), http.StatusInternalServerError)
-				return
-			} else if userToUpdate != nil {
+			//Verifiy the user
+			if userToUpdate.Verified == false && updatesToApply.Updates.Verified {
+				userToUpdate.Verified = updatesToApply.Updates.Verified
+			}
 
-				//Verifiy the user
-				if userToUpdate.Verified == false && updatesToApply.Updates.Verified {
-					userToUpdate.Verified = updatesToApply.Updates.Verified
+			//Name and/or Emails and perform dups check
+			if updatesToApply.Updates.Name != "" || len(updatesToApply.Updates.Emails) > 0 {
+				dupCheck := UserFromDetails(&UserDetail{})
+				if updatesToApply.Updates.Name != "" {
+					userToUpdate.Name = updatesToApply.Updates.Name
+					dupCheck.Name = userToUpdate.Name
 				}
-
-				//Name and/or Emails and perform dups check
-				if updatesToApply.Updates.Name != "" || len(updatesToApply.Updates.Emails) > 0 {
-					dupCheck := UserFromDetails(&UserDetail{})
-					if updatesToApply.Updates.Name != "" {
-						userToUpdate.Name = updatesToApply.Updates.Name
-						dupCheck.Name = userToUpdate.Name
-					}
-					if len(updatesToApply.Updates.Emails) > 0 {
-						userToUpdate.Emails = updatesToApply.Updates.Emails
-						dupCheck.Emails = userToUpdate.Emails
-					}
-					//check if unique
-					if results, err := a.Store.FindUsers(dupCheck); err != nil {
-						log.Printf(USER_API_PREFIX+"UpdateUser %s err[%s]", STATUS_ERR_FINDING_USR, err.Error())
-						sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_FINDING_USR), http.StatusInternalServerError)
-						return
-					} else if len(results) > 0 {
-						log.Printf(USER_API_PREFIX+"UpdateUser %s ", STATUS_USR_ALREADY_EXISTS)
-						sendModelAsResWithStatus(res, status.NewStatus(http.StatusConflict, STATUS_USR_ALREADY_EXISTS), http.StatusConflict)
-						return
-					}
+				if len(updatesToApply.Updates.Emails) > 0 {
+					userToUpdate.Emails = updatesToApply.Updates.Emails
+					dupCheck.Emails = userToUpdate.Emails
 				}
-				//Rehash the pw if needed
-				if updatesToApply.Updates.Pw != "" {
-
-					if err := userToUpdate.HashPassword(updatesToApply.Updates.Pw, a.ApiConfig.Salt); err != nil {
-						log.Printf(USER_API_PREFIX+"UpdateUser %s err[%s]", STATUS_ERR_UPDATING_USR, err.Error())
-						sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_UPDATING_USR), http.StatusInternalServerError)
-						return
-					}
+				//check if unique
+				if results, err := a.Store.FindUsers(dupCheck); err != nil {
+					a.logger.Println(http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err.Error())
+					sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_FINDING_USR), http.StatusInternalServerError)
+					return
+				} else if len(results) > 0 {
+					a.logger.Println(http.StatusConflict, STATUS_USR_ALREADY_EXISTS)
+					sendModelAsResWithStatus(res, status.NewStatus(http.StatusConflict, STATUS_USR_ALREADY_EXISTS), http.StatusConflict)
+					return
 				}
+			}
+			//Rehash the pw if needed
+			if updatesToApply.Updates.Pw != "" {
 
-				//All good - now update
-				if err := a.Store.UpsertUser(userToUpdate); err != nil {
-					log.Printf(USER_API_PREFIX+"UpdateUser %s err[%s]", STATUS_ERR_UPDATING_USR, err.Error())
+				if err := userToUpdate.HashPassword(updatesToApply.Updates.Pw, a.ApiConfig.Salt); err != nil {
+					a.logger.Println(http.StatusInternalServerError, STATUS_ERR_UPDATING_USR, err.Error())
 					sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_UPDATING_USR), http.StatusInternalServerError)
 					return
-				} else {
-					if td.IsServer {
-						a.logMetricForUser(usrId, "userupdated", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "true"})
-					} else {
-						a.logMetric("userupdated", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "false"})
-					}
-					res.WriteHeader(http.StatusOK)
-					return
 				}
+			}
+
+			//All good - now update
+			if err := a.Store.UpsertUser(userToUpdate); err != nil {
+				a.logger.Println(http.StatusInternalServerError, STATUS_ERR_UPDATING_USR, err.Error())
+				sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_UPDATING_USR), http.StatusInternalServerError)
+				return
+			} else {
+				if td.IsServer {
+					a.logMetricForUser(usrId, "userupdated", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "true"})
+				} else {
+					a.logMetric("userupdated", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "false"})
+				}
+				res.WriteHeader(http.StatusOK)
+				return
 			}
 		}
 	}
-	res.WriteHeader(http.StatusUnauthorized)
-	return
+
 }
 
 //Pull the incoming user feilds to search for from http.Request body and
 //find any matches returning them with return http.StatusOK
 func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 
-	if td := getUnpackedToken(req.Header.Get(TP_SESSION_TOKEN), a.ApiConfig.Secret); td != nil {
+	td, err := getUnpackedToken(req.Header.Get(TP_SESSION_TOKEN), a.ApiConfig.Secret)
 
-		var usr *User
+	if err != nil {
+		a.logger.Println(http.StatusUnauthorized, err.Error())
+		res.WriteHeader(http.StatusUnauthorized)
+		return
+	}
 
-		id := vars["userid"]
-		if id != "" {
-			//the `userid` could infact be an email
-			usr = UserFromDetails(&UserDetail{Id: id, Emails: []string{id}})
-		} else {
-			//use the token to find the userid
-			usr = UserFromDetails(&UserDetail{Id: td.UserId})
-		}
+	var usr *User
 
-		if usr == nil {
-			res.WriteHeader(http.StatusBadRequest)
-			res.Write([]byte(STATUS_NO_USR_DETAILS))
+	id := vars["userid"]
+	if id != "" {
+		//the `userid` could infact be an email
+		usr = UserFromDetails(&UserDetail{Id: id, Emails: []string{id}})
+	} else {
+		//use the token to find the userid
+		usr = UserFromDetails(&UserDetail{Id: td.UserId})
+	}
+
+	if usr == nil {
+		a.logger.Println(http.StatusBadRequest, STATUS_NO_USR_DETAILS)
+		res.WriteHeader(http.StatusBadRequest)
+		res.Write([]byte(STATUS_NO_USR_DETAILS))
+		return
+	} else {
+		if results, err := a.Store.FindUsers(usr); err != nil {
+			a.logger.Println(http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err.Error())
+			res.WriteHeader(http.StatusInternalServerError)
+			res.Write([]byte(STATUS_ERR_FINDING_USR))
 			return
-		} else {
-			if results, err := a.Store.FindUsers(usr); err != nil {
-				log.Print(USER_API_PREFIX, err)
-				res.WriteHeader(http.StatusInternalServerError)
-				res.Write([]byte(STATUS_ERR_FINDING_USR))
-				return
-			} else if results != nil {
+		} else if results != nil {
 
-				if td.IsServer {
-					a.logMetricForUser(id, "getuserinfo", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "true"})
-				} else {
-					a.logMetric("getuserinfo", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "false"})
-				}
+			if td.IsServer {
+				a.logMetricForUser(id, "getuserinfo", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "true"})
+			} else {
+				a.logMetric("getuserinfo", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "false"})
+			}
 
-				if len(results) == 1 {
-					log.Print(USER_API_PREFIX, "found user")
-					sendModelAsRes(res, results[0])
-					return
-				}
-
-				log.Printf(USER_API_PREFIX+"found [%d] users ", len(results))
-				sendModelsAsRes(res, results)
+			if len(results) == 1 {
+				sendModelAsRes(res, results[0])
 				return
 			}
+
+			a.logger.Printf(" found [%d] users ", len(results))
+			sendModelsAsRes(res, results)
+			return
 		}
 	}
-	res.WriteHeader(http.StatusUnauthorized)
-	return
 }
 
 func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 
-	if td := getUnpackedToken(req.Header.Get(TP_SESSION_TOKEN), a.ApiConfig.Secret); td != nil {
+	td, err := getUnpackedToken(req.Header.Get(TP_SESSION_TOKEN), a.ApiConfig.Secret)
 
-		var id string
-		if td.IsServer == true {
-			id = vars["userid"]
-		} else {
-			id = td.UserId
-		}
-
-		pw := getGivenDetail(req)["password"]
-
-		if id != "" && pw != "" {
-
-			var err error
-			toDelete := UserFromDetails(&UserDetail{Id: id})
-
-			if err = toDelete.HashPassword(pw, a.ApiConfig.Salt); err == nil {
-				if err = a.Store.RemoveUser(toDelete); err == nil {
-
-					if td.IsServer {
-						a.logMetricForUser(id, "deleteuser", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "true"})
-					} else {
-						a.logMetric("deleteuser", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "false"})
-					}
-
-					//cleanup if any
-					if td.IsServer == false {
-						usrToken := &SessionToken{Id: req.Header.Get(TP_SESSION_TOKEN)}
-						a.Store.RemoveToken(usrToken)
-					}
-					//all good
-					res.WriteHeader(http.StatusAccepted)
-					return
-				}
-			}
-			log.Print(USER_API_PREFIX, err)
-			res.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		sendModelAsResWithStatus(res, status.NewStatus(http.StatusForbidden, STATUS_MISSING_ID_PW), http.StatusForbidden)
+	if err != nil {
+		a.logger.Println(http.StatusUnauthorized, err.Error())
+		res.WriteHeader(http.StatusUnauthorized)
 		return
-
 	}
-	res.WriteHeader(http.StatusUnauthorized)
+
+	var id string
+	if td.IsServer == true {
+		id = vars["userid"]
+		a.logger.Println("operating as server")
+	} else {
+		id = td.UserId
+	}
+
+	pw := getGivenDetail(req)["password"]
+
+	if id != "" && pw != "" {
+
+		var err error
+		toDelete := UserFromDetails(&UserDetail{Id: id})
+
+		if err = toDelete.HashPassword(pw, a.ApiConfig.Salt); err == nil {
+			if err = a.Store.RemoveUser(toDelete); err == nil {
+
+				if td.IsServer {
+					a.logMetricForUser(id, "deleteuser", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "true"})
+				} else {
+					a.logMetric("deleteuser", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "false"})
+				}
+				//cleanup if any
+				if td.IsServer == false {
+					usrToken := &SessionToken{Id: req.Header.Get(TP_SESSION_TOKEN)}
+					a.Store.RemoveToken(usrToken)
+				}
+				//all good
+				res.WriteHeader(http.StatusAccepted)
+				return
+			}
+		}
+		a.logger.Println(http.StatusInternalServerError, err.Error())
+		res.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	a.logger.Println(http.StatusForbidden, STATUS_MISSING_ID_PW)
+	sendModelAsResWithStatus(res, status.NewStatus(http.StatusForbidden, STATUS_MISSING_ID_PW), http.StatusForbidden)
 	return
 }
 
@@ -403,10 +426,6 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 
 		if results, err := a.Store.FindUsers(usr); results != nil && len(results) > 0 {
 			for i := range results {
-				//TODO: remove BELOW
-				log.Printf(USER_API_PREFIX+"Login found %v check against given %v", results[i], usr)
-				//TODO: remove ABOVE
-
 				if results[i].PwsMatch(pw, a.ApiConfig.Salt) && results[i].IsVerified(a.ApiConfig.VerificationSecret) {
 					//passwords match and the user is verified
 					td := &TokenData{DurationSecs: extractTokenDuration(req), UserId: results[i].Id, IsServer: false}
@@ -418,8 +437,7 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 						sendModelAsRes(res, results[i])
 						return
 					} else if err != nil {
-
-						log.Printf(USER_API_PREFIX+"Login %s [%s]", STATUS_ERR_UPDATING_TOKEN, err.Error())
+						a.logger.Println(http.StatusInternalServerError, STATUS_ERR_UPDATING_TOKEN, err.Error())
 						sendModelAsResWithStatus(
 							res,
 							status.NewStatus(http.StatusInternalServerError, STATUS_ERR_UPDATING_TOKEN),
@@ -430,7 +448,7 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 				} else {
 
 					if results[i].PwsMatch(pw, a.ApiConfig.Salt) == false { //no password matches?
-						log.Printf(USER_API_PREFIX+"Login %s from the [%d] users we found", STATUS_NO_MATCH, len(results))
+						a.logger.Println(http.StatusUnauthorized, STATUS_NO_MATCH)
 						sendModelAsResWithStatus(
 							res,
 							status.NewStatus(http.StatusUnauthorized, STATUS_NO_MATCH),
@@ -440,30 +458,30 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 					}
 
 					if results[i].IsVerified(a.ApiConfig.VerificationSecret) == false { //not yet verified?
-						log.Printf(USER_API_PREFIX+"Login %s for [%s]", STATUS_NOT_VERIFIED, usr.Id)
+						a.logger.Println(http.StatusForbidden, STATUS_NOT_VERIFIED)
 						sendModelAsResWithStatus(res, status.NewStatus(http.StatusForbidden, STATUS_NOT_VERIFIED), http.StatusForbidden)
 						return
 					}
 				}
 				//try next
-				log.Print(USER_API_PREFIX, "Login not valid for that user so checking the next")
+				a.logger.Print("Login not valid for that user so checking the next")
 			}
 		} else {
 			// was there an error?
 			if err != nil {
-				log.Printf(USER_API_PREFIX+"Login %s [%s]", STATUS_ERR_FINDING_USR, err.Error())
+				a.logger.Println(http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err.Error())
 				sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_FINDING_USR), http.StatusInternalServerError)
 				return
 			}
 			//or just no user was found
 			if results == nil || len(results) == 0 {
-				log.Print(USER_API_PREFIX, "Login ", STATUS_NO_MATCH)
+				a.logger.Println(http.StatusUnauthorized, STATUS_NO_MATCH)
 				sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_MATCH), http.StatusUnauthorized)
 				return
 			}
 		}
 	}
-	log.Print(USER_API_PREFIX, "Login ", STATUS_MISSING_ID_PW)
+	a.logger.Println(http.StatusBadRequest, STATUS_MISSING_ID_PW)
 	sendModelAsResWithStatus(res, status.NewStatus(http.StatusBadRequest, STATUS_MISSING_ID_PW), http.StatusBadRequest)
 	return
 }
@@ -477,7 +495,7 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 	server, pw := req.Header.Get(TP_SERVER_NAME), req.Header.Get(TP_SERVER_SECRET)
 
 	if server == "" || pw == "" {
-		log.Print(USER_API_PREFIX, "ServerLogin "+STATUS_MISSING_ID_PW)
+		a.logger.Println(http.StatusBadRequest, STATUS_MISSING_ID_PW)
 		sendModelAsResWithStatus(res, status.NewStatus(http.StatusBadRequest, STATUS_MISSING_ID_PW), http.StatusBadRequest)
 		return
 	}
@@ -488,7 +506,7 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 			TokenConfig{DurationHours: a.ApiConfig.TokenHoursDuration, Secret: a.ApiConfig.Secret},
 			a.Store,
 		); err != nil {
-			log.Printf(USER_API_PREFIX+"ServerLogin %s err[%s]", STATUS_ERR_GENERATING_TOKEN, err.Error())
+			a.logger.Println(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN, err.Error())
 			sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN), http.StatusInternalServerError)
 			return
 		} else {
@@ -497,7 +515,7 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 			return
 		}
 	}
-	log.Printf(USER_API_PREFIX+"ServerLogin %s ", STATUS_PW_WRONG)
+	a.logger.Println(http.StatusUnauthorized, STATUS_PW_WRONG)
 	sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_PW_WRONG), http.StatusUnauthorized)
 	return
 }
@@ -510,21 +528,19 @@ func (a *Api) oauth2Login(w http.ResponseWriter, r *http.Request) {
 
 	//oauth is not enabled
 	if a.oauth == nil {
-		log.Print(USER_API_PREFIX, "OAuth is not enabled")
+		a.logger.Println(http.StatusServiceUnavailable, "OAuth is not enabled")
 		w.WriteHeader(http.StatusServiceUnavailable)
 		return
 	}
 
 	if ah := r.Header.Get("Authorization"); ah != "" {
 		if len(ah) > 6 && strings.ToUpper(ah[0:6]) == "BEARER" {
-
 			if auth_token := ah[7:]; auth_token != "" {
-				log.Println(USER_API_PREFIX, "oauth2Login looking good ....", auth_token)
 
 				//check the actual token
 				result, err := a.oauth.CheckToken(auth_token)
 				if err != nil || result == nil {
-					log.Print(USER_API_PREFIX, "oauth2Login error checking token ", err)
+					a.logger.Println(http.StatusUnauthorized, "oauth2Login error checking token ", err)
 					w.WriteHeader(http.StatusUnauthorized)
 					return
 				}
@@ -532,7 +548,7 @@ func (a *Api) oauth2Login(w http.ResponseWriter, r *http.Request) {
 				//check the corresponding user
 				fndUsr, errUsr := a.Store.FindUser(&User{Id: result["userId"].(string)})
 				if errUsr != nil || fndUsr == nil {
-					log.Print(USER_API_PREFIX, "oauth2Login error getting user ", errUsr.Error())
+					a.logger.Println(http.StatusUnauthorized, "oauth2Login error getting user ", errUsr.Error())
 					w.WriteHeader(http.StatusUnauthorized)
 					return
 				}
@@ -543,24 +559,24 @@ func (a *Api) oauth2Login(w http.ResponseWriter, r *http.Request) {
 					TokenConfig{DurationHours: a.ApiConfig.TokenHoursDuration, Secret: a.ApiConfig.Secret},
 					a.Store,
 				); err != nil {
-					log.Print(USER_API_PREFIX, "oauth2Login error creating session token", err.Error())
+					a.logger.Println(http.StatusUnauthorized, "oauth2Login error creating session token", err.Error())
 					common.OutputJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "invalid_token"})
 					return
 				} else {
-
-					log.Print(USER_API_PREFIX, "oauth2Login all good creating session token and redirecting ", sessionToken)
 					//We are redirecting to the app
 					w.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
-					//sendModelAsRes(w, fndUsr)
 					common.OutputJSON(w, http.StatusOK, map[string]interface{}{"oauthUser": fndUsr, "oauthTarget": result["authUserId"]})
 					return
 				}
 			}
 		}
-		w.WriteHeader(http.StatusUnauthorized)
+		a.logger.Println(http.StatusUnauthorized, STATUS_AUTH_HEADER_INVLAID)
+		common.OutputJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": STATUS_AUTH_HEADER_INVLAID})
 		return
 	}
-	w.WriteHeader(http.StatusBadRequest)
+	a.logger.Println(http.StatusBadRequest, STATUS_AUTH_HEADER_REQUIRED)
+	common.OutputJSON(w, http.StatusBadRequest, map[string]interface{}{"error": STATUS_AUTH_HEADER_REQUIRED})
+	//w.WriteHeader(http.StatusBadRequest)
 	return
 }
 
@@ -569,52 +585,53 @@ func (a *Api) oauth2Login(w http.ResponseWriter, r *http.Request) {
 // status: 500 STATUS_ERR_GENERATING_TOKEN
 func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 
-	if td := getUnpackedToken(req.Header.Get(TP_SESSION_TOKEN), a.ApiConfig.Secret); td != nil {
-		const TWO_HOURS_IN_SECS = 60 * 60 * 2
+	td, err := getUnpackedToken(req.Header.Get(TP_SESSION_TOKEN), a.ApiConfig.Secret)
 
-		if td.IsServer == false && td.DurationSecs > TWO_HOURS_IN_SECS {
-			//long-duration let us know detail and keep it rolling
-			log.Printf(USER_API_PREFIX+"RefreshSession this is a long-duration token set for [%f] ", td.DurationSecs)
-		}
-		//refresh
-		if sessionToken, err := CreateSessionTokenAndSave(
-			td,
-			TokenConfig{DurationHours: a.ApiConfig.TokenHoursDuration, Secret: a.ApiConfig.Secret},
-			a.Store,
-		); err != nil {
-			log.Printf(USER_API_PREFIX+"RefreshSession %s err[%s]", STATUS_ERR_GENERATING_TOKEN, err.Error())
-			sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN), http.StatusInternalServerError)
-			return
-		} else {
-			res.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
-			sendModelAsRes(res, td)
-			return
-		}
-
+	if err != nil {
+		a.logger.Println(http.StatusUnauthorized, err.Error())
+		res.WriteHeader(http.StatusUnauthorized)
+		return
 	}
-	sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_TOKEN), http.StatusUnauthorized)
-	return
+
+	const two_hours_in_secs = 60 * 60 * 2
+
+	if td.IsServer == false && td.DurationSecs > two_hours_in_secs {
+		//long-duration let us know detail and keep it rolling
+		a.logger.Println("long-duration token set for ", fmt.Sprint(time.Duration(td.DurationSecs)*time.Second))
+	}
+	//refresh
+	if sessionToken, err := CreateSessionTokenAndSave(
+		td,
+		TokenConfig{DurationHours: a.ApiConfig.TokenHoursDuration, Secret: a.ApiConfig.Secret},
+		a.Store,
+	); err != nil {
+		a.logger.Println(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN, err.Error())
+		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN), http.StatusInternalServerError)
+		return
+	} else {
+		res.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
+		sendModelAsRes(res, td)
+		return
+	}
 }
 
 // Set the longeterm duration and then process as per Login
 // note: see Login for return codes
 func (a *Api) LongtermLogin(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 
-	const DAY_AS_SECS = 1 * 24 * 60 * 60
+	const day_as_secs = 1 * 24 * 60 * 60
 
-	log.Print(USER_API_PREFIX, "LongtermLogin: logging in using the longtermkey")
-	duration := a.ApiConfig.LongTermDaysDuration * DAY_AS_SECS
+	duration := a.ApiConfig.LongTermDaysDuration * day_as_secs
 	longtermkey := vars["longtermkey"]
 
 	if longtermkey == a.ApiConfig.LongTermKey {
-		log.Printf(USER_API_PREFIX+"LongtermLogin: setting the duration of the token as [%d] ", duration)
+		a.logger.Println("token duration is ", fmt.Sprint(time.Duration(duration)*time.Second))
 		req.Header.Add(TOKEN_DURATION_KEY, strconv.FormatFloat(float64(duration), 'f', -1, 64))
 	} else {
 		//tell us there was no match
-		log.Printf(USER_API_PREFIX+"LongtermLogin: tried to login using the longtermkey [%s] but it didn't match the stored key ", longtermkey)
+		a.logger.Println("tried to login using the longtermkey but it didn't match the stored key")
 	}
 
-	//and now login
 	a.Login(res, req)
 }
 
@@ -627,15 +644,22 @@ func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars 
 		tokenString := vars["token"]
 
 		svrToken := &SessionToken{Id: tokenString}
-		if td := svrToken.UnpackAndVerify(a.ApiConfig.Secret); td != nil && td.Valid {
+		td, err := svrToken.UnpackAndVerify(a.ApiConfig.Secret)
+		if err != nil {
+			a.logger.Println(http.StatusUnauthorized, STATUS_NO_TOKEN, err.Error())
+			sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_TOKEN), http.StatusUnauthorized)
+			return
+		}
+
+		if td.Valid {
 			sendModelAsRes(res, td)
 			return
 		}
-		log.Printf(USER_API_PREFIX+"ServerCheckToken %s", STATUS_NO_TOKEN_MATCH)
+		a.logger.Println(http.StatusNotFound, STATUS_NO_TOKEN_MATCH)
 		sendModelAsResWithStatus(res, status.NewStatus(http.StatusNotFound, STATUS_NO_TOKEN_MATCH), http.StatusNotFound)
 		return
 	}
-	log.Printf(USER_API_PREFIX+"ServerCheckToken %s", STATUS_NO_TOKEN)
+	a.logger.Println(http.StatusUnauthorized, STATUS_NO_TOKEN)
 	sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_TOKEN), http.StatusUnauthorized)
 	return
 }
@@ -646,7 +670,8 @@ func (a *Api) Logout(res http.ResponseWriter, req *http.Request) {
 	st := GetSessionToken(req.Header.Get(TP_SESSION_TOKEN))
 	if st.Id != "" {
 		if err := a.Store.RemoveToken(st); err != nil {
-			log.Printf(USER_API_PREFIX+"Logout was unable to delete token err[%s]", err.Error())
+			//sliently fail but still log it
+			a.logger.Println("Logout was unable to delete token", err.Error())
 		}
 	}
 	//otherwise all good
@@ -675,7 +700,7 @@ func (a *Api) ManageIdHashPair(res http.ResponseWriter, req *http.Request, vars 
 		baseStrings := []string{a.ApiConfig.Salt, usr.Id, theKey}
 
 		if foundUsr, err := a.Store.FindUser(usr); err != nil {
-			log.Printf(USER_API_PREFIX+"ManageIdHashPair %s [%s]", STATUS_ERR_FINDING_USR, err.Error())
+			a.logger.Println(http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err.Error())
 			sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_FINDING_USR), http.StatusInternalServerError)
 			return
 		} else {
@@ -694,7 +719,7 @@ func (a *Api) ManageIdHashPair(res http.ResponseWriter, req *http.Request, vars 
 					foundUsr.Private[theKey] = NewIdHashPair(baseStrings, req.URL.Query())
 
 					if err := a.Store.UpsertUser(foundUsr); err != nil {
-						log.Printf(USER_API_PREFIX+"ManageIdHashPair %s %s [%s]", req.Method, STATUS_ERR_UPDATING_USR, err.Error())
+						a.logger.Println(http.StatusInternalServerError, req.Method, STATUS_ERR_UPDATING_USR, err.Error())
 						sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_UPDATING_USR), http.StatusInternalServerError)
 						return
 					} else {
@@ -709,7 +734,7 @@ func (a *Api) ManageIdHashPair(res http.ResponseWriter, req *http.Request, vars 
 				foundUsr.Private[theKey] = NewIdHashPair(baseStrings, req.URL.Query())
 
 				if err := a.Store.UpsertUser(foundUsr); err != nil {
-					log.Printf(USER_API_PREFIX+"ManageIdHashPair %s %s [%s]", req.Method, STATUS_ERR_UPDATING_USR, err.Error())
+					a.logger.Printf("ManageIdHashPair %s %s [%s]", req.Method, STATUS_ERR_UPDATING_USR, err.Error())
 					sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_UPDATING_USR), http.StatusInternalServerError)
 					return
 				} else {
@@ -717,14 +742,16 @@ func (a *Api) ManageIdHashPair(res http.ResponseWriter, req *http.Request, vars 
 					return
 				}
 			case "DELETE":
-				log.Printf(USER_API_PREFIX+"ManageIdHashPair %s %s", req.Method, "Not Implemented")
+				a.logger.Println(http.StatusNotImplemented, req.Method)
 				res.WriteHeader(http.StatusNotImplemented)
 				return
 			}
+			a.logger.Println(http.StatusBadRequest)
 			res.WriteHeader(http.StatusBadRequest)
 			return
 		}
 	}
+	a.logger.Println(http.StatusUnauthorized, STATUS_SERVER_TOKEN_REQUIRED)
 	res.WriteHeader(http.StatusUnauthorized)
 	return
 }

@@ -49,7 +49,7 @@ func sendModelsAsRes(res http.ResponseWriter, models ...interface{}) {
 	res.Write([]byte("["))
 	for i := range models {
 		if jsonDetails, err := json.Marshal(models[i]); err != nil {
-			log.Print(USER_API_PREFIX, err)
+			log.Println(USER_API_PREFIX, err.Error())
 		} else {
 			res.Write(jsonDetails)
 		}
@@ -68,7 +68,7 @@ func sendModelAsResWithStatus(res http.ResponseWriter, model interface{}, status
 	res.WriteHeader(statusCode)
 
 	if jsonDetails, err := json.Marshal(model); err != nil {
-		log.Print(USER_API_PREFIX, err)
+		log.Println(USER_API_PREFIX, err.Error())
 	} else {
 		res.Write(jsonDetails)
 	}
@@ -78,48 +78,45 @@ func sendModelAsResWithStatus(res http.ResponseWriter, model interface{}, status
 //send metric
 func (a *Api) logMetric(name, token string, params map[string]string) {
 	if token == "" {
-		log.Print(USER_API_PREFIX, "Missing token so couldn't log metric")
+		a.logger.Println(USER_API_PREFIX, "Missing token so couldn't log metric")
 		return
 	}
 	if params == nil {
 		params = make(map[string]string)
 	}
-	log.Printf(USER_API_PREFIX+"log metric name[%s] params[%v]", name, params)
-	//a.metrics.PostThisUser(name, token, params)
+	a.metrics.PostThisUser(name, token, params)
 	return
 }
 
 //send metric
 func (a *Api) logMetricAsServer(name, token string, params map[string]string) {
 	if token == "" {
-		log.Print(USER_API_PREFIX, "Missing token so couldn't log metric")
+		a.logger.Println("Missing token so couldn't log metric")
 		return
 	}
 	if params == nil {
 		params = make(map[string]string)
 	}
-	log.Printf(USER_API_PREFIX+"log metric as server name[%s] params[%v]", name, params)
-	//a.metrics.PostServer(name, token, params)
+	a.metrics.PostServer(name, token, params)
 	return
 }
 
 //send metric
 func (a *Api) logMetricForUser(id, name, token string, params map[string]string) {
 	if token == "" {
-		log.Print(USER_API_PREFIX, "Missing token so couldn't log metric")
+		a.logger.Println("Missing token so couldn't log metric")
 		return
 	}
 	if params == nil {
 		params = make(map[string]string)
 	}
-	log.Printf(USER_API_PREFIX+"log metric id[%s] name[%s] params[%v]", id, name, params)
-	//a.metrics.PostWithUser(id, name, token, params)
+	a.metrics.PostWithUser(id, name, token, params)
 	return
 }
 
 func (a *Api) addUserAndSendStatus(user *User, res http.ResponseWriter, req *http.Request) {
 	if err := a.Store.UpsertUser(user); err != nil {
-		log.Printf(USER_API_PREFIX+"addUserAndSendStatus %s err[%s]", STATUS_ERR_CREATING_USR, err.Error())
+		a.logger.Println(http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err.Error())
 		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_CREATING_USR), http.StatusInternalServerError)
 		return
 	}
@@ -127,7 +124,7 @@ func (a *Api) addUserAndSendStatus(user *User, res http.ResponseWriter, req *htt
 		&TokenData{DurationSecs: extractTokenDuration(req), UserId: user.Id, IsServer: false},
 		TokenConfig{DurationHours: a.ApiConfig.TokenHoursDuration, Secret: a.ApiConfig.Secret},
 		a.Store); err != nil {
-		log.Printf(USER_API_PREFIX+"addUserAndSendStatus %s err[%s]", STATUS_ERR_GENERATING_TOKEN, err.Error())
+		a.logger.Println(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN, err.Error())
 		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN), http.StatusInternalServerError)
 		return
 	} else {
