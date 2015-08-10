@@ -576,7 +576,6 @@ func (a *Api) oauth2Login(w http.ResponseWriter, r *http.Request) {
 	}
 	a.logger.Println(http.StatusBadRequest, STATUS_AUTH_HEADER_REQUIRED)
 	common.OutputJSON(w, http.StatusBadRequest, map[string]interface{}{"error": STATUS_AUTH_HEADER_REQUIRED})
-	//w.WriteHeader(http.StatusBadRequest)
 	return
 }
 
