@@ -50,7 +50,7 @@ const (
 	STATUS_ERR_FINDING_USR       = "Error finding user"
 	STATUS_ERR_CREATING_USR      = "Error creating the user"
 	STATUS_ERR_UPDATING_USR      = "Error updating user"
-	STATUS_USR_ALREADY_EXISTS    = "User aleady exists"
+	STATUS_USR_ALREADY_EXISTS    = "User already exists"
 	STATUS_ERR_GENERATING_TOKEN  = "Error generating the token"
 	STATUS_ERR_UPDATING_TOKEN    = "Error updating token"
 	STATUS_MISSING_USR_DETAILS   = "Not all required details were given"
