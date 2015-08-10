@@ -3,6 +3,7 @@ package user
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -239,7 +240,7 @@ func TestCreateUser_StatusConflict_ForDuplicates(t *testing.T) {
 
 	body, _ := ioutil.ReadAll(response.Body)
 
-	if string(body) != `{"code":409,"reason":"User aleady exists"}` {
+	if string(body) != fmt.Sprintf(`{"code":409,"reason":"%s"}`, STATUS_USR_ALREADY_EXISTS) {
 		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_USR_ALREADY_EXISTS)
 	}
 
