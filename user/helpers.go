@@ -78,7 +78,7 @@ func sendModelAsResWithStatus(res http.ResponseWriter, model interface{}, status
 //send metric
 func (a *Api) logMetric(name, token string, params map[string]string) {
 	if token == "" {
-		a.logger.Println(USER_API_PREFIX, "Missing token so couldn't log metric")
+		a.logger.Println("Missing token so couldn't log metric")
 		return
 	}
 	if params == nil {
