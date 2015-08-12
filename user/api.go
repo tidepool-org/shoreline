@@ -607,7 +607,7 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 	//refresh
 	if sessionToken, err := CreateSessionTokenAndSave(
 		td,
-		TokenConfig{DurationHours: a.ApiConfig.TokenHoursDuration, Secret: a.ApiConfig.Secret},
+		TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: a.ApiConfig.Secret},
 		a.Store,
 	); err != nil {
 		a.logger.Println(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN, err.Error())
