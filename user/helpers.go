@@ -125,7 +125,7 @@ func (a *Api) addUserAndSendStatus(user *User, res http.ResponseWriter, req *htt
 	}
 	if sessionToken, err := CreateSessionTokenAndSave(
 		&TokenData{DurationSecs: extractTokenDuration(req), UserId: user.Id, IsServer: false},
-		TokenConfig{DurationHours: a.ApiConfig.TokenHoursDuration, Secret: a.ApiConfig.Secret},
+		TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: a.ApiConfig.Secret},
 		a.Store); err != nil {
 		log.Printf(USER_API_PREFIX+"addUserAndSendStatus %s err[%s]", STATUS_ERR_GENERATING_TOKEN, err.Error())
 		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN), http.StatusInternalServerError)
