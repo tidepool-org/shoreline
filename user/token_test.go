@@ -13,8 +13,8 @@ type tokenTestData struct {
 }
 
 var tokenConfig = TokenConfig{
-	DurationHours: 24,
-	Secret:        "my secret",
+	DurationSecs: 3600,
+	Secret:       "my secret",
 }
 
 func Test_GetSessionToken(t *testing.T) {
@@ -65,7 +65,7 @@ func Test_GenerateSessionToken_DurationFromConfig(t *testing.T) {
 
 	td, _ := token.unpackToken(tokenConfig.Secret)
 
-	if td.DurationSecs != time.Duration(time.Hour*time.Duration(tokenConfig.DurationHours)).Seconds() {
+	if td.DurationSecs != tokenConfig.DurationSecs {
 		t.Fatalf("the duration should be from config")
 	}
 }

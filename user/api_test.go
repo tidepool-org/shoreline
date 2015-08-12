@@ -31,7 +31,7 @@ var (
 	FAKE_CONFIG = ApiConfig{
 		ServerSecret:       "shhh! don't tell",
 		Secret:             "shhh! don't tell *2",
-		TokenHoursDuration: 8,
+		TokenDurationSecs:  3600,
 		LongTermKey:        "the longetermkey",
 		Salt:               "a mineral substance composed primarily of sodium chloride",
 		VerificationSecret: "",
@@ -41,9 +41,9 @@ var (
 	 */
 	USR           = &User{Id: "123-99-100", Name: "Test One", Emails: []string{"test@new.bar"}}
 	usrTknData    = &TokenData{UserId: USR.Id, IsServer: false, DurationSecs: 3600}
-	USR_TOKEN, _  = CreateSessionToken(usrTknData, TokenConfig{DurationHours: FAKE_CONFIG.TokenHoursDuration, Secret: FAKE_CONFIG.Secret})
+	USR_TOKEN, _  = CreateSessionToken(usrTknData, TokenConfig{DurationSecs: FAKE_CONFIG.TokenDurationSecs, Secret: FAKE_CONFIG.Secret})
 	sverTknData   = &TokenData{UserId: "shoreline", IsServer: true, DurationSecs: 36000}
-	SRVR_TOKEN, _ = CreateSessionToken(sverTknData, TokenConfig{DurationHours: FAKE_CONFIG.TokenHoursDuration, Secret: FAKE_CONFIG.Secret})
+	SRVR_TOKEN, _ = CreateSessionToken(sverTknData, TokenConfig{DurationSecs: FAKE_CONFIG.TokenDurationSecs, Secret: FAKE_CONFIG.Secret})
 	/*
 	 * basics setup
 	 */
@@ -76,7 +76,7 @@ func TestGetStatus_StatusOk(t *testing.T) {
 	shoreline.GetStatus(response, request)
 
 	if response.Code != http.StatusOK {
-		t.Fatalf("Resp given [%s] expected [%s] ", response.Code, http.StatusOK)
+		t.Fatalf("Resp given [%d] expected [%d] ", response.Code, http.StatusOK)
 	}
 
 }
@@ -91,7 +91,7 @@ func TestGetStatus_StatusInternalServerError(t *testing.T) {
 	shorelineFails.GetStatus(response, request)
 
 	if response.Code != http.StatusInternalServerError {
-		t.Fatalf("Resp given [%s] expected [%s] ", response.Code, http.StatusInternalServerError)
+		t.Fatalf("Resp given [%d] expected [%d] ", response.Code, http.StatusInternalServerError)
 	}
 
 	body, _ := ioutil.ReadAll(response.Body)

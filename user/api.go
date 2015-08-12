@@ -27,13 +27,19 @@ type (
 		logger    *log.Logger
 	}
 	ApiConfig struct {
-		ServerSecret         string `json:"serverSecret"` //used for services
+		//used for services
+		ServerSecret         string `json:"serverSecret"`
 		LongTermKey          string `json:"longTermKey"`
 		LongTermDaysDuration int    `json:"longTermDaysDuration"`
-		TokenHoursDuration   int    `json:"tokenHoursDuration"` //so we can change the default lifetime of the token
-		Salt                 string `json:"salt"`               //used for pw
-		Secret               string `json:"apiSecret"`          //used for token
-		VerificationSecret   string `json:"verificationSecret"` //allows for the skipping of verification for testing
+		//so we can change the default lifetime of the token
+		//we use seconds, this also helps for testing as you can time it out easily
+		TokenDurationSecs float64 `json:"tokenDurationSecs"`
+		//used for pw
+		Salt string `json:"salt"`
+		//used for token
+		Secret string `json:"apiSecret"`
+		//allows for the skipping of verification for testing
+		VerificationSecret string `json:"verificationSecret"`
 	}
 	varsHandler func(http.ResponseWriter, *http.Request, map[string]string)
 )
@@ -430,7 +436,7 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 					//passwords match and the user is verified
 					td := &TokenData{DurationSecs: extractTokenDuration(req), UserId: results[i].Id, IsServer: false}
 
-					if sessionToken, err := CreateSessionTokenAndSave(td, TokenConfig{DurationHours: a.ApiConfig.TokenHoursDuration, Secret: a.ApiConfig.Secret}, a.Store); sessionToken != nil && err == nil {
+					if sessionToken, err := CreateSessionTokenAndSave(td, TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: a.ApiConfig.Secret}, a.Store); sessionToken != nil && err == nil {
 						//YAY it's all is good so lets tell people!
 						a.logMetric("userlogin", sessionToken.Id, nil)
 						res.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
@@ -503,7 +509,7 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 		//generate new token
 		if sessionToken, err := CreateSessionTokenAndSave(
 			&TokenData{DurationSecs: extractTokenDuration(req), UserId: server, IsServer: true},
-			TokenConfig{DurationHours: a.ApiConfig.TokenHoursDuration, Secret: a.ApiConfig.Secret},
+			TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: a.ApiConfig.Secret},
 			a.Store,
 		); err != nil {
 			a.logger.Println(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN, err.Error())
@@ -556,7 +562,7 @@ func (a *Api) oauth2Login(w http.ResponseWriter, r *http.Request) {
 				//generate token and send the response
 				if sessionToken, err := CreateSessionTokenAndSave(
 					&TokenData{DurationSecs: 0, UserId: result["userId"].(string), IsServer: false},
-					TokenConfig{DurationHours: a.ApiConfig.TokenHoursDuration, Secret: a.ApiConfig.Secret},
+					TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: a.ApiConfig.Secret},
 					a.Store,
 				); err != nil {
 					a.logger.Println(http.StatusUnauthorized, "oauth2Login error creating session token", err.Error())

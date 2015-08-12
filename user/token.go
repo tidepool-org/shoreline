@@ -23,8 +23,8 @@ type (
 	}
 
 	TokenConfig struct {
-		Secret        string
-		DurationHours int
+		Secret       string
+		DurationSecs float64
 	}
 )
 
@@ -47,10 +47,10 @@ func CreateSessionToken(data *TokenData, config TokenConfig) (*SessionToken, err
 	}
 
 	if data.DurationSecs == 0 {
+
+		data.DurationSecs = config.DurationSecs //As per configuartion
 		if data.IsServer {
 			data.DurationSecs = (time.Hour * 24).Seconds() //24 hours
-		} else {
-			data.DurationSecs = (time.Hour * time.Duration(config.DurationHours)).Seconds() //As per configuartion
 		}
 	}
 
