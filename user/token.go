@@ -80,7 +80,11 @@ func CreateSessionTokenAndSave(data *TokenData, config TokenConfig, store Storag
 		return nil, err
 	}
 	err = sessionToken.Save(store)
-	return sessionToken, err
+
+	if err != nil {
+		return nil, err
+	}
+	return sessionToken, nil
 }
 
 func (t *SessionToken) Save(store Storage) error {
