@@ -8,11 +8,11 @@ import (
 	"strings"
 
 	"github.com/gorilla/mux"
+
 	"github.com/tidepool-org/go-common/clients/highwater"
 	"github.com/tidepool-org/go-common/clients/status"
-
-	"../common"
-	"../oauth2"
+	"github.com/tidepool-org/shoreline/common"
+	"github.com/tidepool-org/shoreline/oauth2"
 )
 
 type (

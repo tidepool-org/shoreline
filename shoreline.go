@@ -1,21 +1,23 @@
 package main
 
 import (
-	"./oauth2"
-	"./user"
 	"crypto/tls"
+	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+
 	"github.com/gorilla/mux"
+
 	"github.com/tidepool-org/go-common"
 	"github.com/tidepool-org/go-common/clients"
 	"github.com/tidepool-org/go-common/clients/disc"
 	"github.com/tidepool-org/go-common/clients/hakken"
 	"github.com/tidepool-org/go-common/clients/highwater"
 	"github.com/tidepool-org/go-common/clients/mongo"
-	"log"
-	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
+	"github.com/tidepool-org/shoreline/oauth2"
+	"github.com/tidepool-org/shoreline/user"
 )
 
 type (

@@ -1,0 +1,41 @@
+{
+	"ImportPath": "github.com/tidepool-org/shoreline",
+	"GoVersion": "go1.4.2",
+	"Packages": [
+		"./..."
+	],
+	"Deps": [
+		{
+			"ImportPath": "code.google.com/p/go-uuid/uuid",
+			"Comment": "null-15",
+			"Rev": "35bc42037350f0078e3c974c6ea690f1926603ab"
+		},
+		{
+			"ImportPath": "github.com/RangelReale/osin",
+			"Rev": "9f043d7e6be414ff4c71af39d2cfffc10ccc7ea4"
+		},
+		{
+			"ImportPath": "github.com/dgrijalva/jwt-go",
+			"Comment": "v1.0.1",
+			"Rev": "fbcb3e4b637bdc5ef2257eb2d0fe1d914a499386"
+		},
+		{
+			"ImportPath": "github.com/gorilla/context",
+			"Rev": "14f550f51af52180c2eefed15e5fd18d63c0a64a"
+		},
+		{
+			"ImportPath": "github.com/gorilla/mux",
+			"Rev": "14cafe28513321476c73967a5a4f3454b6129c46"
+		},
+		{
+			"ImportPath": "github.com/tidepool-org/go-common",
+			"Comment": "v0.0.9-8-g114eea5",
+			"Rev": "114eea506f355e745f1d94b2aeb650e80b35dc27"
+		},
+		{
+			"ImportPath": "labix.org/v2/mgo",
+			"Comment": "287",
+			"Rev": "gustavo@niemeyer.net-20140701140051-90be2tvk93pcczzi"
+		}
+	]
+}
