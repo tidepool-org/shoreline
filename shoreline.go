@@ -1,7 +1,7 @@
 package main
 
 import (
-	"crypto/tls"
+	// "crypto/tls"
 	"log"
 	"net/http"
 	"os"
@@ -11,10 +11,10 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/tidepool-org/go-common"
-	"github.com/tidepool-org/go-common/clients"
+	// "github.com/tidepool-org/go-common/clients"
 	"github.com/tidepool-org/go-common/clients/disc"
-	"github.com/tidepool-org/go-common/clients/hakken"
-	"github.com/tidepool-org/go-common/clients/highwater"
+	// "github.com/tidepool-org/go-common/clients/hakken"
+	// "github.com/tidepool-org/go-common/clients/highwater"
 	"github.com/tidepool-org/go-common/clients/mongo"
 	"github.com/tidepool-org/shoreline/oauth2"
 	"github.com/tidepool-org/shoreline/user"
@@ -22,7 +22,7 @@ import (
 
 type (
 	Config struct {
-		clients.Config
+		// clients.Config
 		Service disc.ServiceListing `json:"service"`
 		Mongo   mongo.Config        `json:"mongo"`
 		User    user.ApiConfig      `json:"user"`
@@ -41,33 +41,33 @@ func main() {
 		log.Panic(shoreline_service_prefix, "Problem loading config", err)
 	}
 
-	/*
-	 * Hakken setup
-	 */
-	hakkenClient := hakken.NewHakkenBuilder().
-		WithConfig(&config.HakkenConfig).
-		Build()
-
-	if err := hakkenClient.Start(); err != nil {
-		log.Fatal(shoreline_service_prefix, err)
-	}
-	defer hakkenClient.Close()
+	// /*
+	//  * Hakken setup
+	//  */
+	// hakkenClient := hakken.NewHakkenBuilder().
+	// 	WithConfig(&config.HakkenConfig).
+	// 	Build()
+	//
+	// if err := hakkenClient.Start(); err != nil {
+	// 	log.Fatal(shoreline_service_prefix, err)
+	// }
+	// defer hakkenClient.Close()
 
 	/*
 	 * Clients
 	 */
 
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}
+	// tr := &http.Transport{
+	// 	TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	// }
+	//
+	// httpClient := &http.Client{Transport: tr}
 
-	httpClient := &http.Client{Transport: tr}
-
-	highwater := highwater.NewHighwaterClientBuilder().
-		WithHostGetter(config.HighwaterConfig.ToHostGetter(hakkenClient)).
-		WithHttpClient(httpClient).
-		WithConfig(&config.HighwaterConfig.HighwaterClientConfig).
-		Build()
+	// highwater := highwater.NewHighwaterClientBuilder().
+	// 	WithHostGetter(config.HighwaterConfig.ToHostGetter(hakkenClient)).
+	// 	WithHttpClient(httpClient).
+	// 	WithConfig(&config.HighwaterConfig.HighwaterClientConfig).
+	// 	Build()
 
 	rtr := mux.NewRouter()
 
@@ -77,30 +77,30 @@ func main() {
 
 	log.Print(shoreline_service_prefix, "adding", user.USER_API_PREFIX)
 
-	userapi := user.InitApi(config.User, user.NewMongoStoreClient(&config.Mongo), highwater)
+	userapi := user.InitApi(config.User, user.NewMongoStoreClient(&config.Mongo), nil)
 	userapi.SetHandlers("", rtr)
 
-	/*
-	 * Oauth setup
-	 */
-
-	userClient := user.NewUserClient(userapi)
-
-	permsClient := clients.NewGatekeeperClientBuilder().
-		WithHostGetter(config.GatekeeperConfig.ToHostGetter(hakkenClient)).
-		WithHttpClient(httpClient).
-		WithTokenProvider(userClient).
-		Build()
-
-	log.Print(shoreline_service_prefix, "adding", oauth2.OAUTH2_API_PREFIX)
-
-	oauthapi := oauth2.InitApi(config.Oauth2, oauth2.NewOAuthStorage(&config.Mongo), userClient, permsClient)
-	oauthapi.SetHandlers("", rtr)
-
-	oauthClient := oauth2.NewOAuth2Client(oauthapi)
-
-	log.Print(shoreline_service_prefix, oauth2.OAUTH2_API_PREFIX, "adding oauthClient")
-	userapi.AttachOauth(oauthClient)
+	// /*
+	//  * Oauth setup
+	//  */
+	//
+	// userClient := user.NewUserClient(userapi)
+	//
+	// permsClient := clients.NewGatekeeperClientBuilder().
+	// 	WithHostGetter(config.GatekeeperConfig.ToHostGetter(hakkenClient)).
+	// 	WithHttpClient(httpClient).
+	// 	WithTokenProvider(userClient).
+	// 	Build()
+	//
+	// log.Print(shoreline_service_prefix, "adding", oauth2.OAUTH2_API_PREFIX)
+	//
+	// oauthapi := oauth2.InitApi(config.Oauth2, oauth2.NewOAuthStorage(&config.Mongo), userClient, permsClient)
+	// oauthapi.SetHandlers("", rtr)
+	//
+	// oauthClient := oauth2.NewOAuth2Client(oauthapi)
+	//
+	// log.Print(shoreline_service_prefix, oauth2.OAUTH2_API_PREFIX, "adding oauthClient")
+	// userapi.AttachOauth(oauthClient)
 
 	/*
 	 * Serve it up and publish
@@ -122,7 +122,7 @@ func main() {
 		log.Fatal(shoreline_service_prefix, err)
 	}
 
-	hakkenClient.Publish(&config.Service)
+	// hakkenClient.Publish(&config.Service)
 
 	signals := make(chan os.Signal, 40)
 	signal.Notify(signals)
