@@ -109,7 +109,7 @@ func main() {
 	 */
 	done := make(chan bool)
 	server := common.NewServer(&http.Server{
-		Addr:    config.Service.GetPort(),
+		Addr:    config.Service.Host,
 		Handler: rtr,
 	})
 
