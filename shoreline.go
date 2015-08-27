@@ -41,6 +41,8 @@ func main() {
 		log.Panic(shoreline_service_prefix, "Problem loading config", err)
 	}
 
+	config.Mongo.ConnectionString = os.Getenv("MONGO_CONNECTION_STRING")
+
 	// /*
 	//  * Hakken setup
 	//  */
