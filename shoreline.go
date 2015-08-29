@@ -43,6 +43,8 @@ func main() {
 
 	config.Mongo.ConnectionString = os.Getenv("MONGO_CONNECTION_STRING")
 
+	log.Printf("config.Mongo.ConnectionString=%s", config.Mongo.ConnectionString)
+
 	// /*
 	//  * Hakken setup
 	//  */
