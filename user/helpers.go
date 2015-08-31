@@ -84,7 +84,6 @@ func (a *Api) logMetric(name, token string, params map[string]string) {
 	if params == nil {
 		params = make(map[string]string)
 	}
-	a.metrics.PostThisUser(name, token, params)
 	return
 }
 
@@ -97,7 +96,6 @@ func (a *Api) logMetricAsServer(name, token string, params map[string]string) {
 	if params == nil {
 		params = make(map[string]string)
 	}
-	a.metrics.PostServer(name, token, params)
 	return
 }
 
@@ -110,7 +108,6 @@ func (a *Api) logMetricForUser(id, name, token string, params map[string]string)
 	if params == nil {
 		params = make(map[string]string)
 	}
-	a.metrics.PostWithUser(id, name, token, params)
 	return
 }
 
