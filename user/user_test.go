@@ -18,7 +18,6 @@ func Test_Name(t *testing.T) {
 	if user.Name != strings.ToLower(casedName) {
 		t.Fatalf("the name should be lowercase")
 	}
-
 }
 func Test_Id(t *testing.T) {
 

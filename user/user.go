@@ -3,7 +3,6 @@ package user
 import (
 	"encoding/json"
 	"errors"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -30,17 +29,31 @@ type UserDetail struct {
 	Verified bool     `json:"authenticated"` //tag is name `authenticated` for historical reasons
 }
 
+var (
+	User_error_name_pw_required = errors.New("User: both the name and pw are required")
+	User_error_no_details_given = errors.New("User: no user details were sent")
+)
+
 func NewUser(details *UserDetail, salt string) (user *User, err error) {
 
 	if details.Name == "" || details.Pw == "" {
-		return user, errors.New("both the name and pw are required")
+		return nil, User_error_name_pw_required
 	}
-	//name is always lowercase
+
 	details.Name = strings.ToLower(details.Name)
 
-	id, _ := generateUniqueHash([]string{details.Name, details.Pw}, 10)
-	hash, _ := generateUniqueHash([]string{details.Name, details.Pw, id}, 24)
-	pwHash, _ := GeneratePasswordHash(id, details.Pw, salt)
+	id, err := generateUniqueHash([]string{details.Name, details.Pw}, 10)
+	if err != nil {
+		return nil, errors.New("User: error generating id")
+	}
+	hash, err := generateUniqueHash([]string{details.Name, details.Pw, id}, 24)
+	if err != nil {
+		return nil, errors.New("User: error generating hash")
+	}
+	pwHash, err := GeneratePasswordHash(id, details.Pw, salt)
+	if err != nil {
+		return nil, errors.New("User: error generating password hash")
+	}
 
 	return &User{Id: id, Name: details.Name, Emails: details.Emails, Hash: hash, PwHash: pwHash, Verified: false}, nil
 }
@@ -49,9 +62,18 @@ func NewUser(details *UserDetail, salt string) (user *User, err error) {
 func NewChildUser(details *UserDetail, salt string) (user *User, err error) {
 
 	//name hashed from the `nice` name you gave us
-	name, _ := generateUniqueHash([]string{details.Name, time.Now().String()}, 10)
-	id, _ := generateUniqueHash([]string{name}, 10)
-	hash, _ := generateUniqueHash([]string{name, id}, 24)
+	name, err := generateUniqueHash([]string{details.Name, time.Now().String()}, 10)
+	if err != nil {
+		return nil, errors.New("User: error generating id")
+	}
+	id, err := generateUniqueHash([]string{name}, 10)
+	if err != nil {
+		return nil, errors.New("User: error generating hash")
+	}
+	hash, err := generateUniqueHash([]string{name, id}, 24)
+	if err != nil {
+		return nil, errors.New("User: error generating password hash")
+	}
 
 	return &User{Id: id, Name: name, Emails: details.Emails, Hash: hash, Verified: true}, nil
 }
@@ -89,13 +111,12 @@ func (u *User) IsVerified(secret string) bool {
 	return u.Verified
 }
 
-func getUserDetail(req *http.Request) (ud *UserDetail) {
+func getUserDetail(req *http.Request) (ud *UserDetail, err error) {
 	if req.ContentLength > 0 {
 		if err := json.NewDecoder(req.Body).Decode(&ud); err != nil {
-			log.Print(USER_API_PREFIX, "error trying to decode user detail ", err)
-			return ud
+			return nil, err
 		}
+		return ud, nil
 	}
-	log.Printf(USER_API_PREFIX+"User details [%v]", ud)
-	return ud
+	return nil, User_error_no_details_given
 }
