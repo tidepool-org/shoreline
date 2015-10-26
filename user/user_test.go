@@ -89,13 +89,13 @@ func Test_NewUser_AsChild(t *testing.T) {
 	theName := "The Kid"
 	termsAccepted := "2015/03/15"
 
-	if childAcct, err := NewChildUser(&UserDetail{Name: theName, TermsAccepted: terms}, "some salt"); err != nil {
+	if childAcct, err := NewChildUser(&UserDetail{Name: theName, TermsAccepted: termsAccepted}, "some salt"); err != nil {
 		t.Fatalf("it is legit to create a user withuot a pw - this is known as a Child Account")
 	} else {
 		if childAcct.Name == theName {
 			t.Fatalf("the user name should have been hashed")
 		}
-		if childAcct.TermsAccepted != terms {
+		if childAcct.TermsAccepted != termsAccepted {
 			t.Fatalf("the terms should have been set")
 		}
 		if len(childAcct.Name) != 10 {
