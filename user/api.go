@@ -297,6 +297,11 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 				}
 			}
 
+			//Updated TermsAccepted
+			if updatesToApply.Updates.TermsAccepted != "" {
+				userToUpdate.TermsAccepted = updatesToApply.Updates.TermsAccepted
+			}
+
 			//All good - now update
 			if err := a.Store.UpsertUser(userToUpdate); err != nil {
 				a.logger.Println(http.StatusInternalServerError, STATUS_ERR_UPDATING_USR, err.Error())
