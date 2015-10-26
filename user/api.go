@@ -297,9 +297,9 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 				}
 			}
 
-			//Updated Terms
-			if updatesToApply.Updates.Terms != "" {
-				userToUpdate.Terms = updatesToApply.Updates.Terms
+			//Updated TermsAccepted
+			if updatesToApply.Updates.TermsAccepted != "" || updatesToApply.Updates.TermsAccepted != nil {
+				userToUpdate.TermsAccepted = updatesToApply.Updates.TermsAccepted
 			}
 
 			//All good - now update

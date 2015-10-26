@@ -9,26 +9,26 @@ import (
 )
 
 type User struct {
-	Id       string                 `json:"userid" bson:"userid,omitempty"` // map userid to id
-	Name     string                 `json:"username" bson:"username"`
-	Emails   []string               `json:"emails" bson:"emails"`
-	Terms    string                 `json:"terms" bson:"terms"`
-	Verified bool                   `json:"-" bson:"authenticated"` //tag is name `authenticated` for historical reasons
-	PwHash   string                 `json:"-" bson:"pwhash"`
-	Hash     string                 `json:"-" bson:"userhash"`
-	Private  map[string]*IdHashPair `json:"-" bson:"private"`
+	Id            string                 `json:"userid" bson:"userid,omitempty"` // map userid to id
+	Name          string                 `json:"username" bson:"username"`
+	Emails        []string               `json:"emails" bson:"emails"`
+	TermsAccepted string                 `json:"termsAccepted" bson:"termsAccepted"`
+	Verified      bool                   `json:"-" bson:"authenticated"` //tag is name `authenticated` for historical reasons
+	PwHash        string                 `json:"-" bson:"pwhash"`
+	Hash          string                 `json:"-" bson:"userhash"`
+	Private       map[string]*IdHashPair `json:"-" bson:"private"`
 }
 
 /*
  * Incoming user details used to create or update a `User`
  */
 type UserDetail struct {
-	Id       string   //no tag as we aren't getting it from json
-	Name     string   `json:"username"`
-	Emails   []string `json:"emails"`
-	Terms    string   `json:"terms"`
-	Pw       string   `json:"password"`
-	Verified bool     `json:"authenticated"` //tag is name `authenticated` for historical reasons
+	Id            string   //no tag as we aren't getting it from json
+	Name          string   `json:"username"`
+	Emails        []string `json:"emails"`
+	TermsAccepted string   `json:"termsAccepted"`
+	Pw            string   `json:"password"`
+	Verified      bool     `json:"authenticated"` //tag is name `authenticated` for historical reasons
 }
 
 var (
@@ -77,11 +77,11 @@ func NewChildUser(details *UserDetail, salt string) (user *User, err error) {
 		return nil, errors.New("User: error generating password hash")
 	}
 
-	return &User{Id: id, Name: name, Emails: details.Emails, Hash: hash, Verified: true, Terms: details.Terms}, nil
+	return &User{Id: id, Name: name, Emails: details.Emails, Hash: hash, Verified: true, TermsAccepted: details.TermsAccepted}, nil
 }
 
 func UserFromDetails(details *UserDetail) (user *User) {
-	return &User{Id: details.Id, Name: strings.ToLower(details.Name), Emails: details.Emails, Terms: details.Terms}
+	return &User{Id: details.Id, Name: strings.ToLower(details.Name), Emails: details.Emails, TermsAccepted: details.TermsAccepted}
 }
 
 func (u *User) HashPassword(pw, salt string) (err error) {
