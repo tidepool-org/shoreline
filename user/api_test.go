@@ -1475,8 +1475,6 @@ func TestManageIdHashPair_StatusCreated_WhenPut(t *testing.T) {
 
 func TestAnonIdHashPair_InBulk(t *testing.T) {
 
-	req, _ := http.NewRequest("GET", "/", nil)
-	res := httptest.NewRecorder()
 	shoreline.SetHandlers("", rtr)
 
 	// we ask for 100 AnonymousIdHashPair to be created
@@ -1484,16 +1482,21 @@ func TestAnonIdHashPair_InBulk(t *testing.T) {
 	ask := make([]AnonIdHashPair, 100)
 	var generated []AnonIdHashPair
 
+	var mutex sync.Mutex 
 	var wg sync.WaitGroup
 
 	for _, hash := range ask {
 		wg.Add(1)
 		go func(hash AnonIdHashPair) {
 			defer wg.Done()
+			req, _ := http.NewRequest("GET", "/", nil)
+			res := httptest.NewRecorder()
 			shoreline.AnonymousIdHashPair(res, req)
 			body, _ := ioutil.ReadAll(res.Body)
 			json.Unmarshal(body, &hash)
+			mutex.Lock()
 			generated = append(generated, hash)
+			mutex.Unlock()
 		}(hash)
 
 	}
