@@ -1,15 +1,11 @@
 #! /bin/bash -eu
 
-export GOPATH=`pwd`
-
-come_deps.sh
-
 PROJECT=shoreline
 
 OUTDIR=dist
 rm -rf ${OUTDIR}
 mkdir ${OUTDIR}
 
-go build -o ${OUTDIR}/${PROJECT}
+godep go build -o ${OUTDIR}/${PROJECT}
 
 cp start.sh ${OUTDIR}/

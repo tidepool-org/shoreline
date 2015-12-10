@@ -2,7 +2,7 @@
   "service": {
     "service": "user-api-local",
     "protocol": "http",
-    "host": "localhost:9107",
+    "host": "0.0.0.0:8080",
     "keyFile": "config/key.pem",
     "certFile": "config/cert.pem"
   },

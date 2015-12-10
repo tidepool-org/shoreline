@@ -1,12 +1,4 @@
-bin
-
-!src/
-
-src/*
-!src/code.google.com/
-
-pkg
-dist
 .idea
 *.iml
-shoreline
+
+dist

@@ -13,8 +13,7 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/tidepool-org/go-common/clients/highwater"
-
-	"../oauth2"
+	"github.com/tidepool-org/shoreline/oauth2"
 )
 
 const (
