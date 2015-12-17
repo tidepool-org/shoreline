@@ -1,66 +1,978 @@
 package user
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 )
 
-func Test_Name(t *testing.T) {
-
-	casedName := "A Name"
-
-	user := UserFromDetails(&UserDetail{Name: casedName})
-
-	if user.Name == "" {
-		t.Fatalf("the name should have been set")
-	}
-
-	if user.Name != strings.ToLower(casedName) {
-		t.Fatalf("the name should be lowercase")
-	}
-}
-func Test_Id(t *testing.T) {
-
-	id := "123-your-id"
-	user := UserFromDetails(&UserDetail{Id: id})
-
-	if user.Id != id {
-		t.Fatalf("the id should have been set")
-	}
-}
-func Test_Emails(t *testing.T) {
-
-	e1 := "test@foo.bar"
-	e2 := "TEST@two.bar"
-
-	emails := []string{e1, e2}
-	user := UserFromDetails(&UserDetail{Emails: emails})
-
-	if len(user.Emails) != 2 {
-		t.Fatalf("there should be two emails")
-	}
-
-	if user.Emails[0] != emails[0] || user.Emails[1] != emails[1] {
-		t.Fatalf("the emails should have been set")
-	}
-
-	if user.Emails[1] != e2 {
-		t.Fatalf("the emails should keep the case as they were added")
+func Test_ExtractBool_Missing(t *testing.T) {
+	source := map[string]interface{}{"additional": "unexpected"}
+	result, ok := ExtractBool(source, "target")
+	if result != nil || !ok {
+		t.Fatalf("Unexpected result [%#v, %t]", result, ok)
 	}
 }
 
-func Test_Terms(t *testing.T) {
-
-	termsAccepted := "2015/03/15"
-	user := UserFromDetails(&UserDetail{TermsAccepted: termsAccepted})
-
-	if user.TermsAccepted != termsAccepted {
-		t.Fatalf("the terms date should have been set")
+func Test_ExtractBool_Present(t *testing.T) {
+	source := map[string]interface{}{"target": true, "additional": "unexpected"}
+	result, ok := ExtractBool(source, "target")
+	if !*result || !ok {
+		t.Fatalf("Unexpected result [%#v, %t]", result, ok)
 	}
 }
 
-func Test_HashPassword(t *testing.T) {
-	user := User{Id: "123-user-id-you-know-me"}
+func Test_ExtractBool_Present_NotBool(t *testing.T) {
+	source := map[string]interface{}{"target": "unexpected", "additional": "unexpected"}
+	result, ok := ExtractBool(source, "target")
+	if result != nil || ok {
+		t.Fatalf("Unexpected result [%#v, %t]", result, ok)
+	}
+}
+
+func Test_ExtractString_Missing(t *testing.T) {
+	source := map[string]interface{}{"additional": "unexpected"}
+	result, ok := ExtractString(source, "target")
+	if result != nil || !ok {
+		t.Fatalf("Unexpected result [%#v, %t]", result, ok)
+	}
+}
+
+func Test_ExtractString_Present(t *testing.T) {
+	source := map[string]interface{}{"target": "expected", "additional": "unexpected"}
+	result, ok := ExtractString(source, "target")
+	if *result != "expected" || !ok {
+		t.Fatalf("Unexpected result [%#v, %t]", result, ok)
+	}
+}
+
+func Test_ExtractString_Present_NotString(t *testing.T) {
+	source := map[string]interface{}{"target": true, "additional": "unexpected"}
+	result, ok := ExtractString(source, "target")
+	if result != nil || ok {
+		t.Fatalf("Unexpected result [%#v, %t]", result, ok)
+	}
+}
+
+func Test_ExtractArray_Missing(t *testing.T) {
+	source := map[string]interface{}{"additional": "unexpected"}
+	result, ok := ExtractArray(source, "target")
+	if result != nil || !ok {
+		t.Fatalf("Unexpected result [%#v, %t]", result, ok)
+	}
+}
+
+func Test_ExtractArray_Present(t *testing.T) {
+	source := map[string]interface{}{"target": []interface{}{"expected", "expected-2", "expected-3"}, "additional": "unexpected"}
+	result, ok := ExtractArray(source, "target")
+	if !reflect.DeepEqual(result, []interface{}{"expected", "expected-2", "expected-3"}) || !ok {
+		t.Fatalf("Unexpected result [%#v, %t]", result, ok)
+	}
+}
+
+func Test_ExtractArray_Present_NotArray(t *testing.T) {
+	source := map[string]interface{}{"target": true, "additional": "unexpected"}
+	result, ok := ExtractArray(source, "target")
+	if result != nil || ok {
+		t.Fatalf("Unexpected result [%#v, %t]", result, ok)
+	}
+}
+
+func Test_ExtractStringArray_Missing(t *testing.T) {
+	source := map[string]interface{}{"additional": "unexpected"}
+	result, ok := ExtractStringArray(source, "target")
+	if result != nil || !ok {
+		t.Fatalf("Unexpected result [%#v, %t]", result, ok)
+	}
+}
+
+func Test_ExtractStringArray_Present(t *testing.T) {
+	source := map[string]interface{}{"target": []interface{}{"expected", "expected-2", "expected-3"}, "additional": "unexpected"}
+	result, ok := ExtractStringArray(source, "target")
+	if !reflect.DeepEqual(result, []string{"expected", "expected-2", "expected-3"}) || !ok {
+		t.Fatalf("Unexpected result [%#v, %t]", result, ok)
+	}
+}
+
+func Test_ExtractStringArray_Present_NotStringArray(t *testing.T) {
+	source := map[string]interface{}{"target": true, "additional": "unexpected"}
+	result, ok := ExtractStringArray(source, "target")
+	if result != nil || ok {
+		t.Fatalf("Unexpected result [%#v, %t]", result, ok)
+	}
+}
+
+func Test_ExtractStringMap_Missing(t *testing.T) {
+	source := map[string]interface{}{"additional": "unexpected"}
+	result, ok := ExtractStringMap(source, "target")
+	if result != nil || !ok {
+		t.Fatalf("Unexpected result [%#v, %t]", result, ok)
+	}
+}
+
+func Test_ExtractStringMap_Present(t *testing.T) {
+	source := map[string]interface{}{"target": map[string]interface{}{"expected": "expected-2"}, "additional": "unexpected"}
+	result, ok := ExtractStringMap(source, "target")
+	if !reflect.DeepEqual(result, map[string]interface{}{"expected": "expected-2"}) || !ok {
+		t.Fatalf("Unexpected result [%#v, %t]", result, ok)
+	}
+}
+
+func Test_ExtractStringMap_Present_NotStringMap(t *testing.T) {
+	source := map[string]interface{}{"target": true, "additional": "unexpected"}
+	result, ok := ExtractStringMap(source, "target")
+	if result != nil || ok {
+		t.Fatalf("Unexpected result [%#v, %t]", result, ok)
+	}
+}
+
+func Test_IsValidEmail_Invalid(t *testing.T) {
+	invalidEmails := []string{"", "a", "a@", "a@z", "a@z.", "a@z.c", ".co", "z.co", "@z.co", "a@b@z.co", "a b@z.co", "a@z$z.co", "a@x#z.co"}
+	for _, invalidEmail := range invalidEmails {
+		if IsValidEmail(invalidEmail) {
+			t.Fatalf("Invalid email %s is unexpectedly valid", invalidEmail)
+		}
+	}
+}
+
+func Test_IsValidEmail_Valid(t *testing.T) {
+	validEmails := []string{"a@z.com", "a-b@z.com", "a$b@z.com", "a#b@z.com", "a@stuvwxyz.co", "a@z.company"}
+	for _, validEmail := range validEmails {
+		if !IsValidEmail(validEmail) {
+			t.Fatalf("Valid email %s is unexpectedly invalid", validEmail)
+		}
+	}
+}
+
+func Test_IsValidPassword_Invalid(t *testing.T) {
+	invalidPasswords := []string{"", "1", "1234567", "123  678", "1234567890123456789012345678901234  789012345678901234567890123456789012", "1234567890123456789012345678901234567890123456789012345678901234567890123"}
+	for _, invalidPassword := range invalidPasswords {
+		if IsValidPassword(invalidPassword) {
+			t.Fatalf("Invalid password %s is unexpectedly valid", invalidPassword)
+		}
+	}
+}
+
+func Test_IsValidPassword_Valid(t *testing.T) {
+	validPasswords := []string{"12345678", "123456789012345678901234567890123456789012345678901234567890123456789012"}
+	for _, validPassword := range validPasswords {
+		if !IsValidPassword(validPassword) {
+			t.Fatalf("Valid password %s is unexpectedly invalid", validPassword)
+		}
+	}
+}
+
+func Test_IsValidDate_Invalid(t *testing.T) {
+	invalidDates := []string{"", "a", "aaaa-aa-aaTaa:aa:aa-aa:aa", "2016-01-01T00:00:00Z", "2016-13-32T24:60:62-24:30"}
+	for _, invalidDate := range invalidDates {
+		if IsValidDate(invalidDate) {
+			t.Fatalf("Invalid email %s is unexpectedly valid", invalidDate)
+		}
+	}
+}
+
+func Test_IsValidDate_Valid(t *testing.T) {
+	validDates := []string{"2016-01-01T00:00:00-00:00", "2015-12-31T23:59:59-23:30"}
+	for _, validDate := range validDates {
+		if !IsValidDate(validDate) {
+			t.Fatalf("Valid email %s is unexpectedly invalid", validDate)
+		}
+	}
+}
+
+func Test_NewUserDetails_ExtractFromJSON_InvalidJSON(t *testing.T) {
+	source := ""
+	details := &NewUserDetails{}
+	err := details.ExtractFromJSON(strings.NewReader(source))
+	if err == nil {
+		t.Fatalf("Unexpected success for invalid JSON")
+	}
+	if details.Username != nil || details.Emails != nil || details.Password != nil {
+		t.Fatalf("Unexpected fields present on error for invalid JSON")
+	}
+}
+
+func Test_NewUserDetails_ExtractFromJSON_InvalidUsername(t *testing.T) {
+	source := "{\"username\": true, \"emails\": [\"b@y.com\"], \"password\": \"12345678\"}"
+	details := &NewUserDetails{}
+	err := details.ExtractFromJSON(strings.NewReader(source))
+	if err != User_error_username_invalid {
+		t.Fatalf("Unexpected error for invalid username: %#v", err)
+	}
+	if details.Username != nil || details.Emails != nil || details.Password != nil {
+		t.Fatalf("Unexpected fields present on error for invalid username")
+	}
+}
+
+func Test_NewUserDetails_ExtractFromJSON_InvalidEmails(t *testing.T) {
+	source := "{\"username\": \"a@z.co\", \"emails\": true, \"password\": \"12345678\"}"
+	details := &NewUserDetails{}
+	err := details.ExtractFromJSON(strings.NewReader(source))
+	if err != User_error_emails_invalid {
+		t.Fatalf("Unexpected error for invalid emails: %#v", err)
+	}
+	if details.Username != nil || details.Emails != nil || details.Password != nil {
+		t.Fatalf("Unexpected fields present on error for invalid emails")
+	}
+}
+
+func Test_NewUserDetails_ExtractFromJSON_InvalidPassword(t *testing.T) {
+	source := "{\"username\": \"a@z.co\", \"emails\": [\"b@y.co\"], \"password\": true}"
+	details := &NewUserDetails{}
+	err := details.ExtractFromJSON(strings.NewReader(source))
+	if err != User_error_password_invalid {
+		t.Fatalf("Unexpected error for invalid password: %#v", err)
+	}
+	if details.Username != nil || details.Emails != nil || details.Password != nil {
+		t.Fatalf("Unexpected fields present on error for invalid password")
+	}
+}
+
+func Test_NewUserDetails_ExtractFromJSON_ValidAll(t *testing.T) {
+	source := "{\"username\": \"a@z.co\", \"emails\": [\"b@y.co\"], \"password\": \"12345678\", \"ignored\": true}"
+	details := &NewUserDetails{}
+	err := details.ExtractFromJSON(strings.NewReader(source))
+	if err != nil {
+		t.Fatalf("Unexpected error for valid with all: %#v", err)
+	}
+	if *details.Username != "a@z.co" || !reflect.DeepEqual(details.Emails, []string{"b@y.co"}) || *details.Password != "12345678" {
+		t.Fatalf("Missing fields that should be present on success with all")
+	}
+}
+
+func Test_NewUserDetails_ExtractFromJSON_ValidUsername(t *testing.T) {
+	source := "{\"username\": \"a@z.co\", \"ignored\": true}"
+	details := &NewUserDetails{}
+	err := details.ExtractFromJSON(strings.NewReader(source))
+	if err != nil {
+		t.Fatalf("Unexpected error for valid with username: %#v", err)
+	}
+	if *details.Username != "a@z.co" || details.Emails != nil || details.Password != nil {
+		t.Fatalf("Missing fields that should be present on success with username")
+	}
+}
+
+func Test_NewUserDetails_ExtractFromJSON_ValidEmails(t *testing.T) {
+	source := "{\"emails\": [\"b@y.co\"], \"ignored\": true}"
+	details := &NewUserDetails{}
+	err := details.ExtractFromJSON(strings.NewReader(source))
+	if err != nil {
+		t.Fatalf("Unexpected error for valid with emails: %#v", err)
+	}
+	if details.Username != nil || !reflect.DeepEqual(details.Emails, []string{"b@y.co"}) || details.Password != nil {
+		t.Fatalf("Missing fields that should be present on success with emails")
+	}
+}
+
+func Test_NewUserDetails_ExtractFromJSON_ValidPassword(t *testing.T) {
+	source := "{\"password\": \"12345678\", \"ignored\": true}"
+	details := &NewUserDetails{}
+	err := details.ExtractFromJSON(strings.NewReader(source))
+	if err != nil {
+		t.Fatalf("Unexpected error for valid with password: %#v", err)
+	}
+	if details.Username != nil || details.Emails != nil || *details.Password != "12345678" {
+		t.Fatalf("Missing fields that should be present on success with password")
+	}
+}
+
+func Test_NewUserDetails_Validate_Username_Missing(t *testing.T) {
+	password := "12345678"
+	details := &NewUserDetails{Emails: []string{"b@y.co", "c@x.co"}, Password: &password}
+	err := details.Validate()
+	if err != User_error_username_missing {
+		t.Fatalf("Unexpected error for username missing: %#v", err)
+	}
+}
+
+func Test_NewUserDetails_Validate_Username_Invalid(t *testing.T) {
+	username := "a"
+	password := "12345678"
+	details := &NewUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Password: &password}
+	err := details.Validate()
+	if err != User_error_username_invalid {
+		t.Fatalf("Unexpected error for username invalid: %#v", err)
+	}
+}
+
+func Test_NewUserDetails_Validate_Emails_Missing(t *testing.T) {
+	username := "a@z.co"
+	password := "12345678"
+	details := &NewUserDetails{Username: &username, Password: &password}
+	err := details.Validate()
+	if err != User_error_emails_missing {
+		t.Fatalf("Unexpected error for emails missing: %#v", err)
+	}
+}
+
+func Test_NewUserDetails_Validate_Emails_Invalid(t *testing.T) {
+	username := "a@z.co"
+	password := "12345678"
+	details := &NewUserDetails{Username: &username, Emails: []string{"b@y.co", "c"}, Password: &password}
+	err := details.Validate()
+	if err != User_error_emails_invalid {
+		t.Fatalf("Unexpected error for emails invalid: %#v", err)
+	}
+}
+
+func Test_NewUserDetails_Validate_Password_Missing(t *testing.T) {
+	username := "a@z.co"
+	details := &NewUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}}
+	err := details.Validate()
+	if err != User_error_password_missing {
+		t.Fatalf("Unexpected error for password missing: %#v", err)
+	}
+}
+
+func Test_NewUserDetails_Validate_Password_Invalid(t *testing.T) {
+	username := "a@z.co"
+	password := "1234567"
+	details := &NewUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Password: &password}
+	err := details.Validate()
+	if err != User_error_password_invalid {
+		t.Fatalf("Unexpected error for password invalid: %#v", err)
+	}
+}
+
+func Test_NewUserDetails_Validate_Valid(t *testing.T) {
+	username := "a@z.co"
+	password := "12345678"
+	details := &NewUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Password: &password}
+	err := details.Validate()
+	if err != nil {
+		t.Fatalf("Unexpected error for valid: %#v", err)
+	}
+}
+
+func Test_ParseNewUserDetails_InvalidJSON(t *testing.T) {
+	source := ""
+	details, err := ParseNewUserDetails(strings.NewReader(source))
+	if err == nil {
+		t.Fatalf("Unexpected success for invalid JSON")
+	}
+	if details != nil {
+		t.Fatalf("Unexpected details for invalid JSON")
+	}
+}
+
+func Test_ParseNewUserDetails_ValidAll(t *testing.T) {
+	source := "{\"username\": \"a@z.co\", \"emails\": [\"b@y.co\"], \"password\": \"12345678\"}"
+	details, err := ParseNewUserDetails(strings.NewReader(source))
+	if err != nil {
+		t.Fatalf("Unexpected error for valid with all: %#v", err)
+	}
+	if details == nil {
+		t.Fatalf("Missing details on success with all")
+	}
+	if *details.Username != "a@z.co" || !reflect.DeepEqual(details.Emails, []string{"b@y.co"}) || *details.Password != "12345678" {
+		t.Fatalf("Missing fields that should be present on success with all")
+	}
+}
+
+func Test_NewUser_MissingDetails(t *testing.T) {
+	salt := "abc"
+	user, err := NewUser(nil, salt)
+	if err == nil {
+		t.Fatalf("Unexpected success for missing details")
+	}
+	if user != nil {
+		t.Fatalf("User is not nil for missing details")
+	}
+}
+
+func Test_NewUser_InvalidDetails(t *testing.T) {
+	username := "a"
+	details := &NewUserDetails{Username: &username}
+	salt := "abc"
+	user, err := NewUser(details, salt)
+	if err == nil {
+		t.Fatalf("Unexpected success for invalid details")
+	}
+	if user != nil {
+		t.Fatalf("User is not nil for invalid details")
+	}
+}
+
+func Test_NewUser_MissingSalt(t *testing.T) {
+	username := "a@z.co"
+	password := "12345678"
+	details := &NewUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Password: &password}
+	user, err := NewUser(details, "")
+	if err == nil {
+		t.Fatalf("Unexpected success for missing salt")
+	}
+	if user != nil {
+		t.Fatalf("User is not nil for missing salt")
+	}
+}
+
+func Test_NewUser_Valid(t *testing.T) {
+	username := "a@z.co"
+	password := "12345678"
+	details := &NewUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Password: &password}
+	salt := "abc"
+	user, err := NewUser(details, salt)
+	if err != nil {
+		t.Fatalf("Unexpected error for valid: %#v", err)
+	}
+	if user == nil {
+		t.Fatalf("User is nil for valid")
+	}
+	if user.Username != *details.Username || !reflect.DeepEqual(user.Emails, details.Emails) {
+		t.Fatalf("Fields do not match on success")
+	}
+	if !user.PasswordsMatch(*details.Password, salt) {
+		t.Fatalf("Password does not match on success")
+	}
+	if user.Id == "" || user.Hash == "" {
+		t.Fatalf("Missing fields that should be present on success")
+	}
+	if user.TermsAccepted != "" || user.EmailVerified || len(user.Private) > 0 {
+		t.Fatalf("Found fields that not should be present on success")
+	}
+}
+
+func Test_NewCustodialUserDetails_ExtractFromJSON_InvalidJSON(t *testing.T) {
+	source := ""
+	details := &NewCustodialUserDetails{}
+	err := details.ExtractFromJSON(strings.NewReader(source))
+	if err == nil {
+		t.Fatalf("Unexpected success for invalid JSON")
+	}
+	if details.Username != nil || details.Emails != nil {
+		t.Fatalf("Unexpected fields present on error for invalid JSON")
+	}
+}
+
+func Test_NewCustodialUserDetails_ExtractFromJSON_InvalidUsername(t *testing.T) {
+	source := "{\"username\": true, \"emails\": [\"b@y.com\"]}"
+	details := &NewCustodialUserDetails{}
+	err := details.ExtractFromJSON(strings.NewReader(source))
+	if err != User_error_username_invalid {
+		t.Fatalf("Unexpected error for invalid username: %#v", err)
+	}
+	if details.Username != nil || details.Emails != nil {
+		t.Fatalf("Unexpected fields present on error for invalid username")
+	}
+}
+
+func Test_NewCustodialUserDetails_ExtractFromJSON_InvalidEmails(t *testing.T) {
+	source := "{\"username\": \"a@z.co\", \"emails\": true}"
+	details := &NewCustodialUserDetails{}
+	err := details.ExtractFromJSON(strings.NewReader(source))
+	if err != User_error_emails_invalid {
+		t.Fatalf("Unexpected error for invalid emails: %#v", err)
+	}
+	if details.Username != nil || details.Emails != nil {
+		t.Fatalf("Unexpected fields present on error for invalid emails")
+	}
+}
+
+func Test_NewCustodialUserDetails_ExtractFromJSON_ValidAll(t *testing.T) {
+	source := "{\"username\": \"a@z.co\", \"emails\": [\"b@y.co\"], \"ignored\": true}"
+	details := &NewCustodialUserDetails{}
+	err := details.ExtractFromJSON(strings.NewReader(source))
+	if err != nil {
+		t.Fatalf("Unexpected error for valid with all: %#v", err)
+	}
+	if *details.Username != "a@z.co" || !reflect.DeepEqual(details.Emails, []string{"b@y.co"}) {
+		t.Fatalf("Missing fields that should be present on success with all")
+	}
+}
+
+func Test_NewCustodialUserDetails_ExtractFromJSON_ValidUsername(t *testing.T) {
+	source := "{\"username\": \"a@z.co\", \"ignored\": true}"
+	details := &NewCustodialUserDetails{}
+	err := details.ExtractFromJSON(strings.NewReader(source))
+	if err != nil {
+		t.Fatalf("Unexpected error for valid with username: %#v", err)
+	}
+	if *details.Username != "a@z.co" || details.Emails != nil {
+		t.Fatalf("Missing fields that should be present on success with username")
+	}
+}
+
+func Test_NewCustodialUserDetails_ExtractFromJSON_ValidEmails(t *testing.T) {
+	source := "{\"emails\": [\"b@y.co\"], \"ignored\": true}"
+	details := &NewCustodialUserDetails{}
+	err := details.ExtractFromJSON(strings.NewReader(source))
+	if err != nil {
+		t.Fatalf("Unexpected error for valid with emails: %#v", err)
+	}
+	if details.Username != nil || !reflect.DeepEqual(details.Emails, []string{"b@y.co"}) {
+		t.Fatalf("Missing fields that should be present on success with emails")
+	}
+}
+
+func Test_NewCustodialUserDetails_ExtractFromJSON_ValidNone(t *testing.T) {
+	source := "{\"ignored\": true}"
+	details := &NewCustodialUserDetails{}
+	err := details.ExtractFromJSON(strings.NewReader(source))
+	if err != nil {
+		t.Fatalf("Unexpected error for valid with emails: %#v", err)
+	}
+	if details.Username != nil || details.Emails != nil {
+		t.Fatalf("Missing fields that should be present on success with emails")
+	}
+}
+
+func Test_NewCustodialUserDetails_Validate_Username_Missing(t *testing.T) {
+	details := &NewCustodialUserDetails{Emails: []string{"b@y.co", "c@x.co"}}
+	err := details.Validate()
+	if err != nil {
+		t.Fatalf("Unexpected error for username missing: %#v", err)
+	}
+}
+
+func Test_NewCustodialUserDetails_Validate_Username_Invalid(t *testing.T) {
+	username := "a"
+	details := &NewCustodialUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}}
+	err := details.Validate()
+	if err != User_error_username_invalid {
+		t.Fatalf("Unexpected error for username invalid: %#v", err)
+	}
+}
+
+func Test_NewCustodialUserDetails_Validate_Emails_Missing(t *testing.T) {
+	username := "a@z.co"
+	details := &NewCustodialUserDetails{Username: &username}
+	err := details.Validate()
+	if err != nil {
+		t.Fatalf("Unexpected error for emails missing: %#v", err)
+	}
+}
+
+func Test_NewCustodialUserDetails_Validate_Emails_Invalid(t *testing.T) {
+	username := "a@z.co"
+	details := &NewCustodialUserDetails{Username: &username, Emails: []string{"b@y.co", "c"}}
+	err := details.Validate()
+	if err != User_error_emails_invalid {
+		t.Fatalf("Unexpected error for emails invalid: %#v", err)
+	}
+}
+
+func Test_NewCustodialUserDetails_Validate_Valid_All(t *testing.T) {
+	username := "a@z.co"
+	details := &NewCustodialUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}}
+	err := details.Validate()
+	if err != nil {
+		t.Fatalf("Unexpected error for valid: %#v", err)
+	}
+}
+
+func Test_NewCustodialUserDetails_Validate_Valid_None(t *testing.T) {
+	details := &NewCustodialUserDetails{}
+	err := details.Validate()
+	if err != nil {
+		t.Fatalf("Unexpected error for valid: %#v", err)
+	}
+}
+
+func Test_ParseNewCustodialUserDetails_InvalidJSON(t *testing.T) {
+	source := ""
+	details, err := ParseNewCustodialUserDetails(strings.NewReader(source))
+	if err == nil {
+		t.Fatalf("Unexpected success for invalid JSON")
+	}
+	if details != nil {
+		t.Fatalf("Unexpected details for invalid JSON")
+	}
+}
+
+func Test_ParseNewCustodialUserDetails_ValidAll(t *testing.T) {
+	source := "{\"username\": \"a@z.co\", \"emails\": [\"b@y.co\"]}"
+	details, err := ParseNewCustodialUserDetails(strings.NewReader(source))
+	if err != nil {
+		t.Fatalf("Unexpected error for valid with all: %#v", err)
+	}
+	if details == nil {
+		t.Fatalf("Missing details on success with all")
+	}
+	if *details.Username != "a@z.co" || !reflect.DeepEqual(details.Emails, []string{"b@y.co"}) {
+		t.Fatalf("Missing fields that should be present on success with all")
+	}
+}
+
+func Test_ParseNewCustodialUserDetails_ValidNone(t *testing.T) {
+	source := "{}"
+	details, err := ParseNewCustodialUserDetails(strings.NewReader(source))
+	if err != nil {
+		t.Fatalf("Unexpected error for valid with all: %#v", err)
+	}
+	if details == nil {
+		t.Fatalf("Missing details on success with all")
+	}
+	if details.Username != nil || details.Emails != nil {
+		t.Fatalf("Missing fields that should be present on success with all")
+	}
+}
+
+func Test_NewCustodialUser_MissingDetails(t *testing.T) {
+	salt := "abc"
+	user, err := NewCustodialUser(nil, salt)
+	if err == nil {
+		t.Fatalf("Unexpected success for missing details")
+	}
+	if user != nil {
+		t.Fatalf("User is not nil for missing details")
+	}
+}
+
+func Test_NewCustodialUser_InvalidDetails(t *testing.T) {
+	username := "a"
+	details := &NewCustodialUserDetails{Username: &username}
+	salt := "abc"
+	user, err := NewCustodialUser(details, salt)
+	if err == nil {
+		t.Fatalf("Unexpected success for invalid details")
+	}
+	if user != nil {
+		t.Fatalf("User is not nil for invalid details")
+	}
+}
+
+func Test_NewCustodialUser_ValidAll(t *testing.T) {
+	username := "a@z.co"
+	details := &NewCustodialUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}}
+	salt := "abc"
+	user, err := NewCustodialUser(details, salt)
+	if err != nil {
+		t.Fatalf("Unexpected error for valid: %#v", err)
+	}
+	if user == nil {
+		t.Fatalf("User is nil for valid")
+	}
+	if user.Username != *details.Username || !reflect.DeepEqual(user.Emails, details.Emails) {
+		t.Fatalf("Fields do not match on success")
+	}
+	if user.Id == "" || user.Hash == "" {
+		t.Fatalf("Missing fields that should be present on success")
+	}
+	if user.PwHash != "" || user.TermsAccepted != "" || user.EmailVerified || len(user.Private) > 0 {
+		t.Fatalf("Found fields that not should be present on success")
+	}
+}
+
+func Test_NewCustodialUser_ValidNone(t *testing.T) {
+	details := &NewCustodialUserDetails{}
+	salt := "abc"
+	user, err := NewCustodialUser(details, salt)
+	if err != nil {
+		t.Fatalf("Unexpected error for valid: %#v", err)
+	}
+	if user == nil {
+		t.Fatalf("User is nil for valid")
+	}
+	if user.Username != "" || len(user.Emails) != 0 {
+		t.Fatalf("Fields do not match on success")
+	}
+	if user.Id == "" || user.Hash == "" {
+		t.Fatalf("Missing fields that should be present on success")
+	}
+	if user.PwHash != "" || user.TermsAccepted != "" || user.EmailVerified || len(user.Private) > 0 {
+		t.Fatalf("Found fields that not should be present on success")
+	}
+}
+
+func Test_UpdateUserDetails_ExtractFromJSON_InvalidJSON(t *testing.T) {
+	source := ""
+	details := &UpdateUserDetails{}
+	err := details.ExtractFromJSON(strings.NewReader(source))
+	if err == nil {
+		t.Fatalf("Unexpected success for invalid JSON")
+	}
+	if details.Username != nil || details.Emails != nil || details.Password != nil || details.TermsAccepted != nil || details.EmailVerified != nil {
+		t.Fatalf("Unexpected fields present on error for invalid JSON")
+	}
+}
+
+func Test_UpdateUserDetails_ExtractFromJSON_MissingUpdates(t *testing.T) {
+	source := "{\"ignored\": {}}"
+	details := &UpdateUserDetails{}
+	err := details.ExtractFromJSON(strings.NewReader(source))
+	if err == nil {
+		t.Fatalf("Unexpected success for invalid JSON")
+	}
+	if details.Username != nil || details.Emails != nil || details.Password != nil || details.TermsAccepted != nil || details.EmailVerified != nil {
+		t.Fatalf("Unexpected fields present on error for invalid JSON")
+	}
+}
+
+func Test_UpdateUserDetails_ExtractFromJSON_InvalidUsername(t *testing.T) {
+	source := "{\"updates\": {\"username\": true, \"emails\": [\"b@y.com\"], \"password\": \"12345678\", \"termsAccepted\": \"2016-01-01T12:00:00-08:00\", \"emailVerified\": true}}"
+	details := &UpdateUserDetails{}
+	err := details.ExtractFromJSON(strings.NewReader(source))
+	if err != User_error_username_invalid {
+		t.Fatalf("Unexpected error for invalid username: %#v", err)
+	}
+	if details.Username != nil || details.Emails != nil || details.Password != nil || details.TermsAccepted != nil || details.EmailVerified != nil {
+		t.Fatalf("Unexpected fields present on error for invalid username")
+	}
+}
+
+func Test_UpdateUserDetails_ExtractFromJSON_InvalidEmails(t *testing.T) {
+	source := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": true, \"password\": \"12345678\", \"termsAccepted\": \"2016-01-01T12:00:00-08:00\", \"emailVerified\": true}}"
+	details := &UpdateUserDetails{}
+	err := details.ExtractFromJSON(strings.NewReader(source))
+	if err != User_error_emails_invalid {
+		t.Fatalf("Unexpected error for invalid emails: %#v", err)
+	}
+	if details.Username != nil || details.Emails != nil || details.Password != nil || details.TermsAccepted != nil || details.EmailVerified != nil {
+		t.Fatalf("Unexpected fields present on error for invalid emails")
+	}
+}
+
+func Test_UpdateUserDetails_ExtractFromJSON_InvalidPassword(t *testing.T) {
+	source := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"b@y.co\"], \"password\": true, \"termsAccepted\": \"2016-01-01T12:00:00-08:00\", \"emailVerified\": true}}"
+	details := &UpdateUserDetails{}
+	err := details.ExtractFromJSON(strings.NewReader(source))
+	if err != User_error_password_invalid {
+		t.Fatalf("Unexpected error for invalid password: %#v", err)
+	}
+	if details.Username != nil || details.Emails != nil || details.Password != nil || details.TermsAccepted != nil || details.EmailVerified != nil {
+		t.Fatalf("Unexpected fields present on error for invalid password")
+	}
+}
+
+func Test_UpdateUserDetails_ExtractFromJSON_InvalidTermsAccepted(t *testing.T) {
+	source := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"b@y.co\"], \"password\": \"12345678\", \"termsAccepted\": true, \"emailVerified\": true}}"
+	details := &UpdateUserDetails{}
+	err := details.ExtractFromJSON(strings.NewReader(source))
+	if err != User_error_terms_accepted_invalid {
+		t.Fatalf("Unexpected error for invalid password: %#v", err)
+	}
+	if details.Username != nil || details.Emails != nil || details.Password != nil || details.TermsAccepted != nil || details.EmailVerified != nil {
+		t.Fatalf("Unexpected fields present on error for invalid password")
+	}
+}
+
+func Test_UpdateUserDetails_ExtractFromJSON_InvalidEmailVerified(t *testing.T) {
+	source := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"b@y.co\"], \"password\": \"12345678\", \"termsAccepted\": \"2016-01-01T12:00:00-08:00\", \"emailVerified\": \"unexpected\"}}"
+	details := &UpdateUserDetails{}
+	err := details.ExtractFromJSON(strings.NewReader(source))
+	if err != User_error_email_verified_invalid {
+		t.Fatalf("Unexpected error for invalid password: %#v", err)
+	}
+	if details.Username != nil || details.Emails != nil || details.Password != nil || details.TermsAccepted != nil || details.EmailVerified != nil {
+		t.Fatalf("Unexpected fields present on error for invalid password")
+	}
+}
+
+func Test_UpdateUserDetails_ExtractFromJSON_ValidAll(t *testing.T) {
+	source := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"b@y.co\"], \"password\": \"12345678\", \"termsAccepted\": \"2016-01-01T12:00:00-08:00\", \"emailVerified\": true, \"ignored\": true}}"
+	details := &UpdateUserDetails{}
+	err := details.ExtractFromJSON(strings.NewReader(source))
+	if err != nil {
+		t.Fatalf("Unexpected error for valid with all: %#v", err)
+	}
+	if *details.Username != "a@z.co" || !reflect.DeepEqual(details.Emails, []string{"b@y.co"}) || *details.Password != "12345678" || *details.TermsAccepted != "2016-01-01T12:00:00-08:00" || !*details.EmailVerified {
+		t.Fatalf("Missing fields that should be present on success with all")
+	}
+}
+
+func Test_UpdateUserDetails_ExtractFromJSON_ValidUsername(t *testing.T) {
+	source := "{\"updates\": {\"username\": \"a@z.co\", \"ignored\": true}}"
+	details := &UpdateUserDetails{}
+	err := details.ExtractFromJSON(strings.NewReader(source))
+	if err != nil {
+		t.Fatalf("Unexpected error for valid with username: %#v", err)
+	}
+	if *details.Username != "a@z.co" || details.Emails != nil || details.Password != nil || details.TermsAccepted != nil || details.EmailVerified != nil {
+		t.Fatalf("Missing fields that should be present on success with username")
+	}
+}
+
+func Test_UpdateUserDetails_ExtractFromJSON_ValidEmails(t *testing.T) {
+	source := "{\"updates\": {\"emails\": [\"b@y.co\"], \"ignored\": true}}"
+	details := &UpdateUserDetails{}
+	err := details.ExtractFromJSON(strings.NewReader(source))
+	if err != nil {
+		t.Fatalf("Unexpected error for valid with emails: %#v", err)
+	}
+	if details.Username != nil || !reflect.DeepEqual(details.Emails, []string{"b@y.co"}) || details.Password != nil || details.TermsAccepted != nil || details.EmailVerified != nil {
+		t.Fatalf("Missing fields that should be present on success with emails")
+	}
+}
+
+func Test_UpdateUserDetails_ExtractFromJSON_ValidPassword(t *testing.T) {
+	source := "{\"updates\": {\"password\": \"12345678\", \"ignored\": true}}"
+	details := &UpdateUserDetails{}
+	err := details.ExtractFromJSON(strings.NewReader(source))
+	if err != nil {
+		t.Fatalf("Unexpected error for valid with password: %#v", err)
+	}
+	if details.Username != nil || details.Emails != nil || *details.Password != "12345678" || details.TermsAccepted != nil || details.EmailVerified != nil {
+		t.Fatalf("Missing fields that should be present on success with password")
+	}
+}
+
+func Test_UpdateUserDetails_ExtractFromJSON_ValidTermsAccepted(t *testing.T) {
+	source := "{\"updates\": {\"termsAccepted\": \"2016-01-01T12:00:00-08:00\", \"ignored\": true}}"
+	details := &UpdateUserDetails{}
+	err := details.ExtractFromJSON(strings.NewReader(source))
+	if err != nil {
+		t.Fatalf("Unexpected error for valid with password: %#v", err)
+	}
+	if details.Username != nil || details.Emails != nil || details.Password != nil || *details.TermsAccepted != "2016-01-01T12:00:00-08:00" || details.EmailVerified != nil {
+		t.Fatalf("Missing fields that should be present on success with password")
+	}
+}
+
+func Test_UpdateUserDetails_ExtractFromJSON_ValidEmailVerified(t *testing.T) {
+	source := "{\"updates\": {\"emailVerified\": true, \"ignored\": true}}"
+	details := &UpdateUserDetails{}
+	err := details.ExtractFromJSON(strings.NewReader(source))
+	if err != nil {
+		t.Fatalf("Unexpected error for valid with password: %#v", err)
+	}
+	if details.Username != nil || details.Emails != nil || details.Password != nil || details.TermsAccepted != nil || !*details.EmailVerified {
+		t.Fatalf("Missing fields that should be present on success with password")
+	}
+}
+
+func Test_UpdateUserDetails_Validate_Username_Missing(t *testing.T) {
+	password := "12345678"
+	termsAccepted := "2016-01-01T12:00:00-08:00"
+	emailVerified := true
+	details := &UpdateUserDetails{Emails: []string{"b@y.co", "c@x.co"}, Password: &password, TermsAccepted: &termsAccepted, EmailVerified: &emailVerified}
+	err := details.Validate()
+	if err != nil {
+		t.Fatalf("Unexpected error for username missing: %#v", err)
+	}
+}
+
+func Test_UpdateUserDetails_Validate_Username_Invalid(t *testing.T) {
+	username := "a"
+	password := "12345678"
+	termsAccepted := "2016-01-01T12:00:00-08:00"
+	emailVerified := true
+	details := &UpdateUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Password: &password, TermsAccepted: &termsAccepted, EmailVerified: &emailVerified}
+	err := details.Validate()
+	if err != User_error_username_invalid {
+		t.Fatalf("Unexpected error for username invalid: %#v", err)
+	}
+}
+
+func Test_UpdateUserDetails_Validate_Emails_Missing(t *testing.T) {
+	username := "a@z.co"
+	password := "12345678"
+	termsAccepted := "2016-01-01T12:00:00-08:00"
+	emailVerified := true
+	details := &UpdateUserDetails{Username: &username, Password: &password, TermsAccepted: &termsAccepted, EmailVerified: &emailVerified}
+	err := details.Validate()
+	if err != nil {
+		t.Fatalf("Unexpected error for emails missing: %#v", err)
+	}
+}
+
+func Test_UpdateUserDetails_Validate_Emails_Invalid(t *testing.T) {
+	username := "a@z.co"
+	password := "12345678"
+	termsAccepted := "2016-01-01T12:00:00-08:00"
+	emailVerified := true
+	details := &UpdateUserDetails{Username: &username, Emails: []string{"b@y.co", "c"}, Password: &password, TermsAccepted: &termsAccepted, EmailVerified: &emailVerified}
+	err := details.Validate()
+	if err != User_error_emails_invalid {
+		t.Fatalf("Unexpected error for emails invalid: %#v", err)
+	}
+}
+
+func Test_UpdateUserDetails_Validate_Password_Missing(t *testing.T) {
+	username := "a@z.co"
+	termsAccepted := "2016-01-01T12:00:00-08:00"
+	emailVerified := true
+	details := &UpdateUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, TermsAccepted: &termsAccepted, EmailVerified: &emailVerified}
+	err := details.Validate()
+	if err != nil {
+		t.Fatalf("Unexpected error for password missing: %#v", err)
+	}
+}
+
+func Test_UpdateUserDetails_Validate_Password_Invalid(t *testing.T) {
+	username := "a@z.co"
+	password := "1234567"
+	termsAccepted := "2016-01-01T12:00:00-08:00"
+	emailVerified := true
+	details := &UpdateUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Password: &password, TermsAccepted: &termsAccepted, EmailVerified: &emailVerified}
+	err := details.Validate()
+	if err != User_error_password_invalid {
+		t.Fatalf("Unexpected error for password invalid: %#v", err)
+	}
+}
+
+func Test_UpdateUserDetails_Validate_TermsAccepted_Missing(t *testing.T) {
+	username := "a@z.co"
+	password := "12345678"
+	emailVerified := true
+	details := &UpdateUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Password: &password, EmailVerified: &emailVerified}
+	err := details.Validate()
+	if err != nil {
+		t.Fatalf("Unexpected error for password missing: %#v", err)
+	}
+}
+
+func Test_UpdateUserDetails_Validate_TermsAccepted_Invalid(t *testing.T) {
+	username := "a@z.co"
+	password := "12345678"
+	termsAccepted := "2016-13-32T24:65:65-24:30"
+	emailVerified := true
+	details := &UpdateUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Password: &password, TermsAccepted: &termsAccepted, EmailVerified: &emailVerified}
+	err := details.Validate()
+	if err != User_error_terms_accepted_invalid {
+		t.Fatalf("Unexpected error for password invalid: %#v", err)
+	}
+}
+
+func Test_UpdateUserDetails_Validate_EmailVerified_Missing(t *testing.T) {
+	username := "a@z.co"
+	password := "12345678"
+	termsAccepted := "2016-01-01T12:00:00-08:00"
+	details := &UpdateUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Password: &password, TermsAccepted: &termsAccepted}
+	err := details.Validate()
+	if err != nil {
+		t.Fatalf("Unexpected error for password missing: %#v", err)
+	}
+}
+
+func Test_UpdateUserDetails_Validate_Valid(t *testing.T) {
+	username := "a@z.co"
+	password := "12345678"
+	termsAccepted := "2016-01-01T12:00:00-08:00"
+	emailVerified := true
+	details := &UpdateUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Password: &password, TermsAccepted: &termsAccepted, EmailVerified: &emailVerified}
+	err := details.Validate()
+	if err != nil {
+		t.Fatalf("Unexpected error for valid: %#v", err)
+	}
+}
+
+func Test_ParseUpdateUserDetails_InvalidJSON(t *testing.T) {
+	source := ""
+	details, err := ParseUpdateUserDetails(strings.NewReader(source))
+	if err == nil {
+		t.Fatalf("Unexpected success for invalid JSON")
+	}
+	if details != nil {
+		t.Fatalf("Unexpected details for invalid JSON")
+	}
+}
+
+func Test_ParseUpdateUserDetails_ValidAll(t *testing.T) {
+	source := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"b@y.co\"], \"password\": \"12345678\", \"termsAccepted\": \"2016-01-01T12:00:00-08:00\", \"emailVerified\": true}}"
+	details, err := ParseUpdateUserDetails(strings.NewReader(source))
+	if err != nil {
+		t.Fatalf("Unexpected error for valid with all: %#v", err)
+	}
+	if details == nil {
+		t.Fatalf("Missing details on success with all")
+	}
+	if *details.Username != "a@z.co" || !reflect.DeepEqual(details.Emails, []string{"b@y.co"}) || *details.Password != "12345678" || *details.TermsAccepted != "2016-01-01T12:00:00-08:00" || !*details.EmailVerified {
+		t.Fatalf("Missing fields that should be present on success with all")
+	}
+}
+
+func Test_User_HashPassword(t *testing.T) {
+	user := &User{Id: "123-user-id-you-know-me"}
 
 	if err := user.HashPassword("my pw", "the salt"); err == nil {
 		if user.PwHash == "" {
@@ -69,139 +981,106 @@ func Test_HashPassword(t *testing.T) {
 	} else {
 		t.Fatalf("there should not have been an error")
 	}
-
 }
-func Test_HashPassword_WithEmptyParams(t *testing.T) {
-	user := User{Id: "123-user-id-you-know-me"}
+
+func Test_User_HashPassword_WithEmptyParams(t *testing.T) {
+	user := &User{Id: "123-user-id-you-know-me"}
 
 	if err := user.HashPassword("", ""); err == nil {
 		t.Fatalf("there should be an error when the parameters are not passed")
-
 	}
 
 	if user.PwHash != "" {
 		t.Fatalf("there was no password to hash so it should fail")
 	}
-
 }
-func Test_NewUser_AsChild(t *testing.T) {
 
-	theName := "The Kid"
-	termsAccepted := "2015/03/15"
-
-	if childAcct, err := NewChildUser(&UserDetail{Name: theName, TermsAccepted: termsAccepted}, "some salt"); err != nil {
-		t.Fatalf("it is legit to create a user withuot a pw - this is known as a Child Account")
-	} else {
-		if childAcct.Name == theName {
-			t.Fatalf("the user name should have been hashed")
-		}
-		if childAcct.TermsAccepted != termsAccepted {
-			t.Fatalf("the terms should have been set")
-		}
-		if len(childAcct.Name) != 10 {
-			t.Fatalf("the user name should be 10 characters in length")
-		}
-		if childAcct.Hash == "" {
-			t.Fatalf("the user hash should have been set")
-		}
-		if len(childAcct.Hash) != 24 {
-			t.Fatalf("the user hash should be 24 characters in length")
-		}
-		if childAcct.Id == "" {
-			t.Fatalf("the user id should have been set")
-		}
-		if len(childAcct.Id) != 10 {
-			t.Fatalf("the user id should be 10 characters in length")
-		}
-		if len(childAcct.Emails) != 0 {
-			t.Fatalf("there should be no emails")
-		}
-
-		if childAcct.Verified == false {
-			t.Fatalf("the child account should be verified by default")
-		}
-
-		//make another child account with the same name
-		otherChildAcct, _ := NewChildUser(&UserDetail{Name: theName}, "some salt")
-
-		if otherChildAcct.Name == childAcct.Name {
-			t.Fatalf("the hashed names should be different")
-		}
+func Test_User_PasswordsMatch_Match(t *testing.T) {
+	user := &User{Id: "1234567890"}
+	salt := "abc"
+	err := user.HashPassword("3th3Hardw0y", salt)
+	if err != nil {
+		t.Fatalf("Failure hashing password")
+	}
+	if !user.PasswordsMatch("3th3Hardw0y", salt) {
+		t.Fatalf("PasswordsMatch returned false when passwords match")
 	}
 }
-func Test_NewUser_NoPw(t *testing.T) {
 
-	if _, err := NewUser(&UserDetail{Name: "I have a name", Emails: []string{}}, "some salt"); err == nil {
-		t.Fatalf("should have given error as the pw is not given")
+func Test_User_PasswordsMatch_NoMatch_Case(t *testing.T) {
+	user := &User{Id: "1234567890"}
+	salt := "abc"
+	err := user.HashPassword("3th3Hardw0y", salt)
+	if err != nil {
+		t.Fatalf("Failure hashing password")
+	}
+	if user.PasswordsMatch("3TH3HARDW0Y", salt) {
+		t.Fatalf("PasswordsMatch returned true when passwords do not match")
+	}
+}
+
+func Test_User_PasswordsMatch_NoMatch_MissingUserPassword(t *testing.T) {
+	user := &User{Id: "1234567890"}
+	salt := "abc"
+	if user.PasswordsMatch("3th3Hardw0y", salt) {
+		t.Fatalf("PasswordsMatch returned true when missing salt")
+	}
+}
+
+func Test_User_PasswordsMatch_NoMatch_MissingQueryPassword(t *testing.T) {
+	user := &User{Id: "1234567890"}
+	salt := "abc"
+	err := user.HashPassword("3th3Hardw0y", salt)
+	if err != nil {
+		t.Fatalf("Failure hashing password")
+	}
+	if user.PasswordsMatch("", salt) {
+		t.Fatalf("PasswordsMatch returned true when missing query password")
+	}
+}
+
+func Test_User_PasswordsMatch_NoMatch_MissingSalt(t *testing.T) {
+	user := &User{Id: "1234567890"}
+	salt := "abc"
+	err := user.HashPassword("3th3Hardw0y", salt)
+	if err != nil {
+		t.Fatalf("Failure hashing password")
+	}
+	if user.PasswordsMatch("3th3Hardw0y", "") {
+		t.Fatalf("PasswordsMatch returned true when missing salt")
+	}
+}
+
+func Test_User_IsVerified(t *testing.T) {
+	usernameWithSecret := "one@abc.com"
+	passwordWithSecret := "3th3Hardw0y"
+	userWithSecret, err := NewUser(&NewUserDetails{Username: &usernameWithSecret, Password: &passwordWithSecret, Emails: []string{"test+secret@foo.bar"}}, "some salt")
+	if err != nil {
+		t.Fatalf("Failure creating user with secret: %#v", err)
 	}
 
-}
-func Test_NewUser_NoName(t *testing.T) {
-
-	if _, err := NewUser(&UserDetail{Name: "", Pw: "3th3Hardw0y", Emails: []string{}}, "some salt"); err == nil {
-		t.Fatalf("should have given error as the name is not given")
+	username := "two@abc.com"
+	password := "3th3Hardw0y"
+	user, err := NewUser(&NewUserDetails{Username: &username, Password: &password, Emails: []string{"test@foo.bar"}}, "some salt")
+	if err != nil {
+		t.Fatalf("Failure creating user: %#v", err)
 	}
-
-}
-func Test_NewUser(t *testing.T) {
-
-	name := "MixeD caSe"
-
-	if user, err := NewUser(&UserDetail{Name: name, Pw: "3th3Hardw0y", Emails: []string{"test@foo.bar"}}, "some salt"); err == nil {
-		if user.Hash == "" {
-			t.Fatalf("the user hash should have been set")
-		}
-		if len(user.Hash) != 24 {
-			t.Fatalf("the user hash should be 24 characters in length")
-		}
-		if user.Id == "" {
-			t.Fatalf("the user id should have been set")
-		}
-		if len(user.Id) != 10 {
-			t.Fatalf("the user id should be 10 characters in length")
-		}
-		//Name should be lowercase
-		if user.Name == "" {
-			t.Fatalf("the user name should have been set")
-		}
-		if user.Name == name {
-			t.Fatalf("the user name should be lower case")
-		}
-		if user.Name != strings.ToLower(name) {
-			t.Fatalf("the user name should match the lowercase version of the given name")
-		}
-
-		if len(user.Emails) != 1 {
-			t.Fatalf("the emails should have been set")
-		}
-
-		if user.Verified {
-			t.Fatalf("the user account should not be verified by default")
-		}
-	}
-
-}
-func Test_IsVerified(t *testing.T) {
-
-	userWithSecret, _ := NewUser(&UserDetail{Name: "one", Pw: "3th3Hardw0y", Emails: []string{"test+secret@foo.bar"}}, "some salt")
-	user, _ := NewUser(&UserDetail{Name: "two", Pw: "3th3Hardw0y", Emails: []string{"test@foo.bar"}}, "some salt")
 
 	//no secret
-	if userWithSecret.IsVerified("") == true {
+	if userWithSecret.IsEmailVerified("") == true {
 		t.Fatalf("the user should not have been verified")
 	}
 
-	if user.IsVerified("") == true {
+	if user.IsEmailVerified("") == true {
 		t.Fatalf("the user should not have been verified")
 	}
 
 	//with secret
-	if userWithSecret.IsVerified("+secret") == false {
+	if userWithSecret.IsEmailVerified("+secret") == false {
 		t.Fatalf("the user should say they are verified as we both have the secret")
 	}
 
-	if user.IsVerified("+secret") == true {
+	if user.IsEmailVerified("+secret") == true {
 		t.Fatalf("the user should say they are verified as they don't have the secret")
 	}
-
 }

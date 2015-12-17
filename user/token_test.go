@@ -188,14 +188,10 @@ func Test_UnpackAndVerifyStoredToken(t *testing.T) {
 
 	token, _ := CreateSessionToken(testData.data, testData.config)
 
-	data, err := token.UnpackAndVerify(testData.config.Secret)
+	_, err := token.UnpackAndVerify(testData.config.Secret)
 
 	if err != nil {
 		t.Fatal("the token should be valid", err.Error())
-	}
-
-	if data.Valid == false {
-		t.Fatal("the token should be valid")
 	}
 
 }

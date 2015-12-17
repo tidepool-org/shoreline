@@ -23,7 +23,7 @@ var (
 		ApiConfig{ExpireDays: 20},
 		NewOAuthStorage(&mongo.Config{ConnectionString: "mongodb://localhost/oauth_test"}),
 		shoreline.NewMock(user_secert_token),
-		clients.NewGatekeeperMock(),
+		clients.NewGatekeeperMock(nil, nil),
 	)
 )
 
@@ -71,7 +71,7 @@ func Test_signupFormValid_false(t *testing.T) {
 
 func Test_applyPermissons(t *testing.T) {
 
-	mockPerms := clients.NewGatekeeperMock()
+	mockPerms := clients.NewGatekeeperMock(nil, nil)
 
 	api := Api{permsApi: mockPerms}
 

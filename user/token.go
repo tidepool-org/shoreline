@@ -19,7 +19,6 @@ type (
 		UserId       string  `json:"userid"`
 		IsServer     bool    `json:"isserver"`
 		DurationSecs float64 `json:"-"`
-		Valid        bool    `json:"-"`
 	}
 
 	TokenConfig struct {
@@ -110,7 +109,7 @@ func (t *SessionToken) unpackToken(secret string) (*TokenData, error) {
 		return nil, err
 	}
 
-	if jwtToken.Valid == false {
+	if !jwtToken.Valid {
 		return nil, SessionToken_invalid
 	}
 	// only return valid unpacked tokens
@@ -118,7 +117,6 @@ func (t *SessionToken) unpackToken(secret string) (*TokenData, error) {
 		IsServer:     jwtToken.Claims["svr"] == "yes",
 		DurationSecs: jwtToken.Claims["dur"].(float64),
 		UserId:       jwtToken.Claims["usr"].(string),
-		Valid:        jwtToken.Valid,
 	}, nil
 
 }

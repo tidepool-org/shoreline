@@ -6,9 +6,16 @@ import (
 	"log"
 	"net/http"
 	"strings"
-
-	"github.com/tidepool-org/go-common/clients/status"
 )
+
+func firstStringNotEmpty(strs ...string) string {
+	for _, str := range strs {
+		if len(str) > 0 {
+			return str
+		}
+	}
+	return ""
+}
 
 //Docode the http.Request parsing out the user details
 func getGivenDetail(req *http.Request) (d map[string]string) {
@@ -34,28 +41,11 @@ func unpackAuth(authLine string) (usr *User, pw string) {
 			details := strings.Split(string(decodedPayload), ":")
 			if details[0] != "" || details[1] != "" {
 				//Note the incoming `name` could infact be id, email or the username
-				return UserFromDetails(&UserDetail{Id: details[0], Name: details[0], Emails: []string{details[0]}}), details[1]
+				return &User{Id: details[0], Username: details[0], Emails: []string{details[0]}}, details[1]
 			}
 		}
 	}
 	return nil, ""
-}
-
-func sendModelsAsRes(res http.ResponseWriter, models ...interface{}) {
-
-	res.Header().Set("content-type", "application/json")
-	res.WriteHeader(http.StatusOK)
-
-	res.Write([]byte("["))
-	for i := range models {
-		if jsonDetails, err := json.Marshal(models[i]); err != nil {
-			log.Println(USER_API_PREFIX, err.Error())
-		} else {
-			res.Write(jsonDetails)
-		}
-	}
-	res.Write([]byte("]"))
-	return
 }
 
 func sendModelAsRes(res http.ResponseWriter, model interface{}) {
@@ -111,23 +101,33 @@ func (a *Api) logMetricForUser(id, name, token string, params map[string]string)
 	return
 }
 
-func (a *Api) addUserAndSendStatus(user *User, res http.ResponseWriter, req *http.Request) {
-	if err := a.Store.UpsertUser(user); err != nil {
-		a.logger.Println(http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err.Error())
-		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_CREATING_USR), http.StatusInternalServerError)
-		return
+func (a *Api) sendUser(res http.ResponseWriter, user *User, isServerRequest bool) {
+	a.sendUserWithStatus(res, user, http.StatusOK, isServerRequest)
+}
+
+func (a *Api) sendUserWithStatus(res http.ResponseWriter, user *User, statusCode int, isServerRequest bool) {
+	sendModelAsResWithStatus(res, a.asSerializableUser(user, isServerRequest), statusCode)
+}
+
+func (a *Api) asSerializableUser(user *User, isServerRequest bool) interface{} {
+	serializable := make(map[string]interface{})
+	if len(user.Id) > 0 {
+		serializable["userid"] = user.Id
 	}
-	if sessionToken, err := CreateSessionTokenAndSave(
-		&TokenData{DurationSecs: extractTokenDuration(req), UserId: user.Id, IsServer: false},
-		TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: a.ApiConfig.Secret},
-		a.Store); err != nil {
-		a.logger.Println(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN, err.Error())
-		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN), http.StatusInternalServerError)
-		return
-	} else {
-		a.logMetric("usercreated", sessionToken.Id, nil)
-		res.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
-		sendModelAsResWithStatus(res, user, http.StatusCreated)
-		return
+	if len(user.Username) > 0 {
+		serializable["username"] = user.Username
 	}
+	if len(user.Emails) > 0 {
+		serializable["emails"] = user.Emails
+	}
+	if len(user.TermsAccepted) > 0 {
+		serializable["termsAccepted"] = user.TermsAccepted
+	}
+	if len(user.Username) > 0 || len(user.Emails) > 0 {
+		serializable["emailVerified"] = user.EmailVerified
+	}
+	if isServerRequest {
+		serializable["passwordExists"] = (user.PwHash != "")
+	}
+	return serializable
 }

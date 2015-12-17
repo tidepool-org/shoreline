@@ -1,21 +1,22 @@
 package main
 
 import (
-	"./oauth2"
-	"./user"
 	"crypto/tls"
-	"github.com/gorilla/mux"
-	"github.com/tidepool-org/go-common"
-	"github.com/tidepool-org/go-common/clients"
-	"github.com/tidepool-org/go-common/clients/disc"
-	"github.com/tidepool-org/go-common/clients/hakken"
-	"github.com/tidepool-org/go-common/clients/highwater"
-	"github.com/tidepool-org/go-common/clients/mongo"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"./oauth2"
+	"./user"
+	"github.com/gorilla/mux"
+	common "github.com/tidepool-org/go-common"
+	"github.com/tidepool-org/go-common/clients"
+	"github.com/tidepool-org/go-common/clients/disc"
+	"github.com/tidepool-org/go-common/clients/hakken"
+	"github.com/tidepool-org/go-common/clients/highwater"
+	"github.com/tidepool-org/go-common/clients/mongo"
 )
 
 type (
@@ -78,10 +79,6 @@ func main() {
 	userapi := user.InitApi(config.User, user.NewMongoStoreClient(&config.Mongo), highwater)
 	userapi.SetHandlers("", rtr)
 
-	/*
-	 * Oauth setup
-	 */
-
 	userClient := user.NewUserClient(userapi)
 
 	permsClient := clients.NewGatekeeperClientBuilder().
@@ -89,6 +86,13 @@ func main() {
 		WithHttpClient(httpClient).
 		WithTokenProvider(userClient).
 		Build()
+
+	log.Print(shoreline_service_prefix, "adding", "permsClient")
+	userapi.AttachPerms(permsClient)
+
+	/*
+	 * Oauth setup
+	 */
 
 	log.Print(shoreline_service_prefix, "adding", oauth2.OAUTH2_API_PREFIX)
 

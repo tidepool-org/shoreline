@@ -37,17 +37,22 @@ func (d MockStoreClient) FindUsers(user *User) (found []*User, err error) {
 		return found, errors.New("FindUsers failure")
 	}
 
+	password := "123youknoWm3"
+
 	if d.returnDifferent {
 		return []*User{}, nil
 	}
 
-	if user.Name != "" {
-		found, _ := NewUser(&UserDetail{Name: user.Name, Pw: "123youknoWm3", Emails: []string{}}, d.salt)
-		found.Verified = true
+	if user.Username != "" {
+		found, err := NewUser(&NewUserDetails{Username: &user.Username, Password: &password, Emails: []string{}}, d.salt)
+		if err != nil {
+			return []*User{}, err
+		}
+		found.EmailVerified = true
 
 		return []*User{found}, nil
 	}
-	user.Verified = true
+	user.EmailVerified = true
 
 	return []*User{user}, nil
 
@@ -60,18 +65,27 @@ func (d MockStoreClient) FindUser(user *User) (found *User, err error) {
 	}
 	//`find` a pretend one we just made
 
+	username := "a@b.co"
+	password := "123youknoWm3"
+
 	if d.returnDifferent {
-		other, _ := NewUser(&UserDetail{Name: "Some One Else", Pw: "123youknoWm3", Emails: []string{}}, d.salt)
-		other.Verified = true
+		other, err := NewUser(&NewUserDetails{Username: &username, Password: &password, Emails: []string{}}, d.salt)
+		if err != nil {
+			return nil, err
+		}
+		other.EmailVerified = true
 		return other, nil
 	}
 
-	if user.Name != "" {
-		found, _ := NewUser(&UserDetail{Name: user.Name, Pw: "123youknoWm3", Emails: []string{}}, d.salt)
-		found.Verified = true
+	if user.Username != "" {
+		found, err := NewUser(&NewUserDetails{Username: &user.Username, Password: &password, Emails: []string{}}, d.salt)
+		if err != nil {
+			return nil, err
+		}
+		found.EmailVerified = true
 		return found, nil
 	}
-	user.Verified = true
+	user.EmailVerified = true
 	return user, nil
 }
 
@@ -91,7 +105,7 @@ func (d MockStoreClient) AddToken(token *SessionToken) error {
 
 func (d MockStoreClient) FindToken(token *SessionToken) (*SessionToken, error) {
 	if d.doBad {
-		return token, errors.New("FindToken failure")
+		return nil, errors.New("FindToken failure")
 	}
 	//`find` a pretend one we just made
 	return token, nil

@@ -2,11 +2,12 @@ package user
 
 import (
 	"fmt"
+	"log"
+	"regexp"
+
 	"github.com/tidepool-org/go-common/clients/mongo"
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
-	"log"
-	"regexp"
 )
 
 const (
@@ -89,12 +90,16 @@ func (d MongoStoreClient) FindUsers(user *User) (results []*User, err error) {
 	if user.Id != "" {
 		fieldsToMatch = append(fieldsToMatch, bson.M{"userid": user.Id})
 	}
-	if user.Name != "" {
+	if user.Username != "" {
 		//case insensitive match
-		fieldsToMatch = append(fieldsToMatch, bson.M{"username": bson.M{"$regex": bson.RegEx{fmt.Sprintf(MATCH, regexp.QuoteMeta(user.Name)), "i"}}})
+		fieldsToMatch = append(fieldsToMatch, bson.M{"username": bson.M{"$regex": bson.RegEx{fmt.Sprintf(MATCH, regexp.QuoteMeta(user.Username)), "i"}}})
 	}
 	if len(user.Emails) > 0 {
 		fieldsToMatch = append(fieldsToMatch, bson.M{"emails": bson.M{"$in": user.Emails}})
+	}
+
+	if len(fieldsToMatch) == 0 {
+		return []*User{}, nil
 	}
 
 	cpy := d.session.Copy()

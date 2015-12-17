@@ -3,11 +3,7 @@
 
 export GOPATH=`pwd`
 
-TESTDIRS=$(find . -name "*_test.go" -and ! -path "./src/*" |sed s@/[^/]*go@@ |sed s@./@@ |uniq)
-
-for i in $TESTDIRS; do
-    echo Testing in $i:
-    cd $i
-    go test -v
-    cd ..
+DIRECTORIES=$(find . -name "*_test.go" -and ! -path "./src/*" |sed s@/[^/]*go@@ |sed s@./@@ |uniq)
+for directory in $DIRECTORIES; do
+  (cd ${directory}; go test)
 done

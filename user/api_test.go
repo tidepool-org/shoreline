@@ -2,19 +2,23 @@ package user
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
+	"regexp"
+	"strings"
 	"sync"
 	"testing"
 
-	"github.com/gorilla/mux"
-
-	"github.com/tidepool-org/go-common/clients/highwater"
-
 	"../oauth2"
+	"github.com/gorilla/mux"
+	"github.com/tidepool-org/go-common/clients"
+	"github.com/tidepool-org/go-common/clients/highwater"
 )
 
 const (
@@ -27,23 +31,23 @@ type (
 )
 
 var (
-	NO_PARAMS   = map[string]string{}
-	FAKE_CONFIG = ApiConfig{
+	NO_PARAMS      = map[string]string{}
+	TOKEN_DURATION = float64(3600)
+	FAKE_CONFIG    = ApiConfig{
 		ServerSecret:       "shhh! don't tell",
 		Secret:             "shhh! don't tell *2",
-		TokenDurationSecs:  3600,
-		LongTermKey:        "the longetermkey",
+		TokenDurationSecs:  TOKEN_DURATION,
+		LongTermKey:        "thelongtermkey",
 		Salt:               "a mineral substance composed primarily of sodium chloride",
 		VerificationSecret: "",
 	}
 	/*
 	 * users and tokens
 	 */
-	USR           = &User{Id: "123-99-100", Name: "Test One", Emails: []string{"test@new.bar"}}
-	usrTknData    = &TokenData{UserId: USR.Id, IsServer: false, DurationSecs: 3600}
-	USR_TOKEN, _  = CreateSessionToken(usrTknData, TokenConfig{DurationSecs: FAKE_CONFIG.TokenDurationSecs, Secret: FAKE_CONFIG.Secret})
-	sverTknData   = &TokenData{UserId: "shoreline", IsServer: true, DurationSecs: 36000}
-	SRVR_TOKEN, _ = CreateSessionToken(sverTknData, TokenConfig{DurationSecs: FAKE_CONFIG.TokenDurationSecs, Secret: FAKE_CONFIG.Secret})
+	TOKEN_CONFIG  = TokenConfig{DurationSecs: FAKE_CONFIG.TokenDurationSecs, Secret: FAKE_CONFIG.Secret}
+	USR           = &User{Id: "123-99-100", Username: "test@new.bar", Emails: []string{"test@new.bar"}}
+	USR_TOKEN, _  = CreateSessionToken(&TokenData{UserId: USR.Id, IsServer: false, DurationSecs: TOKEN_DURATION}, TOKEN_CONFIG)
+	SRVR_TOKEN, _ = CreateSessionToken(&TokenData{UserId: "shoreline", IsServer: true, DurationSecs: TOKEN_DURATION}, TOKEN_CONFIG)
 	/*
 	 * basics setup
 	 */
@@ -64,7 +68,187 @@ var (
 	 */
 	mockStoreFails = NewMockStoreClient(FAKE_CONFIG.Salt, false, MAKE_IT_FAIL)
 	shorelineFails = InitApi(FAKE_CONFIG, mockStoreFails, mockMetrics)
+
+	responsableStore      = NewResponsableMockStoreClient()
+	responsableGatekeeper = NewResponsableGatekeeper()
+	responsableShoreline  = InitShoreline(FAKE_CONFIG, responsableStore, mockMetrics, responsableGatekeeper)
 )
+
+func InitShoreline(config ApiConfig, store Storage, metrics highwater.Client, perms clients.Gatekeeper) *Api {
+	api := InitApi(config, store, metrics)
+	api.AttachPerms(perms)
+	return api
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+func T_CreateAuthorization(t *testing.T, email string, password string) string {
+	return fmt.Sprintf("Basic %s", base64.URLEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", email, password))))
+}
+
+func T_CreateSessionToken(t *testing.T, userId string, isServer bool, duration float64) *SessionToken {
+	sessionToken, err := CreateSessionToken(&TokenData{UserId: userId, IsServer: isServer, DurationSecs: duration}, TOKEN_CONFIG)
+	if err != nil {
+		t.Fatalf("Error creating session token: %#v", err)
+	}
+	return sessionToken
+}
+
+func T_PerformRequest(t *testing.T, method string, url string) *httptest.ResponseRecorder {
+	return T_PerformRequestBodyHeaders(t, method, url, "", nil)
+}
+
+func T_PerformRequestBody(t *testing.T, method string, url string, body string) *httptest.ResponseRecorder {
+	return T_PerformRequestBodyHeaders(t, method, url, body, nil)
+}
+
+func T_PerformRequestHeaders(t *testing.T, method string, url string, headers http.Header) *httptest.ResponseRecorder {
+	return T_PerformRequestBodyHeaders(t, method, url, "", headers)
+}
+
+func T_PerformRequestBodyHeaders(t *testing.T, method string, url string, body string, headers http.Header) *httptest.ResponseRecorder {
+	request, err := http.NewRequest(method, url, strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("Failed to create new request with error %#v", err)
+	} else if request == nil {
+		t.Fatalf("Failure to request new request")
+	}
+	for key, values := range headers {
+		for _, value := range values {
+			request.Header.Add(key, value)
+		}
+	}
+
+	response := httptest.NewRecorder()
+	router := mux.NewRouter()
+	responsableShoreline.SetHandlers("", router)
+	router.ServeHTTP(response, request)
+	return response
+}
+
+func T_ExpectErrorResponse(t *testing.T, response *httptest.ResponseRecorder, expectedCode int, expectedReason string) {
+	if response.Code != expectedCode {
+		t.Fatalf("Unexpected response status code: %d", response.Code)
+	}
+
+	if contentType := response.HeaderMap["Content-Type"][0]; contentType != "application/json" {
+		t.Fatalf("Unexpected response content type: %s", contentType)
+	}
+
+	if response.Body == nil {
+		t.Fatalf("Unexpected nil response body")
+	}
+
+	var errorResponse map[string]interface{}
+	if err := json.NewDecoder(response.Body).Decode(&errorResponse); err != nil {
+		t.Fatalf("Error parsing response body: %#v", err)
+	}
+
+	if code := errorResponse["code"].(float64); int(code) != expectedCode {
+		t.Fatalf("Unexpected response error code: %#v", code)
+	}
+	if reason := errorResponse["reason"].(string); reason != expectedReason {
+		t.Fatalf("Unexpected response error reason: %#v", reason)
+	}
+}
+
+func T_ExpectSuccessResponse(t *testing.T, response *httptest.ResponseRecorder, expectedCode int) string {
+	if response.Code != expectedCode {
+		t.Fatalf("Unexpected response status code: %d", response.Code)
+	}
+
+	var successResponse string
+	if response.Body != nil {
+		var buffer bytes.Buffer
+		buffer.ReadFrom(response.Body)
+		successResponse = buffer.String()
+	}
+	return successResponse
+}
+
+func T_ExpectSuccessResponseWithJSON(t *testing.T, response *httptest.ResponseRecorder, expectedCode int) map[string]interface{} {
+	if response.Code != expectedCode {
+		t.Fatalf("Unexpected response status code: %d", response.Code)
+	}
+
+	if contentTypes := response.HeaderMap["Content-Type"]; len(contentTypes) == 0 {
+		t.Fatalf("Unexpected response without content type")
+	} else if contentType := contentTypes[0]; contentType != "application/json" {
+		t.Fatalf("Unexpected response content type: %s", contentType)
+	}
+
+	if response.Body == nil {
+		t.Fatalf("Unexpected nil response body")
+	}
+
+	var successResponse map[string]interface{}
+	if err := json.NewDecoder(response.Body).Decode(&successResponse); err != nil {
+		t.Fatalf("Error parsing response body: %#v", err)
+	}
+	return successResponse
+}
+
+func T_ExpectElementMatch(t *testing.T, actual map[string]interface{}, key string, pattern string, remove bool) {
+	if raw, ok := actual[key]; !ok {
+		t.Fatalf("Missing expected element with key '%s' in: %#v", key, actual)
+	} else if value, ok := raw.(string); !ok {
+		t.Fatalf("Missing expected element with key '%s' is not a string", key)
+	} else if matched, _ := regexp.MatchString(pattern, value); !matched {
+		t.Fatalf("Expected element with key '%s' and value '%s' did not match pattern: %s", key, value, pattern)
+	}
+	if remove {
+		delete(actual, key)
+	}
+}
+
+func T_ExpectEqualsMap(t *testing.T, actual map[string]interface{}, expected map[string]interface{}) {
+	if !reflect.DeepEqual(actual, expected) {
+		t.Fatalf("Actual %#v does not match expected %#v", actual, expected)
+	}
+}
+
+func T_ExpectResponsablesEmpty(t *testing.T) {
+	if responsableStore.HasResponses() {
+		if len(responsableStore.PingResponses) > 0 {
+			t.Logf("PingResponses still available")
+		}
+		if len(responsableStore.UpsertUserResponses) > 0 {
+			t.Logf("UpsertUserResponses still available")
+		}
+		if len(responsableStore.FindUsersResponses) > 0 {
+			t.Logf("FindUsersResponses still available")
+		}
+		if len(responsableStore.FindUserResponses) > 0 {
+			t.Logf("FindUserResponses still available")
+		}
+		if len(responsableStore.RemoveUserResponses) > 0 {
+			t.Logf("RemoveUserResponses still available")
+		}
+		if len(responsableStore.AddTokenResponses) > 0 {
+			t.Logf("AddTokenResponses still available")
+		}
+		if len(responsableStore.FindTokenResponses) > 0 {
+			t.Logf("FindTokenResponses still available")
+		}
+		if len(responsableStore.RemoveTokenResponses) > 0 {
+			t.Logf("RemoveTokenResponses still available")
+		}
+		responsableStore.Reset()
+		t.Fail()
+	}
+	if responsableGatekeeper.HasResponses() {
+		if len(responsableGatekeeper.UserInGroupResponses) > 0 {
+			t.Logf("UserInGroupResponses still available")
+		}
+		if len(responsableGatekeeper.SetPermissionsResponses) > 0 {
+			t.Logf("SetPermissionsResponses still available")
+		}
+		responsableGatekeeper.Reset()
+		t.Fail()
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 func TestGetStatus_StatusOk(t *testing.T) {
 
@@ -102,511 +286,564 @@ func TestGetStatus_StatusInternalServerError(t *testing.T) {
 
 }
 
-func TestCreateUser_StatusBadRequest_WhenNoParamsGiven(t *testing.T) {
+////////////////////////////////////////////////////////////////////////////////
 
-	request, _ := http.NewRequest("POST", "/user", nil)
-	response := httptest.NewRecorder()
-
-	shoreline.SetHandlers("", rtr)
-
-	shoreline.CreateUser(response, request)
-
-	if response.Code != http.StatusBadRequest {
-		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "400", response.Code)
-	}
-
-	body, _ := ioutil.ReadAll(response.Body)
-
-	if string(body) != `{"code":400,"reason":"Not all required details were given"}` {
-		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_MISSING_USR_DETAILS)
-	}
-
+func Test_CreateUser_Error_MissingBody(t *testing.T) {
+	response := T_PerformRequest(t, "POST", "/user")
+	T_ExpectErrorResponse(t, response, 400, "Invalid user details were given")
 }
 
-func TestCreateUser_StatusCreated(t *testing.T) {
+func Test_CreateUser_Error_MalformedBody(t *testing.T) {
+	response := T_PerformRequestBody(t, "POST", "/user", "{")
+	T_ExpectErrorResponse(t, response, 400, "Invalid user details were given")
+}
 
-	var jsonData = []byte(`{"username": "test", "password": "123youknoWm3","emails":["test@foo.bar"]}`)
+func Test_CreateUser_Error_MissingUserDetails(t *testing.T) {
+	response := T_PerformRequestBody(t, "POST", "/user", "{}")
+	T_ExpectErrorResponse(t, response, 400, "Invalid user details were given")
+}
 
-	request, _ := http.NewRequest("POST", "/user", bytes.NewBuffer(jsonData))
-	request.Header.Add("content-type", "application/json")
+func Test_CreateUser_Error_InvalidUserDetails(t *testing.T) {
+	response := T_PerformRequestBody(t, "POST", "/user", "{\"username\": \"a\"}")
+	T_ExpectErrorResponse(t, response, 400, "Invalid user details were given")
+}
 
-	response := httptest.NewRecorder()
+func Test_CreateUser_Error_ErrorFindingUsers(t *testing.T) {
+	responsableStore.FindUsersResponses = []FindUsersResponse{{nil, errors.New("ERROR")}}
+	defer T_ExpectResponsablesEmpty(t)
 
-	shorelineNoDups.SetHandlers("", rtr)
+	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\"}"
+	response := T_PerformRequestBody(t, "POST", "/user", body)
+	T_ExpectErrorResponse(t, response, 500, "Error creating the user")
+}
 
-	shorelineNoDups.CreateUser(response, request)
+func Test_CreateUser_Error_ConflictingEmail(t *testing.T) {
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{}}, nil}}
+	defer T_ExpectResponsablesEmpty(t)
 
-	if response.Code != http.StatusCreated {
-		t.Fatalf("Non-expected status code %v:\n\tbody: %v", "201", response.Code)
-	}
+	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\"}"
+	response := T_PerformRequestBody(t, "POST", "/user", body)
+	T_ExpectErrorResponse(t, response, 409, "User already exists")
+}
 
+func Test_CreateUser_Error_ErrorUpsertingUser(t *testing.T) {
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
+	responsableStore.UpsertUserResponses = []error{errors.New("ERROR")}
+	defer T_ExpectResponsablesEmpty(t)
+
+	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\"}"
+	response := T_PerformRequestBody(t, "POST", "/user", body)
+	T_ExpectErrorResponse(t, response, 500, "Error creating the user")
+}
+
+func Test_CreateUser_Error_ErrorAddingToken(t *testing.T) {
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
+	responsableStore.UpsertUserResponses = []error{nil}
+	responsableStore.AddTokenResponses = []error{errors.New("ERROR")}
+	defer T_ExpectResponsablesEmpty(t)
+
+	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\"}"
+	response := T_PerformRequestBody(t, "POST", "/user", body)
+	T_ExpectErrorResponse(t, response, 500, "Error generating the token")
+}
+
+func Test_CreateUser_Success(t *testing.T) {
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
+	responsableStore.UpsertUserResponses = []error{nil}
+	responsableStore.AddTokenResponses = []error{nil}
+	defer T_ExpectResponsablesEmpty(t)
+
+	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\"}"
+	response := T_PerformRequestBody(t, "POST", "/user", body)
+	successResponse := T_ExpectSuccessResponseWithJSON(t, response, 201)
+	T_ExpectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
+	T_ExpectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": false, "emails": []interface{}{"a@z.co"}, "username": "a@z.co"})
 	if response.Header().Get(TP_SESSION_TOKEN) == "" {
-		t.Fatal("the resp should have a session token")
-	}
-
-	if response.Header().Get("content-type") != "application/json" {
-		t.Fatal("the resp should be json")
-	}
-
-	body, _ := ioutil.ReadAll(response.Body)
-
-	var usrData map[string]string
-	_ = json.Unmarshal(body, &usrData)
-
-	if usrData == nil {
-		t.Fatal("body should have been returned")
-	}
-
-	if usrData["userid"] == "" {
-		t.Fatal("body should have the userid")
-	}
-
-	var boolData map[string]bool
-	_ = json.Unmarshal(body, &boolData)
-
-	if boolData == nil {
-		t.Fatal("body should have been returned")
-	}
-
-	if emailVerified, ok := boolData["emailVerified"]; !ok || emailVerified {
-		t.Fatal("body should have emailVerified set to false")
+		t.Fatalf("Missing expected %s header", TP_SESSION_TOKEN)
 	}
 }
 
-func TestCreateChildUser_NoSessionToken(t *testing.T) {
+////////////////////////////////////////////////////////////////////////////////
 
-	var jsonData = []byte(`{"username": "child user"}`)
-
-	request, _ := http.NewRequest("POST", "/childuser", bytes.NewBuffer(jsonData))
-	request.Header.Add("content-type", "application/json")
-
-	response := httptest.NewRecorder()
-
-	shorelineNoDups.SetHandlers("", rtr)
-
-	shorelineNoDups.CreateChildUser(response, request)
-
-	if response.Code != http.StatusUnauthorized {
-		t.Fatalf("Non-expected status code %v:\n\tbody: %v", "401", response.Code)
-	}
+func Test_CreateCustodialUser_Error_MissingSessionToken(t *testing.T) {
+	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}"
+	response := T_PerformRequestBody(t, "POST", "/user/abcdef1234/user", body)
+	T_ExpectErrorResponse(t, response, 401, "Not authorized for requested operation")
 }
 
-func TestCreateChildUser_StatusCreated(t *testing.T) {
+func Test_CreateCustodialUser_Error_MismatchUserIds(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "abcdef1234", false, TOKEN_DURATION)
+	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	defer T_ExpectResponsablesEmpty(t)
 
-	var jsonData = []byte(`{"username": "child user"}`)
-
-	request, _ := http.NewRequest("POST", "/childuser", bytes.NewBuffer(jsonData))
-	request.Header.Add("content-type", "application/json")
-
-	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
-	request.Header.Add("content-type", "application/json")
-
-	response := httptest.NewRecorder()
-
-	shorelineNoDups.SetHandlers("", rtr)
-
-	shorelineNoDups.CreateChildUser(response, request)
-
-	if response.Code != http.StatusCreated {
-		t.Fatalf("Non-expected status code %v:\n\tbody: %v", "201", response.Code)
-	}
-
-	if response.Header().Get(TP_SESSION_TOKEN) == "" {
-		t.Fatal("the resp should have a session token")
-	}
-
-	if response.Header().Get("content-type") != "application/json" {
-		t.Fatal("the resp should be json")
-	}
-
-	body, _ := ioutil.ReadAll(response.Body)
-
-	var usrData map[string]string
-	_ = json.Unmarshal(body, &usrData)
-
-	if usrData == nil {
-		t.Fatal("body should have been returned")
-	}
-
-	if usrData["userid"] == "" {
-		t.Fatal("body should have the userid")
-	}
-
-	var boolData map[string]bool
-	_ = json.Unmarshal(body, &boolData)
-
-	if boolData == nil {
-		t.Fatal("body should have been returned")
-	}
-
-	if emailVerified, ok := boolData["emailVerified"]; !ok || !emailVerified {
-		t.Fatal("body should have emailVerified set to true")
-	}
+	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}"
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	response := T_PerformRequestBodyHeaders(t, "POST", "/user/1234567890/user", body, headers)
+	T_ExpectErrorResponse(t, response, 401, "Not authorized for requested operation")
 }
 
-func TestCreateUser_Failure(t *testing.T) {
+func Test_CreateCustodialUser_Error_MissingDetails(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "abcdef1234", false, TOKEN_DURATION)
+	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	defer T_ExpectResponsablesEmpty(t)
 
-	var jsonData = []byte(`{"username": "test", "password": "123youknoWm3","emails":["test@foo.bar"]}`)
-
-	request, _ := http.NewRequest("POST", "/user", bytes.NewBuffer(jsonData))
-	request.Header.Add("content-type", "application/json")
-
-	response := httptest.NewRecorder()
-
-	shorelineFails.SetHandlers("", rtr)
-
-	shorelineFails.CreateUser(response, request)
-
-	if response.Code != http.StatusInternalServerError {
-		t.Fatalf("Expected [%v] and got [%v]", http.StatusInternalServerError, response.Code)
-	}
+	body := ""
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	response := T_PerformRequestBodyHeaders(t, "POST", "/user/abcdef1234/user", body, headers)
+	T_ExpectErrorResponse(t, response, 400, "Invalid user details were given")
 }
 
-func TestCreateUser_StatusConflict_ForDuplicates(t *testing.T) {
+func Test_CreateCustodialUser_Error_InvalidDetails(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "abcdef1234", false, TOKEN_DURATION)
+	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	defer T_ExpectResponsablesEmpty(t)
 
-	var jsonData = []byte(`{"username": "test", "password": "123youknoWm3","emails":["test@foo.bar"]}`)
-
-	request, _ := http.NewRequest("POST", "/user", bytes.NewBuffer(jsonData))
-	request.Header.Add("content-type", "application/json")
-
-	response := httptest.NewRecorder()
-
-	shoreline.SetHandlers("", rtr)
-
-	shoreline.CreateUser(response, request)
-
-	if response.Code != http.StatusConflict {
-		t.Fatalf("Non-expected status code %v:\n\tbody: %v", http.StatusConflict, response.Code)
-	}
-
-	body, _ := ioutil.ReadAll(response.Body)
-
-	if string(body) != fmt.Sprintf(`{"code":409,"reason":"%s"}`, STATUS_USR_ALREADY_EXISTS) {
-		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_USR_ALREADY_EXISTS)
-	}
-
+	body := "{\"username\": \"a\", \"emails\": [\"a\"]}"
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	response := T_PerformRequestBodyHeaders(t, "POST", "/user/abcdef1234/user", body, headers)
+	T_ExpectErrorResponse(t, response, 400, "Invalid user details were given")
 }
 
-func TestUpdateUser_StatusUnauthorized_WhenNoToken(t *testing.T) {
-	request, _ := http.NewRequest("PUT", "/user", nil)
-	response := httptest.NewRecorder()
+func Test_CreateCustodialUser_Error_FindUsersError(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "abcdef1234", false, TOKEN_DURATION)
+	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, errors.New("ERROR")}}
+	defer T_ExpectResponsablesEmpty(t)
 
-	shoreline.SetHandlers("", rtr)
-
-	shoreline.UpdateUser(response, request, NO_PARAMS)
-
-	if response.Code != http.StatusUnauthorized {
-		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "401", response.Code)
-	}
+	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}"
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	response := T_PerformRequestBodyHeaders(t, "POST", "/user/abcdef1234/user", body, headers)
+	T_ExpectErrorResponse(t, response, 500, "Error creating the user")
 }
 
-func TestUpdateUser_StatusUnauthorized_WhenUserIdsDiffer(t *testing.T) {
-	var updateAll = []byte(`{"updates":{"username": "id from token","password":"aN3wPw0rD","emails":["fromtkn@new.bar"]}}`)
+func Test_CreateCustodialUser_Error_FindUsersDuplicate(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "abcdef1234", false, TOKEN_DURATION)
+	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{}}, nil}}
+	defer T_ExpectResponsablesEmpty(t)
 
-	request, _ := http.NewRequest("PUT", "/user/999-999-999", bytes.NewBuffer(updateAll))
-
-	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
-	request.Header.Add("content-type", "application/json")
-
-	responseUpdateAll := httptest.NewRecorder()
-
-	shorelineNoDups.SetHandlers("", rtr)
-
-	shorelineNoDups.UpdateUser(responseUpdateAll, request, map[string]string{"userid": "999-999-999"})
-
-	if responseUpdateAll.Code != http.StatusUnauthorized {
-		t.Fatalf("Status given [%v] expected [%v] ", responseUpdateAll.Code, http.StatusUnauthorized)
-	}
+	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}"
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	response := T_PerformRequestBodyHeaders(t, "POST", "/user/abcdef1234/user", body, headers)
+	T_ExpectErrorResponse(t, response, 409, "User already exists")
 }
 
-func TestUpdateUser_IdFromToken_StatusOK(t *testing.T) {
+func Test_CreateCustodialUser_Error_UpsertUserError(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "abcdef1234", false, TOKEN_DURATION)
+	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
+	responsableStore.UpsertUserResponses = []error{errors.New("ERROR")}
+	defer T_ExpectResponsablesEmpty(t)
 
-	shorelineNoDups.SetHandlers("", rtr)
-
-	/*
-	 * can update all
-	 */
-	var updateAll = []byte(`{"updates":{"username": "id from token","password":"aN3wPw0rD","emails":["fromtkn@new.bar"]}}`)
-
-	requestUpdateAll, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updateAll))
-
-	requestUpdateAll.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
-	requestUpdateAll.Header.Add("content-type", "application/json")
-
-	responseUpdateAll := httptest.NewRecorder()
-
-	shorelineNoDups.UpdateUser(responseUpdateAll, requestUpdateAll, NO_PARAMS)
-
-	if responseUpdateAll.Code != http.StatusOK {
-		t.Fatalf("Status given [%v] expected [%v] ", responseUpdateAll.Code, http.StatusOK)
-	}
-
+	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}"
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	response := T_PerformRequestBodyHeaders(t, "POST", "/user/abcdef1234/user", body, headers)
+	T_ExpectErrorResponse(t, response, 500, "Error creating the user")
 }
 
-func TestUpdateUser_StatusOK(t *testing.T) {
+func Test_CreateCustodialUser_Error_SetPermissionsError(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "abcdef1234", false, TOKEN_DURATION)
+	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
+	responsableStore.UpsertUserResponses = []error{nil}
+	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, errors.New("ERROR")}}
+	defer T_ExpectResponsablesEmpty(t)
 
-	shorelineNoDups.SetHandlers("", rtr)
-
-	/*
-	 * can update all
-	 */
-	var updateAll = []byte(`{"updates":{"username": "change1","password":"aN3wPw0rD","emails":["change1@new.bar"]}}`)
-
-	requestUpdateAll, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updateAll))
-
-	requestUpdateAll.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
-	requestUpdateAll.Header.Add("content-type", "application/json")
-
-	responseUpdateAll := httptest.NewRecorder()
-
-	shorelineNoDups.UpdateUser(responseUpdateAll, requestUpdateAll, map[string]string{"userid": USR.Id})
-
-	if responseUpdateAll.Code != http.StatusOK {
-		t.Fatalf("Expected [%v] and got [%v]", http.StatusOK, responseUpdateAll.Code)
-	}
-
-	/*
-	 * can update just username
-	 */
-	var updateName = []byte(`{"updates":{"username": "change2"}}`)
-
-	requestUpdateName, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updateName))
-	requestUpdateName.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
-	requestUpdateName.Header.Add("content-type", "application/json")
-	responseUpdateName := httptest.NewRecorder()
-	shorelineNoDups.UpdateUser(responseUpdateName, requestUpdateName, map[string]string{"userid": USR.Id})
-
-	if responseUpdateName.Code != http.StatusOK {
-		t.Fatalf("Expected [%v] and got [%v]", http.StatusOK, responseUpdateName.Code)
-	}
-
-	/*
-	 * can update just pw
-	 */
-
-	var updatePW = []byte(`{"updates":{"password": "MyN3w0n_"}}`)
-
-	requestUpdatePW, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updatePW))
-	requestUpdatePW.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
-	requestUpdatePW.Header.Add("content-type", "application/json")
-	responseUpdatePW := httptest.NewRecorder()
-	shorelineNoDups.UpdateUser(responseUpdatePW, requestUpdatePW, map[string]string{"userid": USR.Id})
-
-	if responseUpdatePW.Code != http.StatusOK {
-		t.Fatalf("Expected [%v] and got [%v]", http.StatusOK, responseUpdatePW.Code)
-	}
-
-	/*
-	 * can update just email
-	 */
-	var updateEmail = []byte(`{"updates":{"emails":["change3@new.bar"]}}`)
-
-	requestUpdateEmail, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updateEmail))
-	requestUpdateEmail.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
-	requestUpdateEmail.Header.Add("content-type", "application/json")
-	responseUpdateEmail := httptest.NewRecorder()
-	shorelineNoDups.UpdateUser(responseUpdateEmail, requestUpdateEmail, map[string]string{"userid": USR.Id})
-
-	if responseUpdateEmail.Code != http.StatusOK {
-		t.Fatalf("Expected [%v] and got [%v]", http.StatusOK, responseUpdateEmail.Code)
-	}
-
-	/*
-	 * can update authentication (only if server)
-	 */
-	var updateAuth = []byte(`{"updates":{"authenticated":true}}`)
-
-	requestUpdateAuth, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updateAuth))
-	requestUpdateAuth.Header.Set(TP_SESSION_TOKEN, SRVR_TOKEN.Id)
-	requestUpdateAuth.Header.Add("content-type", "application/json")
-	responseUpdateAuth := httptest.NewRecorder()
-	shorelineNoDups.UpdateUser(responseUpdateAuth, requestUpdateAuth, map[string]string{"userid": USR.Id})
-
-	if responseUpdateAuth.Code != http.StatusOK {
-		t.Fatalf("Expected [%v] and got [%v]", http.StatusOK, responseUpdateAuth.Code)
-	}
+	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}"
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	response := T_PerformRequestBodyHeaders(t, "POST", "/user/abcdef1234/user", body, headers)
+	T_ExpectErrorResponse(t, response, 500, "Error creating the user")
 }
 
-func TestUpdateUser_Unauthorized_UserUpdateAuthentication(t *testing.T) {
+func Test_CreateCustodialUser_Success_Anonymous(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "abcdef1234", false, TOKEN_DURATION)
+	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
+	responsableStore.UpsertUserResponses = []error{nil}
+	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
+	defer T_ExpectResponsablesEmpty(t)
 
-	shorelineNoDups.SetHandlers("", rtr)
-
-	var updateAuth = []byte(`{"updates":{"authenticated":true}}`)
-
-	requestUpdateAuth, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updateAuth))
-	requestUpdateAuth.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
-	requestUpdateAuth.Header.Add("content-type", "application/json")
-	responseUpdateAuth := httptest.NewRecorder()
-	shorelineNoDups.UpdateUser(responseUpdateAuth, requestUpdateAuth, map[string]string{"userid": USR.Id})
-
-	if responseUpdateAuth.Code != http.StatusUnauthorized {
-		t.Fatalf("Expected [%v] and got [%v]", http.StatusUnauthorized, responseUpdateAuth.Code)
-	}
+	body := "{}"
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	response := T_PerformRequestBodyHeaders(t, "POST", "/user/abcdef1234/user", body, headers)
+	successResponse := T_ExpectSuccessResponseWithJSON(t, response, 201)
+	T_ExpectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
+	T_ExpectEqualsMap(t, successResponse, map[string]interface{}{})
 }
 
-func TestUpdateUser_Failure(t *testing.T) {
+func Test_CreateCustodialUser_Success_Anonymous_Server(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "abcdef1234", true, TOKEN_DURATION)
+	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
+	responsableStore.UpsertUserResponses = []error{nil}
+	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
+	defer T_ExpectResponsablesEmpty(t)
 
-	var updateAll = []byte(`{"updates":{"username": "change1","password":"aN3wPw0rD","emails":["change1@new.bar"]}}`)
-
-	req, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updateAll))
-	req.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
-	req.Header.Add("content-type", "application/json")
-
-	resp := httptest.NewRecorder()
-
-	shorelineFails.SetHandlers("", rtr)
-	shorelineFails.UpdateUser(resp, req, map[string]string{"userid": USR.Id})
-
-	if resp.Code != http.StatusInternalServerError {
-		t.Fatalf("Expected [%v] and got [%v]", http.StatusInternalServerError, resp.Code)
-	}
+	body := "{}"
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	response := T_PerformRequestBodyHeaders(t, "POST", "/user/0000000000/user", body, headers)
+	successResponse := T_ExpectSuccessResponseWithJSON(t, response, 201)
+	T_ExpectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
+	T_ExpectEqualsMap(t, successResponse, map[string]interface{}{})
 }
 
-func TestGetUserInfo_StatusOK_AndBody(t *testing.T) {
-	var findData = []byte(`{"updates":{"username": "test","emails":["test@foo.bar"]}}`)
+func Test_CreateCustodialUser_Success_Known(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "abcdef1234", false, TOKEN_DURATION)
+	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
+	responsableStore.UpsertUserResponses = []error{nil}
+	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
+	defer T_ExpectResponsablesEmpty(t)
 
-	request, _ := http.NewRequest("GET", "/", bytes.NewBuffer(findData))
-	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
-	request.Header.Add("content-type", "application/json")
-	response := httptest.NewRecorder()
-
-	shoreline.SetHandlers("", rtr)
-
-	shoreline.GetUserInfo(response, request, NO_PARAMS)
-
-	//NOTE: as we have mocked the mongo layer we just be passed back what we gave
-	if response.Code != http.StatusOK {
-		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, response.Code)
-	}
-
-	if response.Body == nil {
-		t.Fatalf("Non-expected empty body has been returned body: %v", response.Body)
-	}
+	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}"
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	response := T_PerformRequestBodyHeaders(t, "POST", "/user/abcdef1234/user", body, headers)
+	successResponse := T_ExpectSuccessResponseWithJSON(t, response, 201)
+	T_ExpectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
+	T_ExpectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": false, "emails": []interface{}{"a@z.co"}, "username": "a@z.co"})
 }
 
-func TestGetUserInfo_Failure(t *testing.T) {
-	var findData = []byte(`{"updates":{"username": "test","emails":["test@foo.bar"]}}`)
+////////////////////////////////////////////////////////////////////////////////
 
-	req, _ := http.NewRequest("GET", "/", bytes.NewBuffer(findData))
-	req.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
-	req.Header.Add("content-type", "application/json")
-	resp := httptest.NewRecorder()
-
-	shorelineFails.SetHandlers("", rtr)
-	shorelineFails.GetUserInfo(resp, req, NO_PARAMS)
-
-	if resp.Code != http.StatusInternalServerError {
-		t.Fatalf("Expected [%v] and got [%v]", http.StatusInternalServerError, resp.Code)
-	}
-
+func Test_UpdateUser_Error_MissingSessionToken(t *testing.T) {
+	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"emailVerified\": true, \"password\": \"newpassword\", \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
+	response := T_PerformRequestBody(t, "PUT", "/user/1111111111", body)
+	T_ExpectErrorResponse(t, response, 401, "Not authorized for requested operation")
 }
 
-func TestGetUserInfo_StatusOK_AndBody_WhenIdInURL(t *testing.T) {
+func Test_UpdateUser_Error_MissingDetails(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
+	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	defer T_ExpectResponsablesEmpty(t)
 
-	request, _ := http.NewRequest("GET", "/", nil)
-
-	values := request.URL.Query()
-	values.Add("userid", "9lJmBOVkWB")
-	request.URL.RawQuery = values.Encode()
-
-	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
-	request.Header.Add("content-type", "application/json")
-
-	response := httptest.NewRecorder()
-
-	shoreline.SetHandlers("", rtr)
-
-	shoreline.GetUserInfo(response, request, NO_PARAMS)
-
-	//NOTE: as we have mocked the mongo layer we just be passed back what we gave
-	if response.Code != http.StatusOK {
-		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, response.Code)
-	}
-
-	if response.Body == nil {
-		t.Fatalf("Non-expected empty body has been returned body: %v", response.Body)
-	}
+	body := ""
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
+	T_ExpectErrorResponse(t, response, 400, "Invalid user details were given")
 }
 
-func TestGetUserInfo_IsCaseInsensitive(t *testing.T) {
+func Test_UpdateUser_Error_InvalidDetails(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
+	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	defer T_ExpectResponsablesEmpty(t)
 
-	/*
-	 * Email
-	 */
-	var findData = []byte(`{emails":["TEST@FOO.BAR"]}`)
-	requestEmail, _ := http.NewRequest("GET", "/", bytes.NewBuffer(findData))
-
-	requestEmail.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
-	requestEmail.Header.Add("content-type", "application/json")
-
-	responseEmail := httptest.NewRecorder()
-
-	shoreline.SetHandlers("", rtr)
-
-	shoreline.GetUserInfo(responseEmail, requestEmail, NO_PARAMS)
-
-	//NOTE: as we have mocked the mongo layer we just be passed back what we gave
-	if responseEmail.Code != http.StatusOK {
-		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, responseEmail.Code)
-	}
-
-	if responseEmail.Body == nil {
-		t.Fatalf("Non-expected empty body has been returned body: %v", responseEmail.Body)
-	}
-
-	/*
-	 * Email
-	 */
-	var findName = []byte(`{username":"TEST"}`)
-	requestName, _ := http.NewRequest("GET", "/", bytes.NewBuffer(findName))
-
-	requestName.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
-	requestName.Header.Add("content-type", "application/json")
-
-	responseName := httptest.NewRecorder()
-
-	shoreline.SetHandlers("", rtr)
-
-	shoreline.GetUserInfo(responseName, requestName, NO_PARAMS)
-
-	//NOTE: as we have mocked the mongo layer we just be passed back what we gave
-	if responseName.Code != http.StatusOK {
-		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, responseName.Code)
-	}
-
-	if responseName.Body == nil {
-		t.Fatalf("Non-expected empty body has been returned body: %v", responseName.Body)
-	}
+	body := "{\"updates\": {\"username\": \"a\", \"emails\": [\"a\"]}}"
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
+	T_ExpectErrorResponse(t, response, 400, "Invalid user details were given")
 }
 
-func TestGetUserInfo_StatusUnauthorized_WhenNoToken(t *testing.T) {
-	var findData = []byte(`{"username": "test","emails":["test@foo.bar"]}`)
-	request, _ := http.NewRequest("GET", "/", bytes.NewBuffer(findData))
-	response := httptest.NewRecorder()
+func Test_UpdateUser_Error_FindUsersError(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
+	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{nil, errors.New("ERROR")}}
+	defer T_ExpectResponsablesEmpty(t)
 
-	shoreline.SetHandlers("", rtr)
-
-	shoreline.GetUserInfo(response, request, NO_PARAMS)
-
-	if response.Code != http.StatusUnauthorized {
-		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "401", response.Code)
-	}
+	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"emailVerified\": true, \"password\": \"newpassword\", \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
+	T_ExpectErrorResponse(t, response, 500, "Error finding user")
 }
 
-func TestGetUserInfo_StatusUnauthorized_WhenUserIdsDiffer(t *testing.T) {
-	var findData = []byte(`{"username": "test","emails":["test@foo.bar"]}`)
-	request, _ := http.NewRequest("GET", "/", bytes.NewBuffer(findData))
-	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
-	response := httptest.NewRecorder()
+func Test_UpdateUser_Error_FindUsersMissing(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
+	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{nil, nil}}
+	defer T_ExpectResponsablesEmpty(t)
 
-	shoreline.SetHandlers("", rtr)
-
-	shoreline.GetUserInfo(response, request, map[string]string{"userid": "999-999-999"})
-
-	if response.Code != http.StatusUnauthorized {
-		t.Fatalf("Non-expected status code %v:\n\tbody: %v", "401", response.Code)
-	}
+	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"emailVerified\": true, \"password\": \"newpassword\", \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
+	T_ExpectErrorResponse(t, response, 401, "Not authorized for requested operation")
 }
+
+func Test_UpdateUser_Error_PermissionsError(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
+	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
+	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{}, errors.New("ERROR")}}
+	defer T_ExpectResponsablesEmpty(t)
+
+	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"emailVerified\": true, \"password\": \"newpassword\", \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
+	T_ExpectErrorResponse(t, response, 500, "Error finding user")
+}
+
+func Test_UpdateUser_Error_NoPermissions(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
+	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
+	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
+	defer T_ExpectResponsablesEmpty(t)
+
+	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"emailVerified\": true, \"password\": \"newpassword\", \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
+	T_ExpectErrorResponse(t, response, 401, "Not authorized for requested operation")
+}
+
+func Test_UpdateUser_Error_FindUserDuplicateError(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
+	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
+	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{"custodian": clients.Allowed}, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, errors.New("ERROR")}}
+	defer T_ExpectResponsablesEmpty(t)
+
+	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"emailVerified\": true, \"password\": \"newpassword\", \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
+	T_ExpectErrorResponse(t, response, 500, "Error finding user")
+}
+
+func Test_UpdateUser_Error_FindUserDuplicateFound(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
+	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
+	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{"custodian": clients.Allowed}, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1234567890"}}, nil}}
+	defer T_ExpectResponsablesEmpty(t)
+
+	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"emailVerified\": true, \"password\": \"newpassword\", \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
+	T_ExpectErrorResponse(t, response, 409, "User already exists")
+}
+
+func Test_UpdateUser_Error_UpsertUserError(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
+	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
+	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{"custodian": clients.Allowed}, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
+	responsableStore.UpsertUserResponses = []error{errors.New("ERROR")}
+	defer T_ExpectResponsablesEmpty(t)
+
+	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"emailVerified\": true, \"password\": \"newpassword\", \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
+	T_ExpectErrorResponse(t, response, 500, "Error updating user")
+}
+
+func Test_UpdateUser_Success_Custodian(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
+	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
+	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{"custodian": clients.Allowed}, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
+	responsableStore.UpsertUserResponses = []error{nil}
+	defer T_ExpectResponsablesEmpty(t)
+
+	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"emailVerified\": true, \"password\": \"newpassword\", \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
+	successResponse := T_ExpectSuccessResponseWithJSON(t, response, 200)
+	T_ExpectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
+	T_ExpectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": false, "emails": []interface{}{"a@z.co"}, "username": "a@z.co"})
+}
+
+func Test_UpdateUser_Success_UserFromUrl(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "1111111111", false, TOKEN_DURATION)
+	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
+	responsableStore.UpsertUserResponses = []error{nil}
+	defer T_ExpectResponsablesEmpty(t)
+
+	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"emailVerified\": true, \"password\": \"newpassword\", \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
+	successResponse := T_ExpectSuccessResponseWithJSON(t, response, 200)
+	T_ExpectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
+	T_ExpectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": false, "emails": []interface{}{"a@z.co"}, "username": "a@z.co", "termsAccepted": "2016-01-01T01:23:45-08:00"})
+}
+
+func Test_UpdateUser_Success_UserFromToken(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "1111111111", false, TOKEN_DURATION)
+	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
+	responsableStore.UpsertUserResponses = []error{nil}
+	defer T_ExpectResponsablesEmpty(t)
+
+	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"emailVerified\": true, \"password\": \"newpassword\", \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	response := T_PerformRequestBodyHeaders(t, "PUT", "/user", body, headers)
+	successResponse := T_ExpectSuccessResponseWithJSON(t, response, 200)
+	T_ExpectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
+	T_ExpectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": false, "emails": []interface{}{"a@z.co"}, "username": "a@z.co", "termsAccepted": "2016-01-01T01:23:45-08:00"})
+}
+
+func Test_UpdateUser_Success_Server_WithoutPassword(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "0000000000", true, TOKEN_DURATION)
+	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
+	responsableStore.UpsertUserResponses = []error{nil}
+	defer T_ExpectResponsablesEmpty(t)
+
+	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"emailVerified\": true, \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
+	successResponse := T_ExpectSuccessResponseWithJSON(t, response, 200)
+	T_ExpectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
+	T_ExpectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": true, "emails": []interface{}{"a@z.co"}, "username": "a@z.co", "termsAccepted": "2016-01-01T01:23:45-08:00", "passwordExists": false})
+}
+
+func Test_UpdateUser_Success_Server_WithPassword(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "0000000000", true, TOKEN_DURATION)
+	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
+	responsableStore.UpsertUserResponses = []error{nil}
+	defer T_ExpectResponsablesEmpty(t)
+
+	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"emailVerified\": true, \"password\": \"newpassword\", \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
+	successResponse := T_ExpectSuccessResponseWithJSON(t, response, 200)
+	T_ExpectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
+	T_ExpectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": true, "emails": []interface{}{"a@z.co"}, "username": "a@z.co", "termsAccepted": "2016-01-01T01:23:45-08:00", "passwordExists": true})
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+func Test_GetUserInfo_Error_MissingSessionToken(t *testing.T) {
+	response := T_PerformRequest(t, "GET", "/user/1111111111")
+	T_ExpectErrorResponse(t, response, 401, "Not authorized for requested operation")
+}
+
+func Test_GetUserInfo_Error_FindUsersError(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
+	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, errors.New("ERROR")}}
+	defer T_ExpectResponsablesEmpty(t)
+
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	response := T_PerformRequestHeaders(t, "GET", "/user/1111111111", headers)
+	T_ExpectErrorResponse(t, response, 500, "Error finding user")
+}
+
+func Test_GetUserInfo_Error_FindUsersMissing(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
+	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
+	defer T_ExpectResponsablesEmpty(t)
+
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	response := T_PerformRequestHeaders(t, "GET", "/user/1111111111", headers)
+	T_ExpectErrorResponse(t, response, 500, "Error finding user")
+}
+
+func Test_GetUserInfo_Error_FindUsersNil(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
+	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{nil}, nil}}
+	defer T_ExpectResponsablesEmpty(t)
+
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	response := T_PerformRequestHeaders(t, "GET", "/user/1111111111", headers)
+	T_ExpectErrorResponse(t, response, 500, "Error finding user")
+}
+
+func Test_GetUserInfo_Error_PermissionsError(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
+	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111"}}, nil}}
+	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{}, errors.New("ERROR")}}
+	defer T_ExpectResponsablesEmpty(t)
+
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	response := T_PerformRequestHeaders(t, "GET", "/user/1111111111", headers)
+	T_ExpectErrorResponse(t, response, 500, "Error finding user")
+}
+
+func Test_GetUserInfo_Error_NoPermissions(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
+	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111"}}, nil}}
+	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{"a": clients.Allowed}, nil}}
+	defer T_ExpectResponsablesEmpty(t)
+
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	response := T_PerformRequestHeaders(t, "GET", "/user/1111111111", headers)
+	T_ExpectErrorResponse(t, response, 401, "Not authorized for requested operation")
+}
+
+func Test_GetUserInfo_Success_User(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "1111111111", false, TOKEN_DURATION)
+	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", EmailVerified: true, PwHash: "xyz", Hash: "123"}}, nil}}
+	defer T_ExpectResponsablesEmpty(t)
+
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	response := T_PerformRequestHeaders(t, "GET", "/user/1111111111", headers)
+	successResponse := T_ExpectSuccessResponseWithJSON(t, response, 200)
+	T_ExpectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
+	T_ExpectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": true, "emails": []interface{}{"a@z.co"}, "username": "a@z.co", "termsAccepted": "2016-01-01T01:23:45-08:00"})
+}
+
+func Test_GetUserInfo_Success_Custodian(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
+	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", EmailVerified: true, PwHash: "xyz", Hash: "123"}}, nil}}
+	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{"custodian": clients.Allowed}, nil}}
+	defer T_ExpectResponsablesEmpty(t)
+
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	response := T_PerformRequestHeaders(t, "GET", "/user/1111111111", headers)
+	successResponse := T_ExpectSuccessResponseWithJSON(t, response, 200)
+	T_ExpectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
+	T_ExpectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": true, "emails": []interface{}{"a@z.co"}, "username": "a@z.co", "termsAccepted": "2016-01-01T01:23:45-08:00"})
+}
+
+func Test_GetUserInfo_Success_Server(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "0000000000", true, TOKEN_DURATION)
+	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", EmailVerified: true, PwHash: "xyz", Hash: "123"}}, nil}}
+	defer T_ExpectResponsablesEmpty(t)
+
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	response := T_PerformRequestHeaders(t, "GET", "/user/1111111111", headers)
+	successResponse := T_ExpectSuccessResponseWithJSON(t, response, 200)
+	T_ExpectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
+	T_ExpectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": true, "emails": []interface{}{"a@z.co"}, "username": "a@z.co", "termsAccepted": "2016-01-01T01:23:45-08:00", "passwordExists": true})
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 func TestDeleteUser_StatusForbidden_WhenNoPw(t *testing.T) {
 	request, _ := http.NewRequest("DELETE", "/", nil)
@@ -661,8 +898,8 @@ func TestDeleteUser_Failure(t *testing.T) {
 
 	shorelineFails.DeleteUser(resp, req, NO_PARAMS)
 
-	if resp.Code != http.StatusInternalServerError {
-		t.Fatalf("Expected [%v] and got [%v]", http.StatusInternalServerError, resp.Code)
+	if resp.Code != http.StatusUnauthorized {
+		t.Fatalf("Expected [%v] and got [%v]", http.StatusUnauthorized, resp.Code)
 	}
 }
 
@@ -695,210 +932,124 @@ func TestDeleteUser_StatusUnauthorized_WhenNoToken(t *testing.T) {
 	}
 }
 
-func TestLogin_StatusBadRequest_WithNoAuth(t *testing.T) {
-	request, _ := http.NewRequest("GET", "/", nil)
-	response := httptest.NewRecorder()
+////////////////////////////////////////////////////////////////////////////////
 
-	shoreline.SetHandlers("", rtr)
-
-	shoreline.Login(response, request)
-
-	if response.Code != http.StatusBadRequest {
-		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusBadRequest, response.Code)
-	}
-
-	body, _ := ioutil.ReadAll(response.Body)
-
-	if string(body) != `{"code":400,"reason":"Missing id and/or password"}` {
-		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_MISSING_ID_PW)
-	}
+func Test_Login_Error_MissingAuthorization(t *testing.T) {
+	response := T_PerformRequest(t, "POST", "/login")
+	T_ExpectErrorResponse(t, response, 400, "Missing id and/or password")
 }
 
-func TestLogin_StatusBadRequest_WithInvalidAuth(t *testing.T) {
-	request, _ := http.NewRequest("POST", "/", nil)
-	request.SetBasicAuth("", "")
-	response := httptest.NewRecorder()
-
-	shoreline.SetHandlers("", rtr)
-
-	shoreline.Login(response, request)
-
-	if response.Code != http.StatusBadRequest {
-		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusBadRequest, response.Code)
-	}
-
-	body, _ := ioutil.ReadAll(response.Body)
-
-	if string(body) != `{"code":400,"reason":"Missing id and/or password"}` {
-		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_MISSING_ID_PW)
-	}
+func Test_Login_Error_EmptyAuthorization(t *testing.T) {
+	headers := http.Header{}
+	headers.Add("Authorization", "")
+	response := T_PerformRequestHeaders(t, "POST", "/login", headers)
+	T_ExpectErrorResponse(t, response, 400, "Missing id and/or password")
 }
 
-func TestLogin_StatusOK(t *testing.T) {
-	request, _ := http.NewRequest("POST", "/", nil)
-	request.SetBasicAuth("test", "123youknoWm3")
-	response := httptest.NewRecorder()
+func Test_Login_Error_InvalidAuthorization(t *testing.T) {
+	authorization := T_CreateAuthorization(t, "", "")
+	headers := http.Header{}
+	headers.Add("Authorization", authorization)
+	response := T_PerformRequestHeaders(t, "POST", "/login", headers)
+	T_ExpectErrorResponse(t, response, 400, "Missing id and/or password")
+}
 
-	shoreline.SetHandlers("", rtr)
+func Test_Login_Error_FindUsersError(t *testing.T) {
+	authorization := T_CreateAuthorization(t, "a@b.co", "password")
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, errors.New("ERROR")}}
+	defer T_ExpectResponsablesEmpty(t)
 
-	shoreline.Login(response, request)
+	headers := http.Header{}
+	headers.Add("Authorization", authorization)
+	response := T_PerformRequestHeaders(t, "POST", "/login", headers)
+	T_ExpectErrorResponse(t, response, 500, "Error finding user")
+}
 
-	if response.Code != http.StatusOK {
-		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, response.Code)
-	}
+func Test_Login_Error_FindUsersMissing(t *testing.T) {
+	authorization := T_CreateAuthorization(t, "a@b.co", "password")
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
+	defer T_ExpectResponsablesEmpty(t)
 
+	headers := http.Header{}
+	headers.Add("Authorization", authorization)
+	response := T_PerformRequestHeaders(t, "POST", "/login", headers)
+	T_ExpectErrorResponse(t, response, 401, "No user matched the given details")
+}
+
+func Test_Login_Error_FindUsersNil(t *testing.T) {
+	authorization := T_CreateAuthorization(t, "a@b.co", "password")
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{nil}, nil}}
+	defer T_ExpectResponsablesEmpty(t)
+
+	headers := http.Header{}
+	headers.Add("Authorization", authorization)
+	response := T_PerformRequestHeaders(t, "POST", "/login", headers)
+	T_ExpectErrorResponse(t, response, 401, "No user matched the given details")
+}
+
+func Test_Login_Error_NoPassword(t *testing.T) {
+	authorization := T_CreateAuthorization(t, "a@b.co", "password")
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111"}}, nil}}
+	defer T_ExpectResponsablesEmpty(t)
+
+	headers := http.Header{}
+	headers.Add("Authorization", authorization)
+	response := T_PerformRequestHeaders(t, "POST", "/login", headers)
+	T_ExpectErrorResponse(t, response, 401, "No user matched the given details")
+}
+
+func Test_Login_Error_PasswordMismatch(t *testing.T) {
+	authorization := T_CreateAuthorization(t, "a@b.co", "MISMATCH")
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5"}}, nil}}
+	defer T_ExpectResponsablesEmpty(t)
+
+	headers := http.Header{}
+	headers.Add("Authorization", authorization)
+	response := T_PerformRequestHeaders(t, "POST", "/login", headers)
+	T_ExpectErrorResponse(t, response, 401, "No user matched the given details")
+}
+
+func Test_Login_Error_EmailNotVerified(t *testing.T) {
+	authorization := T_CreateAuthorization(t, "a@b.co", "password")
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5"}}, nil}}
+	defer T_ExpectResponsablesEmpty(t)
+
+	headers := http.Header{}
+	headers.Add("Authorization", authorization)
+	response := T_PerformRequestHeaders(t, "POST", "/login", headers)
+	T_ExpectErrorResponse(t, response, 403, "The user hasn't verified this account yet")
+}
+
+func Test_Login_Error_ErrorCreatingToken(t *testing.T) {
+	authorization := T_CreateAuthorization(t, "a@b.co", "password")
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5", EmailVerified: true}}, nil}}
+	responsableStore.AddTokenResponses = []error{errors.New("ERROR")}
+	defer T_ExpectResponsablesEmpty(t)
+
+	headers := http.Header{}
+	headers.Add("Authorization", authorization)
+	response := T_PerformRequestHeaders(t, "POST", "/login", headers)
+	T_ExpectErrorResponse(t, response, 500, "Error updating token")
+}
+
+func Test_Login_Success(t *testing.T) {
+	authorization := T_CreateAuthorization(t, "a@b.co", "password")
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5", EmailVerified: true}}, nil}}
+	responsableStore.AddTokenResponses = []error{nil}
+	defer T_ExpectResponsablesEmpty(t)
+
+	headers := http.Header{}
+	headers.Add("Authorization", authorization)
+	response := T_PerformRequestHeaders(t, "POST", "/login", headers)
+	successResponse := T_ExpectSuccessResponseWithJSON(t, response, 200)
+	T_ExpectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
+	T_ExpectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": true, "emails": []interface{}{"a@z.co"}, "username": "a@z.co", "termsAccepted": "2016-01-01T01:23:45-08:00"})
 	if response.Header().Get(TP_SESSION_TOKEN) == "" {
-		t.Fatal("The session token should have been set")
-	}
-
-	if response.Header().Get("content-type") != "application/json" {
-		t.Fatal("the resp should be json")
-	}
-
-	body, _ := ioutil.ReadAll(response.Body)
-
-	var boolData map[string]bool
-	_ = json.Unmarshal(body, &boolData)
-
-	if boolData == nil {
-		t.Fatal("body should have been returned")
-	}
-
-	if emailVerified, ok := boolData["emailVerified"]; !ok || !emailVerified {
-		t.Fatal("body should have emailVerified set to true")
+		t.Fatalf("Missing expected %s header", TP_SESSION_TOKEN)
 	}
 }
 
-func TestLogin_Failure(t *testing.T) {
-	req, _ := http.NewRequest("POST", "/", nil)
-	req.SetBasicAuth("test", "123youknoWm3")
-	resp := httptest.NewRecorder()
-
-	shorelineFails.SetHandlers("", rtr)
-
-	shorelineFails.Login(resp, req)
-
-	if resp.Code != http.StatusInternalServerError {
-		t.Fatalf("Expected [%v] and got [%v]", http.StatusInternalServerError, resp.Code)
-	}
-}
-
-//basic mock required for OAuth
-func (m *MockOAuth) CheckToken(token string) (oauth2.Data, error) {
-	d := oauth2.Data{}
-	d["userId"] = "1234"
-	d["authUserId"] = "4567"
-	return d, nil
-}
-
-func Test_oauth2Login(t *testing.T) {
-	r, _ := http.NewRequest("POST", "/", nil)
-	w := httptest.NewRecorder()
-	shoreline.SetHandlers("", rtr)
-
-	//add mock
-	mock := &MockOAuth{}
-	shoreline.AttachOauth(mock)
-
-	//no header passed
-	shoreline.oauth2Login(w, r)
-
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("Expected [%v] and got [%v]", http.StatusInternalServerError, w.Code)
-	}
-
-	//with header but no token
-	r.Header.Set("Authorization", "bearer")
-	w_header := httptest.NewRecorder()
-	shoreline.oauth2Login(w_header, r)
-
-	if w_header.Code != http.StatusUnauthorized {
-		t.Fatalf("Expected [%v] and got [%v]", http.StatusUnauthorized, w_header.Code)
-	}
-
-	//req now sets header
-}
-
-func Test_oauth2Login_noheader(t *testing.T) {
-	r, _ := http.NewRequest("POST", "/", nil)
-	w := httptest.NewRecorder()
-	shoreline.SetHandlers("", rtr)
-
-	//add mock
-	mock := &MockOAuth{}
-	shoreline.AttachOauth(mock)
-
-	//no header passed
-	shoreline.oauth2Login(w, r)
-
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("Expected [%v] and got [%v]", http.StatusInternalServerError, w.Code)
-	}
-
-}
-func Test_oauth2Login_invalid_header(t *testing.T) {
-	r, _ := http.NewRequest("POST", "/", nil)
-	//add mock
-	mock := &MockOAuth{}
-	shoreline.AttachOauth(mock)
-	//with header but no token
-	r.Header.Set("Authorization", "bearer")
-	w_header := httptest.NewRecorder()
-	shoreline.oauth2Login(w_header, r)
-
-	if w_header.Code != http.StatusUnauthorized {
-		t.Fatalf("Expected [%v] and got [%v]", http.StatusUnauthorized, w_header.Code)
-	}
-
-	//req now sets header
-}
-func Test_oauth2Login_validheader(t *testing.T) {
-	r, _ := http.NewRequest("POST", "/", nil)
-	//add mock
-	mock := &MockOAuth{}
-	shoreline.AttachOauth(mock)
-	//with header but no token
-	r.Header.Set("Authorization", "bearer xxx")
-	w_header := httptest.NewRecorder()
-	shoreline.oauth2Login(w_header, r)
-
-	if w_header.Code != http.StatusOK {
-		t.Fatalf("Expected [%v] and got [%v]", http.StatusOK, w_header.Code)
-	}
-
-	if w_header.Header().Get(TP_SESSION_TOKEN) == "" {
-		t.Fatal("Expected the TP_SESSION_TOKEN header to be attached")
-	}
-
-	// parse output json
-	output := make(map[string]interface{})
-	if err := json.Unmarshal(w_header.Body.Bytes(), &output); err != nil {
-		t.Fatalf("Could not decode output json: %s", err)
-	}
-
-	if output["oauthUser"] == nil {
-		t.Fatalf("we need to be given a user id but got %v", output)
-	}
-
-	if output["oauthTarget"] == nil {
-		t.Fatalf("we need to be given a user id but got %v", output)
-	}
-
-}
-
-func TestLogin_StatusUnauthorized_WhenWrongCreds(t *testing.T) {
-	request, _ := http.NewRequest("POST", "/", nil)
-	request.SetBasicAuth("test", "")
-	response := httptest.NewRecorder()
-
-	shoreline.SetHandlers("", rtr)
-
-	shoreline.Login(response, request)
-
-	if response.Code != http.StatusUnauthorized {
-		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusUnauthorized, response.Code)
-	}
-}
+////////////////////////////////////////////////////////////////////////////////
 
 func TestServerLogin_StatusBadRequest_WhenNoNameOrSecret(t *testing.T) {
 	request, _ := http.NewRequest("POST", "/", nil)
@@ -1015,6 +1166,112 @@ func TestServerLogin_StatusUnauthorized_WhenSecretWrong(t *testing.T) {
 	}
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+func (m *MockOAuth) CheckToken(token string) (oauth2.Data, error) {
+	d := oauth2.Data{}
+	d["userId"] = "1234"
+	d["authUserId"] = "4567"
+	return d, nil
+}
+
+func Test_oauth2Login(t *testing.T) {
+	r, _ := http.NewRequest("POST", "/", nil)
+	w := httptest.NewRecorder()
+	shoreline.SetHandlers("", rtr)
+
+	//add mock
+	mock := &MockOAuth{}
+	shoreline.AttachOauth(mock)
+
+	//no header passed
+	shoreline.oauth2Login(w, r)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("Expected [%v] and got [%v]", http.StatusInternalServerError, w.Code)
+	}
+
+	//with header but no token
+	r.Header.Set("Authorization", "bearer")
+	w_header := httptest.NewRecorder()
+	shoreline.oauth2Login(w_header, r)
+
+	if w_header.Code != http.StatusUnauthorized {
+		t.Fatalf("Expected [%v] and got [%v]", http.StatusUnauthorized, w_header.Code)
+	}
+
+	//req now sets header
+}
+
+func Test_oauth2Login_noheader(t *testing.T) {
+	r, _ := http.NewRequest("POST", "/", nil)
+	w := httptest.NewRecorder()
+	shoreline.SetHandlers("", rtr)
+
+	//add mock
+	mock := &MockOAuth{}
+	shoreline.AttachOauth(mock)
+
+	//no header passed
+	shoreline.oauth2Login(w, r)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("Expected [%v] and got [%v]", http.StatusInternalServerError, w.Code)
+	}
+
+}
+func Test_oauth2Login_invalid_header(t *testing.T) {
+	r, _ := http.NewRequest("POST", "/", nil)
+	//add mock
+	mock := &MockOAuth{}
+	shoreline.AttachOauth(mock)
+	//with header but no token
+	r.Header.Set("Authorization", "bearer")
+	w_header := httptest.NewRecorder()
+	shoreline.oauth2Login(w_header, r)
+
+	if w_header.Code != http.StatusUnauthorized {
+		t.Fatalf("Expected [%v] and got [%v]", http.StatusUnauthorized, w_header.Code)
+	}
+
+	//req now sets header
+}
+func Test_oauth2Login_validheader(t *testing.T) {
+	r, _ := http.NewRequest("POST", "/", nil)
+	//add mock
+	mock := &MockOAuth{}
+	shoreline.AttachOauth(mock)
+	//with header but no token
+	r.Header.Set("Authorization", "bearer xxx")
+	w_header := httptest.NewRecorder()
+	shoreline.oauth2Login(w_header, r)
+
+	if w_header.Code != http.StatusOK {
+		t.Fatalf("Expected [%v] and got [%v]", http.StatusOK, w_header.Code)
+	}
+
+	if w_header.Header().Get(TP_SESSION_TOKEN) == "" {
+		t.Fatal("Expected the TP_SESSION_TOKEN header to be attached")
+	}
+
+	// parse output json
+	output := make(map[string]interface{})
+	if err := json.Unmarshal(w_header.Body.Bytes(), &output); err != nil {
+		t.Fatalf("Could not decode output json: %s", err)
+	}
+
+	if output["oauthUser"] == nil {
+		t.Fatalf("we need to be given a user id but got %v", output)
+	}
+
+	if output["oauthTarget"] == nil {
+		t.Fatalf("we need to be given a user id but got %v", output)
+	}
+
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 func TestRefreshSession_StatusUnauthorized_WithNoToken(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	response := httptest.NewRecorder()
@@ -1086,79 +1343,129 @@ func TestRefreshSession_Failure(t *testing.T) {
 
 	shorelineFails.RefreshSession(resp, req)
 
-	if resp.Code != http.StatusInternalServerError {
-		t.Fatalf("Expected [%v] and got [%v]", http.StatusInternalServerError, resp.Code)
+	if resp.Code != http.StatusUnauthorized {
+		t.Fatalf("Expected [%v] and got [%v]", http.StatusUnauthorized, resp.Code)
 	}
 }
 
-func TestValidateLongterm_StatusOK(t *testing.T) {
-	request, _ := http.NewRequest("GET", "/", nil)
-	request.SetBasicAuth("test", "123youknoWm3")
-	response := httptest.NewRecorder()
+////////////////////////////////////////////////////////////////////////////////
 
-	shoreline.SetHandlers("", rtr)
+func Test_LongTermLogin_Error_MissingAuthorization(t *testing.T) {
+	response := T_PerformRequest(t, "POST", "/login/thelongtermkey")
+	T_ExpectErrorResponse(t, response, 400, "Missing id and/or password")
+}
 
-	shoreline.LongtermLogin(response, request, map[string]string{"longtermkey": FAKE_CONFIG.LongTermKey})
+func Test_LongTermLogin_Error_EmptyAuthorization(t *testing.T) {
+	headers := http.Header{}
+	headers.Add("Authorization", "")
+	response := T_PerformRequestHeaders(t, "POST", "/login/thelongtermkey", headers)
+	T_ExpectErrorResponse(t, response, 400, "Missing id and/or password")
+}
 
-	if response.Code != http.StatusOK {
-		t.Fatalf("the status code should be %v set but got %v", http.StatusOK, response.Code)
-	}
+func Test_LongTermLogin_Error_InvalidAuthorization(t *testing.T) {
+	authorization := T_CreateAuthorization(t, "", "")
+	headers := http.Header{}
+	headers.Add("Authorization", authorization)
+	response := T_PerformRequestHeaders(t, "POST", "/login/thelongtermkey", headers)
+	T_ExpectErrorResponse(t, response, 400, "Missing id and/or password")
+}
 
-	if response.Header().Get(TOKEN_DURATION_KEY) != "" {
-		t.Fatal("there should be a token duration set")
-	}
+func Test_LongTermLogin_Error_FindUsersError(t *testing.T) {
+	authorization := T_CreateAuthorization(t, "a@b.co", "password")
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, errors.New("ERROR")}}
+	defer T_ExpectResponsablesEmpty(t)
 
+	headers := http.Header{}
+	headers.Add("Authorization", authorization)
+	response := T_PerformRequestHeaders(t, "POST", "/login/thelongtermkey", headers)
+	T_ExpectErrorResponse(t, response, 500, "Error finding user")
+}
+
+func Test_LongTermLogin_Error_FindUsersMissing(t *testing.T) {
+	authorization := T_CreateAuthorization(t, "a@b.co", "password")
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
+	defer T_ExpectResponsablesEmpty(t)
+
+	headers := http.Header{}
+	headers.Add("Authorization", authorization)
+	response := T_PerformRequestHeaders(t, "POST", "/login/thelongtermkey", headers)
+	T_ExpectErrorResponse(t, response, 401, "No user matched the given details")
+}
+
+func Test_LongTermLogin_Error_FindUsersNil(t *testing.T) {
+	authorization := T_CreateAuthorization(t, "a@b.co", "password")
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{nil}, nil}}
+	defer T_ExpectResponsablesEmpty(t)
+
+	headers := http.Header{}
+	headers.Add("Authorization", authorization)
+	response := T_PerformRequestHeaders(t, "POST", "/login/thelongtermkey", headers)
+	T_ExpectErrorResponse(t, response, 401, "No user matched the given details")
+}
+
+func Test_LongTermLogin_Error_NoPassword(t *testing.T) {
+	authorization := T_CreateAuthorization(t, "a@b.co", "password")
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111"}}, nil}}
+	defer T_ExpectResponsablesEmpty(t)
+
+	headers := http.Header{}
+	headers.Add("Authorization", authorization)
+	response := T_PerformRequestHeaders(t, "POST", "/login/thelongtermkey", headers)
+	T_ExpectErrorResponse(t, response, 401, "No user matched the given details")
+}
+
+func Test_LongTermLogin_Error_PasswordMismatch(t *testing.T) {
+	authorization := T_CreateAuthorization(t, "a@b.co", "MISMATCH")
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5"}}, nil}}
+	defer T_ExpectResponsablesEmpty(t)
+
+	headers := http.Header{}
+	headers.Add("Authorization", authorization)
+	response := T_PerformRequestHeaders(t, "POST", "/login/thelongtermkey", headers)
+	T_ExpectErrorResponse(t, response, 401, "No user matched the given details")
+}
+
+func Test_LongTermLogin_Error_EmailNotVerified(t *testing.T) {
+	authorization := T_CreateAuthorization(t, "a@b.co", "password")
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5"}}, nil}}
+	defer T_ExpectResponsablesEmpty(t)
+
+	headers := http.Header{}
+	headers.Add("Authorization", authorization)
+	response := T_PerformRequestHeaders(t, "POST", "/login/thelongtermkey", headers)
+	T_ExpectErrorResponse(t, response, 403, "The user hasn't verified this account yet")
+}
+
+func Test_LongTermLogin_Error_ErrorCreatingToken(t *testing.T) {
+	authorization := T_CreateAuthorization(t, "a@b.co", "password")
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5", EmailVerified: true}}, nil}}
+	responsableStore.AddTokenResponses = []error{errors.New("ERROR")}
+	defer T_ExpectResponsablesEmpty(t)
+
+	headers := http.Header{}
+	headers.Add("Authorization", authorization)
+	response := T_PerformRequestHeaders(t, "POST", "/login/thelongtermkey", headers)
+	T_ExpectErrorResponse(t, response, 500, "Error updating token")
+}
+
+func Test_LongTermLogin_Success(t *testing.T) {
+	authorization := T_CreateAuthorization(t, "a@b.co", "password")
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5", EmailVerified: true}}, nil}}
+	responsableStore.AddTokenResponses = []error{nil}
+	defer T_ExpectResponsablesEmpty(t)
+
+	headers := http.Header{}
+	headers.Add("Authorization", authorization)
+	response := T_PerformRequestHeaders(t, "POST", "/login/thelongtermkey", headers)
+	successResponse := T_ExpectSuccessResponseWithJSON(t, response, 200)
+	T_ExpectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
+	T_ExpectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": true, "emails": []interface{}{"a@z.co"}, "username": "a@z.co", "termsAccepted": "2016-01-01T01:23:45-08:00"})
 	if response.Header().Get(TP_SESSION_TOKEN) == "" {
-		t.Fatal("The session token should have been set")
+		t.Fatalf("Missing expected %s header", TP_SESSION_TOKEN)
 	}
 }
 
-func TestValidateLongterm_Failure(t *testing.T) {
-	req, _ := http.NewRequest("GET", "/", nil)
-	req.SetBasicAuth("test", "123youknoWm3")
-	resp := httptest.NewRecorder()
-
-	shorelineFails.SetHandlers("", rtr)
-
-	shorelineFails.LongtermLogin(resp, req, map[string]string{"longtermkey": FAKE_CONFIG.LongTermKey})
-
-	if resp.Code != http.StatusInternalServerError {
-		t.Fatalf("Expected [%v] and got [%v]", http.StatusInternalServerError, resp.Code)
-	}
-}
-
-func TestValidateLongterm_StatusBadRequest_AuthEmpty(t *testing.T) {
-	request, _ := http.NewRequest("GET", "/", nil)
-	request.SetBasicAuth("", "")
-	response := httptest.NewRecorder()
-
-	shoreline.SetHandlers("", rtr)
-
-	shoreline.LongtermLogin(response, request, NO_PARAMS)
-
-	if response.Code != http.StatusBadRequest {
-		t.Fatalf("the status code should be %v set but got %v", http.StatusBadRequest, response.Code)
-	}
-
-	body, _ := ioutil.ReadAll(response.Body)
-
-	if string(body) != `{"code":400,"reason":"Missing id and/or password"}` {
-		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_MISSING_ID_PW)
-	}
-}
-
-func TestValidateLongterm_StatusUnauthorized_WithNoAuthSet(t *testing.T) {
-	request, _ := http.NewRequest("GET", "/", nil)
-	response := httptest.NewRecorder()
-
-	shoreline.SetHandlers("", rtr)
-
-	shoreline.LongtermLogin(response, request, NO_PARAMS)
-
-	if response.Code != http.StatusBadRequest {
-		t.Fatalf("the status code should be %v set but got %v", http.StatusBadRequest, response.Code)
-	}
-}
+////////////////////////////////////////////////////////////////////////////////
 
 func TestHasServerToken_True(t *testing.T) {
 
@@ -1252,6 +1559,8 @@ func TestServerCheckToken_StatusUnauthorized_WhenNoSvrToken(t *testing.T) {
 	}
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 func TestLogout_StatusOK_WhenNoToken(t *testing.T) {
 	request, _ := http.NewRequest("POST", "/", nil)
 	response := httptest.NewRecorder()
@@ -1334,6 +1643,8 @@ func TestAnonymousIdHashPair_StatusOK(t *testing.T) {
 	}
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 func TestAnonymousIdHashPair_StatusOK_EvenWhenNoURLParams(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 
@@ -1366,6 +1677,8 @@ func TestAnonymousIdHashPair_StatusOK_EvenWhenNoURLParams(t *testing.T) {
 		t.Fatalf("should have an Hash but was %v", anonIdHashPair.Hash)
 	}
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 func TestManageIdHashPair_StatusUnauthorized_WhenNoSvrToken(t *testing.T) {
 
@@ -1577,6 +1890,8 @@ func TestManageIdHashPair_StatusCreated_WhenPut(t *testing.T) {
 	}
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 func TestAnonIdHashPair_InBulk(t *testing.T) {
 
 	shoreline.SetHandlers("", rtr)
@@ -1628,4 +1943,198 @@ func TestAnonIdHashPair_InBulk(t *testing.T) {
 		t.Fatal("Hashed Ids should be unique")
 	}
 
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+func Test_AuthenticateSessionToken_Missing(t *testing.T) {
+	tokenData, err := responsableShoreline.authenticateSessionToken("")
+	if err == nil {
+		t.Fatalf("Unexpected success")
+	}
+	if err.Error() != "Session token is empty" {
+		t.Fatalf("Unexpected error: %s", err.Error())
+	}
+	if tokenData != nil {
+		t.Fatalf("Unexpected token data returned: %#v", tokenData)
+	}
+}
+
+func Test_AuthenticateSessionToken_Invalid(t *testing.T) {
+	tokenData, err := responsableShoreline.authenticateSessionToken("xyz")
+	if err == nil {
+		t.Fatalf("Unexpected success")
+	}
+	if err.Error() != "Token contains an invalid number of segments" {
+		t.Fatalf("Unexpected error: %s", err.Error())
+	}
+	if tokenData != nil {
+		t.Fatalf("Unexpected token data returned: %#v", tokenData)
+	}
+}
+
+func Test_AuthenticateSessionToken_Expired(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "abcdef1234", false, -3600)
+	tokenData, err := responsableShoreline.authenticateSessionToken(sessionToken.Id)
+	if err == nil {
+		t.Fatalf("Unexpected success")
+	}
+	if err.Error() != "Token is expired" {
+		t.Fatalf("Unexpected error: %s", err.Error())
+	}
+	if tokenData != nil {
+		t.Fatalf("Unexpected token data returned: %#v", tokenData)
+	}
+}
+
+func Test_AuthenticateSessionToken_NotFound(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "abcdef1234", false, TOKEN_DURATION)
+	responsableStore.FindTokenResponses = []FindTokenResponse{{nil, errors.New("NOT FOUND")}}
+	defer T_ExpectResponsablesEmpty(t)
+
+	tokenData, err := responsableShoreline.authenticateSessionToken(sessionToken.Id)
+	if err == nil {
+		t.Fatalf("Unexpected success")
+	}
+	if err.Error() != "NOT FOUND" {
+		t.Fatalf("Unexpected error: %s", err.Error())
+	}
+	if tokenData != nil {
+		t.Fatalf("Unexpected token data returned: %#v", tokenData)
+	}
+}
+
+func Test_AuthenticateSessionToken_Success_User(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "abcdef1234", false, TOKEN_DURATION)
+	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	defer T_ExpectResponsablesEmpty(t)
+
+	tokenData, err := responsableShoreline.authenticateSessionToken(sessionToken.Id)
+	if err != nil {
+		t.Fatalf("Unexpected error: %#v", err)
+	}
+	if tokenData == nil {
+		t.Fatalf("Missing expected token data")
+	}
+	if tokenData.UserId != "abcdef1234" {
+		t.Fatalf("Unexpected token user id: %s", tokenData.UserId)
+	}
+	if tokenData.IsServer {
+		t.Fatalf("Unexpected server token")
+	}
+	if tokenData.DurationSecs != TOKEN_DURATION {
+		t.Fatalf("Unexpected token duration: %f", tokenData.DurationSecs)
+	}
+}
+
+func Test_AuthenticateSessionToken_Success_Server(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "abcdef1234", true, TOKEN_DURATION)
+	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	defer T_ExpectResponsablesEmpty(t)
+
+	tokenData, err := responsableShoreline.authenticateSessionToken(sessionToken.Id)
+	if err != nil {
+		t.Fatalf("Unexpected error: %#v", err)
+	}
+	if tokenData == nil {
+		t.Fatalf("Missing expected token data")
+	}
+	if tokenData.UserId != "abcdef1234" {
+		t.Fatalf("Unexpected token user id: %s", tokenData.UserId)
+	}
+	if !tokenData.IsServer {
+		t.Fatalf("Unexpected non-server token")
+	}
+	if tokenData.DurationSecs != TOKEN_DURATION {
+		t.Fatalf("Unexpected token duration: %f", tokenData.DurationSecs)
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+func Test_TokenUserHasRequestedPermissions_Server(t *testing.T) {
+	tokenData := &TokenData{UserId: "abcdef1234", IsServer: true, DurationSecs: TOKEN_DURATION}
+	requestedPermissions := clients.Permissions{"a": clients.Allowed, "b": clients.Allowed}
+	permissions, err := responsableShoreline.tokenUserHasRequestedPermissions(tokenData, "1234567890", requestedPermissions)
+	if err != nil {
+		t.Fatalf("Unexpected error: %#v", err)
+	}
+	if !reflect.DeepEqual(permissions, requestedPermissions) {
+		t.Fatalf("Unexpected permissions returned: %#v", permissions)
+	}
+}
+
+func Test_TokenUserHasRequestedPermissions_Owner(t *testing.T) {
+	tokenData := &TokenData{UserId: "abcdef1234", IsServer: false, DurationSecs: TOKEN_DURATION}
+	requestedPermissions := clients.Permissions{"a": clients.Allowed, "b": clients.Allowed}
+	permissions, err := responsableShoreline.tokenUserHasRequestedPermissions(tokenData, "abcdef1234", requestedPermissions)
+	if err != nil {
+		t.Fatalf("Unexpected error: %#v", err)
+	}
+	if !reflect.DeepEqual(permissions, requestedPermissions) {
+		t.Fatalf("Unexpected permissions returned: %#v", permissions)
+	}
+}
+
+func Test_TokenUserHasRequestedPermissions_GatekeeperError(t *testing.T) {
+	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{}, errors.New("ERROR")}}
+	defer T_ExpectResponsablesEmpty(t)
+
+	tokenData := &TokenData{UserId: "abcdef1234", IsServer: false, DurationSecs: TOKEN_DURATION}
+	requestedPermissions := clients.Permissions{"a": clients.Allowed, "b": clients.Allowed}
+	permissions, err := responsableShoreline.tokenUserHasRequestedPermissions(tokenData, "1234567890", requestedPermissions)
+	if err == nil {
+		t.Fatalf("Unexpected success")
+	}
+	if err.Error() != "ERROR" {
+		t.Fatalf("Unexpected error: %#v", err)
+	}
+	if len(permissions) != 0 {
+		t.Fatalf("Unexpected permissions returned: %#v", permissions)
+	}
+}
+
+func Test_TokenUserHasRequestedPermissions_CompleteMismatch(t *testing.T) {
+	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{"y": clients.Allowed, "z": clients.Allowed}, nil}}
+	defer T_ExpectResponsablesEmpty(t)
+
+	tokenData := &TokenData{UserId: "abcdef1234", IsServer: false, DurationSecs: TOKEN_DURATION}
+	requestedPermissions := clients.Permissions{"a": clients.Allowed, "b": clients.Allowed}
+	permissions, err := responsableShoreline.tokenUserHasRequestedPermissions(tokenData, "1234567890", requestedPermissions)
+	if err != nil {
+		t.Fatalf("Unexpected error: %#v", err)
+	}
+	if len(permissions) != 0 {
+		t.Fatalf("Unexpected permissions returned: %#v", permissions)
+	}
+}
+
+func Test_TokenUserHasRequestedPermissions_PartialMismatch(t *testing.T) {
+	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{"a": clients.Allowed, "z": clients.Allowed}, nil}}
+	defer T_ExpectResponsablesEmpty(t)
+
+	tokenData := &TokenData{UserId: "abcdef1234", IsServer: false, DurationSecs: TOKEN_DURATION}
+	requestedPermissions := clients.Permissions{"a": clients.Allowed, "b": clients.Allowed}
+	permissions, err := responsableShoreline.tokenUserHasRequestedPermissions(tokenData, "1234567890", requestedPermissions)
+	if err != nil {
+		t.Fatalf("Unexpected error: %#v", err)
+	}
+	if !reflect.DeepEqual(permissions, clients.Permissions{"a": clients.Allowed}) {
+		t.Fatalf("Unexpected permissions returned: %#v", permissions)
+	}
+}
+
+func Test_TokenUserHasRequestedPermissions_FullMatch(t *testing.T) {
+	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{"a": clients.Allowed, "b": clients.Allowed}, nil}}
+	defer T_ExpectResponsablesEmpty(t)
+
+	tokenData := &TokenData{UserId: "abcdef1234", IsServer: false, DurationSecs: TOKEN_DURATION}
+	requestedPermissions := clients.Permissions{"a": clients.Allowed, "b": clients.Allowed}
+	permissions, err := responsableShoreline.tokenUserHasRequestedPermissions(tokenData, "1234567890", requestedPermissions)
+	if err != nil {
+		t.Fatalf("Unexpected error: %#v", err)
+	}
+	if !reflect.DeepEqual(permissions, requestedPermissions) {
+		t.Fatalf("Unexpected permissions returned: %#v", permissions)
+	}
 }

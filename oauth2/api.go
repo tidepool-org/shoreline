@@ -222,12 +222,11 @@ func (o *Api) applyPermissons(authorizingUserId, appUserId, scope string) bool {
 
 	log.Printf(OAUTH2_API_PREFIX+"applyPermissons: raw scope asked for %s", scope)
 
-	var empty struct{}
 	scopes := strings.Split(scope, ",")
 	permsToApply := make(clients.Permissions)
 
 	for i := range scopes {
-		permsToApply[scopes[i]] = empty
+		permsToApply[scopes[i]] = clients.Allowed
 	}
 
 	log.Printf(OAUTH2_API_PREFIX+"applyPermissons: permissons to apply %v", permsToApply)

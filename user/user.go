@@ -3,122 +3,420 @@ package user
 import (
 	"encoding/json"
 	"errors"
-	"net/http"
+	"io"
+	"regexp"
 	"strings"
 	"time"
 )
 
 type User struct {
-	Id            string                 `json:"userid" bson:"userid,omitempty"` // map userid to id
-	Name          string                 `json:"username" bson:"username"`
-	Emails        []string               `json:"emails" bson:"emails"`
-	TermsAccepted string                 `json:"termsAccepted" bson:"termsAccepted"`
-	Verified      bool                   `json:"emailVerified" bson:"authenticated"` //tag is name `authenticated` for historical reasons
-	PwHash        string                 `json:"-" bson:"pwhash"`
-	Hash          string                 `json:"-" bson:"userhash"`
+	Id            string                 `json:"userid,omitempty" bson:"userid,omitempty"` // map userid to id
+	Username      string                 `json:"username,omitempty" bson:"username,omitempty"`
+	Emails        []string               `json:"emails,omitempty" bson:"emails,omitempty"`
+	TermsAccepted string                 `json:"termsAccepted,omitempty" bson:"termsAccepted,omitempty"`
+	EmailVerified bool                   `json:"emailVerified" bson:"authenticated"` //tag is name `authenticated` for historical reasons
+	PwHash        string                 `json:"-" bson:"pwhash,omitempty"`
+	Hash          string                 `json:"-" bson:"userhash,omitempty"`
 	Private       map[string]*IdHashPair `json:"-" bson:"private"`
 }
 
 /*
  * Incoming user details used to create or update a `User`
  */
-type UserDetail struct {
-	Id            string   //no tag as we aren't getting it from json
-	Name          string   `json:"username"`
-	Emails        []string `json:"emails"`
-	TermsAccepted string   `json:"termsAccepted"`
-	Pw            string   `json:"password"`
-	Verified      bool     `json:"authenticated"` //tag is name `authenticated` for historical reasons
+type NewUserDetails struct {
+	Username *string
+	Emails   []string
+	Password *string
+}
+
+type NewCustodialUserDetails struct {
+	Username *string
+	Emails   []string
+}
+
+type UpdateUserDetails struct {
+	Username      *string
+	Emails        []string
+	Password      *string
+	TermsAccepted *string
+	EmailVerified *bool
 }
 
 var (
-	User_error_name_pw_required = errors.New("User: both the name and pw are required")
-	User_error_no_details_given = errors.New("User: no user details were sent")
+	User_error_details_missing        = errors.New("User details are missing")
+	User_error_username_missing       = errors.New("Username is missing")
+	User_error_username_invalid       = errors.New("Username is invalid")
+	User_error_emails_missing         = errors.New("Emails are missing")
+	User_error_emails_invalid         = errors.New("Emails are invalid")
+	User_error_password_missing       = errors.New("Password is missing")
+	User_error_password_invalid       = errors.New("Password is invalid")
+	User_error_terms_accepted_invalid = errors.New("Terms accepted is invalid")
+	User_error_email_verified_invalid = errors.New("Email verified is invalid")
 )
 
-func NewUser(details *UserDetail, salt string) (user *User, err error) {
+func ExtractBool(data map[string]interface{}, key string) (*bool, bool) {
+	if raw, ok := data[key]; !ok {
+		return nil, true
+	} else if extractedBool, ok := raw.(bool); !ok {
+		return nil, false
+	} else {
+		return &extractedBool, true
+	}
+}
 
-	if details.Name == "" || details.Pw == "" {
-		return nil, User_error_name_pw_required
+func ExtractString(data map[string]interface{}, key string) (*string, bool) {
+	if raw, ok := data[key]; !ok {
+		return nil, true
+	} else if extractedString, ok := raw.(string); !ok {
+		return nil, false
+	} else {
+		return &extractedString, true
+	}
+}
+
+func ExtractArray(data map[string]interface{}, key string) ([]interface{}, bool) {
+	if raw, ok := data[key]; !ok {
+		return nil, true
+	} else if extractedArray, ok := raw.([]interface{}); !ok {
+		return nil, false
+	} else if len(extractedArray) == 0 {
+		return nil, true
+	} else {
+		return extractedArray, true
+	}
+}
+
+func ExtractStringArray(data map[string]interface{}, key string) ([]string, bool) {
+	if rawArray, ok := ExtractArray(data, key); !ok {
+		return nil, false
+	} else if rawArray == nil {
+		return nil, true
+	} else {
+		extractedStringArray := make([]string, 0)
+		for _, raw := range rawArray {
+			if extractedString, ok := raw.(string); !ok {
+				return nil, false
+			} else {
+				extractedStringArray = append(extractedStringArray, extractedString)
+			}
+		}
+		return extractedStringArray, true
+	}
+}
+
+func ExtractStringMap(data map[string]interface{}, key string) (map[string]interface{}, bool) {
+	if raw, ok := data[key]; !ok {
+		return nil, true
+	} else if extractedMap, ok := raw.(map[string]interface{}); !ok {
+		return nil, false
+	} else if len(extractedMap) == 0 {
+		return nil, true
+	} else {
+		return extractedMap, true
+	}
+}
+
+func IsValidEmail(email string) bool {
+	ok, _ := regexp.MatchString(`\A(?i)([^@\s]+)@((?:[-a-z0-9]+\.)+[a-z]{2,})\z`, email)
+	return ok
+}
+
+func IsValidPassword(password string) bool {
+	ok, _ := regexp.MatchString(`\A\S{8,72}\z`, password)
+	return ok
+}
+
+func IsValidDate(date string) bool {
+	_, err := time.Parse("2006-01-02T15:04:05-07:00", date)
+	return err == nil
+}
+
+func (details *NewUserDetails) ExtractFromJSON(reader io.Reader) error {
+	if reader == nil {
+		return User_error_details_missing
 	}
 
-	details.Name = strings.ToLower(details.Name)
+	var decoded map[string]interface{}
+	if err := json.NewDecoder(reader).Decode(&decoded); err != nil {
+		return err
+	}
 
-	id, err := generateUniqueHash([]string{details.Name, details.Pw}, 10)
-	if err != nil {
+	var (
+		username *string
+		emails   []string
+		password *string
+		ok       bool
+	)
+
+	if username, ok = ExtractString(decoded, "username"); !ok {
+		return User_error_username_invalid
+	}
+	if emails, ok = ExtractStringArray(decoded, "emails"); !ok {
+		return User_error_emails_invalid
+	}
+	if password, ok = ExtractString(decoded, "password"); !ok {
+		return User_error_password_invalid
+	}
+
+	details.Username = username
+	details.Emails = emails
+	details.Password = password
+	return nil
+}
+
+func (details *NewUserDetails) Validate() error {
+	if details.Username == nil {
+		return User_error_username_missing
+	} else if !IsValidEmail(*details.Username) {
+		return User_error_username_invalid
+	}
+
+	if len(details.Emails) == 0 {
+		return User_error_emails_missing
+	} else {
+		for _, email := range details.Emails {
+			if !IsValidEmail(email) {
+				return User_error_emails_invalid
+			}
+		}
+	}
+
+	if details.Password == nil {
+		return User_error_password_missing
+	} else if !IsValidPassword(*details.Password) {
+		return User_error_password_invalid
+	}
+
+	return nil
+}
+
+func ParseNewUserDetails(reader io.Reader) (*NewUserDetails, error) {
+	details := &NewUserDetails{}
+	if err := details.ExtractFromJSON(reader); err != nil {
+		return nil, err
+	} else {
+		return details, nil
+	}
+}
+
+func NewUser(details *NewUserDetails, salt string) (user *User, err error) {
+	if details == nil {
+		return nil, errors.New("New user details is nil")
+	} else if err := details.Validate(); err != nil {
+		return nil, err
+	}
+
+	user = &User{Username: *details.Username, Emails: details.Emails}
+
+	if user.Id, err = generateUniqueHash([]string{*details.Username, *details.Password}, 10); err != nil {
 		return nil, errors.New("User: error generating id")
 	}
-	hash, err := generateUniqueHash([]string{details.Name, details.Pw, id}, 24)
-	if err != nil {
+	if user.Hash, err = generateUniqueHash([]string{*details.Username, *details.Password, user.Id}, 24); err != nil {
 		return nil, errors.New("User: error generating hash")
 	}
-	pwHash, err := GeneratePasswordHash(id, details.Pw, salt)
-	if err != nil {
+
+	if err = user.HashPassword(*details.Password, salt); err != nil {
 		return nil, errors.New("User: error generating password hash")
 	}
 
-	return &User{Id: id, Name: details.Name, Emails: details.Emails, Hash: hash, PwHash: pwHash, Verified: false}, nil
+	return user, nil
 }
 
-//Child Account are linked to another users account and don't require a password or emails
-func NewChildUser(details *UserDetail, salt string) (user *User, err error) {
+func (details *NewCustodialUserDetails) ExtractFromJSON(reader io.Reader) error {
+	if reader == nil {
+		return User_error_details_missing
+	}
 
-	//name hashed from the `nice` name you gave us
-	name, err := generateUniqueHash([]string{details.Name, time.Now().String()}, 10)
-	if err != nil {
+	var decoded map[string]interface{}
+	if err := json.NewDecoder(reader).Decode(&decoded); err != nil {
+		return err
+	}
+
+	var (
+		username *string
+		emails   []string
+		ok       bool
+	)
+
+	if username, ok = ExtractString(decoded, "username"); !ok {
+		return User_error_username_invalid
+	}
+	if emails, ok = ExtractStringArray(decoded, "emails"); !ok {
+		return User_error_emails_invalid
+	}
+
+	details.Username = username
+	details.Emails = emails
+	return nil
+}
+
+func (details *NewCustodialUserDetails) Validate() error {
+	if details.Username != nil {
+		if !IsValidEmail(*details.Username) {
+			return User_error_username_invalid
+		}
+	}
+
+	if details.Emails != nil {
+		for _, email := range details.Emails {
+			if !IsValidEmail(email) {
+				return User_error_emails_invalid
+			}
+		}
+	}
+
+	return nil
+}
+
+func ParseNewCustodialUserDetails(reader io.Reader) (*NewCustodialUserDetails, error) {
+	details := &NewCustodialUserDetails{}
+	if err := details.ExtractFromJSON(reader); err != nil {
+		return nil, err
+	} else {
+		return details, nil
+	}
+}
+
+func NewCustodialUser(details *NewCustodialUserDetails, salt string) (user *User, err error) {
+	if details == nil {
+		return nil, errors.New("New custodial user details is nil")
+	} else if err := details.Validate(); err != nil {
+		return nil, err
+	}
+
+	var username string
+	if details.Username != nil {
+		username = *details.Username
+	}
+
+	user = &User{Username: username, Emails: details.Emails}
+
+	if user.Id, err = generateUniqueHash([]string{username}, 10); err != nil {
 		return nil, errors.New("User: error generating id")
 	}
-	id, err := generateUniqueHash([]string{name}, 10)
-	if err != nil {
+	if user.Hash, err = generateUniqueHash([]string{username, user.Id}, 24); err != nil {
 		return nil, errors.New("User: error generating hash")
 	}
-	hash, err := generateUniqueHash([]string{name, id}, 24)
-	if err != nil {
-		return nil, errors.New("User: error generating password hash")
+
+	return user, nil
+}
+
+func (details *UpdateUserDetails) ExtractFromJSON(reader io.Reader) error {
+	if reader == nil {
+		return User_error_details_missing
 	}
 
-	return &User{Id: id, Name: name, Emails: details.Emails, Hash: hash, Verified: true, TermsAccepted: details.TermsAccepted}, nil
+	var decoded map[string]interface{}
+	if err := json.NewDecoder(reader).Decode(&decoded); err != nil {
+		return err
+	}
+
+	var (
+		username      *string
+		emails        []string
+		password      *string
+		termsAccepted *string
+		emailVerified *bool
+		ok            bool
+	)
+
+	decoded, ok = ExtractStringMap(decoded, "updates")
+	if !ok || decoded == nil {
+		return User_error_details_missing
+	}
+
+	if username, ok = ExtractString(decoded, "username"); !ok {
+		return User_error_username_invalid
+	}
+	if emails, ok = ExtractStringArray(decoded, "emails"); !ok {
+		return User_error_emails_invalid
+	}
+	if password, ok = ExtractString(decoded, "password"); !ok {
+		return User_error_password_invalid
+	}
+	if termsAccepted, ok = ExtractString(decoded, "termsAccepted"); !ok {
+		return User_error_terms_accepted_invalid
+	}
+	if emailVerified, ok = ExtractBool(decoded, "emailVerified"); !ok {
+		return User_error_email_verified_invalid
+	}
+
+	details.Username = username
+	details.Emails = emails
+	details.Password = password
+	details.TermsAccepted = termsAccepted
+	details.EmailVerified = emailVerified
+	return nil
 }
 
-func UserFromDetails(details *UserDetail) (user *User) {
-	return &User{Id: details.Id, Name: strings.ToLower(details.Name), Emails: details.Emails, TermsAccepted: details.TermsAccepted}
+func (details *UpdateUserDetails) Validate() error {
+	if details.Username != nil {
+		if !IsValidEmail(*details.Username) {
+			return User_error_username_invalid
+		}
+	}
+
+	if details.Emails != nil {
+		for _, email := range details.Emails {
+			if !IsValidEmail(email) {
+				return User_error_emails_invalid
+			}
+		}
+	}
+
+	if details.Password != nil {
+		if !IsValidPassword(*details.Password) {
+			return User_error_password_invalid
+		}
+	}
+
+	if details.TermsAccepted != nil {
+		if !IsValidDate(*details.TermsAccepted) {
+			return User_error_terms_accepted_invalid
+		}
+	}
+
+	return nil
 }
 
-func (u *User) HashPassword(pw, salt string) (err error) {
-	u.PwHash, err = GeneratePasswordHash(u.Id, pw, salt)
-	return err
+func ParseUpdateUserDetails(reader io.Reader) (*UpdateUserDetails, error) {
+	details := &UpdateUserDetails{}
+	if err := details.ExtractFromJSON(reader); err != nil {
+		return nil, err
+	} else {
+		return details, nil
+	}
 }
 
-func (u *User) NamesMatch(name string) bool {
-	return strings.ToLower(u.Name) == strings.ToLower(name)
+func (u *User) HashPassword(pw, salt string) error {
+	if passwordHash, err := GeneratePasswordHash(u.Id, pw, salt); err != nil {
+		return err
+	} else {
+		u.PwHash = passwordHash
+		return nil
+	}
 }
 
-func (u *User) PwsMatch(pw, salt string) bool {
-	if pw != "" {
-		pwMatch, _ := GeneratePasswordHash(u.Id, pw, salt)
+func (u *User) PasswordsMatch(pw, salt string) bool {
+	if u.PwHash == "" || pw == "" {
+		return false
+	} else if pwMatch, err := GeneratePasswordHash(u.Id, pw, salt); err != nil {
+		return false
+	} else {
 		return u.PwHash == pwMatch
 	}
-	return false
 }
 
-func (u *User) IsVerified(secret string) bool {
-	//allows override for dev and test purposes
+func (u *User) IsEmailVerified(secret string) bool {
 	if secret != "" {
+		if strings.Contains(u.Username, secret) {
+			return true
+		}
 		for i := range u.Emails {
 			if strings.Contains(u.Emails[i], secret) {
 				return true
 			}
 		}
 	}
-	return u.Verified
-}
-
-func getUserDetail(req *http.Request) (ud *UserDetail, err error) {
-	if req.ContentLength > 0 {
-		if err := json.NewDecoder(req.Body).Decode(&ud); err != nil {
-			return nil, err
-		}
-		return ud, nil
-	}
-	return nil, User_error_no_details_given
+	return u.EmailVerified
 }

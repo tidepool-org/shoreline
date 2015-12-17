@@ -11,8 +11,11 @@ import (
 func TestMongoStoreUserOperations(t *testing.T) {
 
 	var (
-		original_user_detail = &UserDetail{Name: "Test User", Emails: []string{"test@foo.bar"}, Pw: "myT35t"}
-		other_user_detail    = &UserDetail{Name: "Second User", Emails: original_user_detail.Emails, Pw: "my0th3rT35t"}
+		username               = "test@foo.bar"
+		original_user_password = "myT35t12"
+		original_user_detail   = &NewUserDetails{Username: &username, Emails: []string{username}, Password: &original_user_password}
+		other_user_password    = "my0th3rT35t"
+		other_user_detail      = &NewUserDetails{Username: &username, Emails: []string{username}, Password: &other_user_password}
 	)
 
 	const tests_fake_salt = "some fake salt for the tests"
@@ -37,7 +40,10 @@ func TestMongoStoreUserOperations(t *testing.T) {
 	/*
 	 * THE TESTS
 	 */
-	user, _ := NewUser(original_user_detail, tests_fake_salt)
+	user, err := NewUser(original_user_detail, tests_fake_salt)
+	if err != nil {
+		t.Fatalf("we could not create the new user record %v", err)
+	}
 
 	if err := mc.UpsertUser(user); err != nil {
 		t.Fatalf("we could not create the user %v", err)
@@ -47,49 +53,49 @@ func TestMongoStoreUserOperations(t *testing.T) {
 	 * Find by Name
 	 */
 
-	toFindByOriginalName := &User{Name: user.Name}
+	toFindByOriginalName := &User{Username: user.Username}
 
 	if found, err := mc.FindUsers(toFindByOriginalName); err != nil {
 		t.Fatalf("we could not find the the user by name: err[%v]", err)
 	} else {
-		if len(found) > 0 && found[0].Name != toFindByOriginalName.Name && found[0].Name != original_user_detail.Name {
+		if len(found) > 0 && found[0].Username != toFindByOriginalName.Username && found[0].Username != *original_user_detail.Username {
 			t.Fatalf("the user we found doesn't match what we asked for %v", found)
 		}
 	}
 	//UPPER CASE
-	byUpperName := &User{Name: strings.ToUpper(user.Name)}
+	byUpperName := &User{Username: strings.ToUpper(user.Username)}
 
 	if found, err := mc.FindUsers(byUpperName); err != nil {
 		t.Fatalf("we could not find the the user by name: err[%v]", err)
 	} else {
 		if len(found) == 0 {
-			t.Fatal("No users were found for ", byUpperName.Name)
-		} else if strings.ToUpper(found[0].Name) != byUpperName.Name {
+			t.Fatal("No users were found for ", byUpperName.Username)
+		} else if strings.ToUpper(found[0].Username) != byUpperName.Username {
 			t.Fatalf("the user we found doesn't match what we asked for %v", found)
 		}
 	}
 	//lower case
-	byLowerName := &User{Name: strings.ToLower(user.Name)}
+	byLowerName := &User{Username: strings.ToLower(user.Username)}
 
 	if found, err := mc.FindUsers(byLowerName); err != nil {
 		t.Fatalf("we could not find the the user by name: err[%v]", err)
 	} else {
 		if len(found) == 0 {
-			t.Fatal("No users were found for ", byLowerName.Name)
-		} else if strings.ToLower(found[0].Name) != byLowerName.Name {
+			t.Fatal("No users were found for ", byLowerName.Username)
+		} else if strings.ToLower(found[0].Username) != byLowerName.Username {
 			t.Fatalf("the user we found doesn't match what we asked for %v", found)
 		}
 	}
 
 	//Do an update
-	user.Name = "test user updated"
+	user.Username = "test user updated"
 
 	if err := mc.UpsertUser(user); err != nil {
 		t.Fatalf("we could not update the user %v", err)
 	}
 
 	//By Name
-	toFindByName := &User{Name: user.Name}
+	toFindByName := &User{Username: user.Username}
 
 	if found, err := mc.FindUsers(toFindByName); err != nil {
 		t.Fatalf("we could not find the the user by name: err[%v]", err)
@@ -98,7 +104,7 @@ func TestMongoStoreUserOperations(t *testing.T) {
 			t.Logf("results: %v ", found)
 			t.Fatalf("there should only be 1 match be we found %v", len(found))
 		}
-		if found[0].Name != toFindByName.Name {
+		if found[0].Username != toFindByName.Username {
 			t.Fatalf("the user we found doesn't match what we asked for %v", found)
 		}
 	}
@@ -134,7 +140,10 @@ func TestMongoStoreUserOperations(t *testing.T) {
 	}
 
 	//Find many By Email - user and userTwo have the same emails addresses
-	userTwo, _ := NewUser(other_user_detail, tests_fake_salt)
+	userTwo, err := NewUser(other_user_detail, tests_fake_salt)
+	if err != nil {
+		t.Fatalf("we could not create the new user record %v", err)
+	}
 
 	if err := mc.UpsertUser(userTwo); err != nil {
 		t.Fatalf("we could not create the user %v", err)
