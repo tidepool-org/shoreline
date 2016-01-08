@@ -13,7 +13,7 @@ type User struct {
 	Name          string                 `json:"username" bson:"username"`
 	Emails        []string               `json:"emails" bson:"emails"`
 	TermsAccepted string                 `json:"termsAccepted" bson:"termsAccepted"`
-	Verified      bool                   `json:"-" bson:"authenticated"` //tag is name `authenticated` for historical reasons
+	Verified      bool                   `json:"emailVerified" bson:"authenticated"` //tag is name `authenticated` for historical reasons
 	PwHash        string                 `json:"-" bson:"pwhash"`
 	Hash          string                 `json:"-" bson:"userhash"`
 	Private       map[string]*IdHashPair `json:"-" bson:"private"`
