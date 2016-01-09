@@ -161,6 +161,16 @@ func TestCreateUser_StatusCreated(t *testing.T) {
 		t.Fatal("body should have the userid")
 	}
 
+	var boolData map[string]bool
+	_ = json.Unmarshal(body, &boolData)
+
+	if boolData == nil {
+		t.Fatal("body should have been returned")
+	}
+
+	if emailVerified, ok := boolData["emailVerified"]; !ok || emailVerified {
+		t.Fatal("body should have emailVerified set to false")
+	}
 }
 
 func TestCreateChildUser_StatusCreated(t *testing.T) {
@@ -201,6 +211,16 @@ func TestCreateChildUser_StatusCreated(t *testing.T) {
 		t.Fatal("body should have the userid")
 	}
 
+	var boolData map[string]bool
+	_ = json.Unmarshal(body, &boolData)
+
+	if boolData == nil {
+		t.Fatal("body should have been returned")
+	}
+
+	if emailVerified, ok := boolData["emailVerified"]; !ok || !emailVerified {
+		t.Fatal("body should have emailVerified set to true")
+	}
 }
 
 func TestCreateUser_Failure(t *testing.T) {
@@ -662,6 +682,20 @@ func TestLogin_StatusOK(t *testing.T) {
 
 	if response.Header().Get("content-type") != "application/json" {
 		t.Fatal("the resp should be json")
+	}
+
+
+	body, _ := ioutil.ReadAll(response.Body)
+
+	var boolData map[string]bool
+	_ = json.Unmarshal(body, &boolData)
+
+	if boolData == nil {
+		t.Fatal("body should have been returned")
+	}
+
+	if emailVerified, ok := boolData["emailVerified"]; !ok || !emailVerified {
+		t.Fatal("body should have emailVerified set to true")
 	}
 }
 
