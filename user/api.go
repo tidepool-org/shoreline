@@ -252,7 +252,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 	if updatesToApply.Updates != nil {
 
 		//a.logger.Print("UpdateUser: applying updates ... ")
-		usrToFind := UserFromDetails(&UserDetail{Id: usrId, Emails: []string{usrId}})
+		usrToFind := UserFromDetails(&UserDetail{Id: usrId, Name: usrId, Emails: []string{usrId}})
 
 		if userToUpdate, err := a.Store.FindUser(usrToFind); err != nil {
 			a.logger.Println(http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err.Error())
@@ -338,7 +338,7 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 	id := vars["userid"]
 	if id != "" {
 		//the `userid` could infact be an email
-		usr = UserFromDetails(&UserDetail{Id: id, Emails: []string{id}})
+		usr = UserFromDetails(&UserDetail{Id: id, Name: id, Emails: []string{id}})
 	} else {
 		//use the token to find the userid
 		usr = UserFromDetails(&UserDetail{Id: td.UserId})
