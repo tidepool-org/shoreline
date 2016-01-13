@@ -346,7 +346,7 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 	userId := vars["userid"]
 	if userId != "" {
 		//the `userid` could infact be an email
-		usr = UserFromDetails(&UserDetail{Id: userId, Emails: []string{userId}})
+		usr = UserFromDetails(&UserDetail{Id: userId, Name: userId, Emails: []string{userId}})
 	} else {
 		//use the token to find the userid
 		usr = UserFromDetails(&UserDetail{Id: td.UserId})
