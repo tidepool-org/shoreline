@@ -12,6 +12,7 @@ type User struct {
 	Id            string                 `json:"userid" bson:"userid,omitempty"` // map userid to id
 	Name          string                 `json:"username" bson:"username"`
 	Emails        []string               `json:"emails" bson:"emails"`
+	Roles         []string               `json:"roles" bson:"roles"`
 	TermsAccepted string                 `json:"termsAccepted" bson:"termsAccepted"`
 	Verified      bool                   `json:"emailVerified" bson:"authenticated"` //tag is name `authenticated` for historical reasons
 	PwHash        string                 `json:"-" bson:"pwhash"`
@@ -26,6 +27,7 @@ type UserDetail struct {
 	Id            string   //no tag as we aren't getting it from json
 	Name          string   `json:"username"`
 	Emails        []string `json:"emails"`
+	Roles         []string `json:"roles"`
 	TermsAccepted string   `json:"termsAccepted"`
 	Pw            string   `json:"password"`
 	Verified      bool     `json:"authenticated"` //tag is name `authenticated` for historical reasons
@@ -81,7 +83,7 @@ func NewChildUser(details *UserDetail, salt string) (user *User, err error) {
 }
 
 func UserFromDetails(details *UserDetail) (user *User) {
-	return &User{Id: details.Id, Name: strings.ToLower(details.Name), Emails: details.Emails, TermsAccepted: details.TermsAccepted}
+	return &User{Id: details.Id, Name: strings.ToLower(details.Name), Emails: details.Emails, Roles: details.Roles, TermsAccepted: details.TermsAccepted}
 }
 
 func (u *User) HashPassword(pw, salt string) (err error) {

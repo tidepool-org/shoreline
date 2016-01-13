@@ -28,6 +28,7 @@ func Test_Id(t *testing.T) {
 		t.Fatalf("the id should have been set")
 	}
 }
+
 func Test_Emails(t *testing.T) {
 
 	e1 := "test@foo.bar"
@@ -46,6 +47,22 @@ func Test_Emails(t *testing.T) {
 
 	if user.Emails[1] != e2 {
 		t.Fatalf("the emails should keep the case as they were added")
+	}
+}
+
+func Test_Roles(t *testing.T) {
+
+	r1, r2 := "clinic", "patient"
+
+	roles := []string{r1, r2}
+	user := UserFromDetails(&UserDetail{Roles: roles})
+
+	if len(user.Roles) != 2 {
+		t.Fatalf("there should be two roles")
+	}
+
+	if user.Roles[0] != roles[0] || user.Roles[1] != roles[1] {
+		t.Fatalf("the roles should have been set")
 	}
 }
 
