@@ -6,12 +6,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	commonUserApi "github.com/tidepool-org/go-common/clients/shoreline"
-	"github.com/tidepool-org/go-common/clients/status"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/httptest"
+
+	commonUserApi "github.com/tidepool-org/go-common/clients/shoreline"
+	"github.com/tidepool-org/go-common/clients/status"
 )
 
 func extractUserData(data string) (*commonUserApi.UserData, error) {
@@ -125,4 +126,14 @@ func (client *UserClient) TokenProvide() string {
 	log.Print(USER_API_PREFIX, "UserClient.TokenProvide")
 
 	return response.Header().Get(TP_SESSION_TOKEN)
+}
+
+// FIXME: Not required for OAUTH API, but still...
+func (client *UserClient) GetUser(userID, token string) (*commonUserApi.UserData, error) {
+	return nil, nil
+}
+
+// FIXME: Not required for OAUTH API, but still...
+func (client *UserClient) UpdateUser(user commonUserApi.UserUpdate, token string) error {
+	return nil
 }
