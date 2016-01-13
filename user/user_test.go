@@ -52,7 +52,7 @@ func Test_Emails(t *testing.T) {
 
 func Test_Roles(t *testing.T) {
 
-	r1, r2 := "clinic", "patient"
+	r1, r2 := CLINIC_ROLE, "other"
 
 	roles := []string{r1, r2}
 	user := UserFromDetails(&UserDetail{Roles: roles})
@@ -112,7 +112,7 @@ const (
 	test_salt = "some salt and pepper for good measure"
 )
 
-func Test_NewUser_AsChild(t *testing.T) {
+func Test_NewChildUser(t *testing.T) {
 
 	if childAcct, err := NewChildUser(&UserDetail{Name: test_user_name, TermsAccepted: test_user_terms_date}, test_salt); err != nil {
 		t.Fatalf("it is legit to create a user without a pw - this is known as a Child Account")
@@ -154,6 +154,7 @@ func Test_NewUser_AsChild(t *testing.T) {
 		}
 	}
 }
+
 func Test_NewUser_NoPw(t *testing.T) {
 
 	if _, err := NewUser(&UserDetail{Name: test_user_name, Emails: []string{}}, test_salt); err == nil {
@@ -169,10 +170,20 @@ func Test_NewUser_NoName(t *testing.T) {
 
 }
 
-func Test_NewUser_NoRoles(t *testing.T) {
+func Test_NewUser_OnlyPredefinedRolesAllowed(t *testing.T) {
 
-	if _, err := NewUser(&UserDetail{Name: "", Pw: test_user_password, Emails: []string{}}, test_salt); err == nil {
-		t.Fatalf("should have given error as the name is not given")
+	if usr, err := NewUser(&UserDetail{Name: test_user_name, Pw: test_user_password, Emails: []string{test_user_email}, Roles: []string{CLINIC_ROLE}}, test_salt); err != nil {
+		t.Fatalf("there should not be an error but got %s", err.Error())
+	} else if usr.Roles[0] != CLINIC_ROLE {
+		t.Fatalf("should have been set as the clinic role not %s", usr.Roles[0])
+	}
+
+}
+
+func Test_NewUser_FailsWhenNotAPredefinedRole(t *testing.T) {
+
+	if _, err := NewUser(&UserDetail{Name: test_user_name, Pw: test_user_password, Emails: []string{test_user_email}, Roles: []string{"random"}}, test_salt); err == nil {
+		t.Fatal("there should be an error as we can only create clinic roles")
 	}
 
 }
