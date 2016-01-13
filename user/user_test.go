@@ -101,18 +101,26 @@ func Test_HashPassword_WithEmptyParams(t *testing.T) {
 	}
 
 }
+
+const (
+	test_user_email = "Test@FOO.bar"
+	//in the wild the name is always an email
+	test_user_name       = test_user_email
+	test_user_password   = "3th3Hardw0y"
+	test_user_terms_date = "2016-01-13T21:23:45.188Z"
+
+	test_salt = "some salt and pepper for good measure"
+)
+
 func Test_NewUser_AsChild(t *testing.T) {
 
-	theName := "The Kid"
-	termsAccepted := "2015/03/15"
-
-	if childAcct, err := NewChildUser(&UserDetail{Name: theName, TermsAccepted: termsAccepted}, "some salt"); err != nil {
-		t.Fatalf("it is legit to create a user withuot a pw - this is known as a Child Account")
+	if childAcct, err := NewChildUser(&UserDetail{Name: test_user_name, TermsAccepted: test_user_terms_date}, test_salt); err != nil {
+		t.Fatalf("it is legit to create a user without a pw - this is known as a Child Account")
 	} else {
-		if childAcct.Name == theName {
+		if childAcct.Name == strings.ToLower(test_user_name) {
 			t.Fatalf("the user name should have been hashed")
 		}
-		if childAcct.TermsAccepted != termsAccepted {
+		if childAcct.TermsAccepted != test_user_terms_date {
 			t.Fatalf("the terms should have been set")
 		}
 		if len(childAcct.Name) != 10 {
@@ -139,7 +147,7 @@ func Test_NewUser_AsChild(t *testing.T) {
 		}
 
 		//make another child account with the same name
-		otherChildAcct, _ := NewChildUser(&UserDetail{Name: theName}, "some salt")
+		otherChildAcct, _ := NewChildUser(&UserDetail{Name: test_user_name}, test_salt)
 
 		if otherChildAcct.Name == childAcct.Name {
 			t.Fatalf("the hashed names should be different")
@@ -148,23 +156,39 @@ func Test_NewUser_AsChild(t *testing.T) {
 }
 func Test_NewUser_NoPw(t *testing.T) {
 
-	if _, err := NewUser(&UserDetail{Name: "I have a name", Emails: []string{}}, "some salt"); err == nil {
+	if _, err := NewUser(&UserDetail{Name: test_user_name, Emails: []string{}}, test_salt); err == nil {
 		t.Fatalf("should have given error as the pw is not given")
 	}
 
 }
 func Test_NewUser_NoName(t *testing.T) {
 
-	if _, err := NewUser(&UserDetail{Name: "", Pw: "3th3Hardw0y", Emails: []string{}}, "some salt"); err == nil {
+	if _, err := NewUser(&UserDetail{Name: "", Pw: test_user_password, Emails: []string{}}, test_salt); err == nil {
 		t.Fatalf("should have given error as the name is not given")
 	}
 
 }
+
+func Test_NewUser_NoRoles(t *testing.T) {
+
+	if _, err := NewUser(&UserDetail{Name: "", Pw: test_user_password, Emails: []string{}}, test_salt); err == nil {
+		t.Fatalf("should have given error as the name is not given")
+	}
+
+}
+
 func Test_NewUser(t *testing.T) {
 
-	name := "MixeD caSe"
+	if user, err := NewUser(
+		&UserDetail{
+			Name:   test_user_name,
+			Pw:     test_user_password,
+			Emails: []string{test_user_email},
+			Roles:  []string{CLINIC_ROLE},
+		},
+		test_salt,
+	); err == nil {
 
-	if user, err := NewUser(&UserDetail{Name: name, Pw: "3th3Hardw0y", Emails: []string{"test@foo.bar"}}, "some salt"); err == nil {
 		if user.Hash == "" {
 			t.Fatalf("the user hash should have been set")
 		}
@@ -178,18 +202,24 @@ func Test_NewUser(t *testing.T) {
 			t.Fatalf("the user id should be 10 characters in length")
 		}
 		//Name should be lowercase
-		if user.Name == "" {
+		if user.Name != strings.ToLower(test_user_name) {
 			t.Fatalf("the user name should have been set")
-		}
-		if user.Name == name {
-			t.Fatalf("the user name should be lower case")
-		}
-		if user.Name != strings.ToLower(name) {
-			t.Fatalf("the user name should match the lowercase version of the given name")
 		}
 
 		if len(user.Emails) != 1 {
 			t.Fatalf("the emails should have been set")
+		}
+
+		if user.Emails[0] != test_user_email {
+			t.Fatalf("the email is incorrect")
+		}
+
+		if len(user.Roles) != 1 {
+			t.Fatalf("the roles should have been set")
+		}
+
+		if user.Roles[0] != CLINIC_ROLE {
+			t.Fatalf("the roles is incorrect")
 		}
 
 		if user.Verified {
@@ -200,8 +230,10 @@ func Test_NewUser(t *testing.T) {
 }
 func Test_IsVerified(t *testing.T) {
 
-	userWithSecret, _ := NewUser(&UserDetail{Name: "one", Pw: "3th3Hardw0y", Emails: []string{"test+secret@foo.bar"}}, "some salt")
-	user, _ := NewUser(&UserDetail{Name: "two", Pw: "3th3Hardw0y", Emails: []string{"test@foo.bar"}}, "some salt")
+	const test_email_with_secret = "test+secret@foo.bar"
+
+	userWithSecret, _ := NewUser(&UserDetail{Name: test_email_with_secret, Pw: test_user_password, Emails: []string{test_email_with_secret}}, test_salt)
+	user, _ := NewUser(&UserDetail{Name: test_user_name, Pw: test_user_password, Emails: []string{test_user_email}}, test_salt)
 
 	//no secret
 	if userWithSecret.IsVerified("") == true {

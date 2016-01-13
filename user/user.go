@@ -33,6 +33,11 @@ type UserDetail struct {
 	Verified      bool     `json:"authenticated"` //tag is name `authenticated` for historical reasons
 }
 
+const (
+	//predefined roles that tidepool will understand
+	CLINIC_ROLE = "clinic"
+)
+
 var (
 	User_error_name_pw_required = errors.New("User: both the name and pw are required")
 	User_error_no_details_given = errors.New("User: no user details were sent")
@@ -59,7 +64,7 @@ func NewUser(details *UserDetail, salt string) (user *User, err error) {
 		return nil, errors.New("User: error generating password hash")
 	}
 
-	return &User{Id: id, Name: details.Name, Emails: details.Emails, Hash: hash, PwHash: pwHash, Verified: false}, nil
+	return &User{Id: id, Name: details.Name, Emails: details.Emails, Roles: details.Roles, Hash: hash, PwHash: pwHash, Verified: false}, nil
 }
 
 //Child Account are linked to another users account and don't require a password or emails
