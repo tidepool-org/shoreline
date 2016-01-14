@@ -3,6 +3,7 @@ package user
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -41,12 +42,35 @@ const (
 var (
 	User_error_name_pw_required = errors.New("User: both the name and pw are required")
 	User_error_no_details_given = errors.New("User: no user details were sent")
+	User_error_invalid_role     = errors.New("User: trying to set the role as")
+	AllowedUserRoles            = map[string]string{
+		CLINIC_ROLE: CLINIC_ROLE,
+	}
 )
+
+func validateRoles(roles []string) error {
+	for i := range roles {
+		if _, ok := AllowedUserRoles[roles[i]]; !ok {
+			configuredRoles := []string{}
+			for k := range AllowedUserRoles {
+				configuredRoles = append(configuredRoles, k)
+			}
+			return errors.New(fmt.Sprintf("User: trying to set role as `%s` which is not one of the valid roles `%s`", roles[i], configuredRoles))
+		}
+	}
+	return nil
+}
 
 func NewUser(details *UserDetail, salt string) (user *User, err error) {
 
 	if details.Name == "" || details.Pw == "" {
 		return nil, User_error_name_pw_required
+	}
+
+	//if yours are set ensure it is an allowed type
+	err = validateRoles(details.Roles)
+	if err != nil {
+		return nil, err
 	}
 
 	details.Name = strings.ToLower(details.Name)

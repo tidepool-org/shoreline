@@ -182,8 +182,12 @@ func Test_NewUser_OnlyPredefinedRolesAllowed(t *testing.T) {
 
 func Test_NewUser_FailsWhenNotAPredefinedRole(t *testing.T) {
 
+	const expected_err_msg = "User: trying to set role as `random` which is not one of the valid roles `[clinic]`"
+
 	if _, err := NewUser(&UserDetail{Name: test_user_name, Pw: test_user_password, Emails: []string{test_user_email}, Roles: []string{"random"}}, test_salt); err == nil {
 		t.Fatal("there should be an error as we can only create clinic roles")
+	} else if err.Error() != expected_err_msg {
+		t.Fatalf("expected %s actual %s", expected_err_msg, err.Error())
 	}
 
 }
