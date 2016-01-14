@@ -2,10 +2,11 @@ package user
 
 import (
 	"fmt"
+	"log"
+
 	"github.com/tidepool-org/go-common/clients/mongo"
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
-	"log"
 )
 
 const (
@@ -94,6 +95,10 @@ func (d MongoStoreClient) FindUsers(user *User) (results []*User, err error) {
 	}
 	if len(user.Emails) > 0 {
 		fieldsToMatch = append(fieldsToMatch, bson.M{"emails": bson.M{"$in": user.Emails}})
+	}
+
+	if len(user.Roles) > 0 {
+		fieldsToMatch = append(fieldsToMatch, bson.M{"roles": bson.M{"$in": user.Roles}})
 	}
 
 	cpy := d.session.Copy()
