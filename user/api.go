@@ -251,7 +251,6 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 
 	if updatesToApply.Updates != nil {
 
-		//a.logger.Print("UpdateUser: applying updates ... ")
 		usrToFind := UserFromDetails(&UserDetail{Id: usrId, Emails: []string{usrId}})
 
 		if userToUpdate, err := a.Store.FindUser(usrToFind); err != nil {
