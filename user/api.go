@@ -72,6 +72,7 @@ const (
 	STATUS_AUTH_HEADER_REQUIRED  = "Authorization header is required"
 	STATUS_AUTH_HEADER_INVLAID   = "Authorization header is invalid"
 	STATUS_GETSTATUS_ERR         = "Error checking service status"
+	STATUS_UNAUTHORIZED          = "Not authorized for requested operation"
 )
 
 func InitApi(cfg ApiConfig, store Storage, metrics highwater.Client) *Api {
@@ -141,7 +142,6 @@ func (a *Api) GetStatus(res http.ResponseWriter, req *http.Request) {
 func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 
 	usrDetails, err := getUserDetail(req)
-
 	if err != nil {
 		a.logger.Println(http.StatusBadRequest, STATUS_MISSING_USR_DETAILS, err.Error())
 		sendModelAsResWithStatus(res, status.NewStatus(http.StatusBadRequest, STATUS_MISSING_USR_DETAILS), http.StatusBadRequest)
@@ -149,7 +149,6 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 	}
 
 	newUsr, err := NewUser(usrDetails, a.ApiConfig.Salt)
-
 	if err != nil {
 		if err == User_error_name_pw_required {
 			a.logger.Println(http.StatusBadRequest, STATUS_MISSING_USR_DETAILS, err.Error())
@@ -163,7 +162,6 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 	}
 
 	existingUsr, err := a.Store.FindUsers(newUsr)
-
 	if err != nil {
 		a.logger.Println(http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err.Error())
 		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_CREATING_USR), http.StatusInternalServerError)
@@ -186,8 +184,14 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 // status: 500 STATUS_ERR_GENERATING_TOKEN
 func (a *Api) CreateChildUser(res http.ResponseWriter, req *http.Request) {
 
-	usrDetails, err := getUserDetail(req)
+	_, err := getUnpackedToken(req.Header.Get(TP_SESSION_TOKEN), a.ApiConfig.Secret)
+	if err != nil {
+		a.logger.Println(http.StatusUnauthorized, err.Error())
+		res.WriteHeader(http.StatusUnauthorized)
+		return
+	}
 
+	usrDetails, err := getUserDetail(req)
 	if err != nil {
 		a.logger.Println(http.StatusBadRequest, STATUS_MISSING_USR_DETAILS, err.Error())
 		sendModelAsResWithStatus(res, status.NewStatus(http.StatusBadRequest, STATUS_MISSING_USR_DETAILS), http.StatusBadRequest)
@@ -195,12 +199,12 @@ func (a *Api) CreateChildUser(res http.ResponseWriter, req *http.Request) {
 	}
 
 	newChildUsr, err := NewChildUser(usrDetails, a.ApiConfig.Salt)
-
 	if err != nil {
 		a.logger.Println(http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err.Error())
 		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_CREATING_USR), http.StatusInternalServerError)
 		return
 	}
+
 	a.addUserAndSendStatus(newChildUsr, res, req)
 	return
 }
@@ -213,11 +217,23 @@ func (a *Api) CreateChildUser(res http.ResponseWriter, req *http.Request) {
 func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 
 	td, err := getUnpackedToken(req.Header.Get(TP_SESSION_TOKEN), a.ApiConfig.Secret)
-
 	if err != nil {
 		a.logger.Println(http.StatusUnauthorized, err.Error())
 		res.WriteHeader(http.StatusUnauthorized)
 		return
+	}
+
+	userId := vars["userid"]
+	if userId != "" {
+
+		// Non-server tokens can only update their own user id
+		if !td.IsServer && userId != td.UserId {
+			a.logger.Println(http.StatusUnauthorized, STATUS_UNAUTHORIZED)
+			sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_UNAUTHORIZED), http.StatusUnauthorized)
+			return
+		}
+	} else {
+		userId = td.UserId
 	}
 
 	var (
@@ -226,18 +242,6 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 			Updates *UserDetail `json:"updates"`
 		}
 	)
-
-	usrId := vars["userid"]
-
-	if usrId == "" && td.UserId == "" {
-		//go no further
-		a.logger.Println(http.StatusBadRequest, STATUS_NO_USR_DETAILS)
-		sendModelAsResWithStatus(res, status.NewStatus(http.StatusBadRequest, STATUS_NO_USR_DETAILS), http.StatusBadRequest)
-		return
-	} else if usrId == "" && td.UserId != "" {
-		//use the id from the token
-		usrId = td.UserId
-	}
 
 	if req.ContentLength > 0 {
 		err := json.NewDecoder(req.Body).Decode(&updatesToApply)
@@ -251,8 +255,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 
 	if updatesToApply.Updates != nil {
 
-		//a.logger.Print("UpdateUser: applying updates ... ")
-		usrToFind := UserFromDetails(&UserDetail{Id: usrId, Emails: []string{usrId}})
+		usrToFind := UserFromDetails(&UserDetail{Id: userId})
 
 		if userToUpdate, err := a.Store.FindUser(usrToFind); err != nil {
 			a.logger.Println(http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err.Error())
@@ -309,7 +312,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 				return
 			} else {
 				if td.IsServer {
-					a.logMetricForUser(usrId, "userupdated", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "true"})
+					a.logMetricForUser(userId, "userupdated", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "true"})
 				} else {
 					a.logMetric("userupdated", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "false"})
 				}
@@ -335,10 +338,10 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 
 	var usr *User
 
-	id := vars["userid"]
-	if id != "" {
+	userId := vars["userid"]
+	if userId != "" {
 		//the `userid` could infact be an email
-		usr = UserFromDetails(&UserDetail{Id: id, Emails: []string{id}})
+		usr = UserFromDetails(&UserDetail{Id: userId, Emails: []string{userId}})
 	} else {
 		//use the token to find the userid
 		usr = UserFromDetails(&UserDetail{Id: td.UserId})
@@ -355,21 +358,26 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 			res.WriteHeader(http.StatusInternalServerError)
 			res.Write([]byte(STATUS_ERR_FINDING_USR))
 			return
-		} else if results != nil {
+		} else if len(results) != 1 {
+			a.logger.Println(http.StatusInternalServerError, STATUS_ERR_FINDING_USR)
+			res.WriteHeader(http.StatusInternalServerError)
+			res.Write([]byte(STATUS_ERR_FINDING_USR))
+			return
+		} else {
+			// Non-server tokens can only lookup their own user id
+			if !td.IsServer && results[0].Id != td.UserId {
+				a.logger.Println(http.StatusUnauthorized, STATUS_UNAUTHORIZED)
+				sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_UNAUTHORIZED), http.StatusUnauthorized)
+				return
+			}
 
 			if td.IsServer {
-				a.logMetricForUser(id, "getuserinfo", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "true"})
+				a.logMetricForUser(userId, "getuserinfo", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "true"})
 			} else {
 				a.logMetric("getuserinfo", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "false"})
 			}
 
-			if len(results) == 1 {
-				sendModelAsRes(res, results[0])
-				return
-			}
-
-			a.logger.Printf(" found [%d] users ", len(results))
-			sendModelsAsRes(res, results)
+			sendModelAsRes(res, results[0])
 			return
 		}
 	}

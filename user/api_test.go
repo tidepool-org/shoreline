@@ -173,11 +173,32 @@ func TestCreateUser_StatusCreated(t *testing.T) {
 	}
 }
 
+func TestCreateChildUser_NoSessionToken(t *testing.T) {
+
+	var jsonData = []byte(`{"username": "child user"}`)
+
+	request, _ := http.NewRequest("POST", "/childuser", bytes.NewBuffer(jsonData))
+	request.Header.Add("content-type", "application/json")
+
+	response := httptest.NewRecorder()
+
+	shorelineNoDups.SetHandlers("", rtr)
+
+	shorelineNoDups.CreateChildUser(response, request)
+
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("Non-expected status code %v:\n\tbody: %v", "401", response.Code)
+	}
+}
+
 func TestCreateChildUser_StatusCreated(t *testing.T) {
 
 	var jsonData = []byte(`{"username": "child user"}`)
 
 	request, _ := http.NewRequest("POST", "/childuser", bytes.NewBuffer(jsonData))
+	request.Header.Add("content-type", "application/json")
+
+	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
 	request.Header.Add("content-type", "application/json")
 
 	response := httptest.NewRecorder()
@@ -276,6 +297,25 @@ func TestUpdateUser_StatusUnauthorized_WhenNoToken(t *testing.T) {
 
 	if response.Code != http.StatusUnauthorized {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", "401", response.Code)
+	}
+}
+
+func TestUpdateUser_StatusUnauthorized_WhenUserIdsDiffer(t *testing.T) {
+	var updateAll = []byte(`{"updates":{"username": "id from token","password":"aN3wPw0rD","emails":["fromtkn@new.bar"]}}`)
+
+	request, _ := http.NewRequest("PUT", "/user/999-999-999", bytes.NewBuffer(updateAll))
+
+	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
+	request.Header.Add("content-type", "application/json")
+
+	responseUpdateAll := httptest.NewRecorder()
+
+	shorelineNoDups.SetHandlers("", rtr)
+
+	shorelineNoDups.UpdateUser(responseUpdateAll, request, map[string]string{"userid": "999-999-999"})
+
+	if responseUpdateAll.Code != http.StatusUnauthorized {
+		t.Fatalf("Status given [%v] expected [%v] ", responseUpdateAll.Code, http.StatusUnauthorized)
 	}
 }
 
@@ -537,6 +577,21 @@ func TestGetUserInfo_StatusUnauthorized_WhenNoToken(t *testing.T) {
 	}
 }
 
+func TestGetUserInfo_StatusUnauthorized_WhenUserIdsDiffer(t *testing.T) {
+	var findData = []byte(`{"username": "test","emails":["test@foo.bar"]}`)
+	request, _ := http.NewRequest("GET", "/", bytes.NewBuffer(findData))
+	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
+	response := httptest.NewRecorder()
+
+	shoreline.SetHandlers("", rtr)
+
+	shoreline.GetUserInfo(response, request, map[string]string{"userid": "999-999-999"})
+
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("Non-expected status code %v:\n\tbody: %v", "401", response.Code)
+	}
+}
+
 func TestDeleteUser_StatusForbidden_WhenNoPw(t *testing.T) {
 	request, _ := http.NewRequest("DELETE", "/", nil)
 	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
@@ -683,7 +738,6 @@ func TestLogin_StatusOK(t *testing.T) {
 	if response.Header().Get("content-type") != "application/json" {
 		t.Fatal("the resp should be json")
 	}
-
 
 	body, _ := ioutil.ReadAll(response.Body)
 
@@ -1516,7 +1570,7 @@ func TestAnonIdHashPair_InBulk(t *testing.T) {
 	ask := make([]AnonIdHashPair, 100)
 	var generated []AnonIdHashPair
 
-	var mutex sync.Mutex 
+	var mutex sync.Mutex
 	var wg sync.WaitGroup
 
 	for _, hash := range ask {
