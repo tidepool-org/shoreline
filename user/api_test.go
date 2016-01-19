@@ -350,7 +350,7 @@ func TestUpdateUser_StatusOK(t *testing.T) {
 	/*
 	 * can update all
 	 */
-	var updateAll = []byte(`{"updates":{"username": "change1","password":"aN3wPw0rD","emails":["change1@new.bar"],"authenticated":true}}`)
+	var updateAll = []byte(`{"updates":{"username": "change1","password":"aN3wPw0rD","emails":["change1@new.bar"]}}`)
 
 	requestUpdateAll, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updateAll))
 
@@ -362,7 +362,7 @@ func TestUpdateUser_StatusOK(t *testing.T) {
 	shorelineNoDups.UpdateUser(responseUpdateAll, requestUpdateAll, map[string]string{"userid": USR.Id})
 
 	if responseUpdateAll.Code != http.StatusOK {
-		t.Fatalf("Non-expected status code %v:\n\tbody: %v", "200", responseUpdateAll.Code)
+		t.Fatalf("Expected [%v] and got [%v]", http.StatusOK, responseUpdateAll.Code)
 	}
 
 	/*
@@ -377,7 +377,7 @@ func TestUpdateUser_StatusOK(t *testing.T) {
 	shorelineNoDups.UpdateUser(responseUpdateName, requestUpdateName, map[string]string{"userid": USR.Id})
 
 	if responseUpdateName.Code != http.StatusOK {
-		t.Fatalf("Non-expected status code %v:\n\tbody: %v", "200", responseUpdateName.Code)
+		t.Fatalf("Expected [%v] and got [%v]", http.StatusOK, responseUpdateName.Code)
 	}
 
 	/*
@@ -393,7 +393,7 @@ func TestUpdateUser_StatusOK(t *testing.T) {
 	shorelineNoDups.UpdateUser(responseUpdatePW, requestUpdatePW, map[string]string{"userid": USR.Id})
 
 	if responseUpdatePW.Code != http.StatusOK {
-		t.Fatalf("Non-expected status code %v:\n\tbody: %v", "200", responseUpdatePW.Code)
+		t.Fatalf("Expected [%v] and got [%v]", http.StatusOK, responseUpdatePW.Code)
 	}
 
 	/*
@@ -408,12 +408,29 @@ func TestUpdateUser_StatusOK(t *testing.T) {
 	shorelineNoDups.UpdateUser(responseUpdateEmail, requestUpdateEmail, map[string]string{"userid": USR.Id})
 
 	if responseUpdateEmail.Code != http.StatusOK {
-		t.Fatalf("Non-expected status code %v:\n\tbody: %v", "200", responseUpdateEmail.Code)
+		t.Fatalf("Expected [%v] and got [%v]", http.StatusOK, responseUpdateEmail.Code)
 	}
 
 	/*
-	 * can update authentication
+	 * can update authentication (only if server)
 	 */
+	var updateAuth = []byte(`{"updates":{"authenticated":true}}`)
+
+	requestUpdateAuth, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updateAuth))
+	requestUpdateAuth.Header.Set(TP_SESSION_TOKEN, SRVR_TOKEN.Id)
+	requestUpdateAuth.Header.Add("content-type", "application/json")
+	responseUpdateAuth := httptest.NewRecorder()
+	shorelineNoDups.UpdateUser(responseUpdateAuth, requestUpdateAuth, map[string]string{"userid": USR.Id})
+
+	if responseUpdateAuth.Code != http.StatusOK {
+		t.Fatalf("Expected [%v] and got [%v]", http.StatusOK, responseUpdateAuth.Code)
+	}
+}
+
+func TestUpdateUser_Unauthorized_UserUpdateAuthentication(t *testing.T) {
+
+	shorelineNoDups.SetHandlers("", rtr)
+
 	var updateAuth = []byte(`{"updates":{"authenticated":true}}`)
 
 	requestUpdateAuth, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updateAuth))
@@ -422,10 +439,9 @@ func TestUpdateUser_StatusOK(t *testing.T) {
 	responseUpdateAuth := httptest.NewRecorder()
 	shorelineNoDups.UpdateUser(responseUpdateAuth, requestUpdateAuth, map[string]string{"userid": USR.Id})
 
-	if responseUpdateAuth.Code != http.StatusOK {
-		t.Fatalf("Non-expected status code %v:\n\tbody: %v", "200", responseUpdateAuth.Code)
+	if responseUpdateAuth.Code != http.StatusUnauthorized {
+		t.Fatalf("Expected [%v] and got [%v]", http.StatusUnauthorized, responseUpdateAuth.Code)
 	}
-
 }
 
 func TestUpdateUser_Failure(t *testing.T) {

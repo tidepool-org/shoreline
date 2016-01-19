@@ -263,6 +263,11 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 			return
 		} else if userToUpdate != nil {
 
+			if updatesToApply.Updates.Verified && !td.IsServer {
+				a.logger.Println(http.StatusUnauthorized, STATUS_UNAUTHORIZED)
+				sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_UNAUTHORIZED), http.StatusUnauthorized)
+			}
+
 			//Verifiy the user
 			if userToUpdate.Verified == false && updatesToApply.Updates.Verified {
 				userToUpdate.Verified = updatesToApply.Updates.Verified
