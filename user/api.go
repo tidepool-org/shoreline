@@ -227,7 +227,6 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 
 	userId := vars["userid"]
 	if userId != "" {
-
 		// Non-server tokens can only update their own user id
 		if !td.IsServer && userId != td.UserId {
 			a.logger.Println(http.StatusUnauthorized, STATUS_UNAUTHORIZED)
@@ -310,6 +309,11 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 			//Updated TermsAccepted
 			if updatesToApply.Updates.TermsAccepted != "" {
 				userToUpdate.TermsAccepted = updatesToApply.Updates.TermsAccepted
+			}
+
+			//Updated Roles
+			if len(updatesToApply.Updates.Roles) > 0 {
+				userToUpdate.Roles = updatesToApply.Updates.Roles
 			}
 
 			//All good - now update
@@ -564,6 +568,7 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 		sendModelAsResWithStatus(res, status.NewStatus(http.StatusBadRequest, STATUS_MISSING_ID_PW), http.StatusBadRequest)
 		return
 	}
+
 	if pw == a.ApiConfig.ServerSecret {
 		//generate new token
 		if sessionToken, err := CreateSessionTokenAndSave(
