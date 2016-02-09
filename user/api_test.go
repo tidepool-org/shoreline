@@ -410,20 +410,86 @@ func TestUpdateUser_StatusOK(t *testing.T) {
 	if responseUpdateEmail.Code != http.StatusOK {
 		t.Fatalf("Expected [%v] and got [%v]", http.StatusOK, responseUpdateEmail.Code)
 	}
+}
 
-	/*
-	 * can update authentication (only if server)
-	 */
+func TestUpdateUser_Authenticated_StatusOK(t *testing.T) {
+
 	var updateAuth = []byte(`{"updates":{"authenticated":true}}`)
 
-	requestUpdateAuth, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updateAuth))
-	requestUpdateAuth.Header.Set(TP_SESSION_TOKEN, SRVR_TOKEN.Id)
-	requestUpdateAuth.Header.Add("content-type", "application/json")
-	responseUpdateAuth := httptest.NewRecorder()
-	shorelineNoDups.UpdateUser(responseUpdateAuth, requestUpdateAuth, map[string]string{"userid": USR.Id})
+	req, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updateAuth))
+	req.Header.Set(TP_SESSION_TOKEN, SRVR_TOKEN.Id)
+	req.Header.Add("content-type", "application/json")
+	res := httptest.NewRecorder()
+	shorelineNoDups.UpdateUser(res, req, map[string]string{"userid": USR.Id})
 
-	if responseUpdateAuth.Code != http.StatusOK {
-		t.Fatalf("Expected [%v] and got [%v]", http.StatusOK, responseUpdateAuth.Code)
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected `%d` actual `%d` ", http.StatusOK, res.Code)
+	}
+}
+
+func TestUpdateUser_Authenticated_StatusUnauthorized(t *testing.T) {
+
+	var updateAuth = []byte(`{"updates":{"authenticated":true}}`)
+
+	req, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updateAuth))
+	req.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
+	req.Header.Add("content-type", "application/json")
+	res := httptest.NewRecorder()
+	shorelineNoDups.UpdateUser(res, req, map[string]string{"userid": USR.Id})
+
+	if res.Code != http.StatusUnauthorized {
+		t.Fatalf("expected `%d` actual `%d` ", http.StatusUnauthorized, res.Code)
+	}
+
+	body, _ := ioutil.ReadAll(res.Body)
+
+	expectedErrorMsg := fmt.Sprintf(`{"code":%d,"reason":"%s"}`, http.StatusUnauthorized, STATUS_SERVER_TOKEN_REQUIRED)
+
+	if string(body) != expectedErrorMsg {
+		t.Fatalf("expected `%s` actual `%s` ", expectedErrorMsg, string(body))
+	}
+}
+
+func TestUpdateUser_Roles_StatusOK(t *testing.T) {
+
+	shorelineNoDups.SetHandlers("", rtr)
+
+	var updateAuth = []byte(`{"updates":{"roles":["clinic"]}}`)
+
+	req, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updateAuth))
+	req.Header.Set(TP_SESSION_TOKEN, SRVR_TOKEN.Id)
+	req.Header.Add("content-type", "application/json")
+	res := httptest.NewRecorder()
+	shorelineNoDups.UpdateUser(res, req, map[string]string{"userid": USR.Id})
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected `%d` actual `%d` ", http.StatusOK, res.Code)
+	}
+
+}
+
+func TestUpdateUser_Roles_StatusUnauthorized(t *testing.T) {
+
+	shorelineNoDups.SetHandlers("", rtr)
+
+	var updateAuth = []byte(`{"updates":{"roles":["clinic"]}}`)
+
+	req, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updateAuth))
+	req.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
+	req.Header.Add("content-type", "application/json")
+	res := httptest.NewRecorder()
+	shorelineNoDups.UpdateUser(res, req, map[string]string{"userid": USR.Id})
+
+	if res.Code != http.StatusUnauthorized {
+		t.Fatalf("expected `%d` actual `%d` ", http.StatusUnauthorized, res.Code)
+	}
+
+	body, _ := ioutil.ReadAll(res.Body)
+
+	expectedErrorMsg := fmt.Sprintf(`{"code":%d,"reason":"%s"}`, http.StatusUnauthorized, STATUS_SERVER_TOKEN_REQUIRED)
+
+	if string(body) != expectedErrorMsg {
+		t.Fatalf("expected `%s` actual `%s` ", expectedErrorMsg, string(body))
 	}
 }
 
@@ -609,13 +675,13 @@ func TestGetUserInfo_StatusUnauthorized_WhenUserIdsDiffer(t *testing.T) {
 }
 
 func TestGetUsers_StatusOK(t *testing.T) {
-	request, _ := http.NewRequest("GET", "/", nil)
+	request, _ := http.NewRequest("GET", "/?role=clinic", nil)
 	request.Header.Set(TP_SESSION_TOKEN, SRVR_TOKEN.Id)
 	response := httptest.NewRecorder()
 
 	shoreline.SetHandlers("", rtr)
 
-	shoreline.GetUsers(response, request, map[string]string{"role": "clinic"})
+	shoreline.GetUsers(response, request)
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("expected `%d` actual `%d` ", http.StatusOK, response.Code)
@@ -623,13 +689,13 @@ func TestGetUsers_StatusOK(t *testing.T) {
 }
 
 func TestGetUsers_StatusBadRequest(t *testing.T) {
-	request, _ := http.NewRequest("GET", "/", nil)
+	request, _ := http.NewRequest("GET", "/?role=", nil)
 	request.Header.Set(TP_SESSION_TOKEN, SRVR_TOKEN.Id)
 	response := httptest.NewRecorder()
 
 	shoreline.SetHandlers("", rtr)
 
-	shoreline.GetUsers(response, request, map[string]string{"role": ""})
+	shoreline.GetUsers(response, request)
 
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("expected `%d` actual `%d` ", http.StatusBadRequest, response.Code)
@@ -645,13 +711,13 @@ func TestGetUsers_StatusBadRequest(t *testing.T) {
 }
 
 func TestGetUsers_StatusUnauthorized(t *testing.T) {
-	request, _ := http.NewRequest("GET", "/", nil)
+	request, _ := http.NewRequest("GET", "/?role=clinic", nil)
 	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
 	response := httptest.NewRecorder()
 
 	shoreline.SetHandlers("", rtr)
 
-	shoreline.GetUsers(response, request, map[string]string{"role": "clinic"})
+	shoreline.GetUsers(response, request)
 
 	if response.Code != http.StatusUnauthorized {
 		t.Fatalf("expected `%d` actual `%d` ", http.StatusUnauthorized, response.Code)

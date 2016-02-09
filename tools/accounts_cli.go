@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -35,7 +36,7 @@ func main() {
 	app := cli.NewApp()
 
 	app.Name = "User Role"
-	app.Usage = "Internal tool to add update and find users by role type"
+	app.Usage = "Internal tool to update the user role and find users by role type"
 	app.Version = "0.0.1"
 	app.Author = "Jamie"
 	app.Email = "jamie@tidepool.org"
@@ -45,41 +46,41 @@ func main() {
 	app.Commands = []cli.Command{
 
 		{
-			Name:      "update",
-			ShortName: "u",
-			Usage:     `update and existing account to have a role`,
+			Name:      "add",
+			ShortName: "a",
+			Usage:     `update an existing account to add a role`,
 			Flags: []cli.Flag{
 				cli.StringFlag{
-					Name:  "userid",
-					Usage: "userid of the account your updating",
+					Name:  "email",
+					Usage: "email address of the account you are updating",
 				},
 				cli.StringFlag{
 					Name:  "role",
 					Value: "clinic",
-					Usage: "the role that is being given to the user, defaults to `clinic`",
+					Usage: "the role that is being given to the user, options are `clinic`",
 				},
 				cli.StringFlag{
 					Name:  "env",
 					Usage: environment_message,
 				},
 			},
-			Action: updateAccount,
+			Action: updateAccountRole,
 		},
 		{
-			Name:      "find-account",
-			ShortName: "fa",
-			Usage:     `find an account to be updated`,
+			Name:      "remove",
+			ShortName: "r",
+			Usage:     `update an existing account add to remove a role`,
 			Flags: []cli.Flag{
 				cli.StringFlag{
 					Name:  "email",
-					Usage: "email address of the account your finding",
+					Usage: "email address of the account you are updating",
 				},
 				cli.StringFlag{
 					Name:  "env",
 					Usage: environment_message,
 				},
 			},
-			Action: findAccount,
+			Action: updateAccountRole,
 		},
 		{
 			Name:      "find",
@@ -89,7 +90,7 @@ func main() {
 				cli.StringFlag{
 					Name:  "role",
 					Value: "clinic",
-					Usage: "the role we are searching for",
+					Usage: "the role we are searching for, options are `clinic` ",
 				},
 				cli.StringFlag{
 					Name:  "env",
@@ -163,9 +164,9 @@ func findAccounts(c *cli.Context) {
 	adminUser := &admin{env: hostEnv, client: &http.Client{}}
 	adminUser.login()
 
-	roles := []byte(fmt.Sprintf(`{"roles":["%s"]}`, strings.ToLower(c.String("role"))))
+	log.Println("looking for ...", strings.ToLower(c.String("role")))
 
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s/auth/users", hostEnv), bytes.NewBuffer(roles))
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/auth/users?role=%s", hostEnv, strings.ToLower(c.String("role"))), nil)
 
 	if err != nil {
 		log.Fatal("Error creating the request ", err.Error())
@@ -196,61 +197,69 @@ func findAccounts(c *cli.Context) {
 		return
 	}
 
-	log.Println("Failed finding profiles", res.StatusCode)
+	log.Println("Failed finding accounts", res.StatusCode)
 	return
 
 }
 
-func findAccount(c *cli.Context) {
+func findAccount(env, email string) (string, error) {
 
-	hostEnv := setHost(c.String("env"))
-	email := strings.TrimSpace(c.String("email"))
-
-	adminUser := &admin{env: hostEnv, client: &http.Client{}}
+	adminUser := &admin{env: env, client: &http.Client{}}
 	adminUser.login()
 
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s/auth/user/%s", hostEnv, email), nil)
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/auth/user/%s", env, email), nil)
 	if err != nil {
-		log.Fatal("Error creating the request ", err.Error())
-		return
+		return "", err
 	}
 	req.Header.Add(tp_token, adminUser.token)
 
 	res, err := adminUser.client.Do(req)
 
 	if err != nil {
-		log.Println("Error trying to find user to update ", err.Error())
-		return
+		return "", err
 	}
 
 	if res.StatusCode == http.StatusOK {
 		data, err := ioutil.ReadAll(res.Body)
 		if err != nil {
-			log.Fatal("Error reading the resp body ", err.Error())
+			return "", err
 		}
 		var raw map[string]interface{}
 		json.Unmarshal(data, &raw)
-		log.Printf("\nusername: %s \nuserid: %s", raw["username"], raw["userid"])
+		return raw["userid"].(string), nil
 	}
 
-	log.Printf("Finding user %s account failed with %s", email, res.Status)
-	return
+	return "", errors.New(fmt.Sprintf("Issue finding user %s account failed with %s", email, res.Status))
+
 }
 
-func updateAccount(c *cli.Context) {
+func updateAccountRole(c *cli.Context) {
 
 	hostEnv := setHost(c.String("env"))
-	userid := strings.TrimSpace(c.String("userid"))
+	email := strings.TrimSpace(c.String("email"))
+
+	userid, err := findAccount(hostEnv, email)
+
+	if err != nil {
+		log.Fatal("Error getting userid", err.Error())
+		return
+	}
 
 	if userid == "" {
 		log.Fatal("userid not set for the account we are applying the role too")
 		return
 	}
 
+	role := ""
+
+	if c.String("role") != "" {
+		role = strings.ToLower(c.String("role"))
+	}
+
 	adminUser := &admin{env: hostEnv, client: &http.Client{}}
 	adminUser.login()
 
-	roles := []byte(fmt.Sprintf(`{"updates":{"roles":["%s"]}}`, strings.ToLower(c.String("role"))))
+	roles := []byte(fmt.Sprintf(`{"updates":{"roles":["%s"]}}`, role))
 
 	req, err := http.NewRequest("PUT", fmt.Sprintf("%s/auth/user/%s", hostEnv, userid), bytes.NewBuffer(roles))
 	if err != nil {
@@ -273,5 +282,4 @@ func updateAccount(c *cli.Context) {
 
 	log.Println("Account update failed", res.Status)
 	return
-
 }

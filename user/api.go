@@ -96,7 +96,7 @@ func (a *Api) SetHandlers(prefix string, rtr *mux.Router) {
 	rtr.Handle("/user", varsHandler(a.GetUserInfo)).Methods("GET")
 	rtr.Handle("/user/{userid}", varsHandler(a.GetUserInfo)).Methods("GET")
 
-	rtr.Handle("/users", varsHandler(a.GetUsers)).Methods("GET")
+	rtr.HandleFunc("/users", a.GetUsers).Methods("GET")
 
 	rtr.HandleFunc("/childuser", a.CreateChildUser).Methods("POST")
 
@@ -265,14 +265,30 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 			return
 		} else if userToUpdate != nil {
 
+			//Server only - verify the account if needed
 			if updatesToApply.Updates.Verified && !td.IsServer {
-				a.logger.Println(http.StatusUnauthorized, STATUS_UNAUTHORIZED)
-				sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_UNAUTHORIZED), http.StatusUnauthorized)
-			}
+				a.logger.Println(http.StatusUnauthorized, STATUS_SERVER_TOKEN_REQUIRED)
+				sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_SERVER_TOKEN_REQUIRED), http.StatusUnauthorized)
+			} else {
 
-			//Verifiy the user
-			if userToUpdate.Verified == false && updatesToApply.Updates.Verified {
-				userToUpdate.Verified = updatesToApply.Updates.Verified
+				if userToUpdate.Verified == false && updatesToApply.Updates.Verified {
+					userToUpdate.Verified = updatesToApply.Updates.Verified
+				}
+			}
+			//Server only - update roles if any
+			if len(updatesToApply.Updates.Roles) > 0 && !td.IsServer {
+				a.logger.Println(http.StatusUnauthorized, STATUS_SERVER_TOKEN_REQUIRED)
+				sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_SERVER_TOKEN_REQUIRED), http.StatusUnauthorized)
+			} else {
+
+				for i := range updatesToApply.Updates.Roles {
+					if updatesToApply.Updates.Roles[i] == "" {
+						//reset rather than append
+						userToUpdate.Roles = []string{""}
+					} else {
+						userToUpdate.Roles = append(userToUpdate.Roles, strings.ToLower(updatesToApply.Updates.Roles[i]))
+					}
+				}
 			}
 
 			//Name and/or Emails and perform dups check
@@ -312,12 +328,6 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 				userToUpdate.TermsAccepted = updatesToApply.Updates.TermsAccepted
 			}
 
-			//Updated Roles
-			for i := range updatesToApply.Updates.Roles {
-				//make them lowercase
-				userToUpdate.Roles = append(userToUpdate.Roles, strings.ToLower(updatesToApply.Updates.Roles[i]))
-			}
-
 			//All good - now update
 			if err := a.Store.UpsertUser(userToUpdate); err != nil {
 				a.logger.Println(http.StatusInternalServerError, STATUS_ERR_UPDATING_USR, err.Error())
@@ -343,11 +353,11 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 // status: 400 STATUS_NO_ROLE
 // status: 401 STATUS_SERVER_TOKEN_REQUIRED
 // status: 500 STATUS_ERR_FINDING_USR
-func (a *Api) GetUsers(res http.ResponseWriter, req *http.Request, vars map[string]string) {
+func (a *Api) GetUsers(res http.ResponseWriter, req *http.Request) {
 
 	if hasServerToken(req.Header.Get(TP_SESSION_TOKEN), a.ApiConfig.Secret) {
 
-		role := vars["role"]
+		role := req.URL.Query().Get("role")
 
 		if role != "" {
 
