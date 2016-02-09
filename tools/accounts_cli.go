@@ -40,9 +40,10 @@ func main() {
 	app.Author = "Jamie"
 	app.Email = "jamie@tidepool.org"
 
+	const environment_message = "the environment we are running against, options are `prd`, `stg`, `dev` and `local`"
+
 	app.Commands = []cli.Command{
 
-		//e.g. update -e testie@user.org -r clinic
 		{
 			Name:      "update",
 			ShortName: "u",
@@ -59,12 +60,11 @@ func main() {
 				},
 				cli.StringFlag{
 					Name:  "env",
-					Usage: "the environment we are running against",
+					Usage: environment_message,
 				},
 			},
 			Action: updateAccount,
 		},
-		//e.g. find -r clinic
 		{
 			Name:      "find-account",
 			ShortName: "fa",
@@ -72,29 +72,28 @@ func main() {
 			Flags: []cli.Flag{
 				cli.StringFlag{
 					Name:  "email",
-					Usage: "eamil address of the account your finding",
+					Usage: "email address of the account your finding",
 				},
 				cli.StringFlag{
 					Name:  "env",
-					Usage: "the environment we are running against",
+					Usage: environment_message,
 				},
 			},
 			Action: findAccount,
 		},
-		//e.g. find -r clinic
 		{
 			Name:      "find",
 			ShortName: "f",
-			Usage:     `find all accounts associated with a specific role`,
+			Usage:     "find all accounts associated with a specific role",
 			Flags: []cli.Flag{
 				cli.StringFlag{
 					Name:  "role",
 					Value: "clinic",
-					Usage: "the role that is being given to the user",
+					Usage: "the role we are searching for",
 				},
 				cli.StringFlag{
 					Name:  "env",
-					Usage: "the environment we are running against",
+					Usage: environment_message,
 				},
 			},
 			Action: findAccounts,
@@ -102,7 +101,6 @@ func main() {
 	}
 
 	app.Run(os.Args)
-
 }
 
 func setHost(targetEnv string) string {
@@ -117,10 +115,11 @@ func setHost(targetEnv string) string {
 		return prd_host
 	} else if targetEnv == "stg" {
 		return stg_host
-	} else if targetEnv == "stg" {
-		return stg_host
+	} else if targetEnv == "local" {
+		return local_host
 	}
-	return local_host
+	log.Fatalf("`%s` is not a valid environment name", targetEnv)
+	return ""
 }
 
 func (a *admin) login() {
@@ -134,23 +133,27 @@ func (a *admin) login() {
 		log.Fatal("username or password not set")
 	}
 
-	req, _ := http.NewRequest("POST", urlPath, nil)
+	req, err := http.NewRequest("POST", urlPath, nil)
+
+	if err != nil {
+		log.Fatal("Error creating the request ", err.Error())
+	}
+
 	req.Header.Add(tp_server_name, un)
 	req.Header.Add(tp_server_secret, pw)
 
 	res, err := a.client.Do(req)
 	if err != nil {
-		log.Fatal(fmt.Sprint("Login request failed", err.Error()))
+		log.Fatal("Login request failed", err.Error())
 	}
 
-	switch res.StatusCode {
-	case 200:
+	if res.StatusCode == http.StatusOK {
 		a.token = res.Header.Get(tp_token)
 		return
-	default:
-		log.Fatal(fmt.Sprint("Login failed", res.StatusCode))
-		return
 	}
+
+	log.Fatal("Login failed with status code", res.StatusCode)
+	return
 }
 
 func findAccounts(c *cli.Context) {
@@ -160,9 +163,14 @@ func findAccounts(c *cli.Context) {
 	adminUser := &admin{env: hostEnv, client: &http.Client{}}
 	adminUser.login()
 
-	roles := []byte(fmt.Sprintf(`{"roles":["%s"]}`, c.String("role")))
+	roles := []byte(fmt.Sprintf(`{"roles":["%s"]}`, strings.ToLower(c.String("role"))))
 
-	req, _ := http.NewRequest("GET", fmt.Sprintf("%s/auth/users", hostEnv), bytes.NewBuffer(roles))
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/auth/users", hostEnv), bytes.NewBuffer(roles))
+
+	if err != nil {
+		log.Fatal("Error creating the request ", err.Error())
+	}
+
 	req.Header.Add(tp_token, adminUser.token)
 
 	res, err := adminUser.client.Do(req)
@@ -172,9 +180,12 @@ func findAccounts(c *cli.Context) {
 		return
 	}
 
-	switch res.StatusCode {
-	case 200:
-		data, _ := ioutil.ReadAll(res.Body)
+	if res.StatusCode == http.StatusOK {
+		data, err := ioutil.ReadAll(res.Body)
+		if err != nil {
+			log.Fatal("Error reading the resp body ", err.Error())
+			return
+		}
 		var raw []interface{}
 		json.Unmarshal(data, &raw)
 
@@ -183,10 +194,11 @@ func findAccounts(c *cli.Context) {
 			log.Printf("user: %v\n", raw[i])
 		}
 		return
-	default:
-		log.Println("Failed finding profiles", res.StatusCode)
-		return
 	}
+
+	log.Println("Failed finding profiles", res.StatusCode)
+	return
+
 }
 
 func findAccount(c *cli.Context) {
@@ -197,7 +209,11 @@ func findAccount(c *cli.Context) {
 	adminUser := &admin{env: hostEnv, client: &http.Client{}}
 	adminUser.login()
 
-	req, _ := http.NewRequest("GET", fmt.Sprintf("%s/auth/user/%s", hostEnv, email), nil)
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/auth/user/%s", hostEnv, email), nil)
+	if err != nil {
+		log.Fatal("Error creating the request ", err.Error())
+		return
+	}
 	req.Header.Add(tp_token, adminUser.token)
 
 	res, err := adminUser.client.Do(req)
@@ -207,17 +223,18 @@ func findAccount(c *cli.Context) {
 		return
 	}
 
-	switch res.StatusCode {
-	case 200:
-		data, _ := ioutil.ReadAll(res.Body)
+	if res.StatusCode == http.StatusOK {
+		data, err := ioutil.ReadAll(res.Body)
+		if err != nil {
+			log.Fatal("Error reading the resp body ", err.Error())
+		}
 		var raw map[string]interface{}
 		json.Unmarshal(data, &raw)
 		log.Printf("\nusername: %s \nuserid: %s", raw["username"], raw["userid"])
-		return
-	default:
-		log.Printf("Finding user %s account failed with %s", email, res.Status)
-		return
 	}
+
+	log.Printf("Finding user %s account failed with %s", email, res.Status)
+	return
 }
 
 func updateAccount(c *cli.Context) {
@@ -233,12 +250,13 @@ func updateAccount(c *cli.Context) {
 	adminUser := &admin{env: hostEnv, client: &http.Client{}}
 	adminUser.login()
 
-	roles := []byte(fmt.Sprintf(`{"updates":{"roles":["%s"]}}`, c.String("role")))
+	roles := []byte(fmt.Sprintf(`{"updates":{"roles":["%s"]}}`, strings.ToLower(c.String("role"))))
 
-	req, _ := http.NewRequest("PUT", fmt.Sprintf("%s/auth/user/%s", hostEnv, userid), bytes.NewBuffer(roles))
+	req, err := http.NewRequest("PUT", fmt.Sprintf("%s/auth/user/%s", hostEnv, userid), bytes.NewBuffer(roles))
+	if err != nil {
+		log.Fatal("Error creating the request ", err.Error())
+	}
 	req.Header.Add(tp_token, adminUser.token)
-
-	log.Println("update req", req.URL)
 
 	res, err := adminUser.client.Do(req)
 
@@ -249,11 +267,11 @@ func updateAccount(c *cli.Context) {
 
 	log.Println("Account roles update status ", res.Status)
 
-	switch res.StatusCode {
-	case 200:
-		return
-	default:
-		log.Println("Account update failed", res.Status)
+	if res.StatusCode == http.StatusOK {
 		return
 	}
+
+	log.Println("Account update failed", res.Status)
+	return
+
 }

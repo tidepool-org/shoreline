@@ -68,6 +68,7 @@ const (
 	STATUS_PW_WRONG              = "Wrong password"
 	STATUS_ERR_SENDING_EMAIL     = "Error sending email"
 	STATUS_NO_TOKEN              = "No x-tidepool-session-token was found"
+	STATUS_NO_ROLE               = "No role was specified in the query params"
 	STATUS_SERVER_TOKEN_REQUIRED = "A server token is required"
 	STATUS_AUTH_HEADER_REQUIRED  = "Authorization header is required"
 	STATUS_AUTH_HEADER_INVLAID   = "Authorization header is invalid"
@@ -95,7 +96,7 @@ func (a *Api) SetHandlers(prefix string, rtr *mux.Router) {
 	rtr.Handle("/user", varsHandler(a.GetUserInfo)).Methods("GET")
 	rtr.Handle("/user/{userid}", varsHandler(a.GetUserInfo)).Methods("GET")
 
-	rtr.HandleFunc("/users", a.GetUsers).Methods("GET")
+	rtr.Handle("/users", varsHandler(a.GetUsers)).Methods("GET")
 
 	rtr.HandleFunc("/childuser", a.CreateChildUser).Methods("POST")
 
@@ -312,8 +313,9 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 			}
 
 			//Updated Roles
-			if len(updatesToApply.Updates.Roles) > 0 {
-				userToUpdate.Roles = updatesToApply.Updates.Roles
+			for i := range updatesToApply.Updates.Roles {
+				//make them lowercase
+				userToUpdate.Roles = append(userToUpdate.Roles, strings.ToLower(updatesToApply.Updates.Roles[i]))
 			}
 
 			//All good - now update
@@ -338,39 +340,36 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 //Server Only
 //
 // status: 200
-// status: 400 STATUS_NO_USR_DETAILS
-// status: 401 STATUS_NO_TOKEN
+// status: 400 STATUS_NO_ROLE
+// status: 401 STATUS_SERVER_TOKEN_REQUIRED
 // status: 500 STATUS_ERR_FINDING_USR
-func (a *Api) GetUsers(res http.ResponseWriter, req *http.Request) {
+func (a *Api) GetUsers(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 
 	if hasServerToken(req.Header.Get(TP_SESSION_TOKEN), a.ApiConfig.Secret) {
 
-		var query UserDetail
+		role := vars["role"]
 
-		if req.ContentLength > 0 {
-			err := json.NewDecoder(req.Body).Decode(&query)
+		if role != "" {
 
-			if err != nil {
-				a.logger.Println(http.StatusInternalServerError, STATUS_NO_USR_DETAILS, err.Error())
-				sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_NO_USR_DETAILS), http.StatusInternalServerError)
+			query := &UserDetail{Roles: []string{role}}
+
+			if results, err := a.Store.FindUsers(UserFromDetails(query)); err != nil {
+				a.logger.Println(http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err.Error())
+				res.WriteHeader(http.StatusInternalServerError)
+				res.Write([]byte(STATUS_ERR_FINDING_USR))
+				return
+			} else if results != nil {
+				a.logMetricForUser(query.Id, "getuserinfo", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "true"})
+				sendModelsAsRes(res, results)
 				return
 			}
 		}
-
-		if results, err := a.Store.FindUsers(UserFromDetails(&query)); err != nil {
-			a.logger.Println(http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err.Error())
-			res.WriteHeader(http.StatusInternalServerError)
-			res.Write([]byte(STATUS_ERR_FINDING_USR))
-			return
-		} else if results != nil {
-			a.logMetricForUser(query.Id, "getuserinfo", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "true"})
-			sendModelsAsRes(res, results)
-			return
-		}
+		sendModelAsResWithStatus(res, status.NewStatus(http.StatusBadRequest, STATUS_NO_ROLE), http.StatusBadRequest)
+		return
 
 	}
-	a.logger.Println(http.StatusUnauthorized, STATUS_NO_TOKEN)
-	sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_TOKEN), http.StatusUnauthorized)
+	a.logger.Println(http.StatusUnauthorized, STATUS_SERVER_TOKEN_REQUIRED)
+	sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_SERVER_TOKEN_REQUIRED), http.StatusUnauthorized)
 	return
 }
 

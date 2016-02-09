@@ -608,6 +608,64 @@ func TestGetUserInfo_StatusUnauthorized_WhenUserIdsDiffer(t *testing.T) {
 	}
 }
 
+func TestGetUsers_StatusOK(t *testing.T) {
+	request, _ := http.NewRequest("GET", "/", nil)
+	request.Header.Set(TP_SESSION_TOKEN, SRVR_TOKEN.Id)
+	response := httptest.NewRecorder()
+
+	shoreline.SetHandlers("", rtr)
+
+	shoreline.GetUsers(response, request, map[string]string{"role": "clinic"})
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected `%d` actual `%d` ", http.StatusOK, response.Code)
+	}
+}
+
+func TestGetUsers_StatusBadRequest(t *testing.T) {
+	request, _ := http.NewRequest("GET", "/", nil)
+	request.Header.Set(TP_SESSION_TOKEN, SRVR_TOKEN.Id)
+	response := httptest.NewRecorder()
+
+	shoreline.SetHandlers("", rtr)
+
+	shoreline.GetUsers(response, request, map[string]string{"role": ""})
+
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("expected `%d` actual `%d` ", http.StatusBadRequest, response.Code)
+	}
+
+	body, _ := ioutil.ReadAll(response.Body)
+
+	expectedErrorMsg := fmt.Sprintf(`{"code":%d,"reason":"%s"}`, http.StatusBadRequest, STATUS_NO_ROLE)
+
+	if string(body) != expectedErrorMsg {
+		t.Fatalf("expected `%s` actual `%s` ", expectedErrorMsg, string(body))
+	}
+}
+
+func TestGetUsers_StatusUnauthorized(t *testing.T) {
+	request, _ := http.NewRequest("GET", "/", nil)
+	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
+	response := httptest.NewRecorder()
+
+	shoreline.SetHandlers("", rtr)
+
+	shoreline.GetUsers(response, request, map[string]string{"role": "clinic"})
+
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("expected `%d` actual `%d` ", http.StatusUnauthorized, response.Code)
+	}
+
+	body, _ := ioutil.ReadAll(response.Body)
+
+	expectedErrorMsg := fmt.Sprintf(`{"code":%d,"reason":"%s"}`, http.StatusUnauthorized, STATUS_SERVER_TOKEN_REQUIRED)
+
+	if string(body) != expectedErrorMsg {
+		t.Fatalf("expected `%s` actual `%s` ", expectedErrorMsg, string(body))
+	}
+}
+
 func TestDeleteUser_StatusForbidden_WhenNoPw(t *testing.T) {
 	request, _ := http.NewRequest("DELETE", "/", nil)
 	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
