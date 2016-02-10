@@ -127,10 +127,10 @@ func (a *admin) login() {
 
 	urlPath := a.env + "/auth/serverlogin"
 
-	un := "hydrophone-local"
+	userName := "accounts-cli"
 	pw := os.Getenv("SERVER_SECRET")
 
-	if un == "" || pw == "" {
+	if userName == "" || pw == "" {
 		log.Fatal("username or password not set")
 	}
 
@@ -140,7 +140,7 @@ func (a *admin) login() {
 		log.Fatal("Error creating the request ", err.Error())
 	}
 
-	req.Header.Add(tp_server_name, un)
+	req.Header.Add(tp_server_name, userName)
 	req.Header.Add(tp_server_secret, pw)
 
 	res, err := a.client.Do(req)
