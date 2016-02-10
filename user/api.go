@@ -281,6 +281,14 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 				sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_SERVER_TOKEN_REQUIRED), http.StatusUnauthorized)
 			} else {
 
+				//check that the roles are legit first
+				err := ValidateUserRoles(updatesToApply.Updates.Roles)
+
+				if err != nil {
+					a.logger.Println(http.StatusBadRequest, err.Error())
+					sendModelAsResWithStatus(res, status.NewStatus(http.StatusBadRequest, err.Error()), http.StatusBadRequest)
+				}
+
 				for i := range updatesToApply.Updates.Roles {
 					if updatesToApply.Updates.Roles[i] == "" {
 						//reset rather than append

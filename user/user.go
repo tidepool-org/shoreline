@@ -48,7 +48,7 @@ var (
 	}
 )
 
-func validateRoles(roles []string) error {
+func ValidateUserRoles(roles []string) error {
 	for i := range roles {
 		if _, ok := AllowedUserRoles[roles[i]]; !ok {
 			configuredRoles := []string{}

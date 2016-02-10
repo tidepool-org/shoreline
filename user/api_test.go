@@ -468,6 +468,32 @@ func TestUpdateUser_Roles_StatusOK(t *testing.T) {
 
 }
 
+func TestUpdateUser_Roles_StatusBadRequest_WhenInvalidRole(t *testing.T) {
+
+	shorelineNoDups.SetHandlers("", rtr)
+
+	var updateAuth = []byte(`{"updates":{"roles":["wrong"]}}`)
+
+	req, _ := http.NewRequest("PUT", "/user", bytes.NewBuffer(updateAuth))
+	req.Header.Set(TP_SESSION_TOKEN, SRVR_TOKEN.Id)
+	req.Header.Add("content-type", "application/json")
+	res := httptest.NewRecorder()
+	shorelineNoDups.UpdateUser(res, req, map[string]string{"userid": USR.Id})
+
+	if res.Code != http.StatusBadRequest {
+		t.Fatalf("expected `%d` actual `%d` ", http.StatusBadRequest, res.Code)
+	}
+
+	body, _ := ioutil.ReadAll(res.Body)
+
+	expectedErrorMsg := fmt.Sprintf(`{"code":%d,"reason":"%s"}`, http.StatusBadRequest, "User: trying to set role as `wrong` which is not one of the valid roles `[clinic]`")
+
+	if string(body) != expectedErrorMsg {
+		t.Fatalf("expected `%s` actual `%s` ", expectedErrorMsg, string(body))
+	}
+
+}
+
 func TestUpdateUser_Roles_StatusUnauthorized(t *testing.T) {
 
 	shorelineNoDups.SetHandlers("", rtr)
