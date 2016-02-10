@@ -67,12 +67,6 @@ func NewUser(details *UserDetail, salt string) (user *User, err error) {
 		return nil, User_error_name_pw_required
 	}
 
-	//if yours are set ensure it is an allowed type
-	err = validateRoles(details.Roles)
-	if err != nil {
-		return nil, err
-	}
-
 	details.Name = strings.ToLower(details.Name)
 
 	id, err := generateUniqueHash([]string{details.Name, details.Pw}, 10)
@@ -87,8 +81,7 @@ func NewUser(details *UserDetail, salt string) (user *User, err error) {
 	if err != nil {
 		return nil, errors.New("User: error generating password hash")
 	}
-
-	return &User{Id: id, Name: details.Name, Emails: details.Emails, Roles: details.Roles, Hash: hash, PwHash: pwHash, Verified: false}, nil
+	return &User{Id: id, Name: details.Name, Emails: details.Emails, Hash: hash, PwHash: pwHash, Verified: false}, nil
 }
 
 //Child Account are linked to another users account and don't require a password or emails

@@ -167,7 +167,7 @@ func TestMongoStore_FindUsers_ByRole(t *testing.T) {
 	)
 
 	var (
-		user_one_detail = &UserDetail{Name: user_one_name, Emails: []string{user_one_name}, Pw: user_pw, Roles: []string{CLINIC_ROLE}}
+		user_one_detail = &UserDetail{Name: user_one_name, Emails: []string{user_one_name}, Pw: user_pw}
 		user_two_detail = &UserDetail{Name: user_two_name, Emails: []string{user_two_name}, Pw: user_pw}
 	)
 
@@ -180,6 +180,8 @@ func TestMongoStore_FindUsers_ByRole(t *testing.T) {
 	 * THE TESTS
 	 */
 	userOne, _ := NewUser(user_one_detail, tests_fake_salt)
+	userOne.Roles = append(userOne.Roles, CLINIC_ROLE)
+
 	userTwo, _ := NewUser(user_two_detail, tests_fake_salt)
 
 	if err := mc.UpsertUser(userOne); err != nil {

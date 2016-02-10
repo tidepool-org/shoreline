@@ -155,6 +155,24 @@ func Test_NewChildUser(t *testing.T) {
 	}
 }
 
+func Test_NewChildUser_Has_No_Roles(t *testing.T) {
+
+	if childAcct, err := NewChildUser(&UserDetail{Name: test_user_name, Pw: test_user_password, Emails: []string{test_user_email}, Roles: []string{CLINIC_ROLE}}, test_salt); err != nil {
+		t.Fatalf("there should not be an error but got %s", err.Error())
+	} else if len(childAcct.Roles) != 0 {
+		t.Fatalf("should not be able to roles on childuser creation  %v", childAcct.Roles)
+	}
+}
+
+func Test_NewUser_Has_No_Roles(t *testing.T) {
+
+	if usr, err := NewUser(&UserDetail{Name: test_user_name, Pw: test_user_password, Emails: []string{test_user_email}, Roles: []string{CLINIC_ROLE}}, test_salt); err != nil {
+		t.Fatalf("there should not be an error but got %s", err.Error())
+	} else if len(usr.Roles) != 0 {
+		t.Fatalf("should not be able to set roles on user creation  %v", usr.Roles)
+	}
+}
+
 func Test_NewUser_NoPw(t *testing.T) {
 
 	if _, err := NewUser(&UserDetail{Name: test_user_name, Emails: []string{}}, test_salt); err == nil {
@@ -166,28 +184,6 @@ func Test_NewUser_NoName(t *testing.T) {
 
 	if _, err := NewUser(&UserDetail{Name: "", Pw: test_user_password, Emails: []string{}}, test_salt); err == nil {
 		t.Fatalf("should have given error as the name is not given")
-	}
-
-}
-
-func Test_NewUser_OnlyPredefinedRolesAllowed(t *testing.T) {
-
-	if usr, err := NewUser(&UserDetail{Name: test_user_name, Pw: test_user_password, Emails: []string{test_user_email}, Roles: []string{CLINIC_ROLE}}, test_salt); err != nil {
-		t.Fatalf("there should not be an error but got %s", err.Error())
-	} else if usr.Roles[0] != CLINIC_ROLE {
-		t.Fatalf("should have been set as the clinic role not %s", usr.Roles[0])
-	}
-
-}
-
-func Test_NewUser_FailsWhenNotAPredefinedRole(t *testing.T) {
-
-	const expected_err_msg = "User: trying to set role as `random` which is not one of the valid roles `[clinic]`"
-
-	if _, err := NewUser(&UserDetail{Name: test_user_name, Pw: test_user_password, Emails: []string{test_user_email}, Roles: []string{"random"}}, test_salt); err == nil {
-		t.Fatal("there should be an error as we can only create clinic roles")
-	} else if err.Error() != expected_err_msg {
-		t.Fatalf("expected %s actual %s", expected_err_msg, err.Error())
 	}
 
 }
@@ -229,12 +225,8 @@ func Test_NewUser(t *testing.T) {
 			t.Fatalf("the email is incorrect")
 		}
 
-		if len(user.Roles) != 1 {
-			t.Fatalf("the roles should have been set")
-		}
-
-		if user.Roles[0] != CLINIC_ROLE {
-			t.Fatalf("the roles is incorrect")
+		if len(user.Roles) != 0 {
+			t.Fatalf("the roles should not be set")
 		}
 
 		if user.Verified {
