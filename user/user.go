@@ -127,7 +127,12 @@ func IsValidPassword(password string) bool {
 }
 
 func IsValidDate(date string) bool {
-	_, err := time.Parse("2006-01-02T15:04:05-07:00", date)
+	_, err := time.Parse("2006-01-02", date)
+	return err == nil
+}
+
+func IsValidTimestamp(timestamp string) bool {
+	_, err := time.Parse("2006-01-02T15:04:05-07:00", timestamp)
 	return err == nil
 }
 
@@ -371,7 +376,7 @@ func (details *UpdateUserDetails) Validate() error {
 	}
 
 	if details.TermsAccepted != nil {
-		if !IsValidDate(*details.TermsAccepted) {
+		if !IsValidTimestamp(*details.TermsAccepted) {
 			return User_error_terms_accepted_invalid
 		}
 	}
@@ -419,4 +424,28 @@ func (u *User) IsEmailVerified(secret string) bool {
 		}
 	}
 	return u.EmailVerified
+}
+
+func (u *User) DeepClone() *User {
+	clonedUser := &User{
+		Id:            u.Id,
+		Username:      u.Username,
+		Emails:        u.Emails,
+		TermsAccepted: u.TermsAccepted,
+		EmailVerified: u.EmailVerified,
+		PwHash:        u.PwHash,
+		Hash:          u.Hash,
+		Private:       u.Private,
+	}
+	if u.Emails != nil {
+		clonedUser.Emails = make([]string, len(u.Emails))
+		copy(clonedUser.Emails, u.Emails)
+	}
+	if u.Private != nil {
+		clonedUser.Private = make(map[string]*IdHashPair)
+		for k, v := range u.Private {
+			clonedUser.Private[k] = &IdHashPair{Id: v.Id, Hash: v.Hash}
+		}
+	}
+	return clonedUser
 }

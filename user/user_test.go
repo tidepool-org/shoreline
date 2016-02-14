@@ -163,19 +163,37 @@ func Test_IsValidPassword_Valid(t *testing.T) {
 }
 
 func Test_IsValidDate_Invalid(t *testing.T) {
-	invalidDates := []string{"", "a", "aaaa-aa-aaTaa:aa:aa-aa:aa", "2016-01-01T00:00:00Z", "2016-13-32T24:60:62-24:30"}
+	invalidDates := []string{"", "a", "aaaa-aa-aa", "2016-01-01T00:00:00-08:00", "2016-13-32"}
 	for _, invalidDate := range invalidDates {
 		if IsValidDate(invalidDate) {
-			t.Fatalf("Invalid email %s is unexpectedly valid", invalidDate)
+			t.Fatalf("Invalid date %s is unexpectedly valid", invalidDate)
 		}
 	}
 }
 
 func Test_IsValidDate_Valid(t *testing.T) {
-	validDates := []string{"2016-01-01T00:00:00-00:00", "2015-12-31T23:59:59-23:30"}
+	validDates := []string{"2016-01-01", "2015-12-31"}
 	for _, validDate := range validDates {
 		if !IsValidDate(validDate) {
-			t.Fatalf("Valid email %s is unexpectedly invalid", validDate)
+			t.Fatalf("Valid date %s is unexpectedly invalid", validDate)
+		}
+	}
+}
+
+func Test_IsValidTimestamp_Invalid(t *testing.T) {
+	invalidTimestamps := []string{"", "a", "aaaa-aa-aaTaa:aa:aa-aa:aa", "2016-01-01T00:00:00Z", "2016-13-32T24:60:62-24:30"}
+	for _, invalidTimestamp := range invalidTimestamps {
+		if IsValidTimestamp(invalidTimestamp) {
+			t.Fatalf("Invalid timestamp %s is unexpectedly valid", invalidTimestamp)
+		}
+	}
+}
+
+func Test_IsValidTimestamp_Valid(t *testing.T) {
+	validTimestamps := []string{"2016-01-01T00:00:00-00:00", "2015-12-31T23:59:59-23:30"}
+	for _, validTimestamp := range validTimestamps {
+		if !IsValidTimestamp(validTimestamp) {
+			t.Fatalf("Valid timestamp %s is unexpectedly invalid", validTimestamp)
 		}
 	}
 }
@@ -1082,5 +1100,22 @@ func Test_User_IsVerified(t *testing.T) {
 
 	if user.IsEmailVerified("+secret") == true {
 		t.Fatalf("the user should say they are verified as they don't have the secret")
+	}
+}
+
+func Test_User_DeepClone(t *testing.T) {
+	user := &User{
+		Id:            "1234567890",
+		Username:      "a@b.co",
+		Emails:        []string{"a@b.co", "c@d.co"},
+		TermsAccepted: "2016-01-01T12:34:56-08:00",
+		EmailVerified: true,
+		PwHash:        "this-is-the-password-hash",
+		Hash:          "this-is-the-hash",
+		Private:       map[string]*IdHashPair{"a": &IdHashPair{"1", "2"}, "b": &IdHashPair{"3", "4"}},
+	}
+	clonedUser := user.DeepClone()
+	if !reflect.DeepEqual(user, clonedUser) {
+		t.Fatalf("The clone user is not exactly equal to the original user")
 	}
 }

@@ -231,49 +231,53 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 	} else if err := updateUserDetails.Validate(); err != nil {
 		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, err)
 
-	} else if user, err := a.Store.FindUser(&User{Id: firstStringNotEmpty(vars["userid"], tokenData.UserId)}); err != nil {
+	} else if originalUser, err := a.Store.FindUser(&User{Id: firstStringNotEmpty(vars["userid"], tokenData.UserId)}); err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err)
 
-	} else if user == nil {
+	} else if originalUser == nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, "User not found")
 
-	} else if permissions, err := a.tokenUserHasRequestedPermissions(tokenData, user.Id, clients.Permissions{"root": clients.Allowed, "custodian": clients.Allowed}); err != nil {
+	} else if permissions, err := a.tokenUserHasRequestedPermissions(tokenData, originalUser.Id, clients.Permissions{"root": clients.Allowed, "custodian": clients.Allowed}); err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err)
 
 	} else if len(permissions) == 0 {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, "User does not have permissions")
 
+	} else if updateUserDetails.EmailVerified != nil && !tokenData.IsServer {
+		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, "User does not have permissions")
+
+	} else if (updateUserDetails.Password != nil || updateUserDetails.TermsAccepted != nil) && permissions["root"] == nil {
+		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, "User does not have permissions")
+
 	} else {
+		updatedUser := originalUser.DeepClone()
 
 		// TODO: This all needs to be refactored so it can be more thoroughly tested
-		if tokenData.IsServer {
-			if updateUserDetails.EmailVerified != nil {
-				user.EmailVerified = *updateUserDetails.EmailVerified
+
+		if updateUserDetails.EmailVerified != nil {
+			updatedUser.EmailVerified = *updateUserDetails.EmailVerified
+		}
+
+		if updateUserDetails.Password != nil {
+			if err := updatedUser.HashPassword(*updateUserDetails.Password, a.ApiConfig.Salt); err != nil {
+				a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_USR, err)
+				return
 			}
 		}
 
-		if permissions["root"] != nil {
-			if updateUserDetails.Password != nil {
-				if err := user.HashPassword(*updateUserDetails.Password, a.ApiConfig.Salt); err != nil {
-					a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_USR, err)
-					return
-				}
-			}
-
-			if updateUserDetails.TermsAccepted != nil {
-				user.TermsAccepted = *updateUserDetails.TermsAccepted
-			}
+		if updateUserDetails.TermsAccepted != nil {
+			updatedUser.TermsAccepted = *updateUserDetails.TermsAccepted
 		}
 
 		if updateUserDetails.Username != nil || updateUserDetails.Emails != nil {
 			dupCheck := &User{}
 			if updateUserDetails.Username != nil {
-				user.Username = *updateUserDetails.Username
-				dupCheck.Username = user.Username
+				updatedUser.Username = *updateUserDetails.Username
+				dupCheck.Username = updatedUser.Username
 			}
 			if updateUserDetails.Emails != nil {
-				user.Emails = updateUserDetails.Emails
-				dupCheck.Emails = user.Emails
+				updatedUser.Emails = updateUserDetails.Emails
+				dupCheck.Emails = updatedUser.Emails
 			}
 
 			if results, err := a.Store.FindUsers(dupCheck); err != nil {
@@ -285,11 +289,17 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 			}
 		}
 
-		if err := a.Store.UpsertUser(user); err != nil {
+		if err := a.Store.UpsertUser(updatedUser); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_USR, err)
 		} else {
-			a.logMetricForUser(user.Id, "userupdated", sessionToken, map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
-			a.sendUser(res, user, tokenData.IsServer)
+			if len(originalUser.PwHash) == 0 && len(updatedUser.PwHash) != 0 {
+				if err := a.removeUserPermissions(updatedUser.Id, clients.Permissions{"custodian": clients.Allowed}); err != nil {
+					a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_USR, err)
+				}
+			}
+
+			a.logMetricForUser(updatedUser.Id, "userupdated", sessionToken, map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
+			a.sendUser(res, updatedUser, tokenData.IsServer)
 		}
 	}
 }
@@ -723,5 +733,26 @@ func (a *Api) tokenUserHasRequestedPermissions(tokenData *TokenData, groupId str
 			}
 		}
 		return finalPermissions, nil
+	}
+}
+
+func (a *Api) removeUserPermissions(groupId string, removePermissions clients.Permissions) error {
+	if originalUserPermissions, err := a.perms.UsersInGroup(groupId); err != nil {
+		return err
+	} else {
+		for userId, originalPermissions := range originalUserPermissions {
+			finalPermissions := make(clients.Permissions)
+			for name, value := range originalPermissions {
+				if _, ok := removePermissions[name]; !ok {
+					finalPermissions[name] = value
+				}
+			}
+			if len(finalPermissions) != len(originalPermissions) {
+				if _, err := a.perms.SetPermissions(userId, groupId, finalPermissions); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
 	}
 }
