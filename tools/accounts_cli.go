@@ -177,18 +177,20 @@ func findAccounts(c *cli.Context) {
 	res, err := adminUser.client.Do(req)
 
 	if err != nil {
-		log.Println("Error finding accounts ", err.Error())
-		return
+		log.Fatal("Error finding accounts ", err.Error())
 	}
 
 	if res.StatusCode == http.StatusOK {
 		data, err := ioutil.ReadAll(res.Body)
 		if err != nil {
 			log.Fatal("Error reading the resp body ", err.Error())
-			return
 		}
 		var raw []interface{}
-		json.Unmarshal(data, &raw)
+		err = json.Unmarshal(data, &raw)
+
+		if err != nil {
+			log.Fatal("Error unmarshal data ", err.Error())
+		}
 
 		log.Println("accounts:")
 		for i := range raw {
@@ -225,7 +227,10 @@ func findAccount(env, email string) (string, error) {
 			return "", err
 		}
 		var raw map[string]interface{}
-		json.Unmarshal(data, &raw)
+		err = json.Unmarshal(data, &raw)
+		if err != nil {
+			return "", err
+		}
 		return raw["userid"].(string), nil
 	}
 
@@ -242,12 +247,10 @@ func updateAccountRole(c *cli.Context) {
 
 	if err != nil {
 		log.Fatal("Error getting userid", err.Error())
-		return
 	}
 
 	if userid == "" {
 		log.Fatal("userid not set for the account we are applying the role too")
-		return
 	}
 
 	role := ""
@@ -270,8 +273,7 @@ func updateAccountRole(c *cli.Context) {
 	res, err := adminUser.client.Do(req)
 
 	if err != nil {
-		log.Println("Error trying to apply update ", err.Error())
-		return
+		log.Fatal("Error trying to apply update ", err.Error())
 	}
 
 	log.Println("Account roles update status ", res.Status)
