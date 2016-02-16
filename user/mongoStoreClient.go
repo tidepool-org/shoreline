@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"regexp"
+	"sort"
 
 	"github.com/tidepool-org/go-common/clients/mongo"
 	"labix.org/v2/mgo"
@@ -59,6 +60,10 @@ func (d MongoStoreClient) UpsertUser(user *User) error {
 	cpy := d.session.Copy()
 	defer cpy.Close()
 
+	if user.Roles != nil {
+		sort.Strings(user.Roles)
+	}
+
 	// if the user already exists we update otherwise we add
 	if _, err := mgoUsersCollection(cpy).Upsert(bson.M{"userid": user.Id}, user); err != nil {
 		return err
@@ -96,6 +101,9 @@ func (d MongoStoreClient) FindUsers(user *User) (results []*User, err error) {
 	}
 	if len(user.Emails) > 0 {
 		fieldsToMatch = append(fieldsToMatch, bson.M{"emails": bson.M{"$in": user.Emails}})
+	}
+	if len(user.Roles) > 0 {
+		fieldsToMatch = append(fieldsToMatch, bson.M{"roles": bson.M{"$in": user.Roles}})
 	}
 
 	if len(fieldsToMatch) == 0 {

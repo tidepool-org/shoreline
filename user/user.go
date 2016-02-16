@@ -13,6 +13,7 @@ type User struct {
 	Id            string                 `json:"userid,omitempty" bson:"userid,omitempty"` // map userid to id
 	Username      string                 `json:"username,omitempty" bson:"username,omitempty"`
 	Emails        []string               `json:"emails,omitempty" bson:"emails,omitempty"`
+	Roles         []string               `json:"roles,omitempty" bson:"roles,omitempty"`
 	TermsAccepted string                 `json:"termsAccepted,omitempty" bson:"termsAccepted,omitempty"`
 	EmailVerified bool                   `json:"emailVerified" bson:"authenticated"` //tag is name `authenticated` for historical reasons
 	PwHash        string                 `json:"-" bson:"pwhash,omitempty"`
@@ -38,6 +39,7 @@ type UpdateUserDetails struct {
 	Username      *string
 	Emails        []string
 	Password      *string
+	Roles         []string
 	TermsAccepted *string
 	EmailVerified *bool
 }
@@ -50,6 +52,7 @@ var (
 	User_error_emails_invalid         = errors.New("Emails are invalid")
 	User_error_password_missing       = errors.New("Password is missing")
 	User_error_password_invalid       = errors.New("Password is invalid")
+	User_error_roles_invalid          = errors.New("Roles are invalid")
 	User_error_terms_accepted_invalid = errors.New("Terms accepted is invalid")
 	User_error_email_verified_invalid = errors.New("Email verified is invalid")
 )
@@ -80,7 +83,7 @@ func ExtractArray(data map[string]interface{}, key string) ([]interface{}, bool)
 	} else if extractedArray, ok := raw.([]interface{}); !ok {
 		return nil, false
 	} else if len(extractedArray) == 0 {
-		return nil, true
+		return []interface{}{}, true
 	} else {
 		return extractedArray, true
 	}
@@ -110,7 +113,7 @@ func ExtractStringMap(data map[string]interface{}, key string) (map[string]inter
 	} else if extractedMap, ok := raw.(map[string]interface{}); !ok {
 		return nil, false
 	} else if len(extractedMap) == 0 {
-		return nil, true
+		return map[string]interface{}{}, true
 	} else {
 		return extractedMap, true
 	}
@@ -124,6 +127,15 @@ func IsValidEmail(email string) bool {
 func IsValidPassword(password string) bool {
 	ok, _ := regexp.MatchString(`\A\S{8,72}\z`, password)
 	return ok
+}
+
+func IsValidRole(role string) bool {
+	switch role {
+	case "clinic":
+		return true
+	default:
+		return false
+	}
 }
 
 func IsValidDate(date string) bool {
@@ -320,6 +332,7 @@ func (details *UpdateUserDetails) ExtractFromJSON(reader io.Reader) error {
 		username      *string
 		emails        []string
 		password      *string
+		roles         []string
 		termsAccepted *string
 		emailVerified *bool
 		ok            bool
@@ -339,6 +352,9 @@ func (details *UpdateUserDetails) ExtractFromJSON(reader io.Reader) error {
 	if password, ok = ExtractString(decoded, "password"); !ok {
 		return User_error_password_invalid
 	}
+	if roles, ok = ExtractStringArray(decoded, "roles"); !ok {
+		return User_error_roles_invalid
+	}
 	if termsAccepted, ok = ExtractString(decoded, "termsAccepted"); !ok {
 		return User_error_terms_accepted_invalid
 	}
@@ -349,6 +365,7 @@ func (details *UpdateUserDetails) ExtractFromJSON(reader io.Reader) error {
 	details.Username = username
 	details.Emails = emails
 	details.Password = password
+	details.Roles = roles
 	details.TermsAccepted = termsAccepted
 	details.EmailVerified = emailVerified
 	return nil
@@ -372,6 +389,14 @@ func (details *UpdateUserDetails) Validate() error {
 	if details.Password != nil {
 		if !IsValidPassword(*details.Password) {
 			return User_error_password_invalid
+		}
+	}
+
+	if details.Roles != nil {
+		for _, role := range details.Roles {
+			if !IsValidRole(role) {
+				return User_error_roles_invalid
+			}
 		}
 	}
 
@@ -430,16 +455,18 @@ func (u *User) DeepClone() *User {
 	clonedUser := &User{
 		Id:            u.Id,
 		Username:      u.Username,
-		Emails:        u.Emails,
 		TermsAccepted: u.TermsAccepted,
 		EmailVerified: u.EmailVerified,
 		PwHash:        u.PwHash,
 		Hash:          u.Hash,
-		Private:       u.Private,
 	}
 	if u.Emails != nil {
 		clonedUser.Emails = make([]string, len(u.Emails))
 		copy(clonedUser.Emails, u.Emails)
+	}
+	if u.Roles != nil {
+		clonedUser.Roles = make([]string, len(u.Roles))
+		copy(clonedUser.Roles, u.Roles)
 	}
 	if u.Private != nil {
 		clonedUser.Private = make(map[string]*IdHashPair)

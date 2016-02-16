@@ -67,6 +67,14 @@ func Test_AsSerializableUser_Emails(t *testing.T) {
 	}
 }
 
+func Test_AsSerializableUser_Roles(t *testing.T) {
+	user := &User{Roles: []string{"clinic"}}
+	serializableUser := shoreline.asSerializableUser(user, false).(map[string]interface{})
+	if len(serializableUser) != 1 || !reflect.DeepEqual(serializableUser["roles"], user.Roles) {
+		t.Fatalf("Serializable user [%#v] does not match User [%#v] for roles", serializableUser, user)
+	}
+}
+
 func Test_AsSerializableUser_TermsAccepted(t *testing.T) {
 	user := &User{TermsAccepted: "2016-01-01T00:00:00-08:00"}
 	serializableUser := shoreline.asSerializableUser(user, false).(map[string]interface{})

@@ -50,7 +50,6 @@ func unpackAuth(authLine string) (usr *User, pw string) {
 
 func sendModelAsRes(res http.ResponseWriter, model interface{}) {
 	sendModelAsResWithStatus(res, model, http.StatusOK)
-	return
 }
 
 func sendModelAsResWithStatus(res http.ResponseWriter, model interface{}, statusCode int) {
@@ -62,7 +61,6 @@ func sendModelAsResWithStatus(res http.ResponseWriter, model interface{}, status
 	} else {
 		res.Write(jsonDetails)
 	}
-	return
 }
 
 //send metric
@@ -109,6 +107,16 @@ func (a *Api) sendUserWithStatus(res http.ResponseWriter, user *User, statusCode
 	sendModelAsResWithStatus(res, a.asSerializableUser(user, isServerRequest), statusCode)
 }
 
+func (a *Api) sendUsers(res http.ResponseWriter, users []*User, isServerRequest bool) {
+	serializables := make([]interface{}, len(users))
+	if users != nil {
+		for index, user := range users {
+			serializables[index] = a.asSerializableUser(user, isServerRequest)
+		}
+	}
+	sendModelAsRes(res, serializables)
+}
+
 func (a *Api) asSerializableUser(user *User, isServerRequest bool) interface{} {
 	serializable := make(map[string]interface{})
 	if len(user.Id) > 0 {
@@ -119,6 +127,9 @@ func (a *Api) asSerializableUser(user *User, isServerRequest bool) interface{} {
 	}
 	if len(user.Emails) > 0 {
 		serializable["emails"] = user.Emails
+	}
+	if len(user.Roles) > 0 {
+		serializable["roles"] = user.Roles
 	}
 	if len(user.TermsAccepted) > 0 {
 		serializable["termsAccepted"] = user.TermsAccepted

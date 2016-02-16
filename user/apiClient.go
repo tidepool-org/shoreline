@@ -134,6 +134,6 @@ func (client *UserClient) GetUser(userID, token string) (*commonUserApi.UserData
 }
 
 // FIXME: Not required for OAUTH API, but still...
-func (client *UserClient) UpdateUser(user commonUserApi.UserUpdate, token string) error {
+func (client *UserClient) UpdateUser(userID string, userUpdate commonUserApi.UserUpdate, token string) error {
 	return nil
 }

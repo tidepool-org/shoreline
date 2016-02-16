@@ -309,7 +309,7 @@ func (o *Api) signup(w http.ResponseWriter, r *http.Request) {
 				Id:          signupResp.UserID,
 				Secret:      secret,
 				RedirectUri: r.Form.Get("uri"),
-				UserData:    map[string]interface{}{"AppName": signupResp.UserName},
+				UserData:    map[string]interface{}{"AppName": signupResp.Username},
 			}
 
 			authData := &osin.AuthorizeData{

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"reflect"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -56,6 +57,7 @@ const (
 
 	STATUS_NO_USR_DETAILS        = "No user details were given"
 	STATUS_INVALID_USER_DETAILS  = "Invalid user details were given"
+	STATUS_USER_NOT_FOUND        = "User not found"
 	STATUS_ERR_FINDING_USR       = "Error finding user"
 	STATUS_ERR_CREATING_USR      = "Error creating the user"
 	STATUS_ERR_UPDATING_USR      = "Error updating user"
@@ -76,6 +78,8 @@ const (
 	STATUS_AUTH_HEADER_INVLAID   = "Authorization header is invalid"
 	STATUS_GETSTATUS_ERR         = "Error checking service status"
 	STATUS_UNAUTHORIZED          = "Not authorized for requested operation"
+	STATUS_NO_QUERY              = "A query must be specified"
+	STATUS_INVALID_ROLE          = "The role specified is invalid"
 )
 
 func InitApi(cfg ApiConfig, store Storage, metrics highwater.Client) *Api {
@@ -97,6 +101,8 @@ func (a *Api) AttachOauth(client oauth2.Client) {
 
 func (a *Api) SetHandlers(prefix string, rtr *mux.Router) {
 	rtr.HandleFunc("/status", a.GetStatus).Methods("GET")
+
+	rtr.HandleFunc("/users", a.GetUsers).Methods("GET")
 
 	rtr.Handle("/user", varsHandler(a.GetUserInfo)).Methods("GET")
 	rtr.Handle("/user/{userid}", varsHandler(a.GetUserInfo)).Methods("GET")
@@ -138,6 +144,34 @@ func (a *Api) GetStatus(res http.ResponseWriter, req *http.Request) {
 	}
 	res.WriteHeader(http.StatusOK)
 	return
+}
+
+//
+// status: 200
+// status: 400 STATUS_NO_ROLE
+// status: 401 STATUS_SERVER_TOKEN_REQUIRED
+// status: 500 STATUS_ERR_FINDING_USR
+func (a *Api) GetUsers(res http.ResponseWriter, req *http.Request) {
+	sessionToken := req.Header.Get(TP_SESSION_TOKEN)
+	if tokenData, err := a.authenticateSessionToken(sessionToken); err != nil {
+		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
+
+	} else if !tokenData.IsServer {
+		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED)
+
+	} else if role := req.URL.Query().Get("role"); role != "" && !IsValidRole(role) {
+		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_ROLE)
+
+	} else if role == "" {
+		a.sendError(res, http.StatusBadRequest, STATUS_NO_QUERY)
+
+	} else if users, err := a.Store.FindUsers(&User{Roles: []string{role}}); err != nil {
+		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err.Error())
+
+	} else {
+		a.logMetric("getusers", sessionToken, map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
+		a.sendUsers(res, users, tokenData.IsServer)
+	}
 }
 
 // status: 201 User
@@ -210,7 +244,7 @@ func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, va
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
 		} else {
 			a.logMetricForUser(newCustodialUser.Id, "custodialusercreated", sessionToken, map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
-			a.sendUserWithStatus(res, newCustodialUser, http.StatusCreated, false)
+			a.sendUserWithStatus(res, newCustodialUser, http.StatusCreated, tokenData.IsServer)
 		}
 	}
 }
@@ -243,7 +277,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 	} else if len(permissions) == 0 {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, "User does not have permissions")
 
-	} else if updateUserDetails.EmailVerified != nil && !tokenData.IsServer {
+	} else if (updateUserDetails.Roles != nil || updateUserDetails.EmailVerified != nil) && !tokenData.IsServer {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, "User does not have permissions")
 
 	} else if (updateUserDetails.Password != nil || updateUserDetails.TermsAccepted != nil) && permissions["root"] == nil {
@@ -253,21 +287,6 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 		updatedUser := originalUser.DeepClone()
 
 		// TODO: This all needs to be refactored so it can be more thoroughly tested
-
-		if updateUserDetails.EmailVerified != nil {
-			updatedUser.EmailVerified = *updateUserDetails.EmailVerified
-		}
-
-		if updateUserDetails.Password != nil {
-			if err := updatedUser.HashPassword(*updateUserDetails.Password, a.ApiConfig.Salt); err != nil {
-				a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_USR, err)
-				return
-			}
-		}
-
-		if updateUserDetails.TermsAccepted != nil {
-			updatedUser.TermsAccepted = *updateUserDetails.TermsAccepted
-		}
 
 		if updateUserDetails.Username != nil || updateUserDetails.Emails != nil {
 			dupCheck := &User{}
@@ -287,6 +306,25 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 				a.sendError(res, http.StatusConflict, STATUS_USR_ALREADY_EXISTS)
 				return
 			}
+		}
+
+		if updateUserDetails.Password != nil {
+			if err := updatedUser.HashPassword(*updateUserDetails.Password, a.ApiConfig.Salt); err != nil {
+				a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_USR, err)
+				return
+			}
+		}
+
+		if updateUserDetails.Roles != nil {
+			updatedUser.Roles = updateUserDetails.Roles
+		}
+
+		if updateUserDetails.TermsAccepted != nil {
+			updatedUser.TermsAccepted = *updateUserDetails.TermsAccepted
+		}
+
+		if updateUserDetails.EmailVerified != nil {
+			updatedUser.EmailVerified = *updateUserDetails.EmailVerified
 		}
 
 		if err := a.Store.UpsertUser(updatedUser); err != nil {
@@ -321,6 +359,9 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 
 		if results, err := a.Store.FindUsers(user); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err)
+
+		} else if len(results) == 0 {
+			a.sendError(res, http.StatusNotFound, STATUS_USER_NOT_FOUND)
 
 		} else if len(results) != 1 {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, fmt.Sprintf("Found %d users matching %#v", len(results), user))
@@ -698,11 +739,21 @@ func (a *Api) ManageIdHashPair(res http.ResponseWriter, req *http.Request, vars 
 }
 
 func (a *Api) sendError(res http.ResponseWriter, statusCode int, reason string, extras ...interface{}) {
+	_, file, line, ok := runtime.Caller(1)
+	if ok {
+		segments := strings.Split(file, "/")
+		file = segments[len(segments)-1]
+	} else {
+		file = "???"
+		line = 0
+	}
+
 	messages := make([]string, len(extras))
 	for index, extra := range extras {
 		messages[index] = fmt.Sprintf("%v", extra)
 	}
-	a.logger.Printf("RESPONSE ERROR: [%d %s] %s", statusCode, reason, strings.Join(messages, "; "))
+
+	a.logger.Printf("%s:%d RESPONSE ERROR: [%d %s] %s", file, line, statusCode, reason, strings.Join(messages, "; "))
 	sendModelAsResWithStatus(res, status.NewStatus(statusCode, reason), statusCode)
 }
 

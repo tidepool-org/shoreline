@@ -11,5 +11,6 @@ rm -rf ${OUTDIR}
 mkdir ${OUTDIR}
 
 go build -o ${OUTDIR}/${PROJECT}
+go build -o ${OUTDIR}/user-roles tools/user-roles.go
 
 cp start.sh ${OUTDIR}/
