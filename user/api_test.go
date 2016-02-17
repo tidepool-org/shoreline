@@ -70,7 +70,7 @@ var (
 	shorelineFails = InitApi(FAKE_CONFIG, mockStoreFails, mockMetrics)
 
 	responsableStore      = NewResponsableMockStoreClient()
-	responsableGatekeeper = NewResponsableGatekeeper()
+	responsableGatekeeper = NewResponsableMockGatekeeper()
 	responsableShoreline  = InitShoreline(FAKE_CONFIG, responsableStore, mockMetrics, responsableGatekeeper)
 )
 
