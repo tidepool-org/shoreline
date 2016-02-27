@@ -4,5 +4,5 @@ github.com/gorilla/mux git https://github.com/gorilla/mux.git 14cafe28513321476c
 github.com/gorilla/context git https://github.com/gorilla/context.git 14f550f51af52180c2eefed15e5fd18d63c0a64a
 github.com/dgrijalva/jwt-go git https://github.com/dgrijalva/jwt-go.git v1.0.1
 github.com/RangelReale/osin git https://github.com/RangelReale/osin.git 9f043d7e6be414ff4c71af39d2cfffc10ccc7ea4
-github.com/tidepool-org/go-common git https://github.com/tidepool-org/go-common.git cc69b1bf2402bdb80ecdc4dfda044df702876786
 github.com/codegangsta/cli git https://github.com/codegangsta/cli cf1f63a7274872768d4037305d572b70b1199397
+github.com/tidepool-org/go-common git https://github.com/tidepool-org/go-common.git afa160c04ee3a517d14b9a511475df53b6ead772
