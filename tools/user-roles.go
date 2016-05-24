@@ -56,7 +56,7 @@ func main() {
 		{
 			Name:      "add",
 			ShortName: "a",
-			Usage:     `Add the specified role to an existing user found by email`,
+			Usage:     "Add the specified role to an existing user found by email",
 			Flags: []cli.Flag{
 				cli.StringFlag{
 					Name:  "email",
@@ -376,10 +376,14 @@ func envToHost(env string) (string, error) {
 	switch env {
 	case "prd":
 		return "https://api.tidepool.org", nil
+	case "int":
+		return "https://int-api.tidepool.org", nil
 	case "stg":
 		return "https://stg-api.tidepool.org", nil
 	case "dev":
 		return "https://dev-api.tidepool.org", nil
+	case "dev-clinic":
+		return "https://dev-clinic-api.tidepool.org", nil
 	case "local":
 		return "http://localhost:8009", nil
 	case "":
