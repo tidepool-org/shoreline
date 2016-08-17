@@ -35,7 +35,7 @@ var (
 		AccessData:    access_data_other,
 	}
 
-	testingConfig = &mongo.Config{ConnectionString: "mongodb://localhost/oauth_test"}
+	testingConfig = &mongo.Config{ConnectionString: "mongodb://localhost/user_test"}
 )
 
 func TestOAuth_ClientStorage(t *testing.T) {
