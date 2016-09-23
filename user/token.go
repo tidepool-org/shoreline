@@ -11,19 +11,25 @@ import (
 
 type (
 	SessionToken struct {
-		Id   string `json:"-" 	bson:"_id,omitempty"`
-		Time int64  `json:"-" 	bson:"time"`
+		ID        string `json:"-" bson:"_id"`
+		IsServer  bool   `json:"isServer" bson:"isServer"`
+		ServerID  string `json:"-" bson:"serverId,omitempty"`
+		UserID    string `json:"userId,omitempty" bson:"userId,omitempty"`
+		Duration  int64  `json:"-" bson:"duration"`
+		ExpiresAt int64  `json:"-" bson:"expiresAt"`
+		CreatedAt int64  `json:"-" bson:"createdAt"`
+		Time      int64  `json:"-" bson:"time"`
 	}
 
 	TokenData struct {
-		UserId       string  `json:"userid"`
-		IsServer     bool    `json:"isserver"`
-		DurationSecs float64 `json:"-"`
+		IsServer     bool   `json:"isserver"`
+		UserId       string `json:"userid"`
+		DurationSecs int64  `json:"-"`
 	}
 
 	TokenConfig struct {
 		Secret       string
-		DurationSecs float64
+		DurationSecs int64
 	}
 )
 
@@ -38,23 +44,23 @@ var (
 )
 
 func CreateSessionToken(data *TokenData, config TokenConfig) (*SessionToken, error) {
-
-	const seconds_in_one_hour = 3600
-
 	if data.UserId == "" {
 		return nil, SessionToken_error_no_userid
 	}
 
 	if data.DurationSecs == 0 {
-
-		data.DurationSecs = config.DurationSecs //As per configuartion
 		if data.IsServer {
-			data.DurationSecs = (time.Hour * 24).Seconds() //24 hours
+			data.DurationSecs = 24 * 60 * 60
+		} else {
+			data.DurationSecs = config.DurationSecs
 		}
 	}
 
-	token := jwt.New(jwt.GetSigningMethod("HS256"))
+	now := time.Now()
+	createdAt := now.Unix()
+	expiresAt := now.Add(time.Duration(data.DurationSecs) * time.Second).Unix()
 
+	token := jwt.New(jwt.GetSigningMethod("HS256"))
 	if data.IsServer {
 		token.Claims["svr"] = "yes"
 	} else {
@@ -62,72 +68,78 @@ func CreateSessionToken(data *TokenData, config TokenConfig) (*SessionToken, err
 	}
 	token.Claims["usr"] = data.UserId
 	token.Claims["dur"] = data.DurationSecs
-	token.Claims["exp"] = time.Now().Add(time.Duration(data.DurationSecs/seconds_in_one_hour) * time.Hour).Unix()
+	token.Claims["exp"] = expiresAt
 
 	tokenString, err := token.SignedString([]byte(config.Secret))
-
 	if err != nil {
 		return nil, err
 	}
-	return &SessionToken{Id: tokenString, Time: time.Now().Unix()}, nil
+
+	sessionToken := &SessionToken{
+		ID:        tokenString,
+		IsServer:  data.IsServer,
+		Duration:  data.DurationSecs,
+		ExpiresAt: expiresAt,
+		CreatedAt: createdAt,
+		Time:      createdAt,
+	}
+	if data.IsServer {
+		sessionToken.ServerID = data.UserId
+	} else {
+		sessionToken.UserID = data.UserId
+	}
+
+	return sessionToken, nil
 }
 
 func CreateSessionTokenAndSave(data *TokenData, config TokenConfig, store Storage) (*SessionToken, error) {
-
 	sessionToken, err := CreateSessionToken(data, config)
 	if err != nil {
 		return nil, err
 	}
-	err = sessionToken.Save(store)
 
+	err = store.AddToken(sessionToken)
 	if err != nil {
 		return nil, err
 	}
+
 	return sessionToken, nil
 }
 
-func (t *SessionToken) Save(store Storage) error {
-	return store.AddToken(t)
-}
-
-func (t *SessionToken) UnpackAndVerify(secret string) (*TokenData, error) {
-	if t.Id == "" {
+func UnpackSessionTokenAndVerify(id string, secret string) (*TokenData, error) {
+	if id == "" {
 		return nil, SessionToken_error_no_userid
 	}
-	return t.unpackToken(secret)
-}
 
-func GetSessionToken(tokenString string) *SessionToken {
-	return &SessionToken{Id: tokenString}
-}
-
-func (t *SessionToken) unpackToken(secret string) (*TokenData, error) {
-
-	jwtToken, err := jwt.Parse(t.Id, func(t *jwt.Token) ([]byte, error) { return []byte(secret), nil })
-
+	jwtToken, err := jwt.Parse(id, func(t *jwt.Token) ([]byte, error) { return []byte(secret), nil })
 	if err != nil {
 		return nil, err
 	}
-
 	if !jwtToken.Valid {
 		return nil, SessionToken_invalid
 	}
-	// only return valid unpacked tokens
-	return &TokenData{
-		IsServer:     jwtToken.Claims["svr"] == "yes",
-		DurationSecs: jwtToken.Claims["dur"].(float64),
-		UserId:       jwtToken.Claims["usr"].(string),
-	}, nil
 
+	isServer := jwtToken.Claims["svr"] == "yes"
+	durationSecs, ok := jwtToken.Claims["dur"].(int64)
+	if !ok {
+		durationSecs = int64(jwtToken.Claims["dur"].(float64))
+	}
+	userId := jwtToken.Claims["usr"].(string)
+
+	return &TokenData{
+		IsServer:     isServer,
+		DurationSecs: durationSecs,
+		UserId:       userId,
+	}, nil
 }
 
-func extractTokenDuration(r *http.Request) float64 {
+func extractTokenDuration(r *http.Request) int64 {
 
 	durString := r.Header.Get(TOKEN_DURATION_KEY)
 
 	if durString != "" {
 		//if there is an error we just return a duration of zero
-		dur, err := strconv.ParseFloat(durString, 64)
+		dur, err := strconv.ParseInt(durString, 10, 64)
 		if err == nil {
 			return dur
 		}
@@ -135,13 +147,8 @@ func extractTokenDuration(r *http.Request) float64 {
 	return 0
 }
 
-func getUnpackedToken(tokenString, secret string) (*TokenData, error) {
-	st := GetSessionToken(tokenString)
-	return st.UnpackAndVerify(secret)
-}
-
 func hasServerToken(tokenString, secret string) bool {
-	td, err := getUnpackedToken(tokenString, secret)
+	td, err := UnpackSessionTokenAndVerify(tokenString, secret)
 	if err != nil {
 		return false
 	}

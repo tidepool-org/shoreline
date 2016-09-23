@@ -17,17 +17,6 @@ var tokenConfig = TokenConfig{
 	Secret:       "my secret",
 }
 
-func Test_GetSessionToken(t *testing.T) {
-
-	tokenString := "123-456-test-token"
-
-	token := GetSessionToken(tokenString)
-
-	if token.Id != tokenString {
-		t.Fatalf("session value should have been set for token")
-	}
-}
-
 func Test_GenerateSessionToken(t *testing.T) {
 
 	testData := tokenTestData{
@@ -38,11 +27,11 @@ func Test_GenerateSessionToken(t *testing.T) {
 	//given duration seconds trump the configured duration
 	token, _ := CreateSessionToken(testData.data, testData.config)
 
-	if token.Id == "" {
-		t.Fatalf("should generate a session token with an Id set")
+	if token.ID == "" {
+		t.Fatalf("should generate a session token with an ID set")
 	}
 
-	td, _ := token.unpackToken(tokenConfig.Secret)
+	td, _ := UnpackSessionTokenAndVerify(token.ID, tokenConfig.Secret)
 
 	if td.DurationSecs != testData.data.DurationSecs {
 		t.Fatalf("we should use the DurationSecs if given")
@@ -59,11 +48,11 @@ func Test_GenerateSessionToken_DurationFromConfig(t *testing.T) {
 	//given duration seconds trump the configured duration
 	token, _ := CreateSessionToken(testData.data, testData.config)
 
-	if token.Id == "" || token.Time == 0 {
+	if token.ID == "" || token.Time == 0 {
 		t.Fatalf("should generate a session token")
 	}
 
-	td, _ := token.unpackToken(tokenConfig.Secret)
+	td, _ := UnpackSessionTokenAndVerify(token.ID, tokenConfig.Secret)
 
 	if td.DurationSecs != tokenConfig.DurationSecs {
 		t.Fatalf("the duration should be from config")
@@ -79,11 +68,11 @@ func Test_GenerateSessionToken_DurationSecsTrumpConfig(t *testing.T) {
 
 	token, _ := CreateSessionToken(testData.data, testData.config)
 
-	if token.Id == "" || token.Time == 0 {
+	if token.ID == "" || token.Time == 0 {
 		t.Fatalf("should generate a session token")
 	}
 
-	td, _ := token.unpackToken(tokenConfig.Secret)
+	td, _ := UnpackSessionTokenAndVerify(token.ID, tokenConfig.Secret)
 
 	if td.DurationSecs != testData.data.DurationSecs {
 		t.Fatalf("the duration should come from the token data")
@@ -112,17 +101,17 @@ func Test_GenerateSessionToken_Server(t *testing.T) {
 
 	token, _ := CreateSessionToken(testData.data, testData.config)
 
-	if token.Id == "" || token.Time == 0 {
+	if token.ID == "" || token.Time == 0 {
 		t.Fatalf("should generate a session token")
 	}
 
-	td, _ := token.unpackToken(tokenConfig.Secret)
+	td, _ := UnpackSessionTokenAndVerify(token.ID, tokenConfig.Secret)
 
 	if td.IsServer != true {
 		t.Fatal("this should be a server token")
 	}
 
-	if td.DurationSecs != (time.Hour * 24).Seconds() {
+	if td.DurationSecs != 24*60*60 {
 		t.Fatal("the duration should be 24hrs")
 	}
 
@@ -137,7 +126,7 @@ func Test_UnpackedData(t *testing.T) {
 
 	token, _ := CreateSessionToken(testData.data, testData.config)
 
-	data, err := token.UnpackAndVerify(testData.config.Secret)
+	data, err := UnpackSessionTokenAndVerify(token.ID, testData.config.Secret)
 	if err != nil {
 		t.Fatal("unpacked token should be valid", err.Error())
 	}
@@ -167,7 +156,7 @@ func Test_UnpackTokenExpires(t *testing.T) {
 
 	time.Sleep(2 * time.Second) //ensure token expires
 
-	data, err := token.UnpackAndVerify(testData.config.Secret)
+	data, err := UnpackSessionTokenAndVerify(token.ID, testData.config.Secret)
 
 	if data != nil {
 		t.Fatal("the token should have expired")
@@ -188,7 +177,7 @@ func Test_UnpackAndVerifyStoredToken(t *testing.T) {
 
 	token, _ := CreateSessionToken(testData.data, testData.config)
 
-	_, err := token.UnpackAndVerify(testData.config.Secret)
+	_, err := UnpackSessionTokenAndVerify(token.ID, testData.config.Secret)
 
 	if err != nil {
 		t.Fatal("the token should be valid", err.Error())
@@ -205,8 +194,8 @@ func Test_extractTokenDuration(t *testing.T) {
 
 	duration := extractTokenDuration(request)
 
-	if strconv.FormatFloat(duration, 'f', -1, 64) != givenDuration {
-		t.Fatalf("Duration should have been set [%s] but was [%s] ", givenDuration, strconv.FormatFloat(duration, 'f', -1, 64))
+	if strconv.FormatInt(duration, 10) != givenDuration {
+		t.Fatalf("Duration should have been set [%s] but was [%s] ", givenDuration, strconv.FormatInt(duration, 10))
 	}
 
 }
@@ -220,7 +209,7 @@ func Test_getUnpackedToken(t *testing.T) {
 
 	token, _ := CreateSessionToken(testData.data, testData.config)
 
-	td, err := getUnpackedToken(token.Id, testData.config.Secret)
+	td, err := UnpackSessionTokenAndVerify(token.ID, testData.config.Secret)
 	if err != nil {
 		t.Fatal("We should have got TokenData")
 	}
@@ -239,7 +228,7 @@ func Test_hasServerToken(t *testing.T) {
 
 	token, _ := CreateSessionToken(testData.data, testData.config)
 
-	if hasServerToken(token.Id, testData.config.Secret) == false {
+	if hasServerToken(token.ID, testData.config.Secret) == false {
 		t.Fatal("We should have got a server Token")
 	}
 }
@@ -252,7 +241,7 @@ func Test_hasServerToken_false(t *testing.T) {
 
 	token, _ := CreateSessionToken(testData.data, testData.config)
 
-	if hasServerToken(token.Id, testData.config.Secret) != false {
+	if hasServerToken(token.ID, testData.config.Secret) != false {
 		t.Fatal("We should have not got a server Token")
 	}
 }

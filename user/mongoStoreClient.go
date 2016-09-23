@@ -136,39 +136,35 @@ func (d MongoStoreClient) RemoveUser(user *User) (err error) {
 }
 
 func (d MongoStoreClient) AddToken(st *SessionToken) error {
-	//map to the structure we want to save to mongo as
-	token := bson.M{"_id": st.Id, "time": st.Time}
 	cpy := d.session.Copy()
 	defer cpy.Close()
 
-	if _, err := mgoTokensCollection(cpy).Upsert(bson.M{"_id": st.Id}, token); err != nil {
+	if _, err := mgoTokensCollection(cpy).Upsert(bson.M{"_id": st.ID}, st); err != nil {
 		return err
 	}
+
 	return nil
 }
 
-func (d MongoStoreClient) FindToken(st *SessionToken) (*SessionToken, error) {
-
-	var result map[string]interface{}
+func (d MongoStoreClient) FindTokenByID(id string) (*SessionToken, error) {
 	cpy := d.session.Copy()
 	defer cpy.Close()
 
-	if err := mgoTokensCollection(cpy).Find(bson.M{"_id": st.Id}).One(&result); err != nil {
+	sessionToken := &SessionToken{}
+	if err := mgoTokensCollection(cpy).Find(bson.M{"_id": id}).One(&sessionToken); err != nil {
 		return nil, err
 	}
-	//map to the token structure the service uses
-	tkn := &SessionToken{Id: result["_id"].(string), Time: result["time"].(int64)}
 
-	return tkn, nil
+	return sessionToken, nil
 }
 
-func (d MongoStoreClient) RemoveToken(st *SessionToken) (err error) {
-
+func (d MongoStoreClient) RemoveTokenByID(id string) (err error) {
 	cpy := d.session.Copy()
 	defer cpy.Close()
 
-	if err = mgoTokensCollection(cpy).Remove(bson.M{"_id": st.Id}); err != nil {
+	if err = mgoTokensCollection(cpy).Remove(bson.M{"_id": id}); err != nil {
 		return err
 	}
+
 	return nil
 }

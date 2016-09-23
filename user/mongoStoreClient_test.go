@@ -229,8 +229,8 @@ func TestMongoStoreTokenOperations(t *testing.T) {
 		t.Fatalf("we could not save the token %v", err)
 	}
 
-	if foundToken, err := mc.FindToken(sessionToken); err == nil {
-		if foundToken.Id == "" {
+	if foundToken, err := mc.FindTokenByID(sessionToken.ID); err == nil {
+		if foundToken.ID == "" {
 			t.Fatalf("the token string isn't included %v", foundToken)
 		}
 		if foundToken.Time == 0 {
@@ -240,11 +240,11 @@ func TestMongoStoreTokenOperations(t *testing.T) {
 		t.Fatalf("no token was returned when it should have been - err[%v]", err)
 	}
 
-	if err := mc.RemoveToken(sessionToken); err != nil {
+	if err := mc.RemoveTokenByID(sessionToken.ID); err != nil {
 		t.Fatalf("we could not remove the token %v", err)
 	}
 
-	if token, err := mc.FindToken(sessionToken); err == nil {
+	if token, err := mc.FindTokenByID(sessionToken.ID); err == nil {
 		if token != nil {
 			t.Fatalf("the token has been removed so we shouldn't find it %v", token)
 		}

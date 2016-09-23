@@ -10,20 +10,20 @@ type FindUserResponse struct {
 	Error error
 }
 
-type FindTokenResponse struct {
+type FindTokenByIDResponse struct {
 	SessionToken *SessionToken
 	Error        error
 }
 
 type ResponsableMockStoreClient struct {
-	PingResponses        []error
-	UpsertUserResponses  []error
-	FindUsersResponses   []FindUsersResponse
-	FindUserResponses    []FindUserResponse
-	RemoveUserResponses  []error
-	AddTokenResponses    []error
-	FindTokenResponses   []FindTokenResponse
-	RemoveTokenResponses []error
+	PingResponses            []error
+	UpsertUserResponses      []error
+	FindUsersResponses       []FindUsersResponse
+	FindUserResponses        []FindUserResponse
+	RemoveUserResponses      []error
+	AddTokenResponses        []error
+	FindTokenByIDResponses   []FindTokenByIDResponse
+	RemoveTokenByIDResponses []error
 }
 
 func NewResponsableMockStoreClient() *ResponsableMockStoreClient {
@@ -37,8 +37,8 @@ func (r *ResponsableMockStoreClient) HasResponses() bool {
 		len(r.FindUserResponses) > 0 ||
 		len(r.RemoveUserResponses) > 0 ||
 		len(r.AddTokenResponses) > 0 ||
-		len(r.FindTokenResponses) > 0 ||
-		len(r.RemoveTokenResponses) > 0
+		len(r.FindTokenByIDResponses) > 0 ||
+		len(r.RemoveTokenByIDResponses) > 0
 }
 
 func (r *ResponsableMockStoreClient) Reset() {
@@ -48,8 +48,8 @@ func (r *ResponsableMockStoreClient) Reset() {
 	r.FindUserResponses = nil
 	r.RemoveUserResponses = nil
 	r.AddTokenResponses = nil
-	r.FindTokenResponses = nil
-	r.RemoveTokenResponses = nil
+	r.FindTokenByIDResponses = nil
+	r.RemoveTokenByIDResponses = nil
 }
 
 func (r *ResponsableMockStoreClient) Close() {
@@ -105,19 +105,19 @@ func (r *ResponsableMockStoreClient) AddToken(token *SessionToken) (err error) {
 	panic("AddTokenResponses unavailable")
 }
 
-func (r *ResponsableMockStoreClient) FindToken(token *SessionToken) (*SessionToken, error) {
-	if len(r.FindTokenResponses) > 0 {
-		var response FindTokenResponse
-		response, r.FindTokenResponses = r.FindTokenResponses[0], r.FindTokenResponses[1:]
+func (r *ResponsableMockStoreClient) FindTokenByID(id string) (*SessionToken, error) {
+	if len(r.FindTokenByIDResponses) > 0 {
+		var response FindTokenByIDResponse
+		response, r.FindTokenByIDResponses = r.FindTokenByIDResponses[0], r.FindTokenByIDResponses[1:]
 		return response.SessionToken, response.Error
 	}
-	panic("FindTokenResponses unavailable")
+	panic("FindTokenByIDResponses unavailable")
 }
 
-func (r *ResponsableMockStoreClient) RemoveToken(token *SessionToken) (err error) {
-	if len(r.RemoveTokenResponses) > 0 {
-		err, r.RemoveTokenResponses = r.RemoveTokenResponses[0], r.RemoveTokenResponses[1:]
+func (r *ResponsableMockStoreClient) RemoveTokenByID(id string) (err error) {
+	if len(r.RemoveTokenByIDResponses) > 0 {
+		err, r.RemoveTokenByIDResponses = r.RemoveTokenByIDResponses[0], r.RemoveTokenByIDResponses[1:]
 		return err
 	}
-	panic("RemoveTokenResponses unavailable")
+	panic("RemoveTokenByIDResponses unavailable")
 }

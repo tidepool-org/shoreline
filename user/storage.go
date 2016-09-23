@@ -8,6 +8,6 @@ type Storage interface {
 	FindUsers(user *User) ([]*User, error)
 	RemoveUser(user *User) error
 	AddToken(token *SessionToken) error
-	FindToken(token *SessionToken) (*SessionToken, error)
-	RemoveToken(token *SessionToken) error
+	FindTokenByID(id string) (*SessionToken, error)
+	RemoveTokenByID(id string) error
 }

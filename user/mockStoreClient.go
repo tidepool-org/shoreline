@@ -103,17 +103,17 @@ func (d MockStoreClient) AddToken(token *SessionToken) error {
 	return nil
 }
 
-func (d MockStoreClient) FindToken(token *SessionToken) (*SessionToken, error) {
+func (d MockStoreClient) FindTokenByID(id string) (*SessionToken, error) {
 	if d.doBad {
-		return nil, errors.New("FindToken failure")
+		return nil, errors.New("FindTokenByID failure")
 	}
 	//`find` a pretend one we just made
-	return token, nil
+	return nil, nil
 }
 
-func (d MockStoreClient) RemoveToken(token *SessionToken) error {
+func (d MockStoreClient) RemoveTokenByID(id string) error {
 	if d.doBad {
-		return errors.New("RemoveToken failure")
+		return errors.New("RemoveTokenByID failure")
 	}
 	return nil
 }

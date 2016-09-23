@@ -36,7 +36,7 @@ type (
 		LongTermDaysDuration int    `json:"longTermDaysDuration"`
 		//so we can change the default lifetime of the token
 		//we use seconds, this also helps for testing as you can time it out easily
-		TokenDurationSecs float64 `json:"tokenDurationSecs"`
+		TokenDurationSecs int64 `json:"tokenDurationSecs"`
 		//used for pw
 		Salt string `json:"salt"`
 		//used for token
@@ -203,8 +203,8 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 		if sessionToken, err := CreateSessionTokenAndSave(&tokenData, tokenConfig, a.Store); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN, err)
 		} else {
-			a.logMetricForUser(newUser.Id, "usercreated", sessionToken.Id, map[string]string{"server": "false"})
-			res.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
+			a.logMetricForUser(newUser.Id, "usercreated", sessionToken.ID, map[string]string{"server": "false"})
+			res.Header().Set(TP_SESSION_TOKEN, sessionToken.ID)
 			a.sendUserWithStatus(res, newUser, http.StatusCreated, false)
 		}
 	}
@@ -417,8 +417,7 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 				}
 				//cleanup if any
 				if td.IsServer == false {
-					usrToken := &SessionToken{Id: req.Header.Get(TP_SESSION_TOKEN)}
-					a.Store.RemoveToken(usrToken)
+					a.Store.RemoveTokenByID(req.Header.Get(TP_SESSION_TOKEN))
 				}
 				//all good
 				res.WriteHeader(http.StatusAccepted)
@@ -465,8 +464,8 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_TOKEN, err)
 
 		} else {
-			a.logMetric("userlogin", sessionToken.Id, nil)
-			res.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
+			a.logMetric("userlogin", sessionToken.ID, nil)
+			res.Header().Set(TP_SESSION_TOKEN, sessionToken.ID)
 			a.sendUser(res, result, false)
 		}
 	}
@@ -496,8 +495,8 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 			sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN), http.StatusInternalServerError)
 			return
 		} else {
-			a.logMetricAsServer("serverlogin", sessionToken.Id, nil)
-			res.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
+			a.logMetricAsServer("serverlogin", sessionToken.ID, nil)
+			res.Header().Set(TP_SESSION_TOKEN, sessionToken.ID)
 			return
 		}
 	}
@@ -550,7 +549,7 @@ func (a *Api) oauth2Login(w http.ResponseWriter, r *http.Request) {
 					return
 				} else {
 					//We are redirecting to the app
-					w.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
+					w.Header().Set(TP_SESSION_TOKEN, sessionToken.ID)
 					common.OutputJSON(w, http.StatusOK, map[string]interface{}{"oauthUser": fndUsr, "oauthTarget": result["authUserId"]})
 					return
 				}
@@ -594,7 +593,7 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN), http.StatusInternalServerError)
 		return
 	} else {
-		res.Header().Set(TP_SESSION_TOKEN, sessionToken.Id)
+		res.Header().Set(TP_SESSION_TOKEN, sessionToken.ID)
 		sendModelAsRes(res, td)
 		return
 	}
@@ -630,8 +629,7 @@ func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars 
 	if hasServerToken(req.Header.Get(TP_SESSION_TOKEN), a.ApiConfig.Secret) {
 		tokenString := vars["token"]
 
-		svrToken := &SessionToken{Id: tokenString}
-		td, err := svrToken.UnpackAndVerify(a.ApiConfig.Secret)
+		td, err := UnpackSessionTokenAndVerify(tokenString, a.ApiConfig.Secret)
 		if err != nil {
 			a.logger.Println(http.StatusUnauthorized, STATUS_NO_TOKEN, err.Error())
 			sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_TOKEN), http.StatusUnauthorized)
@@ -648,10 +646,8 @@ func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars 
 
 // status: 200
 func (a *Api) Logout(res http.ResponseWriter, req *http.Request) {
-	//lets just try and remove the token
-	st := GetSessionToken(req.Header.Get(TP_SESSION_TOKEN))
-	if st.Id != "" {
-		if err := a.Store.RemoveToken(st); err != nil {
+	if id := req.Header.Get(TP_SESSION_TOKEN); id != "" {
+		if err := a.Store.RemoveTokenByID(id); err != nil {
 			//sliently fail but still log it
 			a.logger.Println("Logout was unable to delete token", err.Error())
 		}
@@ -760,9 +756,9 @@ func (a *Api) sendError(res http.ResponseWriter, statusCode int, reason string, 
 func (a *Api) authenticateSessionToken(sessionToken string) (*TokenData, error) {
 	if sessionToken == "" {
 		return nil, errors.New("Session token is empty")
-	} else if tokenData, err := getUnpackedToken(sessionToken, a.ApiConfig.Secret); err != nil {
+	} else if tokenData, err := UnpackSessionTokenAndVerify(sessionToken, a.ApiConfig.Secret); err != nil {
 		return nil, err
-	} else if _, err := a.Store.FindToken(&SessionToken{Id: sessionToken}); err != nil {
+	} else if _, err := a.Store.FindTokenByID(sessionToken); err != nil {
 		return nil, err
 	} else {
 		return tokenData, nil

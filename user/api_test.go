@@ -32,7 +32,7 @@ type (
 
 var (
 	NO_PARAMS      = map[string]string{}
-	TOKEN_DURATION = float64(3600)
+	TOKEN_DURATION = int64(3600)
 	FAKE_CONFIG    = ApiConfig{
 		ServerSecret:       "shhh! don't tell",
 		Secret:             "shhh! don't tell *2",
@@ -86,7 +86,7 @@ func T_CreateAuthorization(t *testing.T, email string, password string) string {
 	return fmt.Sprintf("Basic %s", base64.URLEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", email, password))))
 }
 
-func T_CreateSessionToken(t *testing.T, userId string, isServer bool, duration float64) *SessionToken {
+func T_CreateSessionToken(t *testing.T, userId string, isServer bool, duration int64) *SessionToken {
 	sessionToken, err := CreateSessionToken(&TokenData{UserId: userId, IsServer: isServer, DurationSecs: duration}, TOKEN_CONFIG)
 	if err != nil {
 		t.Fatalf("Error creating session token: %#v", err)
@@ -247,11 +247,11 @@ func T_ExpectResponsablesEmpty(t *testing.T) {
 		if len(responsableStore.AddTokenResponses) > 0 {
 			t.Logf("AddTokenResponses still available")
 		}
-		if len(responsableStore.FindTokenResponses) > 0 {
-			t.Logf("FindTokenResponses still available")
+		if len(responsableStore.FindTokenByIDResponses) > 0 {
+			t.Logf("FindTokenByIDResponses still available")
 		}
-		if len(responsableStore.RemoveTokenResponses) > 0 {
-			t.Logf("RemoveTokenResponses still available")
+		if len(responsableStore.RemoveTokenByIDResponses) > 0 {
+			t.Logf("RemoveTokenByIDResponses still available")
 		}
 		responsableStore.Reset()
 		t.Fail()
@@ -318,68 +318,68 @@ func Test_GetUsers_Error_MissingSessionToken(t *testing.T) {
 
 func Test_GetUsers_Error_TokenError(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "abcdef1234", true, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{nil, errors.New("ERROR")}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{nil, errors.New("ERROR")}}
 	defer T_ExpectResponsablesEmpty(t)
 
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestHeaders(t, "GET", "/users?role=clinic", headers)
 	T_ExpectErrorResponse(t, response, 401, "Not authorized for requested operation")
 }
 
 func Test_GetUsers_Error_NotServerToken(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "abcdef1234", false, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestHeaders(t, "GET", "/users?role=clinic", headers)
 	T_ExpectErrorResponse(t, response, 401, "Not authorized for requested operation")
 }
 
 func Test_GetUsers_Error_InvalidRole(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "abcdef1234", true, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestHeaders(t, "GET", "/users?role=invalid", headers)
 	T_ExpectErrorResponse(t, response, 400, "The role specified is invalid")
 }
 
 func Test_GetUsers_Error_NoQuery(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "abcdef1234", true, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestHeaders(t, "GET", "/users", headers)
 	T_ExpectErrorResponse(t, response, 400, "A query must be specified")
 }
 
 func Test_GetUsers_Error_FindUsersError(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "abcdef1234", true, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, errors.New("ERROR")}}
 	defer T_ExpectResponsablesEmpty(t)
 
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestHeaders(t, "GET", "/users?role=clinic", headers)
 	T_ExpectErrorResponse(t, response, 500, "Error finding user")
 }
 
 func Test_GetUsers_Error_Success(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "abcdef1234", true, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{{Id: "0000000000"}, {Id: "1111111111"}}, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestHeaders(t, "GET", "/users?role=clinic", headers)
 	successResponse := T_ExpectSuccessResponseWithJSONArray(t, response, 200)
 	T_ExpectEqualsArray(t, successResponse, []interface{}{map[string]interface{}{"userid": "0000000000", "passwordExists": false}, map[string]interface{}{"userid": "1111111111", "passwordExists": false}})
@@ -472,95 +472,95 @@ func Test_CreateCustodialUser_Error_MissingSessionToken(t *testing.T) {
 
 func Test_CreateCustodialUser_Error_TokenNotFound(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "abcdef1234", false, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{nil, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{nil, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
 	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}"
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "POST", "/user/1234567890/user", body, headers)
 	T_ExpectErrorResponse(t, response, 401, "Not authorized for requested operation")
 }
 
 func Test_CreateCustodialUser_Error_MismatchUserIds(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "abcdef1234", false, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
 	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}"
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "POST", "/user/1234567890/user", body, headers)
 	T_ExpectErrorResponse(t, response, 401, "Not authorized for requested operation")
 }
 
 func Test_CreateCustodialUser_Error_MissingDetails(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "abcdef1234", false, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
 	body := ""
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "POST", "/user/abcdef1234/user", body, headers)
 	T_ExpectErrorResponse(t, response, 400, "Invalid user details were given")
 }
 
 func Test_CreateCustodialUser_Error_InvalidDetails(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "abcdef1234", false, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
 	body := "{\"username\": \"a\", \"emails\": [\"a\"]}"
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "POST", "/user/abcdef1234/user", body, headers)
 	T_ExpectErrorResponse(t, response, 400, "Invalid user details were given")
 }
 
 func Test_CreateCustodialUser_Error_FindUsersError(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "abcdef1234", false, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, errors.New("ERROR")}}
 	defer T_ExpectResponsablesEmpty(t)
 
 	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}"
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "POST", "/user/abcdef1234/user", body, headers)
 	T_ExpectErrorResponse(t, response, 500, "Error creating the user")
 }
 
 func Test_CreateCustodialUser_Error_FindUsersDuplicate(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "abcdef1234", false, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{}}, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
 	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}"
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "POST", "/user/abcdef1234/user", body, headers)
 	T_ExpectErrorResponse(t, response, 409, "User already exists")
 }
 
 func Test_CreateCustodialUser_Error_UpsertUserError(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "abcdef1234", false, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
 	responsableStore.UpsertUserResponses = []error{errors.New("ERROR")}
 	defer T_ExpectResponsablesEmpty(t)
 
 	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}"
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "POST", "/user/abcdef1234/user", body, headers)
 	T_ExpectErrorResponse(t, response, 500, "Error creating the user")
 }
 
 func Test_CreateCustodialUser_Error_SetPermissionsError(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "abcdef1234", false, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
 	responsableStore.UpsertUserResponses = []error{nil}
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, errors.New("ERROR")}}
@@ -568,14 +568,14 @@ func Test_CreateCustodialUser_Error_SetPermissionsError(t *testing.T) {
 
 	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}"
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "POST", "/user/abcdef1234/user", body, headers)
 	T_ExpectErrorResponse(t, response, 500, "Error creating the user")
 }
 
 func Test_CreateCustodialUser_Success_Anonymous(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "abcdef1234", false, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
 	responsableStore.UpsertUserResponses = []error{nil}
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
@@ -583,7 +583,7 @@ func Test_CreateCustodialUser_Success_Anonymous(t *testing.T) {
 
 	body := "{}"
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "POST", "/user/abcdef1234/user", body, headers)
 	successResponse := T_ExpectSuccessResponseWithJSONMap(t, response, 201)
 	T_ExpectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
@@ -592,7 +592,7 @@ func Test_CreateCustodialUser_Success_Anonymous(t *testing.T) {
 
 func Test_CreateCustodialUser_Success_Anonymous_Server(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "abcdef1234", true, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
 	responsableStore.UpsertUserResponses = []error{nil}
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
@@ -600,7 +600,7 @@ func Test_CreateCustodialUser_Success_Anonymous_Server(t *testing.T) {
 
 	body := "{}"
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "POST", "/user/0000000000/user", body, headers)
 	successResponse := T_ExpectSuccessResponseWithJSONMap(t, response, 201)
 	T_ExpectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
@@ -609,7 +609,7 @@ func Test_CreateCustodialUser_Success_Anonymous_Server(t *testing.T) {
 
 func Test_CreateCustodialUser_Success_Known(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "abcdef1234", false, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
 	responsableStore.UpsertUserResponses = []error{nil}
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
@@ -617,7 +617,7 @@ func Test_CreateCustodialUser_Success_Known(t *testing.T) {
 
 	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}"
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "POST", "/user/abcdef1234/user", body, headers)
 	successResponse := T_ExpectSuccessResponseWithJSONMap(t, response, 201)
 	T_ExpectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
@@ -634,167 +634,167 @@ func Test_UpdateUser_Error_MissingSessionToken(t *testing.T) {
 
 func Test_UpdateUser_Error_MissingDetails(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
 	body := ""
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
 	T_ExpectErrorResponse(t, response, 400, "Invalid user details were given")
 }
 
 func Test_UpdateUser_Error_InvalidDetails(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
 	body := "{\"updates\": {\"username\": \"a\", \"emails\": [\"a\"]}}"
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
 	T_ExpectErrorResponse(t, response, 400, "Invalid user details were given")
 }
 
 func Test_UpdateUser_Error_FindUsersError(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{nil, errors.New("ERROR")}}
 	defer T_ExpectResponsablesEmpty(t)
 
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"emailVerified\": true, \"password\": \"newpassword\", \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
 	T_ExpectErrorResponse(t, response, 500, "Error finding user")
 }
 
 func Test_UpdateUser_Error_FindUsersMissing(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{nil, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"emailVerified\": true, \"password\": \"newpassword\", \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
 	T_ExpectErrorResponse(t, response, 401, "Not authorized for requested operation")
 }
 
 func Test_UpdateUser_Error_PermissionsError(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
 	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{}, errors.New("ERROR")}}
 	defer T_ExpectResponsablesEmpty(t)
 
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"emailVerified\": true, \"password\": \"newpassword\", \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
 	T_ExpectErrorResponse(t, response, 500, "Error finding user")
 }
 
 func Test_UpdateUser_Error_NoPermissions(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
 	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"emailVerified\": true, \"password\": \"newpassword\", \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
 	T_ExpectErrorResponse(t, response, 401, "Not authorized for requested operation")
 }
 
 func Test_UpdateUser_Error_UnauthorizedRoles_User(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "1111111111", false, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"roles\": [\"clinic\"]}}"
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
 	T_ExpectErrorResponse(t, response, 401, "Not authorized for requested operation")
 }
 
 func Test_UpdateUser_Error_UnauthorizedRoles_Custodian(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
 	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{"custodian": clients.Allowed}, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"roles\": [\"clinic\"]}}"
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
 	T_ExpectErrorResponse(t, response, 401, "Not authorized for requested operation")
 }
 
 func Test_UpdateUser_Error_UnauthorizedEmailVerified_User(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "1111111111", false, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"emailVerified\": true}}"
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
 	T_ExpectErrorResponse(t, response, 401, "Not authorized for requested operation")
 }
 
 func Test_UpdateUser_Error_UnauthorizedEmailVerified_Custodian(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
 	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{"custodian": clients.Allowed}, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"emailVerified\": true}}"
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
 	T_ExpectErrorResponse(t, response, 401, "Not authorized for requested operation")
 }
 
 func Test_UpdateUser_Error_UnauthorizedPassword_Custodian(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
 	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{"custodian": clients.Allowed}, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\"}}"
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
 	T_ExpectErrorResponse(t, response, 401, "Not authorized for requested operation")
 }
 
 func Test_UpdateUser_Error_UnauthorizedTermsAccepted_Custodian(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
 	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{"custodian": clients.Allowed}, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
 	T_ExpectErrorResponse(t, response, 401, "Not authorized for requested operation")
 }
 
 func Test_UpdateUser_Error_FindUserDuplicateError(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
 	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{"custodian": clients.Allowed}, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, errors.New("ERROR")}}
@@ -802,14 +802,14 @@ func Test_UpdateUser_Error_FindUserDuplicateError(t *testing.T) {
 
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}}"
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
 	T_ExpectErrorResponse(t, response, 500, "Error finding user")
 }
 
 func Test_UpdateUser_Error_FindUserDuplicateFound(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
 	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{"custodian": clients.Allowed}, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1234567890"}}, nil}}
@@ -817,14 +817,14 @@ func Test_UpdateUser_Error_FindUserDuplicateFound(t *testing.T) {
 
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}}"
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
 	T_ExpectErrorResponse(t, response, 409, "User already exists")
 }
 
 func Test_UpdateUser_Error_UpsertUserError(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
 	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{"custodian": clients.Allowed}, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
@@ -833,14 +833,14 @@ func Test_UpdateUser_Error_UpsertUserError(t *testing.T) {
 
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}}"
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
 	T_ExpectErrorResponse(t, response, 500, "Error updating user")
 }
 
 func Test_UpdateUser_Error_RemoveCustodians_UsersInGroupError(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "1111111111", false, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
 	responsableStore.UpsertUserResponses = []error{nil}
@@ -849,14 +849,14 @@ func Test_UpdateUser_Error_RemoveCustodians_UsersInGroupError(t *testing.T) {
 
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\"}}"
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
 	T_ExpectErrorResponse(t, response, 500, "Error updating user")
 }
 
 func Test_UpdateUser_Error_RemoveCustodians_SetPermissionsError(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "1111111111", false, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
 	responsableStore.UpsertUserResponses = []error{nil}
@@ -866,14 +866,14 @@ func Test_UpdateUser_Error_RemoveCustodians_SetPermissionsError(t *testing.T) {
 
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\"}}"
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
 	T_ExpectErrorResponse(t, response, 500, "Error updating user")
 }
 
 func Test_UpdateUser_Success_Custodian(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
 	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{"custodian": clients.Allowed}, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
@@ -882,7 +882,7 @@ func Test_UpdateUser_Success_Custodian(t *testing.T) {
 
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}}"
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
 	successResponse := T_ExpectSuccessResponseWithJSONMap(t, response, 200)
 	T_ExpectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
@@ -891,7 +891,7 @@ func Test_UpdateUser_Success_Custodian(t *testing.T) {
 
 func Test_UpdateUser_Success_UserFromUrl(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "1111111111", false, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
 	responsableStore.UpsertUserResponses = []error{nil}
@@ -901,7 +901,7 @@ func Test_UpdateUser_Success_UserFromUrl(t *testing.T) {
 
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"newpassword\", \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
 	successResponse := T_ExpectSuccessResponseWithJSONMap(t, response, 200)
 	T_ExpectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
@@ -910,7 +910,7 @@ func Test_UpdateUser_Success_UserFromUrl(t *testing.T) {
 
 func Test_UpdateUser_Success_UserFromToken(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "1111111111", false, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
 	responsableStore.UpsertUserResponses = []error{nil}
@@ -920,7 +920,7 @@ func Test_UpdateUser_Success_UserFromToken(t *testing.T) {
 
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"newpassword\", \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user", body, headers)
 	successResponse := T_ExpectSuccessResponseWithJSONMap(t, response, 200)
 	T_ExpectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
@@ -929,7 +929,7 @@ func Test_UpdateUser_Success_UserFromToken(t *testing.T) {
 
 func Test_UpdateUser_Success_Server_WithoutPassword(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "0000000000", true, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
 	responsableStore.UpsertUserResponses = []error{nil}
@@ -937,7 +937,7 @@ func Test_UpdateUser_Success_Server_WithoutPassword(t *testing.T) {
 
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"roles\": [\"clinic\"], \"emailVerified\": true, \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
 	successResponse := T_ExpectSuccessResponseWithJSONMap(t, response, 200)
 	T_ExpectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
@@ -946,7 +946,7 @@ func Test_UpdateUser_Success_Server_WithoutPassword(t *testing.T) {
 
 func Test_UpdateUser_Success_Server_WithPassword(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "0000000000", true, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
 	responsableStore.UpsertUserResponses = []error{nil}
@@ -956,7 +956,7 @@ func Test_UpdateUser_Success_Server_WithPassword(t *testing.T) {
 
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"newpassword\", \"roles\": [\"clinic\"], \"emailVerified\": true, \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
 	successResponse := T_ExpectSuccessResponseWithJSONMap(t, response, 200)
 	T_ExpectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
@@ -972,74 +972,74 @@ func Test_GetUserInfo_Error_MissingSessionToken(t *testing.T) {
 
 func Test_GetUserInfo_Error_FindUsersError(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, errors.New("ERROR")}}
 	defer T_ExpectResponsablesEmpty(t)
 
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestHeaders(t, "GET", "/user/1111111111", headers)
 	T_ExpectErrorResponse(t, response, 500, "Error finding user")
 }
 
 func Test_GetUserInfo_Error_FindUsersMissing(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestHeaders(t, "GET", "/user/1111111111", headers)
 	T_ExpectErrorResponse(t, response, 404, "User not found")
 }
 
 func Test_GetUserInfo_Error_FindUsersNil(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{nil}, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestHeaders(t, "GET", "/user/1111111111", headers)
 	T_ExpectErrorResponse(t, response, 500, "Error finding user")
 }
 
 func Test_GetUserInfo_Error_PermissionsError(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111"}}, nil}}
 	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{}, errors.New("ERROR")}}
 	defer T_ExpectResponsablesEmpty(t)
 
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestHeaders(t, "GET", "/user/1111111111", headers)
 	T_ExpectErrorResponse(t, response, 500, "Error finding user")
 }
 
 func Test_GetUserInfo_Error_NoPermissions(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111"}}, nil}}
 	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{"a": clients.Allowed}, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestHeaders(t, "GET", "/user/1111111111", headers)
 	T_ExpectErrorResponse(t, response, 401, "Not authorized for requested operation")
 }
 
 func Test_GetUserInfo_Success_User(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "1111111111", false, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", EmailVerified: true, PwHash: "xyz", Hash: "123"}}, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestHeaders(t, "GET", "/user/1111111111", headers)
 	successResponse := T_ExpectSuccessResponseWithJSONMap(t, response, 200)
 	T_ExpectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
@@ -1048,13 +1048,13 @@ func Test_GetUserInfo_Success_User(t *testing.T) {
 
 func Test_GetUserInfo_Success_Custodian(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", EmailVerified: true, PwHash: "xyz", Hash: "123"}}, nil}}
 	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{"custodian": clients.Allowed}, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestHeaders(t, "GET", "/user/1111111111", headers)
 	successResponse := T_ExpectSuccessResponseWithJSONMap(t, response, 200)
 	T_ExpectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
@@ -1063,12 +1063,12 @@ func Test_GetUserInfo_Success_Custodian(t *testing.T) {
 
 func Test_GetUserInfo_Success_Server(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "0000000000", true, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", EmailVerified: true, PwHash: "xyz", Hash: "123"}}, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.Id)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestHeaders(t, "GET", "/user/1111111111", headers)
 	successResponse := T_ExpectSuccessResponseWithJSONMap(t, response, 200)
 	T_ExpectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
@@ -1079,7 +1079,7 @@ func Test_GetUserInfo_Success_Server(t *testing.T) {
 
 func TestDeleteUser_StatusForbidden_WhenNoPw(t *testing.T) {
 	request, _ := http.NewRequest("DELETE", "/", nil)
-	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
+	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.ID)
 	response := httptest.NewRecorder()
 
 	shoreline.SetHandlers("", rtr)
@@ -1101,7 +1101,7 @@ func TestDeleteUser_StatusForbidden_WhenEmptyPw(t *testing.T) {
 
 	var jsonData = []byte(`{"password": ""}`)
 	request, _ := http.NewRequest("DELETE", "/", bytes.NewBuffer(jsonData))
-	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
+	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.ID)
 	response := httptest.NewRecorder()
 
 	shoreline.SetHandlers("", rtr)
@@ -1123,7 +1123,7 @@ func TestDeleteUser_Failure(t *testing.T) {
 
 	var jsonData = []byte(`{"password": "92ggh38"}`)
 	req, _ := http.NewRequest("DELETE", "/", bytes.NewBuffer(jsonData))
-	req.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
+	req.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.ID)
 	resp := httptest.NewRecorder()
 
 	shorelineFails.SetHandlers("", rtr)
@@ -1139,7 +1139,7 @@ func TestDeleteUser_StatusAccepted(t *testing.T) {
 
 	var jsonData = []byte(`{"password": "123youknoWm3"}`)
 	request, _ := http.NewRequest("DELETE", "/", bytes.NewBuffer(jsonData))
-	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
+	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.ID)
 	response := httptest.NewRecorder()
 
 	shoreline.SetHandlers("", rtr)
@@ -1536,7 +1536,7 @@ func TestRefreshSession_StatusOK(t *testing.T) {
 	shoreline.SetHandlers("", rtr)
 
 	refreshRequest, _ := http.NewRequest("GET", "/", nil)
-	refreshRequest.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
+	refreshRequest.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.ID)
 	response := httptest.NewRecorder()
 
 	shoreline.RefreshSession(response, refreshRequest)
@@ -1570,7 +1570,7 @@ func TestRefreshSession_Failure(t *testing.T) {
 	shorelineFails.SetHandlers("", rtr)
 
 	req, _ := http.NewRequest("GET", "/", nil)
-	req.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
+	req.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.ID)
 	resp := httptest.NewRecorder()
 
 	shorelineFails.RefreshSession(resp, req)
@@ -1811,7 +1811,7 @@ func TestLogout_StatusOK(t *testing.T) {
 	shoreline.SetHandlers("", rtr)
 	//now logout with valid token
 	request, _ := http.NewRequest("POST", "/", nil)
-	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
+	request.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.ID)
 	response := httptest.NewRecorder()
 
 	shoreline.Logout(response, request)
@@ -1826,7 +1826,7 @@ func TestLogout_Failure(t *testing.T) {
 	shorelineFails.SetHandlers("", rtr)
 	//now logout with valid token
 	req, _ := http.NewRequest("POST", "/", nil)
-	req.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.Id)
+	req.Header.Set(TP_SESSION_TOKEN, USR_TOKEN.ID)
 	resp := httptest.NewRecorder()
 
 	shorelineFails.Logout(resp, req)
@@ -2022,7 +2022,7 @@ func TestManageIdHashPair_Failure(t *testing.T) {
 	shorelineFails.SetHandlers("", rtr)
 
 	req, _ := http.NewRequest("GET", "/1234/somename", nil)
-	req.Header.Set(TP_SESSION_TOKEN, SRVR_TOKEN.Id)
+	req.Header.Set(TP_SESSION_TOKEN, SRVR_TOKEN.ID)
 	resp := httptest.NewRecorder()
 
 	shorelineFails.ManageIdHashPair(resp, req, map[string]string{"userid": "1234", "key": "somename"})
@@ -2207,7 +2207,7 @@ func Test_AuthenticateSessionToken_Invalid(t *testing.T) {
 
 func Test_AuthenticateSessionToken_Expired(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "abcdef1234", false, -3600)
-	tokenData, err := responsableShoreline.authenticateSessionToken(sessionToken.Id)
+	tokenData, err := responsableShoreline.authenticateSessionToken(sessionToken.ID)
 	if err == nil {
 		t.Fatalf("Unexpected success")
 	}
@@ -2221,10 +2221,10 @@ func Test_AuthenticateSessionToken_Expired(t *testing.T) {
 
 func Test_AuthenticateSessionToken_NotFound(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "abcdef1234", false, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{nil, errors.New("NOT FOUND")}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{nil, errors.New("NOT FOUND")}}
 	defer T_ExpectResponsablesEmpty(t)
 
-	tokenData, err := responsableShoreline.authenticateSessionToken(sessionToken.Id)
+	tokenData, err := responsableShoreline.authenticateSessionToken(sessionToken.ID)
 	if err == nil {
 		t.Fatalf("Unexpected success")
 	}
@@ -2238,10 +2238,10 @@ func Test_AuthenticateSessionToken_NotFound(t *testing.T) {
 
 func Test_AuthenticateSessionToken_Success_User(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "abcdef1234", false, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
-	tokenData, err := responsableShoreline.authenticateSessionToken(sessionToken.Id)
+	tokenData, err := responsableShoreline.authenticateSessionToken(sessionToken.ID)
 	if err != nil {
 		t.Fatalf("Unexpected error: %#v", err)
 	}
@@ -2261,10 +2261,10 @@ func Test_AuthenticateSessionToken_Success_User(t *testing.T) {
 
 func Test_AuthenticateSessionToken_Success_Server(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "abcdef1234", true, TOKEN_DURATION)
-	responsableStore.FindTokenResponses = []FindTokenResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
-	tokenData, err := responsableShoreline.authenticateSessionToken(sessionToken.Id)
+	tokenData, err := responsableShoreline.authenticateSessionToken(sessionToken.ID)
 	if err != nil {
 		t.Fatalf("Unexpected error: %#v", err)
 	}
