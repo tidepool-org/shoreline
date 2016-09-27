@@ -451,6 +451,9 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 	} else if result := results[0]; result == nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_NO_MATCH, "Found user is nil")
 
+	} else if result.IsDeleted() {
+		a.sendError(res, http.StatusUnauthorized, STATUS_NO_MATCH, "User is marked deleted")
+
 	} else if !result.PasswordsMatch(password, a.ApiConfig.Salt) {
 		a.sendError(res, http.StatusUnauthorized, STATUS_NO_MATCH, "Passwords do not match")
 
