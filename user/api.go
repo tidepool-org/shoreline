@@ -627,9 +627,7 @@ func (a *Api) LongtermLogin(res http.ResponseWriter, req *http.Request, vars map
 func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 
 	if hasServerToken(req.Header.Get(TP_SESSION_TOKEN), a.ApiConfig.Secret) {
-		tokenString := vars["token"]
-
-		td, err := UnpackSessionTokenAndVerify(tokenString, a.ApiConfig.Secret)
+		td, err := a.authenticateSessionToken(vars["token"])
 		if err != nil {
 			a.logger.Println(http.StatusUnauthorized, STATUS_NO_TOKEN, err.Error())
 			sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_TOKEN), http.StatusUnauthorized)
