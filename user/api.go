@@ -127,7 +127,6 @@ func (a *Api) SetHandlers(prefix string, rtr *mux.Router) {
 	rtr.HandleFunc("/logout", a.Logout).Methods("POST")
 
 	rtr.HandleFunc("/private", a.AnonymousIdHashPair).Methods("GET")
-	rtr.Handle("/private/{userid}/{key}", varsHandler(a.ManageIdHashPair)).Methods("GET", "POST", "PUT", "DELETE")
 }
 
 func (h varsHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
@@ -662,76 +661,6 @@ func (a *Api) Logout(res http.ResponseWriter, req *http.Request) {
 func (a *Api) AnonymousIdHashPair(res http.ResponseWriter, req *http.Request) {
 	idHashPair := NewAnonIdHashPair([]string{a.ApiConfig.Salt}, req.URL.Query())
 	sendModelAsRes(res, idHashPair)
-	return
-}
-
-// status: 200 IdHashPair
-// status: 500 STATUS_ERR_FINDING_USR
-// status: 500 STATUS_ERR_UPDATING_USR
-func (a *Api) ManageIdHashPair(res http.ResponseWriter, req *http.Request, vars map[string]string) {
-
-	//we need server token
-	if hasServerToken(req.Header.Get(TP_SESSION_TOKEN), a.ApiConfig.Secret) {
-
-		usr := &User{Id: vars["userid"]}
-		theKey := vars["key"]
-
-		baseStrings := []string{a.ApiConfig.Salt, usr.Id, theKey}
-
-		if foundUsr, err := a.Store.FindUser(usr); err != nil {
-			a.logger.Println(http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err.Error())
-			sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_FINDING_USR), http.StatusInternalServerError)
-			return
-		} else {
-
-			a.logMetricForUser(usr.Id, "manageprivatepair", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"verb": req.Method})
-
-			switch req.Method {
-			case "GET":
-				if foundUsr.Private != nil && foundUsr.Private[theKey] != nil {
-					sendModelAsRes(res, foundUsr.Private[theKey])
-					return
-				} else {
-					if foundUsr.Private == nil {
-						foundUsr.Private = make(map[string]*IdHashPair)
-					}
-					foundUsr.Private[theKey] = NewIdHashPair(baseStrings, req.URL.Query())
-
-					if err := a.Store.UpsertUser(foundUsr); err != nil {
-						a.logger.Println(http.StatusInternalServerError, req.Method, STATUS_ERR_UPDATING_USR, err.Error())
-						sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_UPDATING_USR), http.StatusInternalServerError)
-						return
-					} else {
-						sendModelAsRes(res, foundUsr.Private[theKey])
-						return
-					}
-				}
-			case "POST", "PUT":
-				if foundUsr.Private == nil {
-					foundUsr.Private = make(map[string]*IdHashPair)
-				}
-				foundUsr.Private[theKey] = NewIdHashPair(baseStrings, req.URL.Query())
-
-				if err := a.Store.UpsertUser(foundUsr); err != nil {
-					a.logger.Printf("ManageIdHashPair %s %s [%s]", req.Method, STATUS_ERR_UPDATING_USR, err.Error())
-					sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_UPDATING_USR), http.StatusInternalServerError)
-					return
-				} else {
-					sendModelAsResWithStatus(res, foundUsr.Private[theKey], http.StatusCreated)
-					return
-				}
-			case "DELETE":
-				a.logger.Println(http.StatusNotImplemented, req.Method)
-				res.WriteHeader(http.StatusNotImplemented)
-				return
-			}
-			a.logger.Println(http.StatusBadRequest)
-			res.WriteHeader(http.StatusBadRequest)
-			return
-		}
-	}
-	a.logger.Println(http.StatusUnauthorized, STATUS_SERVER_TOKEN_REQUIRED)
-	res.WriteHeader(http.StatusUnauthorized)
 	return
 }
 
