@@ -102,9 +102,6 @@ func (d MongoStoreClient) FindUsers(user *User) (results []*User, err error) {
 	if len(user.Emails) > 0 {
 		fieldsToMatch = append(fieldsToMatch, bson.M{"emails": bson.M{"$in": user.Emails}})
 	}
-	if len(user.Roles) > 0 {
-		fieldsToMatch = append(fieldsToMatch, bson.M{"roles": bson.M{"$in": user.Roles}})
-	}
 
 	if len(fieldsToMatch) == 0 {
 		return []*User{}, nil
@@ -114,6 +111,22 @@ func (d MongoStoreClient) FindUsers(user *User) (results []*User, err error) {
 	defer cpy.Close()
 
 	if err = mgoUsersCollection(cpy).Find(bson.M{"$or": fieldsToMatch}).All(&results); err != nil {
+		return results, err
+	}
+
+	if results == nil {
+		log.Print(USER_API_PREFIX, "no users found ")
+		results = []*User{}
+	}
+
+	return results, nil
+}
+
+func (d MongoStoreClient) FindUsersByRole(role string) (results []*User, err error) {
+	cpy := d.session.Copy()
+	defer cpy.Close()
+
+	if err = mgoUsersCollection(cpy).Find(bson.M{"roles": role}).All(&results); err != nil {
 		return results, err
 	}
 

@@ -164,7 +164,7 @@ func (a *Api) GetUsers(res http.ResponseWriter, req *http.Request) {
 	} else if role == "" {
 		a.sendError(res, http.StatusBadRequest, STATUS_NO_QUERY)
 
-	} else if users, err := a.Store.FindUsers(&User{Roles: []string{role}}); err != nil {
+	} else if users, err := a.Store.FindUsersByRole(role); err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err.Error())
 
 	} else {

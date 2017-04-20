@@ -5,6 +5,11 @@ type FindUsersResponse struct {
 	Error error
 }
 
+type FindUsersByRoleResponse struct {
+	Users []*User
+	Error error
+}
+
 type FindUserResponse struct {
 	User  *User
 	Error error
@@ -19,6 +24,7 @@ type ResponsableMockStoreClient struct {
 	PingResponses            []error
 	UpsertUserResponses      []error
 	FindUsersResponses       []FindUsersResponse
+	FindUsersByRoleResponses []FindUsersByRoleResponse
 	FindUserResponses        []FindUserResponse
 	RemoveUserResponses      []error
 	AddTokenResponses        []error
@@ -34,6 +40,7 @@ func (r *ResponsableMockStoreClient) HasResponses() bool {
 	return len(r.PingResponses) > 0 ||
 		len(r.UpsertUserResponses) > 0 ||
 		len(r.FindUsersResponses) > 0 ||
+		len(r.FindUsersByRoleResponses) > 0 ||
 		len(r.FindUserResponses) > 0 ||
 		len(r.RemoveUserResponses) > 0 ||
 		len(r.AddTokenResponses) > 0 ||
@@ -45,6 +52,7 @@ func (r *ResponsableMockStoreClient) Reset() {
 	r.PingResponses = nil
 	r.UpsertUserResponses = nil
 	r.FindUsersResponses = nil
+	r.FindUsersByRoleResponses = nil
 	r.FindUserResponses = nil
 	r.RemoveUserResponses = nil
 	r.AddTokenResponses = nil
@@ -78,6 +86,15 @@ func (r *ResponsableMockStoreClient) FindUsers(user *User) (found []*User, err e
 		return response.Users, response.Error
 	}
 	panic("FindUsersResponses unavailable")
+}
+
+func (r *ResponsableMockStoreClient) FindUsersByRole(role string) (found []*User, err error) {
+	if len(r.FindUsersByRoleResponses) > 0 {
+		var response FindUsersByRoleResponse
+		response, r.FindUsersByRoleResponses = r.FindUsersByRoleResponses[0], r.FindUsersByRoleResponses[1:]
+		return response.Users, response.Error
+	}
+	panic("FindUsersByRoleResponses unavailable")
 }
 
 func (r *ResponsableMockStoreClient) FindUser(user *User) (found *User, err error) {

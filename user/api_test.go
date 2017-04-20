@@ -363,7 +363,7 @@ func Test_GetUsers_Error_NoQuery(t *testing.T) {
 func Test_GetUsers_Error_FindUsersError(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "abcdef1234", true, TOKEN_DURATION)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, errors.New("ERROR")}}
+	responsableStore.FindUsersByRoleResponses = []FindUsersByRoleResponse{{[]*User{}, errors.New("ERROR")}}
 	defer T_ExpectResponsablesEmpty(t)
 
 	headers := http.Header{}
@@ -375,7 +375,7 @@ func Test_GetUsers_Error_FindUsersError(t *testing.T) {
 func Test_GetUsers_Error_Success(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "abcdef1234", true, TOKEN_DURATION)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{{Id: "0000000000"}, {Id: "1111111111"}}, nil}}
+	responsableStore.FindUsersByRoleResponses = []FindUsersByRoleResponse{{[]*User{{Id: "0000000000"}, {Id: "1111111111"}}, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
 	headers := http.Header{}

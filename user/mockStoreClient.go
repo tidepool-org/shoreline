@@ -58,6 +58,13 @@ func (d MockStoreClient) FindUsers(user *User) (found []*User, err error) {
 
 }
 
+func (d MockStoreClient) FindUsersByRole(role string) (found []*User, err error) {
+	if d.doBad {
+		return found, errors.New("FindUsersByRole failure")
+	}
+	return nil, nil
+}
+
 func (d MockStoreClient) FindUser(user *User) (found *User, err error) {
 
 	if d.doBad {

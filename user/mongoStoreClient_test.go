@@ -166,7 +166,7 @@ func TestMongoStoreUserOperations(t *testing.T) {
 
 }
 
-func TestMongoStore_FindUsers_ByRole(t *testing.T) {
+func TestMongoStore_FindUsersByRole(t *testing.T) {
 
 	var (
 		tests_fake_salt = "some fake salt for the tests"
@@ -197,10 +197,8 @@ func TestMongoStore_FindUsers_ByRole(t *testing.T) {
 		t.Fatalf("we could not create the user %v", err)
 	}
 
-	clinicalUsers := &User{Roles: []string{"clinic"}}
-
-	if found, err := mc.FindUsers(clinicalUsers); err != nil {
-		t.Fatalf("error finsding users by role %s", err.Error())
+	if found, err := mc.FindUsersByRole("clinic"); err != nil {
+		t.Fatalf("error finding users by role %s", err.Error())
 	} else if len(found) != 1 || found[0].Roles[0] != "clinic" {
 		t.Fatalf("should only find clinic users but found %v", found)
 	}
