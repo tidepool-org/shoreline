@@ -34,6 +34,7 @@ type NewUserDetails struct {
 	Username *string
 	Emails   []string
 	Password *string
+	Roles    []string
 }
 
 type NewCustodialUserDetails struct {
@@ -168,6 +169,7 @@ func (details *NewUserDetails) ExtractFromJSON(reader io.Reader) error {
 		username *string
 		emails   []string
 		password *string
+		roles    []string
 		ok       bool
 	)
 
@@ -180,10 +182,14 @@ func (details *NewUserDetails) ExtractFromJSON(reader io.Reader) error {
 	if password, ok = ExtractString(decoded, "password"); !ok {
 		return User_error_password_invalid
 	}
+	if roles, ok = ExtractStringArray(decoded, "roles"); !ok {
+		return User_error_roles_invalid
+	}
 
 	details.Username = username
 	details.Emails = emails
 	details.Password = password
+	details.Roles = roles
 	return nil
 }
 
@@ -210,6 +216,14 @@ func (details *NewUserDetails) Validate() error {
 		return User_error_password_invalid
 	}
 
+	if details.Roles != nil {
+		for _, role := range details.Roles {
+			if !IsValidRole(role) {
+				return User_error_roles_invalid
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -229,7 +243,7 @@ func NewUser(details *NewUserDetails, salt string) (user *User, err error) {
 		return nil, err
 	}
 
-	user = &User{Username: *details.Username, Emails: details.Emails}
+	user = &User{Username: *details.Username, Emails: details.Emails, Roles: details.Roles}
 
 	if user.Id, err = generateUniqueHash([]string{*details.Username, *details.Password}, 10); err != nil {
 		return nil, errors.New("User: error generating id")

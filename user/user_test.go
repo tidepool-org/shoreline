@@ -223,55 +223,67 @@ func Test_NewUserDetails_ExtractFromJSON_InvalidJSON(t *testing.T) {
 	if err == nil {
 		t.Fatalf("Unexpected success for invalid JSON")
 	}
-	if details.Username != nil || details.Emails != nil || details.Password != nil {
+	if details.Username != nil || details.Emails != nil || details.Password != nil || details.Roles != nil {
 		t.Fatalf("Unexpected fields present on error for invalid JSON")
 	}
 }
 
 func Test_NewUserDetails_ExtractFromJSON_InvalidUsername(t *testing.T) {
-	source := "{\"username\": true, \"emails\": [\"b@y.com\"], \"password\": \"12345678\"}"
+	source := "{\"username\": true, \"emails\": [\"b@y.com\"], \"password\": \"12345678\", \"roles\": [\"clinic\"]}"
 	details := &NewUserDetails{}
 	err := details.ExtractFromJSON(strings.NewReader(source))
 	if err != User_error_username_invalid {
 		t.Fatalf("Unexpected error for invalid username: %#v", err)
 	}
-	if details.Username != nil || details.Emails != nil || details.Password != nil {
+	if details.Username != nil || details.Emails != nil || details.Password != nil || details.Roles != nil {
 		t.Fatalf("Unexpected fields present on error for invalid username")
 	}
 }
 
 func Test_NewUserDetails_ExtractFromJSON_InvalidEmails(t *testing.T) {
-	source := "{\"username\": \"a@z.co\", \"emails\": true, \"password\": \"12345678\"}"
+	source := "{\"username\": \"a@z.co\", \"emails\": true, \"password\": \"12345678\", \"roles\": [\"clinic\"]}"
 	details := &NewUserDetails{}
 	err := details.ExtractFromJSON(strings.NewReader(source))
 	if err != User_error_emails_invalid {
 		t.Fatalf("Unexpected error for invalid emails: %#v", err)
 	}
-	if details.Username != nil || details.Emails != nil || details.Password != nil {
+	if details.Username != nil || details.Emails != nil || details.Password != nil || details.Roles != nil {
 		t.Fatalf("Unexpected fields present on error for invalid emails")
 	}
 }
 
 func Test_NewUserDetails_ExtractFromJSON_InvalidPassword(t *testing.T) {
-	source := "{\"username\": \"a@z.co\", \"emails\": [\"b@y.co\"], \"password\": true}"
+	source := "{\"username\": \"a@z.co\", \"emails\": [\"b@y.co\"], \"password\": true, \"roles\": [\"clinic\"]}"
 	details := &NewUserDetails{}
 	err := details.ExtractFromJSON(strings.NewReader(source))
 	if err != User_error_password_invalid {
 		t.Fatalf("Unexpected error for invalid password: %#v", err)
 	}
-	if details.Username != nil || details.Emails != nil || details.Password != nil {
+	if details.Username != nil || details.Emails != nil || details.Password != nil || details.Roles != nil {
 		t.Fatalf("Unexpected fields present on error for invalid password")
 	}
 }
 
+func Test_NewUserDetails_ExtractFromJSON_InvalidRoles(t *testing.T) {
+	source := "{\"username\": \"a@z.co\", \"emails\": [\"b@y.co\"], \"password\": \"12345678\", \"roles\": true}"
+	details := &NewUserDetails{}
+	err := details.ExtractFromJSON(strings.NewReader(source))
+	if err != User_error_roles_invalid {
+		t.Fatalf("Unexpected error for invalid roles: %#v", err)
+	}
+	if details.Username != nil || details.Emails != nil || details.Password != nil || details.Roles != nil {
+		t.Fatalf("Unexpected fields present on error for invalid roles")
+	}
+}
+
 func Test_NewUserDetails_ExtractFromJSON_ValidAll(t *testing.T) {
-	source := "{\"username\": \"a@z.co\", \"emails\": [\"b@y.co\"], \"password\": \"12345678\", \"ignored\": true}"
+	source := "{\"username\": \"a@z.co\", \"emails\": [\"b@y.co\"], \"password\": \"12345678\", \"roles\": [\"clinic\"], \"ignored\": true}"
 	details := &NewUserDetails{}
 	err := details.ExtractFromJSON(strings.NewReader(source))
 	if err != nil {
 		t.Fatalf("Unexpected error for valid with all: %#v", err)
 	}
-	if *details.Username != "a@z.co" || !reflect.DeepEqual(details.Emails, []string{"b@y.co"}) || *details.Password != "12345678" {
+	if *details.Username != "a@z.co" || !reflect.DeepEqual(details.Emails, []string{"b@y.co"}) || *details.Password != "12345678" || !reflect.DeepEqual(details.Roles, []string{"clinic"}) {
 		t.Fatalf("Missing fields that should be present on success with all")
 	}
 }
@@ -283,7 +295,7 @@ func Test_NewUserDetails_ExtractFromJSON_ValidUsername(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unexpected error for valid with username: %#v", err)
 	}
-	if *details.Username != "a@z.co" || details.Emails != nil || details.Password != nil {
+	if *details.Username != "a@z.co" || details.Emails != nil || details.Password != nil || details.Roles != nil {
 		t.Fatalf("Missing fields that should be present on success with username")
 	}
 }
@@ -295,7 +307,7 @@ func Test_NewUserDetails_ExtractFromJSON_ValidEmails(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unexpected error for valid with emails: %#v", err)
 	}
-	if details.Username != nil || !reflect.DeepEqual(details.Emails, []string{"b@y.co"}) || details.Password != nil {
+	if details.Username != nil || !reflect.DeepEqual(details.Emails, []string{"b@y.co"}) || details.Password != nil || details.Roles != nil {
 		t.Fatalf("Missing fields that should be present on success with emails")
 	}
 }
@@ -307,8 +319,20 @@ func Test_NewUserDetails_ExtractFromJSON_ValidPassword(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unexpected error for valid with password: %#v", err)
 	}
-	if details.Username != nil || details.Emails != nil || *details.Password != "12345678" {
+	if details.Username != nil || details.Emails != nil || *details.Password != "12345678" || details.Roles != nil {
 		t.Fatalf("Missing fields that should be present on success with password")
+	}
+}
+
+func Test_NewUserDetails_ExtractFromJSON_ValidRoles(t *testing.T) {
+	source := "{\"roles\": [\"clinic\"], \"ignored\": true}"
+	details := &NewUserDetails{}
+	err := details.ExtractFromJSON(strings.NewReader(source))
+	if err != nil {
+		t.Fatalf("Unexpected error for valid with roles: %#v", err)
+	}
+	if details.Username != nil || details.Emails != nil || details.Password != nil || !reflect.DeepEqual(details.Roles, []string{"clinic"}) {
+		t.Fatalf("Missing fields that should be present on success with roles")
 	}
 }
 
@@ -370,10 +394,20 @@ func Test_NewUserDetails_Validate_Password_Invalid(t *testing.T) {
 	}
 }
 
+func Test_NewUserDetails_Validate_Roles_Invalid(t *testing.T) {
+	username := "a@z.co"
+	password := "12345678"
+	details := &NewUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Password: &password, Roles: []string{"invalid"}}
+	err := details.Validate()
+	if err != User_error_roles_invalid {
+		t.Fatalf("Unexpected error for roles invalid: %#v", err)
+	}
+}
+
 func Test_NewUserDetails_Validate_Valid(t *testing.T) {
 	username := "a@z.co"
 	password := "12345678"
-	details := &NewUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Password: &password}
+	details := &NewUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Password: &password, Roles: []string{"clinic"}}
 	err := details.Validate()
 	if err != nil {
 		t.Fatalf("Unexpected error for valid: %#v", err)
@@ -392,7 +426,7 @@ func Test_ParseNewUserDetails_InvalidJSON(t *testing.T) {
 }
 
 func Test_ParseNewUserDetails_ValidAll(t *testing.T) {
-	source := "{\"username\": \"a@z.co\", \"emails\": [\"b@y.co\"], \"password\": \"12345678\"}"
+	source := "{\"username\": \"a@z.co\", \"emails\": [\"b@y.co\"], \"password\": \"12345678\", \"roles\": [\"clinic\"]}"
 	details, err := ParseNewUserDetails(strings.NewReader(source))
 	if err != nil {
 		t.Fatalf("Unexpected error for valid with all: %#v", err)
@@ -400,7 +434,7 @@ func Test_ParseNewUserDetails_ValidAll(t *testing.T) {
 	if details == nil {
 		t.Fatalf("Missing details on success with all")
 	}
-	if *details.Username != "a@z.co" || !reflect.DeepEqual(details.Emails, []string{"b@y.co"}) || *details.Password != "12345678" {
+	if *details.Username != "a@z.co" || !reflect.DeepEqual(details.Emails, []string{"b@y.co"}) || *details.Password != "12345678" || !reflect.DeepEqual(details.Roles, []string{"clinic"}) {
 		t.Fatalf("Missing fields that should be present on success with all")
 	}
 }
@@ -445,7 +479,7 @@ func Test_NewUser_MissingSalt(t *testing.T) {
 func Test_NewUser_Valid(t *testing.T) {
 	username := "a@z.co"
 	password := "12345678"
-	details := &NewUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Password: &password}
+	details := &NewUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Password: &password, Roles: []string{"clinic"}}
 	salt := "abc"
 	user, err := NewUser(details, salt)
 	if err != nil {
@@ -459,6 +493,9 @@ func Test_NewUser_Valid(t *testing.T) {
 	}
 	if !user.PasswordsMatch(*details.Password, salt) {
 		t.Fatalf("Password does not match on success")
+	}
+	if !reflect.DeepEqual(details.Roles, []string{"clinic"}) {
+		t.Fatalf("Roles do not match on success")
 	}
 	if user.Id == "" || user.Hash == "" {
 		t.Fatalf("Missing fields that should be present on success")
