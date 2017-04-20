@@ -16,7 +16,8 @@
     "longTermDaysDuration": 30,
     "tokenDurationSecs": 2592000,
     "salt" : "ADihSEI7tOQQP9xfXMO9HfRpXKu1NpIJ",
-    "verificationSecret" : "+skip"
+    "verificationSecret" : "+skip",
+    "clinicDemoUserId": ""
   },
   "oauth2" : {
     "expireDays" : 14

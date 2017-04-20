@@ -414,6 +414,72 @@ func Test_NewUserDetails_Validate_Valid(t *testing.T) {
 	}
 }
 
+func Test_NewUserDetails_HasRole_Multiple(t *testing.T) {
+	username := "a@z.co"
+	password := "12345678"
+	details := &NewUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Password: &password, Roles: []string{"clinic", "other"}}
+	if !details.HasRole("clinic") {
+		t.Fatalf("HasRole returned false when should have returned true")
+	}
+	if details.HasRole("missing") {
+		t.Fatalf("HasRole returned true when should have returned false")
+	}
+}
+
+func Test_NewUserDetails_HasRole_One(t *testing.T) {
+	username := "a@z.co"
+	password := "12345678"
+	details := &NewUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Password: &password, Roles: []string{"clinic"}}
+	if !details.HasRole("clinic") {
+		t.Fatalf("HasRole returned false when should have returned true")
+	}
+	if details.HasRole("missing") {
+		t.Fatalf("HasRole returned true when should have returned false")
+	}
+}
+
+func Test_NewUserDetails_HasRole_Empty(t *testing.T) {
+	username := "a@z.co"
+	password := "12345678"
+	details := &NewUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Password: &password, Roles: []string{}}
+	if details.HasRole("clinic") {
+		t.Fatalf("HasRole returned true when should have returned false")
+	}
+	if details.HasRole("missing") {
+		t.Fatalf("HasRole returned true when should have returned false")
+	}
+}
+
+func Test_NewUserDetails_HasRole_Missing(t *testing.T) {
+	username := "a@z.co"
+	password := "12345678"
+	details := &NewUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Password: &password}
+	if details.HasRole("clinic") {
+		t.Fatalf("HasRole returned true when should have returned false")
+	}
+	if details.HasRole("missing") {
+		t.Fatalf("HasRole returned true when should have returned false")
+	}
+}
+
+func Test_NewUserDetails_IsClinic_Valid(t *testing.T) {
+	username := "a@z.co"
+	password := "12345678"
+	details := &NewUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Password: &password, Roles: []string{"clinic"}}
+	if !details.IsClinic() {
+		t.Fatalf("IsClinic returned false when should have returned true")
+	}
+}
+
+func Test_NewUserDetails_IsClinic_Invalid(t *testing.T) {
+	username := "a@z.co"
+	password := "12345678"
+	details := &NewUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Password: &password}
+	if details.IsClinic() {
+		t.Fatalf("IsClinic returned true when should have returned false")
+	}
+}
+
 func Test_ParseNewUserDetails_InvalidJSON(t *testing.T) {
 	source := ""
 	details, err := ParseNewUserDetails(strings.NewReader(source))

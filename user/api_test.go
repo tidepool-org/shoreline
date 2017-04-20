@@ -40,6 +40,7 @@ var (
 		LongTermKey:        "thelongtermkey",
 		Salt:               "a mineral substance composed primarily of sodium chloride",
 		VerificationSecret: "",
+		ClinicDemoUserID:   "00000000",
 	}
 	/*
 	 * users and tokens
@@ -435,6 +436,17 @@ func Test_CreateUser_Error_ErrorUpsertingUser(t *testing.T) {
 	T_ExpectErrorResponse(t, response, 500, "Error creating the user")
 }
 
+func Test_CreateUser_Error_ErrorSettingPermissions(t *testing.T) {
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
+	responsableStore.UpsertUserResponses = []error{nil}
+	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, errors.New("ERROR")}}
+	defer T_ExpectResponsablesEmpty(t)
+
+	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\", \"roles\": [\"clinic\"]}"
+	response := T_PerformRequestBody(t, "POST", "/user", body)
+	T_ExpectErrorResponse(t, response, 500, "Error creating the user")
+}
+
 func Test_CreateUser_Error_ErrorAddingToken(t *testing.T) {
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
 	responsableStore.UpsertUserResponses = []error{nil}
@@ -449,14 +461,15 @@ func Test_CreateUser_Error_ErrorAddingToken(t *testing.T) {
 func Test_CreateUser_Success(t *testing.T) {
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
 	responsableStore.UpsertUserResponses = []error{nil}
+	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
 	responsableStore.AddTokenResponses = []error{nil}
 	defer T_ExpectResponsablesEmpty(t)
 
-	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\"}"
+	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\", \"roles\": [\"clinic\"]}"
 	response := T_PerformRequestBody(t, "POST", "/user", body)
 	successResponse := T_ExpectSuccessResponseWithJSONMap(t, response, 201)
 	T_ExpectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
-	T_ExpectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": false, "emails": []interface{}{"a@z.co"}, "username": "a@z.co"})
+	T_ExpectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": false, "emails": []interface{}{"a@z.co"}, "username": "a@z.co", "roles": []interface{}{"clinic"}})
 	if response.Header().Get(TP_SESSION_TOKEN) == "" {
 		t.Fatalf("Missing expected %s header", TP_SESSION_TOKEN)
 	}

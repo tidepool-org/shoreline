@@ -227,6 +227,19 @@ func (details *NewUserDetails) Validate() error {
 	return nil
 }
 
+func (details *NewUserDetails) HasRole(role string) bool {
+	for _, userRole := range details.Roles {
+		if userRole == role {
+			return true
+		}
+	}
+	return false
+}
+
+func (details *NewUserDetails) IsClinic() bool {
+	return details.HasRole("clinic")
+}
+
 func ParseNewUserDetails(reader io.Reader) (*NewUserDetails, error) {
 	details := &NewUserDetails{}
 	if err := details.ExtractFromJSON(reader); err != nil {

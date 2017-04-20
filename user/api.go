@@ -43,6 +43,7 @@ type (
 		Secret string `json:"apiSecret"`
 		//allows for the skipping of verification for testing
 		VerificationSecret string `json:"verificationSecret"`
+		ClinicDemoUserID   string `json:"clinicDemoUserId"`
 	}
 	varsHandler func(http.ResponseWriter, *http.Request, map[string]string)
 )
@@ -197,6 +198,15 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
 
 	} else {
+		if newUserDetails.IsClinic() {
+			if a.ApiConfig.ClinicDemoUserID != "" {
+				if _, err := a.perms.SetPermissions(newUser.Id, a.ApiConfig.ClinicDemoUserID, clients.Permissions{"view": clients.Allowed}); err != nil {
+					a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
+					return
+				}
+			}
+		}
+
 		tokenData := TokenData{DurationSecs: extractTokenDuration(req), UserId: newUser.Id, IsServer: false}
 		tokenConfig := TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: a.ApiConfig.Secret}
 		if sessionToken, err := CreateSessionTokenAndSave(&tokenData, tokenConfig, a.Store); err != nil {
