@@ -421,6 +421,9 @@ func Test_NewUserDetails_HasRole_Multiple(t *testing.T) {
 	if !details.HasRole("clinic") {
 		t.Fatalf("HasRole returned false when should have returned true")
 	}
+	if !details.HasRole("other") {
+		t.Fatalf("HasRole returned false when should have returned true")
+	}
 	if details.HasRole("missing") {
 		t.Fatalf("HasRole returned true when should have returned false")
 	}
