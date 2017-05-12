@@ -227,19 +227,6 @@ func (details *NewUserDetails) Validate() error {
 	return nil
 }
 
-func (details *NewUserDetails) HasRole(role string) bool {
-	for _, userRole := range details.Roles {
-		if userRole == role {
-			return true
-		}
-	}
-	return false
-}
-
-func (details *NewUserDetails) IsClinic() bool {
-	return details.HasRole("clinic")
-}
-
 func ParseNewUserDetails(reader io.Reader) (*NewUserDetails, error) {
 	details := &NewUserDetails{}
 	if err := details.ExtractFromJSON(reader); err != nil {
@@ -453,6 +440,23 @@ func ParseUpdateUserDetails(reader io.Reader) (*UpdateUserDetails, error) {
 
 func (u *User) IsDeleted() bool {
 	return u.DeletedTime != ""
+}
+
+func (u *User) Email() string {
+	return u.Username
+}
+
+func (u *User) HasRole(role string) bool {
+	for _, userRole := range u.Roles {
+		if userRole == role {
+			return true
+		}
+	}
+	return false
+}
+
+func (u *User) IsClinic() bool {
+	return u.HasRole("clinic")
 }
 
 func (u *User) HashPassword(pw, salt string) error {

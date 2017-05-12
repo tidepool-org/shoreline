@@ -414,75 +414,6 @@ func Test_NewUserDetails_Validate_Valid(t *testing.T) {
 	}
 }
 
-func Test_NewUserDetails_HasRole_Multiple(t *testing.T) {
-	username := "a@z.co"
-	password := "12345678"
-	details := &NewUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Password: &password, Roles: []string{"clinic", "other"}}
-	if !details.HasRole("clinic") {
-		t.Fatalf("HasRole returned false when should have returned true")
-	}
-	if !details.HasRole("other") {
-		t.Fatalf("HasRole returned false when should have returned true")
-	}
-	if details.HasRole("missing") {
-		t.Fatalf("HasRole returned true when should have returned false")
-	}
-}
-
-func Test_NewUserDetails_HasRole_One(t *testing.T) {
-	username := "a@z.co"
-	password := "12345678"
-	details := &NewUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Password: &password, Roles: []string{"clinic"}}
-	if !details.HasRole("clinic") {
-		t.Fatalf("HasRole returned false when should have returned true")
-	}
-	if details.HasRole("missing") {
-		t.Fatalf("HasRole returned true when should have returned false")
-	}
-}
-
-func Test_NewUserDetails_HasRole_Empty(t *testing.T) {
-	username := "a@z.co"
-	password := "12345678"
-	details := &NewUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Password: &password, Roles: []string{}}
-	if details.HasRole("clinic") {
-		t.Fatalf("HasRole returned true when should have returned false")
-	}
-	if details.HasRole("missing") {
-		t.Fatalf("HasRole returned true when should have returned false")
-	}
-}
-
-func Test_NewUserDetails_HasRole_Missing(t *testing.T) {
-	username := "a@z.co"
-	password := "12345678"
-	details := &NewUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Password: &password}
-	if details.HasRole("clinic") {
-		t.Fatalf("HasRole returned true when should have returned false")
-	}
-	if details.HasRole("missing") {
-		t.Fatalf("HasRole returned true when should have returned false")
-	}
-}
-
-func Test_NewUserDetails_IsClinic_Valid(t *testing.T) {
-	username := "a@z.co"
-	password := "12345678"
-	details := &NewUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Password: &password, Roles: []string{"clinic"}}
-	if !details.IsClinic() {
-		t.Fatalf("IsClinic returned false when should have returned true")
-	}
-}
-
-func Test_NewUserDetails_IsClinic_Invalid(t *testing.T) {
-	username := "a@z.co"
-	password := "12345678"
-	details := &NewUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Password: &password}
-	if details.IsClinic() {
-		t.Fatalf("IsClinic returned true when should have returned false")
-	}
-}
-
 func Test_ParseNewUserDetails_InvalidJSON(t *testing.T) {
 	source := ""
 	details, err := ParseNewUserDetails(strings.NewReader(source))
@@ -1158,6 +1089,76 @@ func Test_ParseUpdateUserDetails_ValidAll(t *testing.T) {
 	}
 	if *details.Username != "a@z.co" || !reflect.DeepEqual(details.Emails, []string{"b@y.co"}) || *details.Password != "12345678" || *details.TermsAccepted != "2016-01-01T12:00:00-08:00" || !*details.EmailVerified {
 		t.Fatalf("Missing fields that should be present on success with all")
+	}
+}
+
+func Test_User_Email(t *testing.T) {
+	user := &User{Username: "a@z.co"}
+	if user.Email() != "a@z.co" {
+		t.Fatalf("Email returned incorrect username")
+	}
+}
+
+func Test_User_Email_Missing(t *testing.T) {
+	user := &User{}
+	if user.Email() != "" {
+		t.Fatalf("Email returned incorrect username")
+	}
+}
+func Test_User_HasRole_Multiple(t *testing.T) {
+	user := &User{Roles: []string{"clinic", "other"}}
+	if !user.HasRole("clinic") {
+		t.Fatalf("HasRole returned false when should have returned true")
+	}
+	if !user.HasRole("other") {
+		t.Fatalf("HasRole returned false when should have returned true")
+	}
+	if user.HasRole("missing") {
+		t.Fatalf("HasRole returned true when should have returned false")
+	}
+}
+
+func Test_User_HasRole_One(t *testing.T) {
+	user := &User{Roles: []string{"clinic"}}
+	if !user.HasRole("clinic") {
+		t.Fatalf("HasRole returned false when should have returned true")
+	}
+	if user.HasRole("missing") {
+		t.Fatalf("HasRole returned true when should have returned false")
+	}
+}
+
+func Test_User_HasRole_Empty(t *testing.T) {
+	user := &User{Roles: []string{}}
+	if user.HasRole("clinic") {
+		t.Fatalf("HasRole returned true when should have returned false")
+	}
+	if user.HasRole("missing") {
+		t.Fatalf("HasRole returned true when should have returned false")
+	}
+}
+
+func Test_User_HasRole_Missing(t *testing.T) {
+	user := &User{}
+	if user.HasRole("clinic") {
+		t.Fatalf("HasRole returned true when should have returned false")
+	}
+	if user.HasRole("missing") {
+		t.Fatalf("HasRole returned true when should have returned false")
+	}
+}
+
+func Test_User_IsClinic_Valid(t *testing.T) {
+	user := &User{Roles: []string{"clinic"}}
+	if !user.IsClinic() {
+		t.Fatalf("IsClinic returned false when should have returned true")
+	}
+}
+
+func Test_User_IsClinic_Invalid(t *testing.T) {
+	user := &User{}
+	if user.IsClinic() {
+		t.Fatalf("IsClinic returned true when should have returned false")
 	}
 }
 

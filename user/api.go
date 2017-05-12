@@ -14,6 +14,7 @@ import (
 
 	"../common"
 	"../oauth2"
+	"./mailchimp"
 	"github.com/gorilla/mux"
 	"github.com/tidepool-org/go-common/clients"
 	"github.com/tidepool-org/go-common/clients/highwater"
@@ -22,12 +23,13 @@ import (
 
 type (
 	Api struct {
-		Store     Storage
-		ApiConfig ApiConfig
-		metrics   highwater.Client
-		perms     clients.Gatekeeper
-		oauth     oauth2.Client
-		logger    *log.Logger
+		Store            Storage
+		ApiConfig        ApiConfig
+		metrics          highwater.Client
+		perms            clients.Gatekeeper
+		oauth            oauth2.Client
+		logger           *log.Logger
+		mailchimpManager mailchimp.Manager
 	}
 	ApiConfig struct {
 		//used for services
@@ -42,8 +44,9 @@ type (
 		//used for token
 		Secret string `json:"apiSecret"`
 		//allows for the skipping of verification for testing
-		VerificationSecret string `json:"verificationSecret"`
-		ClinicDemoUserID   string `json:"clinicDemoUserId"`
+		VerificationSecret string           `json:"verificationSecret"`
+		ClinicDemoUserID   string           `json:"clinicDemoUserId"`
+		Mailchimp          mailchimp.Config `json:"mailchimp"`
 	}
 	varsHandler func(http.ResponseWriter, *http.Request, map[string]string)
 )
@@ -84,11 +87,19 @@ const (
 )
 
 func InitApi(cfg ApiConfig, store Storage, metrics highwater.Client) *Api {
+	logger := log.New(os.Stdout, USER_API_PREFIX, log.LstdFlags|log.Lshortfile)
+
+	mailchimpManager, err := mailchimp.NewManager(logger, &http.Client{Timeout: 15 * time.Second}, &cfg.Mailchimp)
+	if err != nil {
+		logger.Println("WARNING: Mailchimp Manager not configured;", err)
+	}
+
 	return &Api{
-		Store:     store,
-		ApiConfig: cfg,
-		metrics:   metrics,
-		logger:    log.New(os.Stdout, USER_API_PREFIX, log.Lshortfile),
+		Store:            store,
+		ApiConfig:        cfg,
+		metrics:          metrics,
+		logger:           logger,
+		mailchimpManager: mailchimpManager,
 	}
 }
 
@@ -198,7 +209,7 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
 
 	} else {
-		if newUserDetails.IsClinic() {
+		if newUser.IsClinic() {
 			if a.ApiConfig.ClinicDemoUserID != "" {
 				if _, err := a.perms.SetPermissions(newUser.Id, a.ApiConfig.ClinicDemoUserID, clients.Permissions{"view": clients.Allowed}); err != nil {
 					a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
@@ -212,6 +223,9 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 		if sessionToken, err := CreateSessionTokenAndSave(&tokenData, tokenConfig, a.Store); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN, err)
 		} else {
+			if a.mailchimpManager != nil {
+				a.mailchimpManager.CreateListMembershipForUser(newUser)
+			}
 			a.logMetricForUser(newUser.Id, "usercreated", sessionToken.ID, map[string]string{"server": "false"})
 			res.Header().Set(TP_SESSION_TOKEN, sessionToken.ID)
 			a.sendUserWithStatus(res, newUser, http.StatusCreated, false)
@@ -252,6 +266,9 @@ func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, va
 		if _, err := a.perms.SetPermissions(custodianUserId, newCustodialUser.Id, permissions); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
 		} else {
+			if a.mailchimpManager != nil {
+				a.mailchimpManager.CreateListMembershipForUser(newCustodialUser)
+			}
 			a.logMetricForUser(newCustodialUser.Id, "custodialusercreated", sessionToken, map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
 			a.sendUserWithStatus(res, newCustodialUser, http.StatusCreated, tokenData.IsServer)
 		}
@@ -345,6 +362,9 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 				}
 			}
 
+			if a.mailchimpManager != nil {
+				a.mailchimpManager.UpdateListMembershipForUser(originalUser, updatedUser)
+			}
 			a.logMetricForUser(updatedUser.Id, "userupdated", sessionToken, map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
 			a.sendUser(res, updatedUser, tokenData.IsServer)
 		}
