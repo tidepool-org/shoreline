@@ -9,17 +9,17 @@
   "mongo": {
     "connectionString": "mongodb://localhost/user"
   },
-  "user" : {
+  "user": {
     "serverSecret": "This needs to be the same secret everywhere. YaHut75NsK1f9UKUXuWqxNN0RUwHFBCy",
     "apiSecret": "This is a local API secret for everyone. BsscSHqSHiwrBMJsEGqbvXiuIUPAjQXU",
     "longTermKey": "abcdefghijklmnopqrstuvwxyz",
     "longTermDaysDuration": 30,
     "tokenDurationSecs": 2592000,
-    "salt" : "ADihSEI7tOQQP9xfXMO9HfRpXKu1NpIJ",
-    "verificationSecret" : "+skip",
+    "salt": "ADihSEI7tOQQP9xfXMO9HfRpXKu1NpIJ",
+    "verificationSecret": "+skip",
     "clinicDemoUserId": ""
   },
-  "oauth2" : {
-    "expireDays" : 14
+  "oauth2": {
+    "expireDays": 14
   }
 }

@@ -1,25 +1,166 @@
 package mailchimp_test
 
 import (
+	"crypto/md5"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"math/rand"
 	"net/http"
-	"os"
+	"strings"
 	"testing"
 	"time"
 
 	"../mailchimp"
 )
 
-func Test_Config_IsValid_URL_Missing(t *testing.T) {
-	config := &mailchimp.Config{
-		APIKey:         "test-api-key",
-		PersonalListID: "personal-list-id",
-		ClinicListID:   "clinic-list-id",
+func Test_List_Validate_Missing(t *testing.T) {
+	var list *mailchimp.List
+	err := list.Validate()
+	if err == nil {
+		t.Fatal("Validate returned successfully when error expected")
 	}
+	if err.Error() != "mailchimp: list is missing" {
+		t.Fatalf("Validate error unexpected: %s", err)
+	}
+}
+
+func Test_List_Validate_ID_Missing(t *testing.T) {
+	list := &mailchimp.List{
+		Interests: map[string]bool{"one": true, "two": true, "three": true},
+	}
+	err := list.Validate()
+	if err == nil {
+		t.Fatal("Validate returned successfully when error expected")
+	}
+	if err.Error() != "mailchimp: id is missing" {
+		t.Fatalf("Validate error unexpected: %s", err)
+	}
+}
+
+func Test_List_Validate_Interest_ID_Missing(t *testing.T) {
+	list := &mailchimp.List{
+		ID:        "test-list-id",
+		Interests: map[string]bool{"one": true, "": true, "three": true},
+	}
+	err := list.Validate()
+	if err == nil {
+		t.Fatal("Validate returned successfully when error expected")
+	}
+	if err.Error() != "mailchimp: interest id is missing" {
+		t.Fatalf("Validate error unexpected: %s", err)
+	}
+}
+
+func Test_List_Validate_Success(t *testing.T) {
+	list := &mailchimp.List{
+		ID:        "test-list-id",
+		Interests: map[string]bool{"one": true, "two": true, "three": true},
+	}
+	err := list.Validate()
+	if err != nil {
+		t.Fatalf("Validate error unexpected: %s", err)
+	}
+}
+
+func Test_List_Validate_Success_InterestsMissing(t *testing.T) {
+	list := &mailchimp.List{
+		ID: "test-list-id",
+	}
+	err := list.Validate()
+	if err != nil {
+		t.Fatalf("Validate error unexpected: %s", err)
+	}
+}
+
+func Test_List_Validate_Success_InterestsEmpty(t *testing.T) {
+	list := &mailchimp.List{
+		ID:        "test-list-id",
+		Interests: map[string]bool{},
+	}
+	err := list.Validate()
+	if err != nil {
+		t.Fatalf("Validate error unexpected: %s", err)
+	}
+}
+
+func Test_Lists_Validate_Missing(t *testing.T) {
+	var lists mailchimp.Lists
+	err := lists.Validate()
+	if err == nil {
+		t.Fatal("Validate returned successfully when error expected")
+	}
+	if err.Error() != "mailchimp: lists are missing" {
+		t.Fatalf("Validate error unexpected: %s", err)
+	}
+}
+
+func Test_Lists_Validate_List_Missing(t *testing.T) {
+	lists := mailchimp.Lists{
+		nil,
+	}
+	err := lists.Validate()
+	if err == nil {
+		t.Fatal("Validate returned successfully when error expected")
+	}
+	if err.Error() != "mailchimp: list is not valid; mailchimp: list is missing" {
+		t.Fatalf("Validate error unexpected: %s", err)
+	}
+}
+
+func Test_Lists_Validate_List_NotValid(t *testing.T) {
+	lists := mailchimp.Lists{
+		&mailchimp.List{},
+	}
+	err := lists.Validate()
+	if err == nil {
+		t.Fatal("Validate returned successfully when error expected")
+	}
+	if err.Error() != "mailchimp: list is not valid; mailchimp: id is missing" {
+		t.Fatalf("Validate error unexpected: %s", err)
+	}
+}
+
+func Test_Lists_Validate_Success(t *testing.T) {
+	lists := mailchimp.Lists{
+		&mailchimp.List{
+			ID: "clinic-list-id",
+		},
+		&mailchimp.List{
+			ID:        "personal-list-id",
+			Interests: map[string]bool{"one": true, "two": true, "three": true},
+		},
+	}
+	err := lists.Validate()
+	if err != nil {
+		t.Fatalf("Validate error unexpected: %s", err)
+	}
+}
+
+func Test_Lists_Validate_Success_ListsEmpty(t *testing.T) {
+	lists := mailchimp.Lists{}
+	err := lists.Validate()
+	if err != nil {
+		t.Fatalf("Validate error unexpected: %s", err)
+	}
+}
+
+func Test_Config_Validate_Missing(t *testing.T) {
+	var config *mailchimp.Config
+	err := config.Validate()
+	if err == nil {
+		t.Fatal("Validate returned successfully when error expected")
+	}
+	if err.Error() != "mailchimp: config is missing" {
+		t.Fatalf("Validate error unexpected: %s", err)
+	}
+}
+
+func Test_Config_Validate_URL_Missing(t *testing.T) {
+	config := NewTestConfig(t)
+	config.URL = ""
 	err := config.Validate()
 	if err == nil {
 		t.Fatal("Validate returned successfully when error expected")
@@ -29,12 +170,9 @@ func Test_Config_IsValid_URL_Missing(t *testing.T) {
 	}
 }
 
-func Test_Config_IsValid_APIKey_Missing(t *testing.T) {
-	config := &mailchimp.Config{
-		URL:            "https://mailchimp.com",
-		PersonalListID: "personal-list-id",
-		ClinicListID:   "clinic-list-id",
-	}
+func Test_Config_Validate_APIKey_Missing(t *testing.T) {
+	config := NewTestConfig(t)
+	config.APIKey = ""
 	err := config.Validate()
 	if err == nil {
 		t.Fatal("Validate returned successfully when error expected")
@@ -44,43 +182,32 @@ func Test_Config_IsValid_APIKey_Missing(t *testing.T) {
 	}
 }
 
-func Test_Config_IsValid_PersonalListID_Missing(t *testing.T) {
-	config := &mailchimp.Config{
-		URL:          "https://mailchimp.com",
-		APIKey:       "test-api-key",
-		ClinicListID: "clinic-list-id",
-	}
+func Test_Config_Validate_ClinicLists_Missing(t *testing.T) {
+	config := NewTestConfig(t)
+	config.ClinicLists = nil
 	err := config.Validate()
 	if err == nil {
 		t.Fatal("Validate returned successfully when error expected")
 	}
-	if err.Error() != "mailchimp: personal list id is missing" {
+	if err.Error() != "mailchimp: clinic lists are not valid; mailchimp: lists are missing" {
 		t.Fatalf("Validate error unexpected: %s", err)
 	}
 }
 
-func Test_Config_IsValid_ClinicListID_Missing(t *testing.T) {
-	config := &mailchimp.Config{
-		URL:            "https://mailchimp.com",
-		APIKey:         "test-api-key",
-		PersonalListID: "personal-list-id",
-	}
+func Test_Config_Validate_PersonalLists_Missing(t *testing.T) {
+	config := NewTestConfig(t)
+	config.PersonalLists = nil
 	err := config.Validate()
 	if err == nil {
 		t.Fatal("Validate returned successfully when error expected")
 	}
-	if err.Error() != "mailchimp: clinic list id is missing" {
+	if err.Error() != "mailchimp: personal lists are not valid; mailchimp: lists are missing" {
 		t.Fatalf("Validate error unexpected: %s", err)
 	}
 }
 
-func Test_Config_IsValid_Successful(t *testing.T) {
-	config := &mailchimp.Config{
-		URL:            "https://mailchimp.com",
-		APIKey:         "test-api-key",
-		PersonalListID: "personal-list-id",
-		ClinicListID:   "clinic-list-id",
-	}
+func Test_Config_Validate_Success(t *testing.T) {
+	config := NewTestConfig(t)
 	err := config.Validate()
 	if err != nil {
 		t.Fatalf("Validate error unexpected: %s", err)
@@ -91,12 +218,7 @@ func Test_NewManager_Logger_Missing(t *testing.T) {
 	client := &http.Client{
 		Timeout: 15 * time.Second,
 	}
-	config := &mailchimp.Config{
-		URL:            "https://mailchimp.com",
-		APIKey:         "test-api-key",
-		PersonalListID: "personal-list-id",
-		ClinicListID:   "clinic-list-id",
-	}
+	config := NewTestConfig(t)
 	manager, err := mailchimp.NewManager(nil, client, config)
 	if manager != nil {
 		t.Fatal("NewManager returned manager when error expected")
@@ -110,13 +232,8 @@ func Test_NewManager_Logger_Missing(t *testing.T) {
 }
 
 func Test_NewManager_Client_Missing(t *testing.T) {
-	logger := log.New(os.Stderr, "", log.LstdFlags)
-	config := &mailchimp.Config{
-		URL:            "https://mailchimp.com",
-		APIKey:         "test-api-key",
-		PersonalListID: "personal-list-id",
-		ClinicListID:   "clinic-list-id",
-	}
+	logger := log.New(ioutil.Discard, "", log.LstdFlags)
+	config := NewTestConfig(t)
 	manager, err := mailchimp.NewManager(logger, nil, config)
 	if manager != nil {
 		t.Fatal("NewManager returned manager when error expected")
@@ -130,7 +247,7 @@ func Test_NewManager_Client_Missing(t *testing.T) {
 }
 
 func Test_NewManager_Config_Missing(t *testing.T) {
-	logger := log.New(os.Stderr, "", log.LstdFlags)
+	logger := log.New(ioutil.Discard, "", log.LstdFlags)
 	client := &http.Client{
 		Timeout: 15 * time.Second,
 	}
@@ -141,21 +258,18 @@ func Test_NewManager_Config_Missing(t *testing.T) {
 	if err == nil {
 		t.Fatal("NewManager returned successfully when error expected")
 	}
-	if err.Error() != "mailchimp: config is missing" {
+	if err.Error() != "mailchimp: config is not valid; mailchimp: config is missing" {
 		t.Fatalf("NewManager error unexpected: %s", err)
 	}
 }
 
 func Test_NewManager_Config_Invalid(t *testing.T) {
-	logger := log.New(os.Stderr, "", log.LstdFlags)
+	logger := log.New(ioutil.Discard, "", log.LstdFlags)
 	client := &http.Client{
 		Timeout: 15 * time.Second,
 	}
-	config := &mailchimp.Config{
-		URL:            "https://mailchimp.com",
-		APIKey:         "test-api-key",
-		PersonalListID: "personal-list-id",
-	}
+	config := NewTestConfig(t)
+	config.URL = ""
 	manager, err := mailchimp.NewManager(logger, client, config)
 	if manager != nil {
 		t.Fatal("NewManager returned manager when error expected")
@@ -163,22 +277,17 @@ func Test_NewManager_Config_Invalid(t *testing.T) {
 	if err == nil {
 		t.Fatal("NewManager returned successfully when error expected")
 	}
-	if err.Error() != "mailchimp: config is not valid; mailchimp: clinic list id is missing" {
+	if err.Error() != "mailchimp: config is not valid; mailchimp: url is missing" {
 		t.Fatalf("NewManager error unexpected: %s", err)
 	}
 }
 
-func Test_NewManager_Successful(t *testing.T) {
-	logger := log.New(os.Stderr, "", log.LstdFlags)
+func Test_NewManager_Success(t *testing.T) {
+	logger := log.New(ioutil.Discard, "", log.LstdFlags)
 	client := &http.Client{
 		Timeout: 15 * time.Second,
 	}
-	config := &mailchimp.Config{
-		URL:            "https://mailchimp.com",
-		APIKey:         "test-api-key",
-		PersonalListID: "personal-list-id",
-		ClinicListID:   "clinic-list-id",
-	}
+	config := NewTestConfig(t)
 	manager, err := mailchimp.NewManager(logger, client, config)
 	if manager == nil {
 		t.Fatal("NewManager did not return manager when success expected")
@@ -189,258 +298,432 @@ func Test_NewManager_Successful(t *testing.T) {
 }
 
 func Test_CreateListMembershipForUser_User_Missing(t *testing.T) {
-	manager, _ := NewManagerWithClientMock(t)
+	manager, _ := NewTestManagerWithClientMock(t)
 	manager.CreateListMembershipForUser(nil)
 	time.Sleep(time.Second)
 }
 
 func Test_CreateListMembershipForUser_User_Email_Missing(t *testing.T) {
-	manager, _ := NewManagerWithClientMock(t)
+	manager, _ := NewTestManagerWithClientMock(t)
 	newUserMock := NewUserMock()
-	newUserMock.EmailOutputs = []string{""}
+	newUserMock.EmailStub = func() string { return "" }
 	manager.CreateListMembershipForUser(newUserMock)
 	time.Sleep(time.Second)
-	if !newUserMock.TestOutputsValid() {
-		t.Fatal("Not all outputs consumed for newUserMock")
-	}
 }
 
-func Test_CreateListMembershipForUser_Failure_Do(t *testing.T) {
-	manager, clientMock := NewManagerWithClientMock(t)
+func Test_CreateListMembershipForUser_Failure_Get_Do(t *testing.T) {
+	manager, clientMock := NewTestManagerWithClientMock(t)
 	newUserMock := NewUserMock()
-	newUserMock.EmailOutputs = []string{"one@sample.com", "one@sample.com"}
-	newUserMock.IsClinicOutputs = []bool{false}
+	newUserMock.EmailStub = func() string { return "one@sample.com" }
+	newUserMock.IsClinicStub = func() bool { return true }
 	clientMock.DoOutputs = []DoOutput{{nil, errors.New("test failure")}}
 	manager.CreateListMembershipForUser(newUserMock)
 	time.Sleep(time.Second)
-	if !clientMock.TestOutputsValid() {
+	if !clientMock.AllOutputsConsumed() {
 		t.Fatal("Not all outputs consumed for clientMock")
-	}
-	if !newUserMock.TestOutputsValid() {
-		t.Fatal("Not all outputs consumed for newUserMock")
 	}
 }
 
-func Test_CreateListMembershipForUser_Failure_StatusCode(t *testing.T) {
-	manager, clientMock := NewManagerWithClientMock(t)
+func Test_CreateListMembershipForUser_Failure_Get_StatusCode(t *testing.T) {
+	manager, clientMock := NewTestManagerWithClientMock(t)
 	newUserMock := NewUserMock()
-	newUserMock.EmailOutputs = []string{"two@sample.com", "two@sample.com"}
-	newUserMock.IsClinicOutputs = []bool{false}
+	newUserMock.EmailStub = func() string { return "two@sample.com" }
+	newUserMock.IsClinicStub = func() bool { return true }
 	clientMock.DoOutputs = []DoOutput{{&http.Response{StatusCode: http.StatusForbidden}, nil}}
 	manager.CreateListMembershipForUser(newUserMock)
 	time.Sleep(time.Second)
-	if !clientMock.TestOutputsValid() {
+	if !clientMock.AllOutputsConsumed() {
 		t.Fatal("Not all outputs consumed for clientMock")
-	}
-	if !newUserMock.TestOutputsValid() {
-		t.Fatal("Not all outputs consumed for newUserMock")
 	}
 }
 
-func Test_CreateListMembershipForUser_Personal_Success(t *testing.T) {
-	manager, clientMock := NewManagerWithClientMock(t)
+func Test_CreateListMembershipForUser_Failure_Get_DecodeJSON(t *testing.T) {
+	manager, clientMock := NewTestManagerWithClientMock(t)
 	newUserMock := NewUserMock()
-	newUserMock.EmailOutputs = []string{"three@sample.com", "three@sample.com"}
-	newUserMock.IsClinicOutputs = []bool{false}
-	clientMock.DoOutputs = []DoOutput{{&http.Response{StatusCode: http.StatusOK}, nil}}
+	newUserMock.EmailStub = func() string { return "three@sample.com" }
+	newUserMock.IsClinicStub = func() bool { return true }
+	clientMock.DoOutputs = []DoOutput{{&http.Response{Body: ioutil.NopCloser(strings.NewReader("{"))}, nil}}
 	manager.CreateListMembershipForUser(newUserMock)
 	time.Sleep(time.Second)
-	if length := len(clientMock.DoInputs); length != 1 {
-		t.Fatalf("CreateListMembershipForUser invoked Client.Do an unexpected number of times: %d", length)
-	}
-	request := clientMock.DoInputs[0]
-	if method := request.Method; method != "PUT" {
-		t.Fatalf("CreateListMembershipForUser invoked Client.Do with unexpected method: %s", method)
-	}
-	if url := request.URL.String(); url != "https://mailchimp.com/lists/personal-list-id/members/e369244a2c208f05f3985de14530dda8" {
-		t.Fatalf("CreateListMembershipForUser invoked Client.Do with unexpected URL: %s", url)
-	}
-	if body := request.Body; body == nil {
-		t.Fatal("CreateListMembershipForUser invoked Client.Do with no body")
-	} else if bodyBytes, err := ioutil.ReadAll(body); err != nil {
-		t.Fatalf("CreateListMembershipForUser invoked Client.Do with unreadable body: %s", err)
-	} else if bodyString := string(bodyBytes); bodyString != `{"email_address":"three@sample.com","status_if_new":"subscribed"}` {
-		t.Fatalf("CreateListMembershipForUser invoked Client.Do with unexpected body: %s", bodyString)
-	}
-	if username, password, ok := request.BasicAuth(); !ok {
-		t.Fatal("CreateListMembershipForUser invoked Client.Do without expected Basic Auth")
-	} else if username != "tidepool-platform" || password != "test-api-key" {
-		t.Fatalf(`CreateListMembershipForUser invoked Client.Do with unexpected Basic Auth: username="%s", password="%s"`, username, password)
-	}
-	if header := request.Header.Get("Content-Type"); header != "application/json" {
-		t.Fatalf("CreateListMembershipForUser invoked Client.Do with unexpected Content-Type header: %s", header)
-	}
-	if !clientMock.TestOutputsValid() {
+	if !clientMock.AllOutputsConsumed() {
 		t.Fatal("Not all outputs consumed for clientMock")
 	}
-	if !newUserMock.TestOutputsValid() {
-		t.Fatal("Not all outputs consumed for newUserMock")
+}
+
+func Test_CreateListMembershipForUser_Failure_Put_Do(t *testing.T) {
+	manager, clientMock := NewTestManagerWithClientMock(t)
+	newUserMock := NewUserMock()
+	newUserMock.EmailStub = func() string { return "four@sample.com" }
+	newUserMock.IsClinicStub = func() bool { return true }
+	clientMock.DoOutputs = []DoOutput{
+		{&http.Response{StatusCode: http.StatusNotFound}, nil},
+		{nil, errors.New("test failure")},
+	}
+	manager.CreateListMembershipForUser(newUserMock)
+	time.Sleep(time.Second)
+	if !clientMock.AllOutputsConsumed() {
+		t.Fatal("Not all outputs consumed for clientMock")
+	}
+}
+
+func Test_CreateListMembershipForUser_Failure_Put_StatusCode(t *testing.T) {
+	manager, clientMock := NewTestManagerWithClientMock(t)
+	newUserMock := NewUserMock()
+	newUserMock.EmailStub = func() string { return "five@sample.com" }
+	newUserMock.IsClinicStub = func() bool { return true }
+	clientMock.DoOutputs = []DoOutput{
+		{&http.Response{StatusCode: http.StatusNotFound}, nil},
+		{&http.Response{StatusCode: http.StatusForbidden}, nil},
+	}
+	manager.CreateListMembershipForUser(newUserMock)
+	time.Sleep(time.Second)
+	if !clientMock.AllOutputsConsumed() {
+		t.Fatal("Not all outputs consumed for clientMock")
 	}
 }
 
 func Test_CreateListMembershipForUser_Clinic_Success(t *testing.T) {
-	manager, clientMock := NewManagerWithClientMock(t)
+	manager, clientMock := NewTestManagerWithClientMock(t)
 	newUserMock := NewUserMock()
-	newUserMock.EmailOutputs = []string{"four@sample.com", "four@sample.com"}
-	newUserMock.IsClinicOutputs = []bool{true}
-	clientMock.DoOutputs = []DoOutput{{&http.Response{StatusCode: http.StatusOK}, nil}}
+	newUserMock.EmailStub = func() string { return "SIX@SAMPLE.COM" }
+	newUserMock.IsClinicStub = func() bool { return true }
+	clientMock.DoOutputs = []DoOutput{
+		{&http.Response{StatusCode: http.StatusNotFound}, nil},
+		{&http.Response{StatusCode: http.StatusOK}, nil},
+	}
+	manager.CreateListMembershipForUser(newUserMock)
+	time.Sleep(time.Second)
+	if length := len(clientMock.DoInputs); length != 2 {
+		t.Fatalf("CreateListMembershipForUser invoked Client.Do an unexpected number of times: %d", length)
+	}
+	AssertGetListMember(t, clientMock.DoInputs[0], "clinic-list-id", newUserMock.Email())
+	AssertPutListMember(t, clientMock.DoInputs[1], "clinic-list-id", newUserMock.Email(), `{"email_address":"six@sample.com","status_if_new":"subscribed","interests":{"zero":true}}`)
+	if !clientMock.AllOutputsConsumed() {
+		t.Fatal("Not all outputs consumed for clientMock")
+	}
+}
+
+func Test_CreateListMembershipForUser_Clinic_Success_Existing(t *testing.T) {
+	manager, clientMock := NewTestManagerWithClientMock(t)
+	newUserMock := NewUserMock()
+	newUserMock.EmailStub = func() string { return "seven@sample.com" }
+	newUserMock.IsClinicStub = func() bool { return true }
+	clientMock.DoOutputs = []DoOutput{{&http.Response{StatusCode: http.StatusOK, Body: ioutil.NopCloser(strings.NewReader("{}"))}, nil}}
 	manager.CreateListMembershipForUser(newUserMock)
 	time.Sleep(time.Second)
 	if length := len(clientMock.DoInputs); length != 1 {
 		t.Fatalf("CreateListMembershipForUser invoked Client.Do an unexpected number of times: %d", length)
 	}
-	request := clientMock.DoInputs[0]
-	if method := request.Method; method != "PUT" {
-		t.Fatalf("CreateListMembershipForUser invoked Client.Do with unexpected method: %s", method)
-	}
-	if url := request.URL.String(); url != "https://mailchimp.com/lists/clinic-list-id/members/4be9e246893e38ad76a7c03274e945ee" {
-		t.Fatalf("CreateListMembershipForUser invoked Client.Do with unexpected URL: %s", url)
-	}
-	if body := request.Body; body == nil {
-		t.Fatal("CreateListMembershipForUser invoked Client.Do with no body")
-	} else if bodyBytes, err := ioutil.ReadAll(body); err != nil {
-		t.Fatalf("CreateListMembershipForUser invoked Client.Do with unreadable body: %s", err)
-	} else if bodyString := string(bodyBytes); bodyString != `{"email_address":"four@sample.com","status_if_new":"subscribed"}` {
-		t.Fatalf("CreateListMembershipForUser invoked Client.Do with unexpected body: %s", bodyString)
-	}
-	if username, password, ok := request.BasicAuth(); !ok {
-		t.Fatal("CreateListMembershipForUser invoked Client.Do without expected Basic Auth")
-	} else if username != "tidepool-platform" || password != "test-api-key" {
-		t.Fatalf(`CreateListMembershipForUser invoked Client.Do with unexpected Basic Auth: username="%s", password="%s"`, username, password)
-	}
-	if header := request.Header.Get("Content-Type"); header != "application/json" {
-		t.Fatalf("CreateListMembershipForUser invoked Client.Do with unexpected Content-Type header: %s", header)
-	}
-	if !clientMock.TestOutputsValid() {
+	AssertGetListMember(t, clientMock.DoInputs[0], "clinic-list-id", newUserMock.Email())
+	if !clientMock.AllOutputsConsumed() {
 		t.Fatal("Not all outputs consumed for clientMock")
 	}
-	if !newUserMock.TestOutputsValid() {
-		t.Fatal("Not all outputs consumed for newUserMock")
+}
+
+func Test_CreateListMembershipForUser_Personal_Success(t *testing.T) {
+	manager, clientMock := NewTestManagerWithClientMock(t)
+	newUserMock := NewUserMock()
+	newUserMock.EmailStub = func() string { return "eight@sample.com" }
+	newUserMock.IsClinicStub = func() bool { return false }
+	clientMock.DoOutputs = []DoOutput{
+		{&http.Response{StatusCode: http.StatusNotFound}, nil},
+		{&http.Response{StatusCode: http.StatusOK}, nil},
+		{&http.Response{StatusCode: http.StatusNotFound}, nil},
+		{&http.Response{StatusCode: http.StatusOK}, nil},
+	}
+	manager.CreateListMembershipForUser(newUserMock)
+	time.Sleep(time.Second)
+	if length := len(clientMock.DoInputs); length != 4 {
+		t.Fatalf("CreateListMembershipForUser invoked Client.Do an unexpected number of times: %d", length)
+	}
+	AssertGetListMember(t, clientMock.DoInputs[0], "personal-list-id", newUserMock.Email())
+	AssertPutListMember(t, clientMock.DoInputs[1], "personal-list-id", newUserMock.Email(), `{"email_address":"eight@sample.com","status_if_new":"subscribed","interests":{"one":true,"three":true,"two":true}}`)
+	AssertGetListMember(t, clientMock.DoInputs[2], "alternate-personal-list-id", newUserMock.Email())
+	AssertPutListMember(t, clientMock.DoInputs[3], "alternate-personal-list-id", newUserMock.Email(), `{"email_address":"eight@sample.com","status_if_new":"subscribed"}`)
+	if !clientMock.AllOutputsConsumed() {
+		t.Fatal("Not all outputs consumed for clientMock")
+	}
+}
+
+func Test_CreateListMembershipForUser_Personal_Success_Existing(t *testing.T) {
+	manager, clientMock := NewTestManagerWithClientMock(t)
+	newUserMock := NewUserMock()
+	newUserMock.EmailStub = func() string { return "nine@sample.com" }
+	newUserMock.IsClinicStub = func() bool { return false }
+	clientMock.DoOutputs = []DoOutput{
+		{&http.Response{StatusCode: http.StatusOK, Body: ioutil.NopCloser(strings.NewReader("{}"))}, nil},
+		{&http.Response{StatusCode: http.StatusOK, Body: ioutil.NopCloser(strings.NewReader("{}"))}, nil},
+	}
+	manager.CreateListMembershipForUser(newUserMock)
+	time.Sleep(time.Second)
+	if length := len(clientMock.DoInputs); length != 2 {
+		t.Fatalf("CreateListMembershipForUser invoked Client.Do an unexpected number of times: %d", length)
+	}
+	AssertGetListMember(t, clientMock.DoInputs[0], "personal-list-id", newUserMock.Email())
+	AssertGetListMember(t, clientMock.DoInputs[1], "alternate-personal-list-id", newUserMock.Email())
+	if !clientMock.AllOutputsConsumed() {
+		t.Fatal("Not all outputs consumed for clientMock")
 	}
 }
 
 func Test_UpdateListMembershipForUser_OldUser_Missing(t *testing.T) {
-	manager, _ := NewManagerWithClientMock(t)
+	manager, _ := NewTestManagerWithClientMock(t)
 	newUserMock := NewUserMock()
 	manager.UpdateListMembershipForUser(nil, newUserMock)
 	time.Sleep(time.Second)
-	if !newUserMock.TestOutputsValid() {
-		t.Fatal("Not all outputs consumed for newUserMock")
-	}
 }
 
 func Test_UpdateListMembershipForUser_NewUser_Missing(t *testing.T) {
-	manager, _ := NewManagerWithClientMock(t)
+	manager, _ := NewTestManagerWithClientMock(t)
 	oldUserMock := NewUserMock()
 	manager.UpdateListMembershipForUser(oldUserMock, nil)
 	time.Sleep(time.Second)
-	if !oldUserMock.TestOutputsValid() {
-		t.Fatal("Not all outputs consumed for oldUserMock")
-	}
 }
 
-func Test_UpdateListMembershipForUser_NewUser_Match(t *testing.T) {
-	manager, _ := NewManagerWithClientMock(t)
+func Test_UpdateListMembershipForUser_NewUser_Match_Personal(t *testing.T) {
+	manager, _ := NewTestManagerWithClientMock(t)
 	oldUserMock := NewUserMock()
-	oldUserMock.EmailOutputs = []string{"five@sample.com"}
-	oldUserMock.IsClinicOutputs = []bool{false}
+	oldUserMock.EmailStub = func() string { return "ten@sample.com" }
+	oldUserMock.IsClinicStub = func() bool { return false }
 	newUserMock := NewUserMock()
-	newUserMock.EmailOutputs = []string{"five@sample.com"}
-	newUserMock.IsClinicOutputs = []bool{false}
+	newUserMock.EmailStub = func() string { return "ten@sample.com" }
+	newUserMock.IsClinicStub = func() bool { return false }
 	manager.UpdateListMembershipForUser(oldUserMock, newUserMock)
 	time.Sleep(time.Second)
-	if !newUserMock.TestOutputsValid() {
-		t.Fatal("Not all outputs consumed for newUserMock")
-	}
-	if !oldUserMock.TestOutputsValid() {
-		t.Fatal("Not all outputs consumed for oldUserMock")
-	}
+}
+
+func Test_UpdateListMembershipForUser_NewUser_Match_Clinic(t *testing.T) {
+	manager, _ := NewTestManagerWithClientMock(t)
+	oldUserMock := NewUserMock()
+	oldUserMock.EmailStub = func() string { return "eleven@sample.com" }
+	oldUserMock.IsClinicStub = func() bool { return true }
+	newUserMock := NewUserMock()
+	newUserMock.EmailStub = func() string { return "eleven@sample.com" }
+	newUserMock.IsClinicStub = func() bool { return true }
+	manager.UpdateListMembershipForUser(oldUserMock, newUserMock)
+	time.Sleep(time.Second)
 }
 
 func Test_UpdateListMembershipForUser_NewUser_Email_Missing(t *testing.T) {
-	manager, _ := NewManagerWithClientMock(t)
+	manager, _ := NewTestManagerWithClientMock(t)
 	oldUserMock := NewUserMock()
-	oldUserMock.EmailOutputs = []string{"six@sample.com"}
+	oldUserMock.EmailStub = func() string { return "twelve@sample.com" }
 	newUserMock := NewUserMock()
-	newUserMock.EmailOutputs = []string{"", ""}
+	newUserMock.EmailStub = func() string { return "" }
 	manager.UpdateListMembershipForUser(oldUserMock, newUserMock)
 	time.Sleep(time.Second)
-	if !newUserMock.TestOutputsValid() {
-		t.Fatal("Not all outputs consumed for newUserMock")
-	}
-	if !oldUserMock.TestOutputsValid() {
-		t.Fatal("Not all outputs consumed for oldUserMock")
-	}
 }
 
-func Test_UpdateListMembershipForUser_Failure_Do(t *testing.T) {
-	manager, clientMock := NewManagerWithClientMock(t)
+func Test_UpdateListMembershipForUser_Failure_Put_Do(t *testing.T) {
+	manager, clientMock := NewTestManagerWithClientMock(t)
 	oldUserMock := NewUserMock()
-	oldUserMock.EmailOutputs = []string{"seven@sample.com", "seven@sample.com", "seven@sample.com"}
+	oldUserMock.EmailStub = func() string { return "thirteen@sample.com" }
 	newUserMock := NewUserMock()
-	newUserMock.EmailOutputs = []string{"eight@sample.com", "eight@sample.com"}
-	newUserMock.IsClinicOutputs = []bool{false}
-	clientMock.DoOutputs = []DoOutput{{nil, errors.New("test failure")}}
+	newUserMock.EmailStub = func() string { return "fourteen@sample.com" }
+	newUserMock.IsClinicStub = func() bool { return true }
+	clientMock.DoOutputs = []DoOutput{
+		{&http.Response{StatusCode: http.StatusNotFound}, nil},
+		{nil, errors.New("test failure")},
+	}
 	manager.UpdateListMembershipForUser(oldUserMock, newUserMock)
 	time.Sleep(time.Second)
-	if !clientMock.TestOutputsValid() {
+	if !clientMock.AllOutputsConsumed() {
 		t.Fatal("Not all outputs consumed for clientMock")
 	}
-	if !newUserMock.TestOutputsValid() {
-		t.Fatal("Not all outputs consumed for newUserMock")
-	}
-	if !oldUserMock.TestOutputsValid() {
-		t.Fatal("Not all outputs consumed for oldUserMock")
-	}
 }
 
-func Test_UpdateListMembershipForUser_Failure_StatusCode(t *testing.T) {
-	manager, clientMock := NewManagerWithClientMock(t)
+func Test_UpdateListMembershipForUser_Failure_Put_StatusCode(t *testing.T) {
+	manager, clientMock := NewTestManagerWithClientMock(t)
 	oldUserMock := NewUserMock()
-	oldUserMock.EmailOutputs = []string{"nine@sample.com", "nine@sample.com", "nine@sample.com"}
+	oldUserMock.EmailStub = func() string { return "fifteen@sample.com" }
 	newUserMock := NewUserMock()
-	newUserMock.EmailOutputs = []string{"ten@sample.com", "ten@sample.com"}
-	newUserMock.IsClinicOutputs = []bool{false}
-	clientMock.DoOutputs = []DoOutput{{&http.Response{StatusCode: http.StatusForbidden}, nil}}
+	newUserMock.EmailStub = func() string { return "sixteen@sample.com" }
+	newUserMock.IsClinicStub = func() bool { return true }
+	clientMock.DoOutputs = []DoOutput{
+		{&http.Response{StatusCode: http.StatusNotFound}, nil},
+		{&http.Response{StatusCode: http.StatusForbidden}, nil},
+	}
 	manager.UpdateListMembershipForUser(oldUserMock, newUserMock)
 	time.Sleep(time.Second)
-	if !clientMock.TestOutputsValid() {
+	if !clientMock.AllOutputsConsumed() {
 		t.Fatal("Not all outputs consumed for clientMock")
-	}
-	if !newUserMock.TestOutputsValid() {
-		t.Fatal("Not all outputs consumed for newUserMock")
-	}
-	if !oldUserMock.TestOutputsValid() {
-		t.Fatal("Not all outputs consumed for oldUserMock")
 	}
 }
 
-func Test_UpdateListMembershipForUser_Personal_Success(t *testing.T) {
-	manager, clientMock := NewManagerWithClientMock(t)
+func Test_UpdateListMembershipForUser_Clinic_Success_New(t *testing.T) {
+	manager, clientMock := NewTestManagerWithClientMock(t)
 	oldUserMock := NewUserMock()
-	oldUserMock.EmailOutputs = []string{"eleven@sample.com", "eleven@sample.com", "eleven@sample.com"}
+	oldUserMock.EmailStub = func() string { return "seventeen@sample.com" }
 	newUserMock := NewUserMock()
-	newUserMock.EmailOutputs = []string{"twelve@sample.com", "twelve@sample.com"}
-	newUserMock.IsClinicOutputs = []bool{false}
-	clientMock.DoOutputs = []DoOutput{{&http.Response{StatusCode: http.StatusOK}, nil}}
+	newUserMock.EmailStub = func() string { return "eighteen@sample.com" }
+	newUserMock.IsClinicStub = func() bool { return true }
+	clientMock.DoOutputs = []DoOutput{
+		{&http.Response{StatusCode: http.StatusNotFound}, nil},
+		{&http.Response{StatusCode: http.StatusOK}, nil},
+	}
+	manager.UpdateListMembershipForUser(oldUserMock, newUserMock)
+	time.Sleep(time.Second)
+	if length := len(clientMock.DoInputs); length != 2 {
+		t.Fatalf("UpdateListMembershipForUser invoked Client.Do an unexpected number of times: %d", length)
+	}
+	AssertGetListMember(t, clientMock.DoInputs[0], "clinic-list-id", oldUserMock.Email())
+	AssertPutListMember(t, clientMock.DoInputs[1], "clinic-list-id", oldUserMock.Email(), `{"email_address":"eighteen@sample.com","status_if_new":"subscribed","interests":{"zero":true}}`)
+	if !clientMock.AllOutputsConsumed() {
+		t.Fatal("Not all outputs consumed for clientMock")
+	}
+}
+
+func Test_UpdateListMembershipForUser_Clinic_Success_Existing_SameEmail(t *testing.T) {
+	manager, clientMock := NewTestManagerWithClientMock(t)
+	oldUserMock := NewUserMock()
+	oldUserMock.EmailStub = func() string { return "nineteen@sample.com" }
+	oldUserMock.IsClinicStub = func() bool { return false }
+	newUserMock := NewUserMock()
+	newUserMock.EmailStub = func() string { return "nineteen@sample.com" }
+	newUserMock.IsClinicStub = func() bool { return true }
+	clientMock.DoOutputs = []DoOutput{{&http.Response{StatusCode: http.StatusOK, Body: ioutil.NopCloser(strings.NewReader("{}"))}, nil}}
 	manager.UpdateListMembershipForUser(oldUserMock, newUserMock)
 	time.Sleep(time.Second)
 	if length := len(clientMock.DoInputs); length != 1 {
 		t.Fatalf("UpdateListMembershipForUser invoked Client.Do an unexpected number of times: %d", length)
 	}
-	request := clientMock.DoInputs[0]
+	AssertGetListMember(t, clientMock.DoInputs[0], "clinic-list-id", oldUserMock.Email())
+	if !clientMock.AllOutputsConsumed() {
+		t.Fatal("Not all outputs consumed for clientMock")
+	}
+}
+
+func Test_UpdateListMembershipForUser_Clinic_Success_Existing_DifferentEmail(t *testing.T) {
+	manager, clientMock := NewTestManagerWithClientMock(t)
+	oldUserMock := NewUserMock()
+	oldUserMock.EmailStub = func() string { return "TWENTY@SAMPLE.COM" }
+	newUserMock := NewUserMock()
+	newUserMock.EmailStub = func() string { return "TWENTYONE@SAMPLE.COM" }
+	newUserMock.IsClinicStub = func() bool { return true }
+	clientMock.DoOutputs = []DoOutput{
+		{&http.Response{StatusCode: http.StatusOK, Body: ioutil.NopCloser(strings.NewReader(`{"email_address":"twenty@sample.com","interests":{"alpha":true,"beta":true}}`))}, nil},
+		{&http.Response{StatusCode: http.StatusOK}, nil},
+	}
+	manager.UpdateListMembershipForUser(oldUserMock, newUserMock)
+	time.Sleep(time.Second)
+	if length := len(clientMock.DoInputs); length != 2 {
+		t.Fatalf("UpdateListMembershipForUser invoked Client.Do an unexpected number of times: %d", length)
+	}
+	AssertGetListMember(t, clientMock.DoInputs[0], "clinic-list-id", oldUserMock.Email())
+	AssertPutListMember(t, clientMock.DoInputs[1], "clinic-list-id", oldUserMock.Email(), `{"email_address":"twentyone@sample.com","interests":{"alpha":true,"beta":true}}`)
+	if !clientMock.AllOutputsConsumed() {
+		t.Fatal("Not all outputs consumed for clientMock")
+	}
+}
+
+func Test_UpdateListMembershipForUser_Personal_Success_New(t *testing.T) {
+	manager, clientMock := NewTestManagerWithClientMock(t)
+	oldUserMock := NewUserMock()
+	oldUserMock.EmailStub = func() string { return "twentytwo@sample.com" }
+	newUserMock := NewUserMock()
+	newUserMock.EmailStub = func() string { return "twentythree@sample.com" }
+	newUserMock.IsClinicStub = func() bool { return false }
+	clientMock.DoOutputs = []DoOutput{
+		{&http.Response{StatusCode: http.StatusNotFound}, nil},
+		{&http.Response{StatusCode: http.StatusOK}, nil},
+		{&http.Response{StatusCode: http.StatusNotFound}, nil},
+		{&http.Response{StatusCode: http.StatusOK}, nil},
+	}
+	manager.UpdateListMembershipForUser(oldUserMock, newUserMock)
+	time.Sleep(time.Second)
+	if length := len(clientMock.DoInputs); length != 4 {
+		t.Fatalf("UpdateListMembershipForUser invoked Client.Do an unexpected number of times: %d", length)
+	}
+	AssertGetListMember(t, clientMock.DoInputs[0], "personal-list-id", oldUserMock.Email())
+	AssertPutListMember(t, clientMock.DoInputs[1], "personal-list-id", oldUserMock.Email(), `{"email_address":"twentythree@sample.com","status_if_new":"subscribed","interests":{"one":true,"three":true,"two":true}}`)
+	AssertGetListMember(t, clientMock.DoInputs[2], "alternate-personal-list-id", oldUserMock.Email())
+	AssertPutListMember(t, clientMock.DoInputs[3], "alternate-personal-list-id", oldUserMock.Email(), `{"email_address":"twentythree@sample.com","status_if_new":"subscribed"}`)
+	if !clientMock.AllOutputsConsumed() {
+		t.Fatal("Not all outputs consumed for clientMock")
+	}
+}
+
+func Test_UpdateListMembershipForUser_Personal_Success_Existing_SameEmail(t *testing.T) {
+	manager, clientMock := NewTestManagerWithClientMock(t)
+	oldUserMock := NewUserMock()
+	oldUserMock.EmailStub = func() string { return "twentyfour@sample.com" }
+	oldUserMock.IsClinicStub = func() bool { return true }
+	newUserMock := NewUserMock()
+	newUserMock.EmailStub = func() string { return "twentyfour@sample.com" }
+	newUserMock.IsClinicStub = func() bool { return false }
+	clientMock.DoOutputs = []DoOutput{
+		{&http.Response{StatusCode: http.StatusOK, Body: ioutil.NopCloser(strings.NewReader("{}"))}, nil},
+		{&http.Response{StatusCode: http.StatusOK, Body: ioutil.NopCloser(strings.NewReader("{}"))}, nil},
+	}
+	manager.UpdateListMembershipForUser(oldUserMock, newUserMock)
+	time.Sleep(time.Second)
+	if length := len(clientMock.DoInputs); length != 2 {
+		t.Fatalf("UpdateListMembershipForUser invoked Client.Do an unexpected number of times: %d", length)
+	}
+	AssertGetListMember(t, clientMock.DoInputs[0], "personal-list-id", oldUserMock.Email())
+	AssertGetListMember(t, clientMock.DoInputs[1], "alternate-personal-list-id", oldUserMock.Email())
+	if !clientMock.AllOutputsConsumed() {
+		t.Fatal("Not all outputs consumed for clientMock")
+	}
+}
+
+func Test_UpdateListMembershipForUser_Personal_Success_Existing_DifferentEmail(t *testing.T) {
+	manager, clientMock := NewTestManagerWithClientMock(t)
+	oldUserMock := NewUserMock()
+	oldUserMock.EmailStub = func() string { return "TWENTYFIVE@SAMPLE.COM" }
+	newUserMock := NewUserMock()
+	newUserMock.EmailStub = func() string { return "TWENTYSIX@SAMPLE.COM" }
+	newUserMock.IsClinicStub = func() bool { return false }
+	clientMock.DoOutputs = []DoOutput{
+		{&http.Response{StatusCode: http.StatusOK, Body: ioutil.NopCloser(strings.NewReader(`{"email_address":"twentyfive@sample.com"}`))}, nil},
+		{&http.Response{StatusCode: http.StatusOK}, nil},
+		{&http.Response{StatusCode: http.StatusOK, Body: ioutil.NopCloser(strings.NewReader(`{"email_address":"twentyfive@sample.com","interests":{"alpha":true,"beta":true}}`))}, nil},
+		{&http.Response{StatusCode: http.StatusOK}, nil},
+	}
+	manager.UpdateListMembershipForUser(oldUserMock, newUserMock)
+	time.Sleep(time.Second)
+	if length := len(clientMock.DoInputs); length != 4 {
+		t.Fatalf("UpdateListMembershipForUser invoked Client.Do an unexpected number of times: %d", length)
+	}
+	AssertGetListMember(t, clientMock.DoInputs[0], "personal-list-id", oldUserMock.Email())
+	AssertPutListMember(t, clientMock.DoInputs[1], "personal-list-id", oldUserMock.Email(), `{"email_address":"twentysix@sample.com"}`)
+	AssertGetListMember(t, clientMock.DoInputs[2], "alternate-personal-list-id", oldUserMock.Email())
+	AssertPutListMember(t, clientMock.DoInputs[3], "alternate-personal-list-id", oldUserMock.Email(), `{"email_address":"twentysix@sample.com","interests":{"alpha":true,"beta":true}}`)
+	if !clientMock.AllOutputsConsumed() {
+		t.Fatal("Not all outputs consumed for clientMock")
+	}
+}
+
+func AssertGetListMember(t *testing.T, request *http.Request, listID string, email string) {
+	if method := request.Method; method != "GET" {
+		t.Fatalf("UpdateListMembershipForUser invoked Client.Do with unexpected method: %s", method)
+	}
+	if url := request.URL.String(); url != fmt.Sprintf("https://mailchimp.com/lists/%s/members/%s", listID, AssertEmailHash(email)) {
+		t.Fatalf("UpdateListMembershipForUser invoked Client.Do with unexpected URL: %s", url)
+	}
+	if body := request.Body; body != nil {
+		t.Fatal("UpdateListMembershipForUser invoked Client.Do with body")
+	}
+	if username, password, ok := request.BasicAuth(); !ok {
+		t.Fatal("UpdateListMembershipForUser invoked Client.Do without expected Basic Auth")
+	} else if username != "tidepool-platform" || password != "test-api-key" {
+		t.Fatalf(`UpdateListMembershipForUser invoked Client.Do with unexpected Basic Auth: username="%s", password="%s"`, username, password)
+	}
+}
+
+func AssertPutListMember(t *testing.T, request *http.Request, listID string, email string, bodyString string) {
 	if method := request.Method; method != "PUT" {
 		t.Fatalf("UpdateListMembershipForUser invoked Client.Do with unexpected method: %s", method)
 	}
-	if url := request.URL.String(); url != "https://mailchimp.com/lists/personal-list-id/members/4130656d43b4a92dafd26e13a87030d6" {
+	if url := request.URL.String(); url != fmt.Sprintf("https://mailchimp.com/lists/%s/members/%s", listID, AssertEmailHash(email)) {
 		t.Fatalf("UpdateListMembershipForUser invoked Client.Do with unexpected URL: %s", url)
 	}
 	if body := request.Body; body == nil {
 		t.Fatal("UpdateListMembershipForUser invoked Client.Do with no body")
 	} else if bodyBytes, err := ioutil.ReadAll(body); err != nil {
 		t.Fatalf("UpdateListMembershipForUser invoked Client.Do with unreadable body: %s", err)
-	} else if bodyString := string(bodyBytes); bodyString != `{"email_address":"twelve@sample.com","status_if_new":"subscribed"}` {
-		t.Fatalf("UpdateListMembershipForUser invoked Client.Do with unexpected body: %s", bodyString)
+	} else if bodyBytesString := string(bodyBytes); bodyBytesString != bodyString {
+		t.Fatalf("UpdateListMembershipForUser invoked Client.Do with unexpected body: %s", bodyBytesString)
 	}
 	if username, password, ok := request.BasicAuth(); !ok {
 		t.Fatal("UpdateListMembershipForUser invoked Client.Do without expected Basic Auth")
@@ -450,166 +733,39 @@ func Test_UpdateListMembershipForUser_Personal_Success(t *testing.T) {
 	if header := request.Header.Get("Content-Type"); header != "application/json" {
 		t.Fatalf("UpdateListMembershipForUser invoked Client.Do with unexpected Content-Type header: %s", header)
 	}
-	if !clientMock.TestOutputsValid() {
-		t.Fatal("Not all outputs consumed for clientMock")
-	}
-	if !newUserMock.TestOutputsValid() {
-		t.Fatal("Not all outputs consumed for newUserMock")
-	}
-	if !oldUserMock.TestOutputsValid() {
-		t.Fatal("Not all outputs consumed for oldUserMock")
+}
+
+func AssertEmailHash(email string) string {
+	md5Sum := md5.Sum([]byte(strings.ToLower(email)))
+	return hex.EncodeToString(md5Sum[:])
+}
+
+func NewTestConfig(t *testing.T) *mailchimp.Config {
+	return &mailchimp.Config{
+		URL:    "https://mailchimp.com",
+		APIKey: "test-api-key",
+		ClinicLists: mailchimp.Lists{
+			&mailchimp.List{
+				ID:        "clinic-list-id",
+				Interests: map[string]bool{"zero": true},
+			},
+		},
+		PersonalLists: mailchimp.Lists{
+			&mailchimp.List{
+				ID:        "personal-list-id",
+				Interests: map[string]bool{"one": true, "two": true, "three": true},
+			},
+			&mailchimp.List{
+				ID: "alternate-personal-list-id",
+			},
+		},
 	}
 }
 
-func Test_UpdateListMembershipForUser_Clinic_Success(t *testing.T) {
-	manager, clientMock := NewManagerWithClientMock(t)
-	oldUserMock := NewUserMock()
-	oldUserMock.EmailOutputs = []string{"thirteen@sample.com", "thirteen@sample.com", "thirteen@sample.com"}
-	newUserMock := NewUserMock()
-	newUserMock.EmailOutputs = []string{"fourteen@sample.com", "fourteen@sample.com"}
-	newUserMock.IsClinicOutputs = []bool{true}
-	clientMock.DoOutputs = []DoOutput{{&http.Response{StatusCode: http.StatusOK}, nil}}
-	manager.UpdateListMembershipForUser(oldUserMock, newUserMock)
-	time.Sleep(time.Second)
-	if length := len(clientMock.DoInputs); length != 1 {
-		t.Fatalf("UpdateListMembershipForUser invoked Client.Do an unexpected number of times: %d", length)
-	}
-	request := clientMock.DoInputs[0]
-	if method := request.Method; method != "PUT" {
-		t.Fatalf("UpdateListMembershipForUser invoked Client.Do with unexpected method: %s", method)
-	}
-	if url := request.URL.String(); url != "https://mailchimp.com/lists/clinic-list-id/members/62fdb2943249daa30f3bc820eb641067" {
-		t.Fatalf("UpdateListMembershipForUser invoked Client.Do with unexpected URL: %s", url)
-	}
-	if body := request.Body; body == nil {
-		t.Fatal("UpdateListMembershipForUser invoked Client.Do with no body")
-	} else if bodyBytes, err := ioutil.ReadAll(body); err != nil {
-		t.Fatalf("UpdateListMembershipForUser invoked Client.Do with unreadable body: %s", err)
-	} else if bodyString := string(bodyBytes); bodyString != `{"email_address":"fourteen@sample.com","status_if_new":"subscribed"}` {
-		t.Fatalf("UpdateListMembershipForUser invoked Client.Do with unexpected body: %s", bodyString)
-	}
-	if username, password, ok := request.BasicAuth(); !ok {
-		t.Fatal("UpdateListMembershipForUser invoked Client.Do without expected Basic Auth")
-	} else if username != "tidepool-platform" || password != "test-api-key" {
-		t.Fatalf(`UpdateListMembershipForUser invoked Client.Do with unexpected Basic Auth: username="%s", password="%s"`, username, password)
-	}
-	if header := request.Header.Get("Content-Type"); header != "application/json" {
-		t.Fatalf("UpdateListMembershipForUser invoked Client.Do with unexpected Content-Type header: %s", header)
-	}
-	if !clientMock.TestOutputsValid() {
-		t.Fatal("Not all outputs consumed for clientMock")
-	}
-	if !newUserMock.TestOutputsValid() {
-		t.Fatal("Not all outputs consumed for newUserMock")
-	}
-	if !oldUserMock.TestOutputsValid() {
-		t.Fatal("Not all outputs consumed for oldUserMock")
-	}
-}
-
-func Test_UpdateListMembershipForUser_Personal_To_Clinic_Success(t *testing.T) {
-	manager, clientMock := NewManagerWithClientMock(t)
-	oldUserMock := NewUserMock()
-	oldUserMock.EmailOutputs = []string{"fifteen@sample.com", "fifteen@sample.com", "fifteen@sample.com"}
-	oldUserMock.IsClinicOutputs = []bool{false}
-	newUserMock := NewUserMock()
-	newUserMock.EmailOutputs = []string{"fifteen@sample.com", "fifteen@sample.com"}
-	newUserMock.IsClinicOutputs = []bool{true, true}
-	clientMock.DoOutputs = []DoOutput{{&http.Response{StatusCode: http.StatusOK}, nil}}
-	manager.UpdateListMembershipForUser(oldUserMock, newUserMock)
-	time.Sleep(time.Second)
-	if length := len(clientMock.DoInputs); length != 1 {
-		t.Fatalf("UpdateListMembershipForUser invoked Client.Do an unexpected number of times: %d", length)
-	}
-	request := clientMock.DoInputs[0]
-	if method := request.Method; method != "PUT" {
-		t.Fatalf("UpdateListMembershipForUser invoked Client.Do with unexpected method: %s", method)
-	}
-	if url := request.URL.String(); url != "https://mailchimp.com/lists/clinic-list-id/members/1a4f775a8150208e502f18ad69bb1b7b" {
-		t.Fatalf("UpdateListMembershipForUser invoked Client.Do with unexpected URL: %s", url)
-	}
-	if body := request.Body; body == nil {
-		t.Fatal("UpdateListMembershipForUser invoked Client.Do with no body")
-	} else if bodyBytes, err := ioutil.ReadAll(body); err != nil {
-		t.Fatalf("UpdateListMembershipForUser invoked Client.Do with unreadable body: %s", err)
-	} else if bodyString := string(bodyBytes); bodyString != `{"email_address":"fifteen@sample.com","status_if_new":"subscribed"}` {
-		t.Fatalf("UpdateListMembershipForUser invoked Client.Do with unexpected body: %s", bodyString)
-	}
-	if username, password, ok := request.BasicAuth(); !ok {
-		t.Fatal("UpdateListMembershipForUser invoked Client.Do without expected Basic Auth")
-	} else if username != "tidepool-platform" || password != "test-api-key" {
-		t.Fatalf(`UpdateListMembershipForUser invoked Client.Do with unexpected Basic Auth: username="%s", password="%s"`, username, password)
-	}
-	if header := request.Header.Get("Content-Type"); header != "application/json" {
-		t.Fatalf("UpdateListMembershipForUser invoked Client.Do with unexpected Content-Type header: %s", header)
-	}
-	if !clientMock.TestOutputsValid() {
-		t.Fatal("Not all outputs consumed for clientMock")
-	}
-	if !newUserMock.TestOutputsValid() {
-		t.Fatal("Not all outputs consumed for newUserMock")
-	}
-	if !oldUserMock.TestOutputsValid() {
-		t.Fatal("Not all outputs consumed for oldUserMock")
-	}
-}
-
-func Test_UpdateListMembershipForUser_Clinic_To_Personal_Success(t *testing.T) {
-	manager, clientMock := NewManagerWithClientMock(t)
-	oldUserMock := NewUserMock()
-	oldUserMock.EmailOutputs = []string{"sixteen@sample.com", "sixteen@sample.com", "sixteen@sample.com"}
-	oldUserMock.IsClinicOutputs = []bool{true}
-	newUserMock := NewUserMock()
-	newUserMock.EmailOutputs = []string{"sixteen@sample.com", "sixteen@sample.com"}
-	newUserMock.IsClinicOutputs = []bool{false, false}
-	clientMock.DoOutputs = []DoOutput{{&http.Response{StatusCode: http.StatusOK}, nil}}
-	manager.UpdateListMembershipForUser(oldUserMock, newUserMock)
-	time.Sleep(time.Second)
-	if length := len(clientMock.DoInputs); length != 1 {
-		t.Fatalf("UpdateListMembershipForUser invoked Client.Do an unexpected number of times: %d", length)
-	}
-	request := clientMock.DoInputs[0]
-	if method := request.Method; method != "PUT" {
-		t.Fatalf("UpdateListMembershipForUser invoked Client.Do with unexpected method: %s", method)
-	}
-	if url := request.URL.String(); url != "https://mailchimp.com/lists/personal-list-id/members/0545bb27c4733c45504482883c367ad9" {
-		t.Fatalf("UpdateListMembershipForUser invoked Client.Do with unexpected URL: %s", url)
-	}
-	if body := request.Body; body == nil {
-		t.Fatal("UpdateListMembershipForUser invoked Client.Do with no body")
-	} else if bodyBytes, err := ioutil.ReadAll(body); err != nil {
-		t.Fatalf("UpdateListMembershipForUser invoked Client.Do with unreadable body: %s", err)
-	} else if bodyString := string(bodyBytes); bodyString != `{"email_address":"sixteen@sample.com","status_if_new":"subscribed"}` {
-		t.Fatalf("UpdateListMembershipForUser invoked Client.Do with unexpected body: %s", bodyString)
-	}
-	if username, password, ok := request.BasicAuth(); !ok {
-		t.Fatal("UpdateListMembershipForUser invoked Client.Do without expected Basic Auth")
-	} else if username != "tidepool-platform" || password != "test-api-key" {
-		t.Fatalf(`UpdateListMembershipForUser invoked Client.Do with unexpected Basic Auth: username="%s", password="%s"`, username, password)
-	}
-	if header := request.Header.Get("Content-Type"); header != "application/json" {
-		t.Fatalf("UpdateListMembershipForUser invoked Client.Do with unexpected Content-Type header: %s", header)
-	}
-	if !clientMock.TestOutputsValid() {
-		t.Fatal("Not all outputs consumed for clientMock")
-	}
-	if !newUserMock.TestOutputsValid() {
-		t.Fatal("Not all outputs consumed for newUserMock")
-	}
-	if !oldUserMock.TestOutputsValid() {
-		t.Fatal("Not all outputs consumed for oldUserMock")
-	}
-}
-
-func NewManagerWithClientMock(t *testing.T) (mailchimp.Manager, *ClientMock) {
-	logger := log.New(os.Stderr, "", log.LstdFlags)
+func NewTestManagerWithClientMock(t *testing.T) (mailchimp.Manager, *ClientMock) {
+	logger := log.New(ioutil.Discard, "", log.LstdFlags)
 	clientMock := NewClientMock()
-	config := &mailchimp.Config{
-		URL:            "https://mailchimp.com",
-		APIKey:         "test-api-key",
-		PersonalListID: "personal-list-id",
-		ClinicListID:   "clinic-list-id",
-	}
+	config := NewTestConfig(t)
 	manager, err := mailchimp.NewManager(logger, clientMock, config)
 	if manager == nil {
 		t.Fatal("NewManager did not return manager when success expected")
@@ -629,6 +785,7 @@ type ClientMock struct {
 	id            int
 	DoInvocations int
 	DoInputs      []*http.Request
+	DoStub        func(request *http.Request) (*http.Response, error)
 	DoOutputs     []DoOutput
 }
 
@@ -637,25 +794,30 @@ func NewClientMock() *ClientMock {
 }
 
 func (c *ClientMock) Do(request *http.Request) (*http.Response, error) {
+	c.DoInvocations++
+	c.DoInputs = append(c.DoInputs, request)
+	if c.DoStub != nil {
+		return c.DoStub(request)
+	}
 	if len(c.DoOutputs) == 0 {
 		panic(fmt.Sprintf("Unexpected invocation of Do on ClientMock: %#v", c))
 	}
-	c.DoInvocations++
-	c.DoInputs = append(c.DoInputs, request)
 	output := c.DoOutputs[0]
 	c.DoOutputs = c.DoOutputs[1:]
 	return output.Out1, output.Out2
 }
 
-func (c *ClientMock) TestOutputsValid() bool {
+func (c *ClientMock) AllOutputsConsumed() bool {
 	return len(c.DoOutputs) == 0
 }
 
 type UserMock struct {
 	id                  int
 	EmailInvocations    int
+	EmailStub           func() string
 	EmailOutputs        []string
 	IsClinicInvocations int
+	IsClinicStub        func() bool
 	IsClinicOutputs     []bool
 }
 
@@ -664,26 +826,32 @@ func NewUserMock() *UserMock {
 }
 
 func (u *UserMock) Email() string {
+	u.EmailInvocations++
+	if u.EmailStub != nil {
+		return u.EmailStub()
+	}
 	if len(u.EmailOutputs) == 0 {
 		panic(fmt.Sprintf("Unexpected invocation of Email on UserMock: %#v", u))
 	}
-	u.EmailInvocations++
 	output := u.EmailOutputs[0]
 	u.EmailOutputs = u.EmailOutputs[1:]
 	return output
 }
 
 func (u *UserMock) IsClinic() bool {
+	u.IsClinicInvocations++
+	if u.IsClinicStub != nil {
+		return u.IsClinicStub()
+	}
 	if len(u.IsClinicOutputs) == 0 {
 		panic(fmt.Sprintf("Unexpected invocation of IsClinic on UserMock: %#v", u))
 	}
-	u.IsClinicInvocations++
 	output := u.IsClinicOutputs[0]
 	u.IsClinicOutputs = u.IsClinicOutputs[1:]
 	return output
 }
 
-func (u *UserMock) TestOutputsValid() bool {
+func (u *UserMock) AllOutputsConsumed() bool {
 	return len(u.EmailOutputs) == 0 &&
 		len(u.IsClinicOutputs) == 0
 }
