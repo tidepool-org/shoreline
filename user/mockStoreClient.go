@@ -1,8 +1,6 @@
 package user
 
-import (
-	"errors"
-)
+import "errors"
 
 type MockStoreClient struct {
 	salt            string

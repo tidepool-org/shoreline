@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/RangelReale/osin"
+
 	"github.com/tidepool-org/go-common/clients/mongo"
 )
 

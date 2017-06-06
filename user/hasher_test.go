@@ -1,8 +1,6 @@
 package user
 
-import (
-	"testing"
-)
+import "testing"
 
 func TestGenerateUniqueHashWithNoStringsParam(t *testing.T) {
 

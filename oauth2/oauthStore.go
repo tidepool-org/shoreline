@@ -4,9 +4,10 @@ import (
 	"log"
 
 	"github.com/RangelReale/osin"
-	"github.com/tidepool-org/go-common/clients/mongo"
 	"labix.org/v2/mgo"
 	"labix.org/v2/mgo/bson"
+
+	"github.com/tidepool-org/go-common/clients/mongo"
 )
 
 type OAuthStorage struct {
