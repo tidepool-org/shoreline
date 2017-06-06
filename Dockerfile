@@ -24,8 +24,6 @@ RUN apk --no-cache add bash curl bzr git \
  && sed -i -e 's/localhost:8000/hakken:8000/g' \
            -e 's/localhost:9191/highwater:9191/g' \
            -e 's/localhost:9123/gatekeeper:9123/g' config/env.json \
-# Switch to `master` in case we're working in a branch
- && git checkout master \
 # Build
  && PATH=${PATH}:. ./build \
 # Remove packages needed to build
