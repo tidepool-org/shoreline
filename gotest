@@ -1,9 +1,0 @@
-#! /bin/bash -eu
-# assumes that the build has been done at least once
-
-export GOPATH=`pwd`
-
-DIRECTORIES=$(find . -name "*_test.go" -and ! -path "./src/*" |sed s@/[^/]*go@@ |sed s@./@@ |uniq)
-for directory in $DIRECTORIES; do
-  (cd ${directory}; go test)
-done
