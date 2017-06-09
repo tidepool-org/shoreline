@@ -10,6 +10,7 @@ import (
 	"os"
 
 	"github.com/codegangsta/cli"
+
 	"github.com/tidepool-org/go-common/clients/shoreline"
 )
 

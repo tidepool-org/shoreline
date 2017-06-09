@@ -15,10 +15,11 @@ import (
 	"sync"
 	"testing"
 
-	"../oauth2"
 	"github.com/gorilla/mux"
+
 	"github.com/tidepool-org/go-common/clients"
 	"github.com/tidepool-org/go-common/clients/highwater"
+	"github.com/tidepool-org/shoreline/oauth2"
 )
 
 const (

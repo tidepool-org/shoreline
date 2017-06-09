@@ -1,8 +1,6 @@
 package oauth2
 
-import (
-	"testing"
-)
+import "testing"
 
 func TestGenerateHash_NotEnoughArgs(t *testing.T) {
 

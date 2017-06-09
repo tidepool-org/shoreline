@@ -8,15 +8,16 @@ import (
 	"os/signal"
 	"syscall"
 
-	"./oauth2"
-	"./user"
 	"github.com/gorilla/mux"
+
 	common "github.com/tidepool-org/go-common"
 	"github.com/tidepool-org/go-common/clients"
 	"github.com/tidepool-org/go-common/clients/disc"
 	"github.com/tidepool-org/go-common/clients/hakken"
 	"github.com/tidepool-org/go-common/clients/highwater"
 	"github.com/tidepool-org/go-common/clients/mongo"
+	"github.com/tidepool-org/shoreline/oauth2"
+	"github.com/tidepool-org/shoreline/user"
 )
 
 type (

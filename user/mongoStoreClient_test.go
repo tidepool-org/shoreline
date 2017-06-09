@@ -4,8 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tidepool-org/go-common/clients/mongo"
 	"labix.org/v2/mgo"
+
+	"github.com/tidepool-org/go-common/clients/mongo"
 )
 
 func mgoTestSetup() (*MongoStoreClient, error) {

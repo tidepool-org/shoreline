@@ -12,13 +12,14 @@ import (
 	"strings"
 	"time"
 
-	"../common"
-	"../oauth2"
-	"./mailchimp"
 	"github.com/gorilla/mux"
+
 	"github.com/tidepool-org/go-common/clients"
 	"github.com/tidepool-org/go-common/clients/highwater"
 	"github.com/tidepool-org/go-common/clients/status"
+	"github.com/tidepool-org/shoreline/common"
+	"github.com/tidepool-org/shoreline/oauth2"
+	"github.com/tidepool-org/shoreline/user/mailchimp"
 )
 
 type (

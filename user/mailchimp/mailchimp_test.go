@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"../mailchimp"
+	"github.com/tidepool-org/shoreline/user/mailchimp"
 )
 
 func Test_List_Validate_Missing(t *testing.T) {

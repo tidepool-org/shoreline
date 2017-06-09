@@ -1,13 +1,4 @@
-bin
+deploy/
+dist/
 
-!src/
-
-src/*
-!src/code.google.com/
-
-pkg
-dist
-.idea
-*.iml
-shoreline
-user-roles
+artifact_go.sh
