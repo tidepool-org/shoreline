@@ -20,10 +20,8 @@ RUN sed -i -e 's/mongodb:\/\/localhost\/user/mongodb:\/\/mongo\/user/g' config/s
  && sed -i -e 's/localhost:8000/hakken:8000/g' \
            -e 's/localhost:9191/highwater:9191/g' \
            -e 's/localhost:9123/gatekeeper:9123/g' config/env.json \
-# Switch to `master` in case we're working in a branch
- && git checkout master \
 # Build
- && ./build \
+ && ./build.sh \
 # Remove files no longer needed after the build to reduce fs layer size
  && rm -rf .git .gitignore
 
