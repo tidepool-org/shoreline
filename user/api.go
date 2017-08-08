@@ -17,8 +17,6 @@ import (
 	"github.com/tidepool-org/go-common/clients"
 	"github.com/tidepool-org/go-common/clients/highwater"
 	"github.com/tidepool-org/go-common/clients/status"
-	"github.com/tidepool-org/shoreline/common"
-	"github.com/tidepool-org/shoreline/oauth2"
 	"github.com/tidepool-org/shoreline/user/mailchimp"
 )
 
@@ -28,7 +26,6 @@ type (
 		ApiConfig        ApiConfig
 		metrics          highwater.Client
 		perms            clients.Gatekeeper
-		oauth            oauth2.Client
 		logger           *log.Logger
 		mailchimpManager mailchimp.Manager
 	}
@@ -108,10 +105,6 @@ func (a *Api) AttachPerms(perms clients.Gatekeeper) {
 	a.perms = perms
 }
 
-func (a *Api) AttachOauth(client oauth2.Client) {
-	a.oauth = client
-}
-
 func (a *Api) SetHandlers(prefix string, rtr *mux.Router) {
 	rtr.HandleFunc("/status", a.GetStatus).Methods("GET")
 
@@ -130,8 +123,6 @@ func (a *Api) SetHandlers(prefix string, rtr *mux.Router) {
 	rtr.HandleFunc("/login", a.Login).Methods("POST")
 	rtr.HandleFunc("/login", a.RefreshSession).Methods("GET")
 	rtr.Handle("/login/{longtermkey}", varsHandler(a.LongtermLogin)).Methods("POST")
-
-	rtr.HandleFunc("/oauthlogin", a.oauth2Login).Methods("POST")
 
 	rtr.HandleFunc("/serverlogin", a.ServerLogin).Methods("POST")
 
@@ -535,65 +526,6 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 	}
 	a.logger.Println(http.StatusUnauthorized, STATUS_PW_WRONG)
 	sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_PW_WRONG), http.StatusUnauthorized)
-	return
-}
-
-// status: 200 TP_SESSION_TOKEN, oauthUser, oauthTarget
-// status: 400 invalid_request
-// status: 401 invalid_token
-// status: 403 insufficient_scope
-func (a *Api) oauth2Login(w http.ResponseWriter, r *http.Request) {
-
-	//oauth is not enabled
-	if a.oauth == nil {
-		a.logger.Println(http.StatusServiceUnavailable, "OAuth is not enabled")
-		w.WriteHeader(http.StatusServiceUnavailable)
-		return
-	}
-
-	if ah := r.Header.Get("Authorization"); ah != "" {
-		if len(ah) > 6 && strings.ToUpper(ah[0:6]) == "BEARER" {
-			if auth_token := ah[7:]; auth_token != "" {
-
-				//check the actual token
-				result, err := a.oauth.CheckToken(auth_token)
-				if err != nil || result == nil {
-					a.logger.Println(http.StatusUnauthorized, "oauth2Login error checking token ", err)
-					w.WriteHeader(http.StatusUnauthorized)
-					return
-				}
-
-				//check the corresponding user
-				fndUsr, errUsr := a.Store.FindUser(&User{Id: result["userId"].(string)})
-				if errUsr != nil || fndUsr == nil {
-					a.logger.Println(http.StatusUnauthorized, "oauth2Login error getting user ", errUsr.Error())
-					w.WriteHeader(http.StatusUnauthorized)
-					return
-				}
-
-				//generate token and send the response
-				if sessionToken, err := CreateSessionTokenAndSave(
-					&TokenData{DurationSecs: 0, UserId: result["userId"].(string), IsServer: false},
-					TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: a.ApiConfig.Secret},
-					a.Store,
-				); err != nil {
-					a.logger.Println(http.StatusUnauthorized, "oauth2Login error creating session token", err.Error())
-					common.OutputJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "invalid_token"})
-					return
-				} else {
-					//We are redirecting to the app
-					w.Header().Set(TP_SESSION_TOKEN, sessionToken.ID)
-					common.OutputJSON(w, http.StatusOK, map[string]interface{}{"oauthUser": fndUsr, "oauthTarget": result["authUserId"]})
-					return
-				}
-			}
-		}
-		a.logger.Println(http.StatusUnauthorized, STATUS_AUTH_HEADER_INVLAID)
-		common.OutputJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": STATUS_AUTH_HEADER_INVLAID})
-		return
-	}
-	a.logger.Println(http.StatusBadRequest, STATUS_AUTH_HEADER_REQUIRED)
-	common.OutputJSON(w, http.StatusBadRequest, map[string]interface{}{"error": STATUS_AUTH_HEADER_REQUIRED})
 	return
 }
 

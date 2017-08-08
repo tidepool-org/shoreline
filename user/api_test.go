@@ -19,7 +19,6 @@ import (
 
 	"github.com/tidepool-org/go-common/clients"
 	"github.com/tidepool-org/go-common/clients/highwater"
-	"github.com/tidepool-org/shoreline/oauth2"
 )
 
 const (
@@ -1410,110 +1409,6 @@ func TestServerLogin_StatusUnauthorized_WhenSecretWrong(t *testing.T) {
 	if string(body) != `{"code":401,"reason":"Wrong password"}` {
 		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_PW_WRONG)
 	}
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-func (m *MockOAuth) CheckToken(token string) (oauth2.Data, error) {
-	d := oauth2.Data{}
-	d["userId"] = "1234"
-	d["authUserId"] = "4567"
-	return d, nil
-}
-
-func Test_oauth2Login(t *testing.T) {
-	r, _ := http.NewRequest("POST", "/", nil)
-	w := httptest.NewRecorder()
-	shoreline.SetHandlers("", rtr)
-
-	//add mock
-	mock := &MockOAuth{}
-	shoreline.AttachOauth(mock)
-
-	//no header passed
-	shoreline.oauth2Login(w, r)
-
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("Expected [%v] and got [%v]", http.StatusInternalServerError, w.Code)
-	}
-
-	//with header but no token
-	r.Header.Set("Authorization", "bearer")
-	w_header := httptest.NewRecorder()
-	shoreline.oauth2Login(w_header, r)
-
-	if w_header.Code != http.StatusUnauthorized {
-		t.Fatalf("Expected [%v] and got [%v]", http.StatusUnauthorized, w_header.Code)
-	}
-
-	//req now sets header
-}
-
-func Test_oauth2Login_noheader(t *testing.T) {
-	r, _ := http.NewRequest("POST", "/", nil)
-	w := httptest.NewRecorder()
-	shoreline.SetHandlers("", rtr)
-
-	//add mock
-	mock := &MockOAuth{}
-	shoreline.AttachOauth(mock)
-
-	//no header passed
-	shoreline.oauth2Login(w, r)
-
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("Expected [%v] and got [%v]", http.StatusInternalServerError, w.Code)
-	}
-
-}
-func Test_oauth2Login_invalid_header(t *testing.T) {
-	r, _ := http.NewRequest("POST", "/", nil)
-	//add mock
-	mock := &MockOAuth{}
-	shoreline.AttachOauth(mock)
-	//with header but no token
-	r.Header.Set("Authorization", "bearer")
-	w_header := httptest.NewRecorder()
-	shoreline.oauth2Login(w_header, r)
-
-	if w_header.Code != http.StatusUnauthorized {
-		t.Fatalf("Expected [%v] and got [%v]", http.StatusUnauthorized, w_header.Code)
-	}
-
-	//req now sets header
-}
-func Test_oauth2Login_validheader(t *testing.T) {
-	r, _ := http.NewRequest("POST", "/", nil)
-	//add mock
-	mock := &MockOAuth{}
-	shoreline.AttachOauth(mock)
-	//with header but no token
-	r.Header.Set("Authorization", "bearer xxx")
-	w_header := httptest.NewRecorder()
-	shoreline.oauth2Login(w_header, r)
-
-	if w_header.Code != http.StatusOK {
-		t.Fatalf("Expected [%v] and got [%v]", http.StatusOK, w_header.Code)
-	}
-
-	if w_header.Header().Get(TP_SESSION_TOKEN) == "" {
-		t.Fatal("Expected the TP_SESSION_TOKEN header to be attached")
-	}
-
-	// parse output json
-	output := make(map[string]interface{})
-	if err := json.Unmarshal(w_header.Body.Bytes(), &output); err != nil {
-		t.Fatalf("Could not decode output json: %s", err)
-	}
-
-	if output["oauthUser"] == nil {
-		t.Fatalf("we need to be given a user id but got %v", output)
-	}
-
-	if output["oauthTarget"] == nil {
-		t.Fatalf("we need to be given a user id but got %v", output)
-	}
-
 }
 
 ////////////////////////////////////////////////////////////////////////////////
