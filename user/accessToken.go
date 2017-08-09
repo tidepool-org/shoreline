@@ -7,7 +7,16 @@ import (
 	jose "gopkg.in/square/go-jose.v2"
 )
 
-func checkAccessToken(r *http.Request) (*TokenData, error) {
+// AccessTokenCheckerInterface can the access_token on a request.
+type AccessTokenCheckerInterface interface {
+	Check(r *http.Request) (*TokenData, error)
+}
+
+// AccessTokenChecker is a concrete implementation of the AccessTokenCheckerInterface
+type AccessTokenChecker struct{}
+
+// Check the given http.Request for a valid access_token
+func (a *AccessTokenChecker) Check(r *http.Request) (*TokenData, error) {
 
 	//TODO: configuration
 	const auth0TidepoolURL = "tidepool-dev.auth0.com"

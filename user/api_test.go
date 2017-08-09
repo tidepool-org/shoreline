@@ -24,10 +24,7 @@ import (
 const (
 	THE_SECRET   = "shhh! don't tell"
 	MAKE_IT_FAIL = true
-)
-
-type (
-	MockOAuth struct{}
+	accessToken  = "one.fake.acccess_token"
 )
 
 var (
@@ -70,15 +67,34 @@ var (
 	mockStoreFails = NewMockStoreClient(FAKE_CONFIG.Salt, false, MAKE_IT_FAIL)
 	shorelineFails = InitApi(FAKE_CONFIG, mockStoreFails, mockMetrics)
 
-	responsableStore      = NewResponsableMockStoreClient()
-	responsableGatekeeper = NewResponsableMockGatekeeper()
-	responsableShoreline  = InitShoreline(FAKE_CONFIG, responsableStore, mockMetrics, responsableGatekeeper)
+	responsableStore         = NewResponsableMockStoreClient()
+	responsableGatekeeper    = NewResponsableMockGatekeeper()
+	responsableShoreline     = InitShoreline(FAKE_CONFIG, responsableStore, mockMetrics, responsableGatekeeper)
+	mockedAccessTokenChecker = &mockAccessTokenChecker{userID: USR.Id}
 )
 
 func InitShoreline(config ApiConfig, store Storage, metrics highwater.Client, perms clients.Gatekeeper) *Api {
 	api := InitApi(config, store, metrics)
 	api.AttachPerms(perms)
+	api.AttachAccessTokenChecker(mockedAccessTokenChecker)
 	return api
+}
+
+// mockAccessToken is a test only concrete implementation of the AccessTokenInterface
+type mockAccessTokenChecker struct {
+	userID string
+}
+
+// Check the given http.Request for a valid access_token
+func (m *mockAccessTokenChecker) Check(r *http.Request) (*TokenData, error) {
+	if authorizationHeader := r.Header.Get("Authorization"); len(authorizationHeader) > 7 && strings.EqualFold(authorizationHeader[0:7], "BEARER ") {
+		return &TokenData{
+			IsServer:     false,
+			DurationSecs: int64(60 * 60),
+			UserId:       m.userID,
+		}, nil
+	}
+	return nil, errors.New("invalid access_token")
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -93,6 +109,13 @@ func T_CreateSessionToken(t *testing.T, userId string, isServer bool, duration i
 		t.Fatalf("Error creating session token: %#v", err)
 	}
 	return sessionToken
+}
+
+func T_AddAccessToken(t *testing.T, r *http.Request) {
+	if shoreline.accessTokenChecker == nil {
+		t.Fatal("No AccessTokenChecker is defined")
+	}
+	r.Header.Add("Authorization", "BEARER "+accessToken)
 }
 
 func T_PerformRequest(t *testing.T, method string, url string) *httptest.ResponseRecorder {

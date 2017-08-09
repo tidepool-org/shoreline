@@ -22,12 +22,13 @@ import (
 
 type (
 	Api struct {
-		Store            Storage
-		ApiConfig        ApiConfig
-		metrics          highwater.Client
-		perms            clients.Gatekeeper
-		logger           *log.Logger
-		mailchimpManager mailchimp.Manager
+		Store              Storage
+		ApiConfig          ApiConfig
+		metrics            highwater.Client
+		perms              clients.Gatekeeper
+		logger             *log.Logger
+		mailchimpManager   mailchimp.Manager
+		accessTokenChecker AccessTokenCheckerInterface
 	}
 	ApiConfig struct {
 		//used for services
@@ -99,6 +100,10 @@ func InitApi(cfg ApiConfig, store Storage, metrics highwater.Client) *Api {
 		logger:           logger,
 		mailchimpManager: mailchimpManager,
 	}
+}
+
+func (a *Api) AttachAccessTokenChecker(accessTokenChecker AccessTokenCheckerInterface) {
+	a.accessTokenChecker = accessTokenChecker
 }
 
 func (a *Api) AttachPerms(perms clients.Gatekeeper) {
