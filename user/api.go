@@ -160,8 +160,7 @@ func (a *Api) GetStatus(res http.ResponseWriter, req *http.Request) {
 // status: 401 STATUS_SERVER_TOKEN_REQUIRED
 // status: 500 STATUS_ERR_FINDING_USR
 func (a *Api) GetUsers(res http.ResponseWriter, req *http.Request) {
-	sessionToken := req.Header.Get(TP_SESSION_TOKEN)
-	if tokenData, err := a.authenticateSessionToken(sessionToken); err != nil {
+	if tokenData, err := a.authenticateToken(req); err != nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
 
 	} else if !tokenData.IsServer {
@@ -177,7 +176,7 @@ func (a *Api) GetUsers(res http.ResponseWriter, req *http.Request) {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err.Error())
 
 	} else {
-		a.logMetric("getusers", sessionToken, map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
+		a.logMetric("getusers", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
 		a.sendUsers(res, users, tokenData.IsServer)
 	}
 }
@@ -236,8 +235,7 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 // status: 409 STATUS_USR_ALREADY_EXISTS
 // status: 500 STATUS_ERR_GENERATING_TOKEN
 func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
-	sessionToken := req.Header.Get(TP_SESSION_TOKEN)
-	if tokenData, err := a.authenticateSessionToken(sessionToken); err != nil {
+	if tokenData, err := a.authenticateToken(req); err != nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
 
 	} else if custodianUserId := vars["userid"]; !tokenData.IsServer && custodianUserId != tokenData.UserId {
@@ -266,7 +264,7 @@ func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, va
 			if a.mailchimpManager != nil {
 				a.mailchimpManager.CreateListMembershipForUser(newCustodialUser)
 			}
-			a.logMetricForUser(newCustodialUser.Id, "custodialusercreated", sessionToken, map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
+			a.logMetricForUser(newCustodialUser.Id, "custodialusercreated", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
 			a.sendUserWithStatus(res, newCustodialUser, http.StatusCreated, tokenData.IsServer)
 		}
 	}
@@ -278,8 +276,7 @@ func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, va
 // status: 500 STATUS_ERR_FINDING_USR
 // status: 500 STATUS_ERR_UPDATING_USR
 func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
-	sessionToken := req.Header.Get(TP_SESSION_TOKEN)
-	if tokenData, err := a.authenticateSessionToken(sessionToken); err != nil {
+	if tokenData, err := a.authenticateToken(req); err != nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
 
 	} else if updateUserDetails, err := ParseUpdateUserDetails(req.Body); err != nil {
@@ -362,7 +359,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 			if a.mailchimpManager != nil {
 				a.mailchimpManager.UpdateListMembershipForUser(originalUser, updatedUser)
 			}
-			a.logMetricForUser(updatedUser.Id, "userupdated", sessionToken, map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
+			a.logMetricForUser(updatedUser.Id, "userupdated", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
 			a.sendUser(res, updatedUser, tokenData.IsServer)
 		}
 	}
@@ -372,8 +369,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 // status: 401 STATUS_UNAUTHORIZED
 // status: 500 STATUS_ERR_FINDING_USR
 func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[string]string) {
-	sessionToken := req.Header.Get(TP_SESSION_TOKEN)
-	if tokenData, err := a.authenticateSessionToken(sessionToken); err != nil {
+	if tokenData, err := a.authenticateToken(req); err != nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
 	} else {
 		var user *User
@@ -402,7 +398,7 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 			a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED)
 
 		} else {
-			a.logMetricForUser(user.Id, "getuserinfo", sessionToken, map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
+			a.logMetricForUser(user.Id, "getuserinfo", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
 			a.sendUser(res, result, tokenData.IsServer)
 		}
 	}
@@ -410,7 +406,7 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 
 func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 
-	td, err := a.authenticateSessionToken(req.Header.Get(TP_SESSION_TOKEN))
+	td, err := a.authenticateToken(req)
 
 	if err != nil {
 		a.logger.Println(http.StatusUnauthorized, err.Error())
@@ -539,7 +535,7 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 // status: 500 STATUS_ERR_GENERATING_TOKEN
 func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 
-	td, err := a.authenticateSessionToken(req.Header.Get(TP_SESSION_TOKEN))
+	td, err := a.authenticateToken(req)
 
 	if err != nil {
 		a.logger.Println(http.StatusUnauthorized, err.Error())
@@ -651,17 +647,39 @@ func (a *Api) sendError(res http.ResponseWriter, statusCode int, reason string, 
 	sendModelAsResWithStatus(res, status.NewStatus(statusCode, reason), statusCode)
 }
 
-func (a *Api) authenticateSessionToken(sessionToken string) (*TokenData, error) {
-	if sessionToken == "" {
-		return nil, errors.New("Session token is empty")
-	} else if tokenData, err := UnpackSessionTokenAndVerify(sessionToken, a.ApiConfig.Secret); err != nil {
-		return nil, err
-	} else if _, err := a.Store.FindTokenByID(sessionToken); err != nil {
-		return nil, err
-	} else {
-		return tokenData, nil
+func (a *Api) authenticateToken(r *http.Request) (*TokenData, error) {
+	if sessionToken := r.Header.Get(TP_SESSION_TOKEN); sessionToken != "" {
+		return a.authenticateSessionToken(sessionToken)
 	}
+	return a.accessTokenChecker.Check(r)
 }
+
+func (a *Api) authenticateSessionToken(token string) (*TokenData, error) {
+	if token == "" {
+		return nil, errors.New("Session token is empty")
+	}
+	tokenData, err := UnpackSessionTokenAndVerify(token, a.ApiConfig.Secret)
+	if err != nil {
+		if r, rErr := http.NewRequest("GET", "/", nil); rErr == nil {
+			r.Header.Set("authorization", "Bearer "+token)
+			if accessTokenData, accessTokenError := a.authenticateAccessToken(r); accessTokenError == nil {
+				return accessTokenData, nil
+			}
+		}
+		return nil, err
+	}
+	_, err = a.Store.FindTokenByID(token)
+	if err != nil {
+		return nil, err
+	}
+	return tokenData, nil
+}
+
+func (a *Api) authenticateAccessToken(r *http.Request) (*TokenData, error) {
+	return a.accessTokenChecker.Check(r)
+}
+
+////
 
 func (a *Api) tokenUserHasRequestedPermissions(tokenData *TokenData, groupId string, requestedPermissions clients.Permissions) (clients.Permissions, error) {
 	if tokenData.IsServer {
