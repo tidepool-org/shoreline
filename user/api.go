@@ -679,8 +679,6 @@ func (a *Api) authenticateAccessToken(r *http.Request) (*TokenData, error) {
 	return a.accessTokenChecker.Check(r)
 }
 
-////
-
 func (a *Api) tokenUserHasRequestedPermissions(tokenData *TokenData, groupId string, requestedPermissions clients.Permissions) (clients.Permissions, error) {
 	if tokenData.IsServer {
 		return requestedPermissions, nil

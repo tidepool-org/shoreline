@@ -39,8 +39,8 @@ func getAccessTokenAuthorizationHeader() http.Header {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-func TestGetUserInfoErrorMissingToken(t *testing.T) {
-	response := T_PerformRequest(t, "GET", "/user/1111111111")
+func TestGetUserInfoNoToken(t *testing.T) {
+	response := T_PerformRequestHeaders(t, "GET", "/user/"+testUser.Id, http.Header{})
 	T_ExpectErrorResponse(t, response, 401, "Not authorized for requested operation")
 }
 
@@ -59,7 +59,6 @@ func TestGetUserInfoSessionToken(t *testing.T) {
 func TestGetUserInfoAccessToken(t *testing.T) {
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: testUser.Id, Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", EmailVerified: true, PwHash: "xyz", Hash: "123"}}, nil}}
 	defer T_ExpectResponsablesEmpty(t)
-	headers := getAccessTokenAuthorizationHeader()
-	response := T_PerformRequestHeaders(t, "GET", "/user/"+testUser.Id, headers)
+	response := T_PerformRequestHeaders(t, "GET", "/user/"+testUser.Id, getAccessTokenAuthorizationHeader())
 	T_ExpectSuccessResponseWithJSONMap(t, response, 200)
 }

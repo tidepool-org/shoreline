@@ -47,12 +47,11 @@ func (a *AccessTokenChecker) Check(r *http.Request) (*TokenData, error) {
 		return nil, err
 	}
 	userID := claims["sub"].(string)
-	//TODO: get from access_token
-	tenHoursInSecs := int64(60 * 60 * 10)
+	expiration := claims["exp"].(int64)
 
 	return &TokenData{
 		IsServer:     false,
-		DurationSecs: tenHoursInSecs,
+		DurationSecs: expiration,
 		UserId:       userID,
 	}, nil
 }
