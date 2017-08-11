@@ -684,36 +684,39 @@ func (a *Api) tokenUserHasRequestedPermissions(tokenData *TokenData, groupId str
 		return requestedPermissions, nil
 	} else if tokenData.UserId == groupId {
 		return requestedPermissions, nil
-	} else if actualPermissions, err := a.perms.UserInGroup(tokenData.UserId, groupId); err != nil {
-		return clients.Permissions{}, err
-	} else {
-		finalPermissions := make(clients.Permissions, 0)
-		for permission, _ := range requestedPermissions {
-			if reflect.DeepEqual(requestedPermissions[permission], actualPermissions[permission]) {
-				finalPermissions[permission] = requestedPermissions[permission]
-			}
-		}
-		return finalPermissions, nil
 	}
+	actualPermissions, err := a.perms.UserInGroup(tokenData.UserId, groupId)
+	if err != nil {
+		return clients.Permissions{}, err
+	}
+	finalPermissions := make(clients.Permissions, 0)
+	for permission := range requestedPermissions {
+		if reflect.DeepEqual(requestedPermissions[permission], actualPermissions[permission]) {
+			finalPermissions[permission] = requestedPermissions[permission]
+		}
+	}
+	return finalPermissions, nil
+
 }
 
 func (a *Api) removeUserPermissions(groupId string, removePermissions clients.Permissions) error {
-	if originalUserPermissions, err := a.perms.UsersInGroup(groupId); err != nil {
+	originalUserPermissions, err := a.perms.UsersInGroup(groupId)
+	if err != nil {
 		return err
-	} else {
-		for userId, originalPermissions := range originalUserPermissions {
-			finalPermissions := make(clients.Permissions)
-			for name, value := range originalPermissions {
-				if _, ok := removePermissions[name]; !ok {
-					finalPermissions[name] = value
-				}
-			}
-			if len(finalPermissions) != len(originalPermissions) {
-				if _, err := a.perms.SetPermissions(userId, groupId, finalPermissions); err != nil {
-					return err
-				}
+	}
+	for userId, originalPermissions := range originalUserPermissions {
+		finalPermissions := make(clients.Permissions)
+		for name, value := range originalPermissions {
+			if _, ok := removePermissions[name]; !ok {
+				finalPermissions[name] = value
 			}
 		}
-		return nil
+		if len(finalPermissions) != len(originalPermissions) {
+			if _, err := a.perms.SetPermissions(userId, groupId, finalPermissions); err != nil {
+				return err
+			}
+		}
 	}
+	return nil
+
 }

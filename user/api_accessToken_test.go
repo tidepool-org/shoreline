@@ -62,3 +62,34 @@ func TestGetUserInfoAccessToken(t *testing.T) {
 	response := T_PerformRequestHeaders(t, "GET", "/user/"+testUser.Id, getAccessTokenAuthorizationHeader())
 	T_ExpectSuccessResponseWithJSONMap(t, response, 200)
 }
+
+func TestGetTokenWithInvalidAccessToken(t *testing.T) {
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, serverToken.ID)
+	resp := T_PerformRequestHeaders(t, "GET", "/token/blah.blah.blah", headers)
+	T_ExpectErrorResponse(t, resp, 401, "No x-tidepool-session-token was found")
+}
+
+func TestGetTokenWithAccessToken(t *testing.T) {
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, serverToken.ID)
+	resp := T_PerformRequestHeaders(t, "GET", "/token/"+accessToken, headers)
+	T_ExpectSuccessResponseWithJSONMap(t, resp, 200)
+}
+
+func TestGetTokenWithInvalidSessionToken(t *testing.T) {
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, serverToken.ID)
+	resp := T_PerformRequestHeaders(t, "GET", "/token/not.a.session.token", headers)
+	T_ExpectErrorResponse(t, resp, 401, "No x-tidepool-session-token was found")
+}
+
+func TestGetTokenWithSessionToken(t *testing.T) {
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{testUserToken, nil}}
+	defer T_ExpectResponsablesEmpty(t)
+
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, serverToken.ID)
+	resp := T_PerformRequestHeaders(t, "GET", "/token/"+testUserToken.ID, headers)
+	T_ExpectSuccessResponseWithJSONMap(t, resp, 200)
+}

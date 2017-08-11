@@ -53,11 +53,11 @@ var (
 	responsableGatekeeper = NewResponsableMockGatekeeper()
 )
 
-func initTestBasicAPI(config ApiConfig, store Storage, metrics highwater.Client) *Api {
-	return initTestAPI(config, store, metrics, nil)
+func initTestBaseAPI(config ApiConfig, store Storage, metrics highwater.Client) *Api {
+	return initTestAPIWithPerms(config, store, metrics, nil)
 }
 
-func initTestAPI(config ApiConfig, store Storage, metrics highwater.Client, perms clients.Gatekeeper) *Api {
+func initTestAPIWithPerms(config ApiConfig, store Storage, metrics highwater.Client, perms clients.Gatekeeper) *Api {
 	api := InitApi(config, store, metrics)
 
 	if perms != nil {
@@ -110,7 +110,7 @@ func T_PerformRequestBodyHeaders(t *testing.T, method string, url string, body s
 
 	response := httptest.NewRecorder()
 	router := mux.NewRouter()
-	api := initTestAPI(testAPIConfig, responsableStore, mockMetrics, responsableGatekeeper)
+	api := initTestAPIWithPerms(testAPIConfig, responsableStore, mockMetrics, responsableGatekeeper)
 	api.SetHandlers("", router)
 	router.ServeHTTP(response, request)
 	return response
@@ -267,7 +267,7 @@ func TestGetStatus_StatusOk(t *testing.T) {
 
 	request, _ := http.NewRequest("GET", "/status", nil)
 	response := httptest.NewRecorder()
-	api := initTestBasicAPI(testAPIConfig, mockStore, mockMetrics)
+	api := initTestBaseAPI(testAPIConfig, mockStore, mockMetrics)
 	api.GetStatus(response, request)
 
 	if response.Code != http.StatusOK {
@@ -280,7 +280,7 @@ func TestGetStatus_StatusInternalServerError(t *testing.T) {
 
 	request, _ := http.NewRequest("GET", "/status", nil)
 	response := httptest.NewRecorder()
-	api := initTestBasicAPI(testAPIConfig, mockStoreFails, mockMetrics)
+	api := initTestBaseAPI(testAPIConfig, mockStoreFails, mockMetrics)
 
 	api.GetStatus(response, request)
 
@@ -390,7 +390,7 @@ func Test_CreateUser_Error_MissingUserDetails(t *testing.T) {
 }
 
 func Test_CreateUser_Error_InvalidUserDetails(t *testing.T) {
-	response := T_PerformRequestBody(t, "POST", "/user", "{\"username\": \"a\"}")
+	response := T_PerformRequestBody(t, "POST", "/user", `{"username": "a"}`)
 	T_ExpectErrorResponse(t, response, 400, "Invalid user details were given")
 }
 
@@ -398,7 +398,7 @@ func Test_CreateUser_Error_ErrorFindingUsers(t *testing.T) {
 	responsableStore.FindUsersResponses = []FindUsersResponse{{nil, errors.New("ERROR")}}
 	defer T_ExpectResponsablesEmpty(t)
 
-	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\"}"
+	body := `{"username": "a@z.co", "emails": ["a@z.co"], "password": "12345678"}`
 	response := T_PerformRequestBody(t, "POST", "/user", body)
 	T_ExpectErrorResponse(t, response, 500, "Error creating the user")
 }
@@ -407,7 +407,7 @@ func Test_CreateUser_Error_ConflictingEmail(t *testing.T) {
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{}}, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
-	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\"}"
+	body := `{"username": "a@z.co", "emails": ["a@z.co"], "password": "12345678"}`
 	response := T_PerformRequestBody(t, "POST", "/user", body)
 	T_ExpectErrorResponse(t, response, 409, "User already exists")
 }
@@ -417,7 +417,7 @@ func Test_CreateUser_Error_ErrorUpsertingUser(t *testing.T) {
 	responsableStore.UpsertUserResponses = []error{errors.New("ERROR")}
 	defer T_ExpectResponsablesEmpty(t)
 
-	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\"}"
+	body := `{"username": "a@z.co", "emails": ["a@z.co"], "password": "12345678"}`
 	response := T_PerformRequestBody(t, "POST", "/user", body)
 	T_ExpectErrorResponse(t, response, 500, "Error creating the user")
 }
@@ -428,7 +428,7 @@ func Test_CreateUser_Error_ErrorSettingPermissions(t *testing.T) {
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, errors.New("ERROR")}}
 	defer T_ExpectResponsablesEmpty(t)
 
-	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\", \"roles\": [\"clinic\"]}"
+	body := `{"username": "a@z.co", "emails": ["a@z.co"], "password": "12345678", "roles": ["clinic"]}`
 	response := T_PerformRequestBody(t, "POST", "/user", body)
 	T_ExpectErrorResponse(t, response, 500, "Error creating the user")
 }
@@ -439,7 +439,7 @@ func Test_CreateUser_Error_ErrorAddingToken(t *testing.T) {
 	responsableStore.AddTokenResponses = []error{errors.New("ERROR")}
 	defer T_ExpectResponsablesEmpty(t)
 
-	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\"}"
+	body := `{"username": "a@z.co", "emails": ["a@z.co"], "password": "12345678"}`
 	response := T_PerformRequestBody(t, "POST", "/user", body)
 	T_ExpectErrorResponse(t, response, 500, "Error generating the token")
 }
@@ -451,7 +451,7 @@ func Test_CreateUser_Success(t *testing.T) {
 	responsableStore.AddTokenResponses = []error{nil}
 	defer T_ExpectResponsablesEmpty(t)
 
-	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\", \"roles\": [\"clinic\"]}"
+	body := `{"username": "a@z.co", "emails": ["a@z.co"], "password": "12345678", "roles": ["clinic"]}`
 	response := T_PerformRequestBody(t, "POST", "/user", body)
 	successResponse := T_ExpectSuccessResponseWithJSONMap(t, response, 201)
 	T_ExpectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
@@ -464,7 +464,7 @@ func Test_CreateUser_Success(t *testing.T) {
 ////////////////////////////////////////////////////////////////////////////////
 
 func Test_CreateCustodialUser_Error_MissingSessionToken(t *testing.T) {
-	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}"
+	body := `{"username": "a@z.co", "emails": ["a@z.co"]}`
 	response := T_PerformRequestBody(t, "POST", "/user/abcdef1234/user", body)
 	T_ExpectErrorResponse(t, response, 401, "Not authorized for requested operation")
 }
@@ -474,7 +474,7 @@ func Test_CreateCustodialUser_Error_TokenNotFound(t *testing.T) {
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{nil, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
-	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}"
+	body := `{"username": "a@z.co", "emails": ["a@z.co"]}`
 	headers := http.Header{}
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "POST", "/user/1234567890/user", body, headers)
@@ -486,7 +486,7 @@ func Test_CreateCustodialUser_Error_MismatchUserIds(t *testing.T) {
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
-	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}"
+	body := `{"username": "a@z.co", "emails": ["a@z.co"]}`
 	headers := http.Header{}
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "POST", "/user/1234567890/user", body, headers)
@@ -510,7 +510,7 @@ func Test_CreateCustodialUser_Error_InvalidDetails(t *testing.T) {
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
-	body := "{\"username\": \"a\", \"emails\": [\"a\"]}"
+	body := `{"username": "a", "emails": ["a"]}`
 	headers := http.Header{}
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "POST", "/user/abcdef1234/user", body, headers)
@@ -523,7 +523,7 @@ func Test_CreateCustodialUser_Error_FindUsersError(t *testing.T) {
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, errors.New("ERROR")}}
 	defer T_ExpectResponsablesEmpty(t)
 
-	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}"
+	body := `{"username": "a@z.co", "emails": ["a@z.co"]}`
 	headers := http.Header{}
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "POST", "/user/abcdef1234/user", body, headers)
@@ -536,7 +536,7 @@ func Test_CreateCustodialUser_Error_FindUsersDuplicate(t *testing.T) {
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{}}, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
-	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}"
+	body := `{"username": "a@z.co", "emails": ["a@z.co"]}`
 	headers := http.Header{}
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "POST", "/user/abcdef1234/user", body, headers)
@@ -550,7 +550,7 @@ func Test_CreateCustodialUser_Error_UpsertUserError(t *testing.T) {
 	responsableStore.UpsertUserResponses = []error{errors.New("ERROR")}
 	defer T_ExpectResponsablesEmpty(t)
 
-	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}"
+	body := `{"username": "a@z.co", "emails": ["a@z.co"]}`
 	headers := http.Header{}
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "POST", "/user/abcdef1234/user", body, headers)
@@ -565,7 +565,7 @@ func Test_CreateCustodialUser_Error_SetPermissionsError(t *testing.T) {
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, errors.New("ERROR")}}
 	defer T_ExpectResponsablesEmpty(t)
 
-	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}"
+	body := `{"username": "a@z.co", "emails": ["a@z.co"]}`
 	headers := http.Header{}
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "POST", "/user/abcdef1234/user", body, headers)
@@ -614,7 +614,7 @@ func Test_CreateCustodialUser_Success_Known(t *testing.T) {
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
-	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}"
+	body := `{"username": "a@z.co", "emails": ["a@z.co"]}`
 	headers := http.Header{}
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "POST", "/user/abcdef1234/user", body, headers)
@@ -626,7 +626,7 @@ func Test_CreateCustodialUser_Success_Known(t *testing.T) {
 ////////////////////////////////////////////////////////////////////////////////
 
 func Test_UpdateUser_Error_MissingSessionToken(t *testing.T) {
-	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"emailVerified\": true, \"password\": \"newpassword\", \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
+	body := `{"updates": {"username": "a@z.co", "emails": ["a@z.co"], "emailVerified": true, "password": "newpassword", "termsAccepted": "2016-01-01T01:23:45-08:00"}}`
 	response := T_PerformRequestBody(t, "PUT", "/user/1111111111", body)
 	T_ExpectErrorResponse(t, response, 401, "Not authorized for requested operation")
 }
@@ -648,7 +648,7 @@ func Test_UpdateUser_Error_InvalidDetails(t *testing.T) {
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
-	body := "{\"updates\": {\"username\": \"a\", \"emails\": [\"a\"]}}"
+	body := `{"updates": {"username": "a", "emails": ["a"]}}`
 	headers := http.Header{}
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
@@ -661,7 +661,7 @@ func Test_UpdateUser_Error_FindUsersError(t *testing.T) {
 	responsableStore.FindUserResponses = []FindUserResponse{{nil, errors.New("ERROR")}}
 	defer T_ExpectResponsablesEmpty(t)
 
-	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"emailVerified\": true, \"password\": \"newpassword\", \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
+	body := `{"updates": {"username": "a@z.co", "emails": ["a@z.co"], "emailVerified": true, "password": "newpassword", "termsAccepted": "2016-01-01T01:23:45-08:00"}}`
 	headers := http.Header{}
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
@@ -674,7 +674,7 @@ func Test_UpdateUser_Error_FindUsersMissing(t *testing.T) {
 	responsableStore.FindUserResponses = []FindUserResponse{{nil, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
-	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"emailVerified\": true, \"password\": \"newpassword\", \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
+	body := `{"updates": {"username": "a@z.co", "emails": ["a@z.co"], "emailVerified": true, "password": "newpassword", "termsAccepted": "2016-01-01T01:23:45-08:00"}}`
 	headers := http.Header{}
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
@@ -688,7 +688,7 @@ func Test_UpdateUser_Error_PermissionsError(t *testing.T) {
 	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{}, errors.New("ERROR")}}
 	defer T_ExpectResponsablesEmpty(t)
 
-	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"emailVerified\": true, \"password\": \"newpassword\", \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
+	body := `{"updates": {"username": "a@z.co", "emails": ["a@z.co"], "emailVerified": true, "password": "newpassword", "termsAccepted": "2016-01-01T01:23:45-08:00"}}`
 	headers := http.Header{}
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
@@ -702,7 +702,7 @@ func Test_UpdateUser_Error_NoPermissions(t *testing.T) {
 	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
-	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"emailVerified\": true, \"password\": \"newpassword\", \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
+	body := `{"updates": {"username": "a@z.co", "emails": ["a@z.co"], "emailVerified": true, "password": "newpassword", "termsAccepted": "2016-01-01T01:23:45-08:00"}}`
 	headers := http.Header{}
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
@@ -715,7 +715,7 @@ func Test_UpdateUser_Error_UnauthorizedRoles_User(t *testing.T) {
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
-	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"roles\": [\"clinic\"]}}"
+	body := `{"updates": {"username": "a@z.co", "emails": ["a@z.co"], "roles": ["clinic"]}}`
 	headers := http.Header{}
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
@@ -729,7 +729,7 @@ func Test_UpdateUser_Error_UnauthorizedRoles_Custodian(t *testing.T) {
 	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{"custodian": clients.Allowed}, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
-	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"roles\": [\"clinic\"]}}"
+	body := `{"updates": {"username": "a@z.co", "emails": ["a@z.co"], "roles": ["clinic"]}}`
 	headers := http.Header{}
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
@@ -742,7 +742,7 @@ func Test_UpdateUser_Error_UnauthorizedEmailVerified_User(t *testing.T) {
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
-	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"emailVerified\": true}}"
+	body := `{"updates": {"username": "a@z.co", "emails": ["a@z.co"], "emailVerified": true}}`
 	headers := http.Header{}
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
@@ -756,7 +756,7 @@ func Test_UpdateUser_Error_UnauthorizedEmailVerified_Custodian(t *testing.T) {
 	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{"custodian": clients.Allowed}, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
-	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"emailVerified\": true}}"
+	body := `{"updates": {"username": "a@z.co", "emails": ["a@z.co"], "emailVerified": true}}`
 	headers := http.Header{}
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
@@ -770,7 +770,7 @@ func Test_UpdateUser_Error_UnauthorizedPassword_Custodian(t *testing.T) {
 	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{"custodian": clients.Allowed}, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
-	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\"}}"
+	body := `{"updates": {"username": "a@z.co", "emails": ["a@z.co"], "password": "12345678"}}`
 	headers := http.Header{}
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
@@ -784,7 +784,7 @@ func Test_UpdateUser_Error_UnauthorizedTermsAccepted_Custodian(t *testing.T) {
 	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{"custodian": clients.Allowed}, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
-	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
+	body := `{"updates": {"username": "a@z.co", "emails": ["a@z.co"], "termsAccepted": "2016-01-01T01:23:45-08:00"}}`
 	headers := http.Header{}
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
@@ -799,7 +799,7 @@ func Test_UpdateUser_Error_FindUserDuplicateError(t *testing.T) {
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, errors.New("ERROR")}}
 	defer T_ExpectResponsablesEmpty(t)
 
-	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}}"
+	body := `{"updates": {"username": "a@z.co", "emails": ["a@z.co"]}}`
 	headers := http.Header{}
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
@@ -814,7 +814,7 @@ func Test_UpdateUser_Error_FindUserDuplicateFound(t *testing.T) {
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1234567890"}}, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
-	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}}"
+	body := `{"updates": {"username": "a@z.co", "emails": ["a@z.co"]}}`
 	headers := http.Header{}
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
@@ -830,7 +830,7 @@ func Test_UpdateUser_Error_UpsertUserError(t *testing.T) {
 	responsableStore.UpsertUserResponses = []error{errors.New("ERROR")}
 	defer T_ExpectResponsablesEmpty(t)
 
-	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}}"
+	body := `{"updates": {"username": "a@z.co", "emails": ["a@z.co"]}}`
 	headers := http.Header{}
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
@@ -846,7 +846,7 @@ func Test_UpdateUser_Error_RemoveCustodians_UsersInGroupError(t *testing.T) {
 	responsableGatekeeper.UsersInGroupResponses = []UsersPermissionsResponse{{clients.UsersPermissions{}, errors.New("ERROR")}}
 	defer T_ExpectResponsablesEmpty(t)
 
-	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\"}}"
+	body := `{"updates": {"username": "a@z.co", "emails": ["a@z.co"], "password": "12345678"}}`
 	headers := http.Header{}
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
@@ -863,7 +863,7 @@ func Test_UpdateUser_Error_RemoveCustodians_SetPermissionsError(t *testing.T) {
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, errors.New("ERROR")}}
 	defer T_ExpectResponsablesEmpty(t)
 
-	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\"}}"
+	body := `{"updates": {"username": "a@z.co", "emails": ["a@z.co"], "password": "12345678"}}`
 	headers := http.Header{}
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
@@ -879,7 +879,7 @@ func Test_UpdateUser_Success_Custodian(t *testing.T) {
 	responsableStore.UpsertUserResponses = []error{nil}
 	defer T_ExpectResponsablesEmpty(t)
 
-	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}}"
+	body := `{"updates": {"username": "a@z.co", "emails": ["a@z.co"]}}`
 	headers := http.Header{}
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
@@ -898,7 +898,7 @@ func Test_UpdateUser_Success_UserFromUrl(t *testing.T) {
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
-	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"newpassword\", \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
+	body := `{"updates": {"username": "a@z.co", "emails": ["a@z.co"], "password": "newpassword", "termsAccepted": "2016-01-01T01:23:45-08:00"}}`
 	headers := http.Header{}
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
@@ -917,7 +917,7 @@ func Test_UpdateUser_Success_UserFromToken(t *testing.T) {
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
-	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"newpassword\", \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
+	body := `{"updates": {"username": "a@z.co", "emails": ["a@z.co"], "password": "newpassword", "termsAccepted": "2016-01-01T01:23:45-08:00"}}`
 	headers := http.Header{}
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user", body, headers)
@@ -934,7 +934,7 @@ func Test_UpdateUser_Success_Server_WithoutPassword(t *testing.T) {
 	responsableStore.UpsertUserResponses = []error{nil}
 	defer T_ExpectResponsablesEmpty(t)
 
-	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"roles\": [\"clinic\"], \"emailVerified\": true, \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
+	body := `{"updates": {"username": "a@z.co", "emails": ["a@z.co"], "roles": ["clinic"], "emailVerified": true, "termsAccepted": "2016-01-01T01:23:45-08:00"}}`
 	headers := http.Header{}
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
@@ -953,7 +953,7 @@ func Test_UpdateUser_Success_Server_WithPassword(t *testing.T) {
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
-	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"newpassword\", \"roles\": [\"clinic\"], \"emailVerified\": true, \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
+	body := `{"updates": {"username": "a@z.co", "emails": ["a@z.co"], "password": "newpassword", "roles": ["clinic"], "emailVerified": true, "termsAccepted": "2016-01-01T01:23:45-08:00"}}`
 	headers := http.Header{}
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
@@ -1081,7 +1081,7 @@ func TestDeleteUser_StatusForbidden_WhenNoPw(t *testing.T) {
 	request.Header.Set(TP_SESSION_TOKEN, testUserToken.ID)
 	response := httptest.NewRecorder()
 
-	api := initTestBasicAPI(testAPIConfig, mockStore, mockMetrics)
+	api := initTestBaseAPI(testAPIConfig, mockStore, mockMetrics)
 	api.DeleteUser(response, request, testNoParams)
 
 	if response.Code != http.StatusForbidden {
@@ -1102,7 +1102,7 @@ func TestDeleteUser_StatusForbidden_WhenEmptyPw(t *testing.T) {
 	request.Header.Set(TP_SESSION_TOKEN, testUserToken.ID)
 	response := httptest.NewRecorder()
 
-	api := initTestBasicAPI(testAPIConfig, mockStore, mockMetrics)
+	api := initTestBaseAPI(testAPIConfig, mockStore, mockMetrics)
 
 	api.DeleteUser(response, request, testNoParams)
 
@@ -1124,7 +1124,7 @@ func TestDeleteUser_Failure(t *testing.T) {
 	req.Header.Set(TP_SESSION_TOKEN, testUserToken.ID)
 	resp := httptest.NewRecorder()
 
-	api := initTestBasicAPI(testAPIConfig, mockStoreFails, mockMetrics)
+	api := initTestBaseAPI(testAPIConfig, mockStoreFails, mockMetrics)
 
 	api.DeleteUser(resp, req, testNoParams)
 
@@ -1140,7 +1140,7 @@ func TestDeleteUser_StatusAccepted(t *testing.T) {
 	request.Header.Set(TP_SESSION_TOKEN, testUserToken.ID)
 	response := httptest.NewRecorder()
 
-	api := initTestBasicAPI(testAPIConfig, mockStore, mockMetrics)
+	api := initTestBaseAPI(testAPIConfig, mockStore, mockMetrics)
 
 	api.DeleteUser(response, request, map[string]string{"userid": testUser.Id})
 
@@ -1153,7 +1153,7 @@ func TestDeleteUser_StatusUnauthorized_WhenNoToken(t *testing.T) {
 	request, _ := http.NewRequest("DELETE", "/", nil)
 	response := httptest.NewRecorder()
 
-	api := initTestBasicAPI(testAPIConfig, mockStore, mockMetrics)
+	api := initTestBaseAPI(testAPIConfig, mockStore, mockMetrics)
 
 	api.DeleteUser(response, request, testNoParams)
 
@@ -1285,7 +1285,7 @@ func TestServerLogin_StatusBadRequest_WhenNoNameOrSecret(t *testing.T) {
 	request, _ := http.NewRequest("POST", "/", nil)
 	response := httptest.NewRecorder()
 
-	api := initTestBasicAPI(testAPIConfig, mockStore, mockMetrics)
+	api := initTestBaseAPI(testAPIConfig, mockStore, mockMetrics)
 
 	api.ServerLogin(response, request)
 
@@ -1305,7 +1305,7 @@ func TestServerLogin_StatusBadRequest_WhenNoName(t *testing.T) {
 	request.Header.Set(TP_SERVER_SECRET, testServerSecret)
 	response := httptest.NewRecorder()
 
-	api := initTestBasicAPI(testAPIConfig, mockStore, mockMetrics)
+	api := initTestBaseAPI(testAPIConfig, mockStore, mockMetrics)
 
 	api.ServerLogin(response, request)
 
@@ -1324,7 +1324,7 @@ func TestServerLogin_StatusBadRequest_WhenNoSecret(t *testing.T) {
 	request, _ := http.NewRequest("POST", "/", nil)
 	request.Header.Set(TP_SERVER_NAME, "shoreline")
 	response := httptest.NewRecorder()
-	api := initTestBasicAPI(testAPIConfig, mockStore, mockMetrics)
+	api := initTestBaseAPI(testAPIConfig, mockStore, mockMetrics)
 
 	api.ServerLogin(response, request)
 
@@ -1345,7 +1345,7 @@ func TestServerLogin_StatusOK(t *testing.T) {
 	request.Header.Set(TP_SERVER_SECRET, testServerSecret)
 	response := httptest.NewRecorder()
 
-	api := initTestBasicAPI(testAPIConfig, mockStore, mockMetrics)
+	api := initTestBaseAPI(testAPIConfig, mockStore, mockMetrics)
 
 	api.ServerLogin(response, request)
 
@@ -1365,7 +1365,7 @@ func TestServerLogin_Failure(t *testing.T) {
 	req.Header.Set(TP_SERVER_SECRET, testServerSecret)
 	resp := httptest.NewRecorder()
 
-	api := initTestBasicAPI(testAPIConfig, mockStoreFails, mockMetrics)
+	api := initTestBaseAPI(testAPIConfig, mockStoreFails, mockMetrics)
 
 	api.ServerLogin(resp, req)
 
@@ -1380,7 +1380,7 @@ func TestServerLogin_StatusUnauthorized_WhenSecretWrong(t *testing.T) {
 	request.Header.Set(TP_SERVER_SECRET, "wrong secret")
 	response := httptest.NewRecorder()
 
-	api := initTestBasicAPI(testAPIConfig, mockStore, mockMetrics)
+	api := initTestBaseAPI(testAPIConfig, mockStore, mockMetrics)
 
 	api.ServerLogin(response, request)
 
@@ -1401,7 +1401,7 @@ func TestRefreshSession_StatusUnauthorized_WithNoToken(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	response := httptest.NewRecorder()
 
-	api := initTestBasicAPI(testAPIConfig, mockStore, mockMetrics)
+	api := initTestBaseAPI(testAPIConfig, mockStore, mockMetrics)
 
 	api.RefreshSession(response, request)
 
@@ -1415,7 +1415,7 @@ func TestRefreshSession_StatusUnauthorized_WithWrongToken(t *testing.T) {
 	request.Header.Set(TP_SESSION_TOKEN, "not this token")
 	response := httptest.NewRecorder()
 
-	api := initTestBasicAPI(testAPIConfig, mockStore, mockMetrics)
+	api := initTestBaseAPI(testAPIConfig, mockStore, mockMetrics)
 
 	api.RefreshSession(response, request)
 
@@ -1426,7 +1426,7 @@ func TestRefreshSession_StatusUnauthorized_WithWrongToken(t *testing.T) {
 
 func TestRefreshSession_StatusOK(t *testing.T) {
 
-	api := initTestBasicAPI(testAPIConfig, mockStore, mockMetrics)
+	api := initTestBaseAPI(testAPIConfig, mockStore, mockMetrics)
 
 	refreshRequest, _ := http.NewRequest("GET", "/", nil)
 	refreshRequest.Header.Set(TP_SESSION_TOKEN, testUserToken.ID)
@@ -1460,7 +1460,7 @@ func TestRefreshSession_StatusOK(t *testing.T) {
 
 func TestRefreshSession_Failure(t *testing.T) {
 
-	api := initTestBasicAPI(testAPIConfig, mockStoreFails, mockMetrics)
+	api := initTestBaseAPI(testAPIConfig, mockStoreFails, mockMetrics)
 
 	req, _ := http.NewRequest("GET", "/", nil)
 	req.Header.Set(TP_SESSION_TOKEN, testUserToken.ID)
@@ -1594,7 +1594,7 @@ func Test_LongTermLogin_Success(t *testing.T) {
 
 func TestHasserverToken_True(t *testing.T) {
 
-	api := initTestBasicAPI(testAPIConfig, mockStore, mockMetrics)
+	api := initTestBaseAPI(testAPIConfig, mockStore, mockMetrics)
 
 	//login as server
 	svrLoginRequest, _ := http.NewRequest("POST", "/", nil)
@@ -1621,7 +1621,7 @@ func TestServerCheckToken_StatusOK(t *testing.T) {
 
 	//the api
 
-	api := initTestBasicAPI(testAPIConfig, mockStore, mockMetrics)
+	api := initTestBaseAPI(testAPIConfig, mockStore, mockMetrics)
 
 	//step 1 - login as server
 	request, _ := http.NewRequest("POST", "/serverlogin", nil)
@@ -1656,8 +1656,6 @@ func TestServerCheckToken_StatusOK(t *testing.T) {
 	var tokenData TokenData
 	_ = json.Unmarshal(body, &tokenData)
 
-	t.Log("token data returned ", tokenData)
-
 	if tokenData.UserId != "shoreline" {
 		t.Fatalf("should have had a server id of `shoreline` but was %v", tokenData.UserId)
 	}
@@ -1670,7 +1668,7 @@ func TestServerCheckToken_StatusOK(t *testing.T) {
 func TestServerCheckToken_StatusUnauthorized_WhenNoSvrToken(t *testing.T) {
 
 	//the api
-	api := initTestBasicAPI(testAPIConfig, mockStore, mockMetrics)
+	api := initTestBaseAPI(testAPIConfig, mockStore, mockMetrics)
 
 	request, _ := http.NewRequest("GET", "/", nil)
 	response := httptest.NewRecorder()
@@ -1688,7 +1686,7 @@ func TestLogout_StatusOK_WhenNoToken(t *testing.T) {
 	request, _ := http.NewRequest("POST", "/", nil)
 	response := httptest.NewRecorder()
 
-	api := initTestBasicAPI(testAPIConfig, mockStore, mockMetrics)
+	api := initTestBaseAPI(testAPIConfig, mockStore, mockMetrics)
 
 	api.Logout(response, request)
 
@@ -1699,7 +1697,7 @@ func TestLogout_StatusOK_WhenNoToken(t *testing.T) {
 
 func TestLogout_StatusOK(t *testing.T) {
 
-	api := initTestBasicAPI(testAPIConfig, mockStore, mockMetrics)
+	api := initTestBaseAPI(testAPIConfig, mockStore, mockMetrics)
 
 	//now logout with valid token
 	request, _ := http.NewRequest("POST", "/", nil)
@@ -1715,7 +1713,7 @@ func TestLogout_StatusOK(t *testing.T) {
 
 func TestLogout_Failure(t *testing.T) {
 
-	api := initTestBasicAPI(testAPIConfig, mockStoreFails, mockMetrics)
+	api := initTestBaseAPI(testAPIConfig, mockStoreFails, mockMetrics)
 
 	//now logout with valid token
 	req, _ := http.NewRequest("POST", "/", nil)
@@ -1740,7 +1738,7 @@ func TestAnonymousIdHashPair_StatusOK(t *testing.T) {
 
 	response := httptest.NewRecorder()
 
-	api := initTestBasicAPI(testAPIConfig, mockStore, mockMetrics)
+	api := initTestBaseAPI(testAPIConfig, mockStore, mockMetrics)
 
 	api.AnonymousIdHashPair(response, request)
 
@@ -1775,7 +1773,7 @@ func TestAnonymousIdHashPair_StatusOK_EvenWhenNoURLParams(t *testing.T) {
 
 	response := httptest.NewRecorder()
 
-	api := initTestBasicAPI(testAPIConfig, mockStore, mockMetrics)
+	api := initTestBaseAPI(testAPIConfig, mockStore, mockMetrics)
 
 	api.AnonymousIdHashPair(response, request)
 
@@ -1807,7 +1805,7 @@ func TestAnonymousIdHashPair_StatusOK_EvenWhenNoURLParams(t *testing.T) {
 
 func TestAnonIdHashPair_InBulk(t *testing.T) {
 
-	api := initTestBasicAPI(testAPIConfig, mockStore, mockMetrics)
+	api := initTestBaseAPI(testAPIConfig, mockStore, mockMetrics)
 
 	// we ask for 100 AnonymousIdHashPair to be created
 	//NOTE: while we can run more loaccly travis dosen't like it so 100 should be good enough
@@ -1861,7 +1859,7 @@ func TestAnonIdHashPair_InBulk(t *testing.T) {
 ////////////////////////////////////////////////////////////////////////////////
 
 func Test_AuthenticateSessionToken_Missing(t *testing.T) {
-	api := initTestAPI(testAPIConfig, responsableStore, mockMetrics, responsableGatekeeper)
+	api := initTestAPIWithPerms(testAPIConfig, responsableStore, mockMetrics, responsableGatekeeper)
 	tokenData, err := api.authenticateSessionToken("")
 	if err == nil {
 		t.Fatalf("Unexpected success")
@@ -1875,7 +1873,7 @@ func Test_AuthenticateSessionToken_Missing(t *testing.T) {
 }
 
 func Test_AuthenticateSessionToken_Invalid(t *testing.T) {
-	api := initTestAPI(testAPIConfig, responsableStore, mockMetrics, responsableGatekeeper)
+	api := initTestAPIWithPerms(testAPIConfig, responsableStore, mockMetrics, responsableGatekeeper)
 	tokenData, err := api.authenticateSessionToken("xyz")
 	if err == nil {
 		t.Fatalf("Unexpected success")
@@ -1890,7 +1888,7 @@ func Test_AuthenticateSessionToken_Invalid(t *testing.T) {
 
 func Test_AuthenticateSessionToken_Expired(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "abcdef1234", false, -3600)
-	api := initTestAPI(testAPIConfig, responsableStore, mockMetrics, responsableGatekeeper)
+	api := initTestAPIWithPerms(testAPIConfig, responsableStore, mockMetrics, responsableGatekeeper)
 	tokenData, err := api.authenticateSessionToken(sessionToken.ID)
 	if err == nil {
 		t.Fatalf("Unexpected success")
@@ -1907,7 +1905,7 @@ func Test_AuthenticateSessionToken_NotFound(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "abcdef1234", false, testTokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{nil, errors.New("NOT FOUND")}}
 	defer T_ExpectResponsablesEmpty(t)
-	api := initTestAPI(testAPIConfig, responsableStore, mockMetrics, responsableGatekeeper)
+	api := initTestAPIWithPerms(testAPIConfig, responsableStore, mockMetrics, responsableGatekeeper)
 	tokenData, err := api.authenticateSessionToken(sessionToken.ID)
 	if err == nil {
 		t.Fatalf("Unexpected success")
@@ -1925,7 +1923,7 @@ func Test_AuthenticateSessionToken_Success_User(t *testing.T) {
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
-	api := initTestAPI(testAPIConfig, responsableStore, mockMetrics, responsableGatekeeper)
+	api := initTestAPIWithPerms(testAPIConfig, responsableStore, mockMetrics, responsableGatekeeper)
 	tokenData, err := api.authenticateSessionToken(sessionToken.ID)
 	if err != nil {
 		t.Fatalf("Unexpected error: %#v", err)
@@ -1948,7 +1946,7 @@ func Test_AuthenticateSessionToken_Success_Server(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "abcdef1234", true, testTokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	defer T_ExpectResponsablesEmpty(t)
-	api := initTestAPI(testAPIConfig, responsableStore, mockMetrics, responsableGatekeeper)
+	api := initTestAPIWithPerms(testAPIConfig, responsableStore, mockMetrics, responsableGatekeeper)
 	tokenData, err := api.authenticateSessionToken(sessionToken.ID)
 	if err != nil {
 		t.Fatalf("Unexpected error: %#v", err)
@@ -1972,7 +1970,7 @@ func Test_AuthenticateSessionToken_Success_Server(t *testing.T) {
 func Test_TokenUserHasRequestedPermissions_Server(t *testing.T) {
 	tokenData := &TokenData{UserId: "abcdef1234", IsServer: true, DurationSecs: testTokenDuration}
 	requestedPermissions := clients.Permissions{"a": clients.Allowed, "b": clients.Allowed}
-	api := initTestAPI(testAPIConfig, responsableStore, mockMetrics, responsableGatekeeper)
+	api := initTestAPIWithPerms(testAPIConfig, responsableStore, mockMetrics, responsableGatekeeper)
 	permissions, err := api.tokenUserHasRequestedPermissions(tokenData, "1234567890", requestedPermissions)
 	if err != nil {
 		t.Fatalf("Unexpected error: %#v", err)
@@ -1985,7 +1983,7 @@ func Test_TokenUserHasRequestedPermissions_Server(t *testing.T) {
 func Test_TokenUserHasRequestedPermissions_Owner(t *testing.T) {
 	tokenData := &TokenData{UserId: "abcdef1234", IsServer: false, DurationSecs: testTokenDuration}
 	requestedPermissions := clients.Permissions{"a": clients.Allowed, "b": clients.Allowed}
-	api := initTestAPI(testAPIConfig, responsableStore, mockMetrics, responsableGatekeeper)
+	api := initTestAPIWithPerms(testAPIConfig, responsableStore, mockMetrics, responsableGatekeeper)
 	permissions, err := api.tokenUserHasRequestedPermissions(tokenData, "abcdef1234", requestedPermissions)
 	if err != nil {
 		t.Fatalf("Unexpected error: %#v", err)
@@ -2001,7 +1999,7 @@ func Test_TokenUserHasRequestedPermissions_GatekeeperError(t *testing.T) {
 
 	tokenData := &TokenData{UserId: "abcdef1234", IsServer: false, DurationSecs: testTokenDuration}
 	requestedPermissions := clients.Permissions{"a": clients.Allowed, "b": clients.Allowed}
-	api := initTestAPI(testAPIConfig, responsableStore, mockMetrics, responsableGatekeeper)
+	api := initTestAPIWithPerms(testAPIConfig, responsableStore, mockMetrics, responsableGatekeeper)
 	permissions, err := api.tokenUserHasRequestedPermissions(tokenData, "1234567890", requestedPermissions)
 	if err == nil {
 		t.Fatalf("Unexpected success")
@@ -2020,7 +2018,7 @@ func Test_TokenUserHasRequestedPermissions_CompleteMismatch(t *testing.T) {
 
 	tokenData := &TokenData{UserId: "abcdef1234", IsServer: false, DurationSecs: testTokenDuration}
 	requestedPermissions := clients.Permissions{"a": clients.Allowed, "b": clients.Allowed}
-	api := initTestAPI(testAPIConfig, responsableStore, mockMetrics, responsableGatekeeper)
+	api := initTestAPIWithPerms(testAPIConfig, responsableStore, mockMetrics, responsableGatekeeper)
 	permissions, err := api.tokenUserHasRequestedPermissions(tokenData, "1234567890", requestedPermissions)
 	if err != nil {
 		t.Fatalf("Unexpected error: %#v", err)
@@ -2036,7 +2034,7 @@ func Test_TokenUserHasRequestedPermissions_PartialMismatch(t *testing.T) {
 
 	tokenData := &TokenData{UserId: "abcdef1234", IsServer: false, DurationSecs: testTokenDuration}
 	requestedPermissions := clients.Permissions{"a": clients.Allowed, "b": clients.Allowed}
-	api := initTestAPI(testAPIConfig, responsableStore, mockMetrics, responsableGatekeeper)
+	api := initTestAPIWithPerms(testAPIConfig, responsableStore, mockMetrics, responsableGatekeeper)
 	permissions, err := api.tokenUserHasRequestedPermissions(tokenData, "1234567890", requestedPermissions)
 	if err != nil {
 		t.Fatalf("Unexpected error: %#v", err)
@@ -2052,7 +2050,7 @@ func Test_TokenUserHasRequestedPermissions_FullMatch(t *testing.T) {
 
 	tokenData := &TokenData{UserId: "abcdef1234", IsServer: false, DurationSecs: testTokenDuration}
 	requestedPermissions := clients.Permissions{"a": clients.Allowed, "b": clients.Allowed}
-	api := initTestAPI(testAPIConfig, responsableStore, mockMetrics, responsableGatekeeper)
+	api := initTestAPIWithPerms(testAPIConfig, responsableStore, mockMetrics, responsableGatekeeper)
 	permissions, err := api.tokenUserHasRequestedPermissions(tokenData, "1234567890", requestedPermissions)
 	if err != nil {
 		t.Fatalf("Unexpected error: %#v", err)
@@ -2067,7 +2065,7 @@ func Test_TokenUserHasRequestedPermissions_FullMatch(t *testing.T) {
 func Test_RemoveUserPermissions_Error_UsersInGroupError(t *testing.T) {
 	responsableGatekeeper.UsersInGroupResponses = []UsersPermissionsResponse{{clients.UsersPermissions{}, errors.New("ERROR")}}
 	defer T_ExpectResponsablesEmpty(t)
-	api := initTestAPI(testAPIConfig, responsableStore, mockMetrics, responsableGatekeeper)
+	api := initTestAPIWithPerms(testAPIConfig, responsableStore, mockMetrics, responsableGatekeeper)
 	err := api.removeUserPermissions("1", clients.Permissions{"a": clients.Allowed})
 	if err == nil {
 		t.Fatalf("Unexpected success")
@@ -2081,7 +2079,7 @@ func Test_RemoveUserPermissions_Error_SetPermissionsError(t *testing.T) {
 	responsableGatekeeper.UsersInGroupResponses = []UsersPermissionsResponse{{clients.UsersPermissions{"1": {"root": clients.Allowed}, "2": {"a": clients.Allowed, "b": clients.Allowed}}, nil}}
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, errors.New("ERROR")}}
 	defer T_ExpectResponsablesEmpty(t)
-	api := initTestAPI(testAPIConfig, responsableStore, mockMetrics, responsableGatekeeper)
+	api := initTestAPIWithPerms(testAPIConfig, responsableStore, mockMetrics, responsableGatekeeper)
 
 	err := api.removeUserPermissions("1", clients.Permissions{"a": clients.Allowed})
 	if err == nil {
@@ -2096,7 +2094,7 @@ func Test_RemoveUserPermissions_Success(t *testing.T) {
 	responsableGatekeeper.UsersInGroupResponses = []UsersPermissionsResponse{{clients.UsersPermissions{"1": {"root": clients.Allowed}, "2": {"a": clients.Allowed, "b": clients.Allowed}}, nil}}
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
 	defer T_ExpectResponsablesEmpty(t)
-	api := initTestAPI(testAPIConfig, responsableStore, mockMetrics, responsableGatekeeper)
+	api := initTestAPIWithPerms(testAPIConfig, responsableStore, mockMetrics, responsableGatekeeper)
 	err := api.removeUserPermissions("1", clients.Permissions{"a": clients.Allowed})
 	if err != nil {
 		t.Fatalf("Unexpected error: %#v", err)

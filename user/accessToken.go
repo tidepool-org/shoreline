@@ -30,7 +30,7 @@ func (a *AccessTokenChecker) Check(r *http.Request) (*TokenData, error) {
 		),
 		[]string{
 			tidepoolAudienceURL,
-			auth0TidepoolURL + "userinfo",
+			auth0TidepoolURL + "/userinfo",
 		},
 		auth0TidepoolURL,
 		jose.RS256,
