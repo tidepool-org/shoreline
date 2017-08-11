@@ -41,10 +41,10 @@ var (
 	/*
 	 * users and tokens
 	 */
-	testTokenConfig  = TokenConfig{DurationSecs: testAPIConfig.TokenDurationSecs, Secret: testAPIConfig.Secret}
-	testUser         = &User{Id: "123-99-100", Username: "test@new.bar", Emails: []string{"test@new.bar"}}
-	testUserToken, _ = CreateSessionToken(&TokenData{UserId: testUser.Id, IsServer: false, DurationSecs: testTokenDuration}, testTokenConfig)
-	serverToken, _   = CreateSessionToken(&TokenData{UserId: "shoreline", IsServer: true, DurationSecs: testTokenDuration}, testTokenConfig)
+	testTokenConfig    = TokenConfig{DurationSecs: testAPIConfig.TokenDurationSecs, Secret: testAPIConfig.Secret}
+	testUser           = &User{Id: "123-99-100", Username: "test@new.bar", Emails: []string{"test@new.bar"}}
+	testUserToken, _   = CreateSessionToken(&TokenData{UserId: testUser.Id, IsServer: false, DurationSecs: testTokenDuration}, testTokenConfig)
+	testServerToken, _ = CreateSessionToken(&TokenData{UserId: "shoreline", IsServer: true, DurationSecs: testTokenDuration}, testTokenConfig)
 
 	mockStore             = NewMockStoreClient(testAPIConfig.Salt, false, false)
 	mockMetrics           = highwater.NewMock()
