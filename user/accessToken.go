@@ -25,7 +25,7 @@ func (a *AccessTokenChecker) Check(r *http.Request) (*TokenData, error) {
 	configuration := auth0.NewConfiguration(
 		auth0.NewJWKClient(
 			auth0.JWKClientOptions{
-				URI: auth0TidepoolURL + ".well-known/jwks.json",
+				URI: auth0TidepoolURL + "/.well-known/jwks.json",
 			},
 		),
 		[]string{
