@@ -51,6 +51,8 @@ func (a *AccessTokenChecker) Check(r *http.Request) (*TokenData, error) {
 	userID := claims["sub"].(string)
 	expiration := claims["exp"].(int64)
 
+	log.Println("token userID [", userID, "] expiration [", expiration, "]")
+
 	return &TokenData{
 		IsServer:     false,
 		DurationSecs: expiration,
