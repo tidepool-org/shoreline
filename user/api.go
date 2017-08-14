@@ -94,11 +94,12 @@ func InitApi(cfg ApiConfig, store Storage, metrics highwater.Client) *Api {
 	}
 
 	return &Api{
-		Store:            store,
-		ApiConfig:        cfg,
-		metrics:          metrics,
-		logger:           logger,
-		mailchimpManager: mailchimpManager,
+		Store:              store,
+		ApiConfig:          cfg,
+		metrics:            metrics,
+		logger:             logger,
+		mailchimpManager:   mailchimpManager,
+		accessTokenChecker: &AccessTokenChecker{},
 	}
 }
 
