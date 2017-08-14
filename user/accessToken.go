@@ -1,6 +1,7 @@
 package user
 
 import (
+	"log"
 	"net/http"
 
 	auth0 "github.com/auth0-community/go-auth0"
@@ -20,7 +21,6 @@ func (a *AccessTokenChecker) Check(r *http.Request) (*TokenData, error) {
 
 	//TODO: configuration
 	const auth0TidepoolURL = "tidepool-dev.auth0.com"
-	const tidepoolAudienceURL = "https://dev-api.tidepool.org/data"
 
 	configuration := auth0.NewConfiguration(
 		auth0.NewJWKClient(
@@ -29,7 +29,7 @@ func (a *AccessTokenChecker) Check(r *http.Request) (*TokenData, error) {
 			},
 		),
 		[]string{
-			tidepoolAudienceURL,
+			"open-api",
 			auth0TidepoolURL + "/userinfo",
 		},
 		auth0TidepoolURL,
@@ -38,12 +38,14 @@ func (a *AccessTokenChecker) Check(r *http.Request) (*TokenData, error) {
 	validator := auth0.NewValidator(configuration)
 	token, err := validator.ValidateRequest(r)
 	if err != nil {
+		log.Println("Error validating request: ", err)
 		return nil, err
 	}
 
 	claims := map[string]interface{}{}
 	err = validator.Claims(r, token, &claims)
 	if err != nil {
+		log.Println("Error validating claims: ", err)
 		return nil, err
 	}
 	userID := claims["sub"].(string)

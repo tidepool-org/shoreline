@@ -662,9 +662,11 @@ func (a *Api) authenticateSessionToken(token string) (*TokenData, error) {
 	if err != nil {
 		if r, rErr := http.NewRequest("GET", "/", nil); rErr == nil {
 			r.Header.Set("authorization", "Bearer "+token)
-			if accessTokenData, accessTokenError := a.authenticateAccessToken(r); accessTokenError == nil {
+			accessTokenData, accessTokenError := a.authenticateAccessToken(r)
+			if accessTokenError == nil {
 				return accessTokenData, nil
 			}
+			log.Println("Error checking as access_token: ", accessTokenError)
 		}
 		return nil, err
 	}
