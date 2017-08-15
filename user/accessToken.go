@@ -20,17 +20,17 @@ type AccessTokenChecker struct{}
 func (a *AccessTokenChecker) Check(r *http.Request) (*TokenData, error) {
 
 	//TODO: configuration
-	const auth0TidepoolURL = "https://tidepool-dev.auth0.com"
+	const auth0TidepoolURL = "https://tidepool-dev.auth0.com/"
 
 	configuration := auth0.NewConfiguration(
 		auth0.NewJWKClient(
 			auth0.JWKClientOptions{
-				URI: auth0TidepoolURL + "/.well-known/jwks.json",
+				URI: auth0TidepoolURL + ".well-known/jwks.json",
 			},
 		),
 		[]string{
 			"open-api",
-			auth0TidepoolURL + "/userinfo",
+			auth0TidepoolURL + "userinfo",
 		},
 		auth0TidepoolURL,
 		jose.RS256,
