@@ -49,10 +49,13 @@ func (a *AccessTokenChecker) Check(r *http.Request) (*TokenData, error) {
 		log.Println("Error validating claims: ", err)
 		return nil, err
 	}
-	auth0UserID := claims["sub"].(string)
-	userID := strings.Split("|", auth0UserID)[1]
 
-	log.Println("token userID [", userID, "] ")
+	userID := claims["sub"].(string)
+	if len(userID) > 6 && strings.Contains(userID, "auth0|") {
+		userID = strings.Split(userID, "auth0|")[1]
+	}
+
+	log.Println("token userID [", userID, "]")
 
 	return &TokenData{
 		IsServer:     false,
