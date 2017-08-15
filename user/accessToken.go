@@ -1,6 +1,7 @@
 package user
 
 import (
+	"errors"
 	"log"
 	"net/http"
 	"strings"
@@ -15,25 +16,29 @@ type AccessTokenCheckerInterface interface {
 }
 
 // AccessTokenChecker is a concrete implementation of the AccessTokenCheckerInterface
-type AccessTokenChecker struct{}
+type AccessTokenChecker struct {
+	// Auth0Domain that you use e.g. https://YOUR_DOMAIN.auth0.com/
+	Auth0Domain string
+}
 
 // Check the given http.Request for a valid access_token
 func (a *AccessTokenChecker) Check(r *http.Request) (*TokenData, error) {
 
-	//TODO: configuration
-	const auth0TidepoolURL = "https://tidepool-dev.auth0.com/"
+	if a.Auth0Domain == "" {
+		return nil, errors.New("The Auth0 domain needs to be set.")
+	}
 
 	configuration := auth0.NewConfiguration(
 		auth0.NewJWKClient(
 			auth0.JWKClientOptions{
-				URI: auth0TidepoolURL + ".well-known/jwks.json",
+				URI: a.Auth0Domain + ".well-known/jwks.json",
 			},
 		),
 		[]string{
 			"open-api",
-			auth0TidepoolURL + "userinfo",
+			a.Auth0Domain + "userinfo",
 		},
-		auth0TidepoolURL,
+		a.Auth0Domain,
 		jose.RS256,
 	)
 	validator := auth0.NewValidator(configuration)
@@ -54,8 +59,6 @@ func (a *AccessTokenChecker) Check(r *http.Request) (*TokenData, error) {
 	if len(userID) > 6 && strings.Contains(userID, "auth0|") {
 		userID = strings.Split(userID, "auth0|")[1]
 	}
-
-	log.Println("token userID [", userID, "]")
 
 	return &TokenData{
 		IsServer:     false,

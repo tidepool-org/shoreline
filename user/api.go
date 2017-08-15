@@ -46,6 +46,9 @@ type (
 		VerificationSecret string           `json:"verificationSecret"`
 		ClinicDemoUserID   string           `json:"clinicDemoUserId"`
 		Mailchimp          mailchimp.Config `json:"mailchimp"`
+		// Auth0Domain that you use e.g. https://YOUR_DOMAIN.auth0.com/
+		// with both the leading  `https://` and trailing `/` required
+		Auth0Domain string `json:"auth0Domain"`
 	}
 	varsHandler func(http.ResponseWriter, *http.Request, map[string]string)
 )
