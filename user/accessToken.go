@@ -3,6 +3,7 @@ package user
 import (
 	"log"
 	"net/http"
+	"strings"
 
 	auth0 "github.com/auth0-community/go-auth0"
 	jose "gopkg.in/square/go-jose.v2"
@@ -48,14 +49,14 @@ func (a *AccessTokenChecker) Check(r *http.Request) (*TokenData, error) {
 		log.Println("Error validating claims: ", err)
 		return nil, err
 	}
-	userID := claims["sub"].(string)
-	expiration := claims["exp"].(float64)
+	auth0UserID := claims["sub"].(string)
+	userID := strings.Split("|", auth0UserID)[1]
 
-	log.Println("token userID [", userID, "] expiration [", expiration, "]")
+	log.Println("token userID [", userID, "] ")
 
 	return &TokenData{
 		IsServer:     false,
-		DurationSecs: int64(expiration),
+		DurationSecs: int64(86400),
 		UserId:       userID,
 	}, nil
 }
