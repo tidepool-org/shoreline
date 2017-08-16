@@ -102,7 +102,7 @@ func InitApi(cfg ApiConfig, store Storage, metrics highwater.Client) *Api {
 		metrics:            metrics,
 		logger:             logger,
 		mailchimpManager:   mailchimpManager,
-		accessTokenChecker: &AccessTokenChecker{},
+		accessTokenChecker: &AccessTokenChecker{Auth0Domain: cfg.Auth0Domain},
 	}
 }
 
