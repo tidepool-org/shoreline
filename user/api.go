@@ -22,13 +22,13 @@ import (
 
 type (
 	Api struct {
-		Store              Storage
-		ApiConfig          ApiConfig
-		metrics            highwater.Client
-		perms              clients.Gatekeeper
-		logger             *log.Logger
-		mailchimpManager   mailchimp.Manager
-		accessTokenChecker AccessTokenCheckerInterface
+		Store            Storage
+		ApiConfig        ApiConfig
+		metrics          highwater.Client
+		perms            clients.Gatekeeper
+		logger           *log.Logger
+		mailchimpManager mailchimp.Manager
+		jwtValidator     JWTValidator
 	}
 	ApiConfig struct {
 		//used for services
@@ -88,7 +88,7 @@ const (
 	STATUS_INVALID_ROLE          = "The role specified is invalid"
 )
 
-func InitApi(cfg ApiConfig, store Storage, metrics highwater.Client) *Api {
+func InitApi(cfg ApiConfig, store Storage, metrics highwater.Client, validator JWTValidator) *Api {
 	logger := log.New(os.Stdout, USER_API_PREFIX, log.LstdFlags|log.Lshortfile)
 
 	mailchimpManager, err := mailchimp.NewManager(logger, &http.Client{Timeout: 15 * time.Second}, &cfg.Mailchimp)
@@ -97,17 +97,13 @@ func InitApi(cfg ApiConfig, store Storage, metrics highwater.Client) *Api {
 	}
 
 	return &Api{
-		Store:              store,
-		ApiConfig:          cfg,
-		metrics:            metrics,
-		logger:             logger,
-		mailchimpManager:   mailchimpManager,
-		accessTokenChecker: &AccessTokenChecker{Auth0Domain: cfg.Auth0Domain},
+		Store:            store,
+		ApiConfig:        cfg,
+		metrics:          metrics,
+		logger:           logger,
+		mailchimpManager: mailchimpManager,
+		jwtValidator:     validator,
 	}
-}
-
-func (a *Api) AttachAccessTokenChecker(accessTokenChecker AccessTokenCheckerInterface) {
-	a.accessTokenChecker = accessTokenChecker
 }
 
 func (a *Api) AttachPerms(perms clients.Gatekeeper) {
@@ -164,7 +160,7 @@ func (a *Api) GetStatus(res http.ResponseWriter, req *http.Request) {
 // status: 401 STATUS_SERVER_TOKEN_REQUIRED
 // status: 500 STATUS_ERR_FINDING_USR
 func (a *Api) GetUsers(res http.ResponseWriter, req *http.Request) {
-	if tokenData, err := a.authenticateToken(req); err != nil {
+	if tokenData, err := a.authenticateRequest(req); err != nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
 
 	} else if !tokenData.IsServer {
@@ -180,7 +176,7 @@ func (a *Api) GetUsers(res http.ResponseWriter, req *http.Request) {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err.Error())
 
 	} else {
-		a.logMetric("getusers", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
+		a.logMetric("getusers", tokenData.getToken(), map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
 		a.sendUsers(res, users, tokenData.IsServer)
 	}
 }
@@ -239,7 +235,7 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 // status: 409 STATUS_USR_ALREADY_EXISTS
 // status: 500 STATUS_ERR_GENERATING_TOKEN
 func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
-	if tokenData, err := a.authenticateToken(req); err != nil {
+	if tokenData, err := a.authenticateRequest(req); err != nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
 
 	} else if custodianUserId := vars["userid"]; !tokenData.IsServer && custodianUserId != tokenData.UserId {
@@ -268,7 +264,7 @@ func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, va
 			if a.mailchimpManager != nil {
 				a.mailchimpManager.CreateListMembershipForUser(newCustodialUser)
 			}
-			a.logMetricForUser(newCustodialUser.Id, "custodialusercreated", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
+			a.logMetricForUser(newCustodialUser.Id, "custodialusercreated", tokenData.getToken(), map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
 			a.sendUserWithStatus(res, newCustodialUser, http.StatusCreated, tokenData.IsServer)
 		}
 	}
@@ -280,7 +276,7 @@ func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, va
 // status: 500 STATUS_ERR_FINDING_USR
 // status: 500 STATUS_ERR_UPDATING_USR
 func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
-	if tokenData, err := a.authenticateToken(req); err != nil {
+	if tokenData, err := a.authenticateRequest(req); err != nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
 
 	} else if updateUserDetails, err := ParseUpdateUserDetails(req.Body); err != nil {
@@ -373,7 +369,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 // status: 401 STATUS_UNAUTHORIZED
 // status: 500 STATUS_ERR_FINDING_USR
 func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[string]string) {
-	if tokenData, err := a.authenticateToken(req); err != nil {
+	if tokenData, err := a.authenticateRequest(req); err != nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
 	} else {
 		var user *User
@@ -410,7 +406,7 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 
 func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 
-	td, err := a.authenticateToken(req)
+	td, err := a.authenticateRequest(req)
 
 	if err != nil {
 		a.logger.Println(http.StatusUnauthorized, err.Error())
@@ -437,13 +433,13 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 			if err = a.Store.RemoveUser(toDelete); err == nil {
 
 				if td.IsServer {
-					a.logMetricForUser(id, "deleteuser", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "true"})
+					a.logMetricForUser(id, "deleteuser", td.getToken(), map[string]string{"server": "true"})
 				} else {
-					a.logMetric("deleteuser", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "false"})
+					a.logMetric("deleteuser", td.getToken(), map[string]string{"server": "false"})
 				}
 				//cleanup if any
 				if td.IsServer == false {
-					a.Store.RemoveTokenByID(req.Header.Get(TP_SESSION_TOKEN))
+					a.Store.RemoveTokenByID(td.getToken())
 				}
 				//all good
 				res.WriteHeader(http.StatusAccepted)
@@ -539,7 +535,7 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 // status: 500 STATUS_ERR_GENERATING_TOKEN
 func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 
-	td, err := a.authenticateToken(req)
+	td, err := a.authenticateRequest(req)
 
 	if err != nil {
 		a.logger.Println(http.StatusUnauthorized, err.Error())
@@ -595,21 +591,19 @@ func (a *Api) LongtermLogin(res http.ResponseWriter, req *http.Request, vars map
 // status: 401 STATUS_NO_TOKEN
 // status: 404 STATUS_NO_TOKEN_MATCH
 func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars map[string]string) {
-
-	if hasServerToken(req.Header.Get(TP_SESSION_TOKEN), a.ApiConfig.Secret) {
-		td, err := a.authenticateSessionToken(vars["token"])
+	serverTokenData, err := a.authenticateRequest(req)
+	if err == nil && serverTokenData.IsServer {
+		checkTokenData, err := a.authenticateToken(vars["token"])
 		if err != nil {
-			a.logger.Println(http.StatusUnauthorized, STATUS_NO_TOKEN, err.Error())
+			a.logger.Println(http.StatusUnauthorized, STATUS_NO_TOKEN, err)
 			sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_TOKEN), http.StatusUnauthorized)
 			return
 		}
-
-		sendModelAsRes(res, td)
+		sendModelAsRes(res, checkTokenData)
 		return
 	}
-	a.logger.Println(http.StatusUnauthorized, STATUS_NO_TOKEN)
-	sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_TOKEN), http.StatusUnauthorized)
-	return
+	a.logger.Println(http.StatusUnauthorized, STATUS_SERVER_TOKEN_REQUIRED, err)
+	sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_SERVER_TOKEN_REQUIRED), http.StatusUnauthorized)
 }
 
 // status: 200
@@ -651,38 +645,28 @@ func (a *Api) sendError(res http.ResponseWriter, statusCode int, reason string, 
 	sendModelAsResWithStatus(res, status.NewStatus(statusCode, reason), statusCode)
 }
 
-func (a *Api) authenticateToken(r *http.Request) (*TokenData, error) {
-	if sessionToken := r.Header.Get(TP_SESSION_TOKEN); sessionToken != "" {
-		return a.authenticateSessionToken(sessionToken)
-	}
-	return a.accessTokenChecker.Check(r)
+func (a *Api) authenticateRequest(request *http.Request) (*TokenData, error) {
+	return a.jwtValidator.ValidateRequest(request)
 }
 
-func (a *Api) authenticateSessionToken(token string) (*TokenData, error) {
+func (a *Api) authenticateToken(token string) (*TokenData, error) {
 	if token == "" {
-		return nil, errors.New("Session token is empty")
+		return nil, errors.New("Token is empty")
 	}
-	tokenData, err := UnpackSessionTokenAndVerify(token, a.ApiConfig.Secret)
-	if err != nil {
-		if r, rErr := http.NewRequest("GET", "/", nil); rErr == nil {
-			r.Header.Set("authorization", "Bearer "+token)
-			accessTokenData, accessTokenError := a.authenticateAccessToken(r)
-			if accessTokenError == nil {
-				return accessTokenData, nil
-			}
-			log.Println("Error checking as access_token: ", accessTokenError)
-		}
-		return nil, err
-	}
-	_, err = a.Store.FindTokenByID(token)
-	if err != nil {
-		return nil, err
-	}
-	return tokenData, nil
-}
 
-func (a *Api) authenticateAccessToken(r *http.Request) (*TokenData, error) {
-	return a.accessTokenChecker.Check(r)
+	validatedTokenData, _ := a.jwtValidator.ValidateRequest(makeAccessRequest(token))
+	if validatedTokenData != nil {
+		return validatedTokenData, nil
+	}
+
+	validatedTokenData, _ = a.jwtValidator.ValidateRequest(makeSessionRequest(token))
+	if validatedTokenData != nil {
+		_, err := a.Store.FindTokenByID(validatedTokenData.token)
+		if err == nil {
+			return validatedTokenData, nil
+		}
+	}
+	return nil, errors.New("Token is not valid")
 }
 
 func (a *Api) tokenUserHasRequestedPermissions(tokenData *TokenData, groupId string, requestedPermissions clients.Permissions) (clients.Permissions, error) {

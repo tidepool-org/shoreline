@@ -67,6 +67,17 @@ func main() {
 		WithConfig(&config.HighwaterConfig.HighwaterClientConfig).
 		Build()
 
+	validator, err := user.NewJWTValidator(
+		user.JWTValidatorConfig{
+			Auth0Domain: config.User.Auth0Domain,
+			Secret:      config.User.Secret,
+		},
+	)
+
+	if err != nil {
+		log.Fatal(shoreline_service_prefix, err)
+	}
+
 	rtr := mux.NewRouter()
 
 	/*
@@ -75,7 +86,7 @@ func main() {
 
 	log.Print(shoreline_service_prefix, "adding", user.USER_API_PREFIX)
 
-	userapi := user.InitApi(config.User, user.NewMongoStoreClient(&config.Mongo), highwater)
+	userapi := user.InitApi(config.User, user.NewMongoStoreClient(&config.Mongo), highwater, validator)
 	userapi.SetHandlers("", rtr)
 
 	userClient := user.NewUserClient(userapi)

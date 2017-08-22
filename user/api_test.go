@@ -58,14 +58,18 @@ func initTestBaseAPI(config ApiConfig, store Storage, metrics highwater.Client) 
 }
 
 func initTestAPIWithPerms(config ApiConfig, store Storage, metrics highwater.Client, perms clients.Gatekeeper) *Api {
-	api := InitApi(config, store, metrics)
+
+	var api *Api
+	if mockedJWTValidator != nil {
+		api = InitApi(config, store, metrics, mockedJWTValidator)
+	} else {
+		api = InitApi(config, store, metrics, nil)
+	}
 
 	if perms != nil {
 		api.AttachPerms(perms)
 	}
-	if mockedAccessTokenChecker != nil {
-		api.AttachAccessTokenChecker(mockedAccessTokenChecker)
-	}
+
 	return api
 }
 
@@ -710,15 +714,16 @@ func Test_UpdateUser_Error_NoPermissions(t *testing.T) {
 }
 
 func Test_UpdateUser_Error_UnauthorizedRoles_User(t *testing.T) {
-	sessionToken := T_CreateSessionToken(t, "1111111111", false, testTokenDuration)
-	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
-	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
+	//sessionToken := T_CreateSessionToken(t, testUser.Id, false, testTokenDuration)
+	//testSessionToken
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{testUserToken, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: testUser.Id}, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
 	body := `{"updates": {"username": "a@z.co", "emails": ["a@z.co"], "roles": ["clinic"]}}`
 	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
-	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
+	headers.Add(TP_SESSION_TOKEN, testUserToken.ID)
+	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/"+testUser.Id, body, headers)
 	T_ExpectErrorResponse(t, response, 401, "Not authorized for requested operation")
 }
 
@@ -1077,6 +1082,9 @@ func Test_GetUserInfo_Success_Server(t *testing.T) {
 ////////////////////////////////////////////////////////////////////////////////
 
 func TestDeleteUser_StatusForbidden_WhenNoPw(t *testing.T) {
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{testUserToken, nil}}
+	defer T_ExpectResponsablesEmpty(t)
+
 	request, _ := http.NewRequest("DELETE", "/", nil)
 	request.Header.Set(TP_SESSION_TOKEN, testUserToken.ID)
 	response := httptest.NewRecorder()
@@ -1096,6 +1104,8 @@ func TestDeleteUser_StatusForbidden_WhenNoPw(t *testing.T) {
 }
 
 func TestDeleteUser_StatusForbidden_WhenEmptyPw(t *testing.T) {
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{testUserToken, nil}}
+	defer T_ExpectResponsablesEmpty(t)
 
 	var jsonData = []byte(`{"password": ""}`)
 	request, _ := http.NewRequest("DELETE", "/", bytes.NewBuffer(jsonData))
@@ -1118,6 +1128,8 @@ func TestDeleteUser_StatusForbidden_WhenEmptyPw(t *testing.T) {
 }
 
 func TestDeleteUser_Failure(t *testing.T) {
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{nil, nil}}
+	defer T_ExpectResponsablesEmpty(t)
 
 	var jsonData = []byte(`{"password": "92ggh38"}`)
 	req, _ := http.NewRequest("DELETE", "/", bytes.NewBuffer(jsonData))
@@ -1134,6 +1146,8 @@ func TestDeleteUser_Failure(t *testing.T) {
 }
 
 func TestDeleteUser_StatusAccepted(t *testing.T) {
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{testUserToken, nil}}
+	defer T_ExpectResponsablesEmpty(t)
 
 	var jsonData = []byte(`{"password": "123youknoWm3"}`)
 	request, _ := http.NewRequest("DELETE", "/", bytes.NewBuffer(jsonData))
@@ -1282,6 +1296,7 @@ func Test_Login_Success(t *testing.T) {
 ////////////////////////////////////////////////////////////////////////////////
 
 func TestServerLogin_StatusBadRequest_WhenNoNameOrSecret(t *testing.T) {
+
 	request, _ := http.NewRequest("POST", "/", nil)
 	response := httptest.NewRecorder()
 
@@ -1411,6 +1426,10 @@ func TestRefreshSession_StatusUnauthorized_WithNoToken(t *testing.T) {
 }
 
 func TestRefreshSession_StatusUnauthorized_WithWrongToken(t *testing.T) {
+
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{nil, nil}}
+	defer T_ExpectResponsablesEmpty(t)
+
 	request, _ := http.NewRequest("GET", "/", nil)
 	request.Header.Set(TP_SESSION_TOKEN, "not this token")
 	response := httptest.NewRecorder()
@@ -1425,6 +1444,9 @@ func TestRefreshSession_StatusUnauthorized_WithWrongToken(t *testing.T) {
 }
 
 func TestRefreshSession_StatusOK(t *testing.T) {
+
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{testUserToken, nil}}
+	defer T_ExpectResponsablesEmpty(t)
 
 	api := initTestBaseAPI(testAPIConfig, mockStore, mockMetrics)
 
@@ -1459,6 +1481,8 @@ func TestRefreshSession_StatusOK(t *testing.T) {
 }
 
 func TestRefreshSession_Failure(t *testing.T) {
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{nil, nil}}
+	defer T_ExpectResponsablesEmpty(t)
 
 	api := initTestBaseAPI(testAPIConfig, mockStoreFails, mockMetrics)
 
@@ -1600,48 +1624,29 @@ func TestHasserverToken_True(t *testing.T) {
 	svrLoginRequest, _ := http.NewRequest("POST", "/", nil)
 	svrLoginRequest.Header.Set(TP_SERVER_NAME, "shoreline")
 	svrLoginRequest.Header.Set(TP_SERVER_SECRET, testServerSecret)
+
 	response := httptest.NewRecorder()
 
 	api.ServerLogin(response, svrLoginRequest)
 
 	if response.Code != http.StatusOK {
-		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, response.Code)
-	}
-
-	if response.Header().Get(TP_SESSION_TOKEN) == "" {
-		t.Fatal("The session token should have been set")
-	}
-
-	if hasServerToken(response.Header().Get(TP_SESSION_TOKEN), api.ApiConfig.Secret) == false {
-		t.Fatal("The token should have been a valid server token")
+		t.Fatalf("expected:%v got:%v ", http.StatusOK, response.Code)
 	}
 }
 
 func TestServerCheckToken_StatusOK(t *testing.T) {
 
-	//the api
+	serverToken := T_CreateSessionToken(t, "shoreline", true, testTokenDuration)
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{serverToken, nil}, {serverToken, nil}}
+	defer T_ExpectResponsablesEmpty(t)
 
 	api := initTestBaseAPI(testAPIConfig, mockStore, mockMetrics)
 
-	//step 1 - login as server
-	request, _ := http.NewRequest("POST", "/serverlogin", nil)
-	request.Header.Set(TP_SERVER_NAME, "shoreline")
-	request.Header.Set(TP_SERVER_SECRET, testServerSecret)
-	response := httptest.NewRecorder()
-	api.ServerLogin(response, request)
-
-	svrTokenToUse := response.Header().Get(TP_SESSION_TOKEN)
-
-	if svrTokenToUse == "" {
-		t.Fatalf("we expected to get a token back from login")
-	}
-
-	//step 2 - do the check
 	checkTokenRequest, _ := http.NewRequest("GET", "/", nil)
-	checkTokenRequest.Header.Set(TP_SESSION_TOKEN, svrTokenToUse)
+	checkTokenRequest.Header.Set(TP_SESSION_TOKEN, serverToken.ID)
 	checkTokenResponse := httptest.NewRecorder()
 
-	api.ServerCheckToken(checkTokenResponse, checkTokenRequest, map[string]string{"token": svrTokenToUse})
+	api.ServerCheckToken(checkTokenResponse, checkTokenRequest, map[string]string{"token": serverToken.ID})
 
 	if checkTokenResponse.Code != http.StatusOK {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, checkTokenResponse.Code)
@@ -1656,13 +1661,14 @@ func TestServerCheckToken_StatusOK(t *testing.T) {
 	var tokenData TokenData
 	_ = json.Unmarshal(body, &tokenData)
 
+	if tokenData.IsServer != true {
+		t.Fatalf("should have been a server token but was %v", tokenData.IsServer)
+	}
+
 	if tokenData.UserId != "shoreline" {
 		t.Fatalf("should have had a server id of `shoreline` but was %v", tokenData.UserId)
 	}
 
-	if tokenData.IsServer != true {
-		t.Fatalf("should have been a server token but was %v", tokenData.IsServer)
-	}
 }
 
 func TestServerCheckToken_StatusUnauthorized_WhenNoSvrToken(t *testing.T) {
@@ -1859,12 +1865,13 @@ func TestAnonIdHashPair_InBulk(t *testing.T) {
 ////////////////////////////////////////////////////////////////////////////////
 
 func Test_AuthenticateSessionToken_Missing(t *testing.T) {
+
 	api := initTestAPIWithPerms(testAPIConfig, responsableStore, mockMetrics, responsableGatekeeper)
-	tokenData, err := api.authenticateSessionToken("")
+	tokenData, err := api.authenticateToken("")
 	if err == nil {
 		t.Fatalf("Unexpected success")
 	}
-	if err.Error() != "Session token is empty" {
+	if err.Error() != "Token is empty" {
 		t.Fatalf("Unexpected error: %s", err.Error())
 	}
 	if tokenData != nil {
@@ -1873,12 +1880,16 @@ func Test_AuthenticateSessionToken_Missing(t *testing.T) {
 }
 
 func Test_AuthenticateSessionToken_Invalid(t *testing.T) {
+
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{nil, nil}}
+	defer T_ExpectResponsablesEmpty(t)
+
 	api := initTestAPIWithPerms(testAPIConfig, responsableStore, mockMetrics, responsableGatekeeper)
-	tokenData, err := api.authenticateSessionToken("xyz")
+	tokenData, err := api.authenticateToken("xyz")
 	if err == nil {
 		t.Fatalf("Unexpected success")
 	}
-	if err.Error() != "Token contains an invalid number of segments" {
+	if err.Error() != "Token is not valid" {
 		t.Fatalf("Unexpected error: %s", err.Error())
 	}
 	if tokenData != nil {
@@ -1888,12 +1899,15 @@ func Test_AuthenticateSessionToken_Invalid(t *testing.T) {
 
 func Test_AuthenticateSessionToken_Expired(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "abcdef1234", false, -3600)
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{nil, nil}}
+	defer T_ExpectResponsablesEmpty(t)
+
 	api := initTestAPIWithPerms(testAPIConfig, responsableStore, mockMetrics, responsableGatekeeper)
-	tokenData, err := api.authenticateSessionToken(sessionToken.ID)
+	tokenData, err := api.authenticateToken(sessionToken.ID)
 	if err == nil {
 		t.Fatalf("Unexpected success")
 	}
-	if err.Error() != "Token is expired" {
+	if err.Error() != "Token is not valid" {
 		t.Fatalf("Unexpected error: %s", err.Error())
 	}
 	if tokenData != nil {
@@ -1906,11 +1920,11 @@ func Test_AuthenticateSessionToken_NotFound(t *testing.T) {
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{nil, errors.New("NOT FOUND")}}
 	defer T_ExpectResponsablesEmpty(t)
 	api := initTestAPIWithPerms(testAPIConfig, responsableStore, mockMetrics, responsableGatekeeper)
-	tokenData, err := api.authenticateSessionToken(sessionToken.ID)
+	tokenData, err := api.authenticateToken(sessionToken.ID)
 	if err == nil {
 		t.Fatalf("Unexpected success")
 	}
-	if err.Error() != "NOT FOUND" {
+	if err.Error() != "Token is not valid" {
 		t.Fatalf("Unexpected error: %s", err.Error())
 	}
 	if tokenData != nil {
@@ -1920,11 +1934,11 @@ func Test_AuthenticateSessionToken_NotFound(t *testing.T) {
 
 func Test_AuthenticateSessionToken_Success_User(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "abcdef1234", false, testTokenDuration)
-	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}, {sessionToken, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
 	api := initTestAPIWithPerms(testAPIConfig, responsableStore, mockMetrics, responsableGatekeeper)
-	tokenData, err := api.authenticateSessionToken(sessionToken.ID)
+	tokenData, err := api.authenticateToken(sessionToken.ID)
 	if err != nil {
 		t.Fatalf("Unexpected error: %#v", err)
 	}
@@ -1944,10 +1958,10 @@ func Test_AuthenticateSessionToken_Success_User(t *testing.T) {
 
 func Test_AuthenticateSessionToken_Success_Server(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "abcdef1234", true, testTokenDuration)
-	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}, {sessionToken, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 	api := initTestAPIWithPerms(testAPIConfig, responsableStore, mockMetrics, responsableGatekeeper)
-	tokenData, err := api.authenticateSessionToken(sessionToken.ID)
+	tokenData, err := api.authenticateToken(sessionToken.ID)
 	if err != nil {
 		t.Fatalf("Unexpected error: %#v", err)
 	}
