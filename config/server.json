@@ -17,9 +17,7 @@
     "tokenDurationSecs": 2592000,
     "salt": "ADihSEI7tOQQP9xfXMO9HfRpXKu1NpIJ",
     "verificationSecret": "+skip",
-    "clinicDemoUserId": ""
-  },
-  "oauth2": {
-    "expireDays": 14
+    "clinicDemoUserId": "",
+    "auth0Domain": "https://tidepool-dev.auth0.com/"
   }
 }

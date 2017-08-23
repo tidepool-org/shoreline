@@ -25,6 +25,7 @@ type (
 		IsServer     bool   `json:"isserver"`
 		UserId       string `json:"userid"`
 		DurationSecs int64  `json:"-"`
+		token        string `json:"-"`
 	}
 
 	TokenConfig struct {
@@ -39,7 +40,6 @@ const (
 
 var (
 	SessionToken_error_no_userid        = errors.New("SessionToken: userId not set")
-	SessionToken_invalid                = errors.New("SessionToken: is invalid")
 	SessionToken_error_duration_not_set = errors.New("SessionToken: duration not set")
 )
 
@@ -106,33 +106,6 @@ func CreateSessionTokenAndSave(data *TokenData, config TokenConfig, store Storag
 	return sessionToken, nil
 }
 
-func UnpackSessionTokenAndVerify(id string, secret string) (*TokenData, error) {
-	if id == "" {
-		return nil, SessionToken_error_no_userid
-	}
-
-	jwtToken, err := jwt.Parse(id, func(t *jwt.Token) ([]byte, error) { return []byte(secret), nil })
-	if err != nil {
-		return nil, err
-	}
-	if !jwtToken.Valid {
-		return nil, SessionToken_invalid
-	}
-
-	isServer := jwtToken.Claims["svr"] == "yes"
-	durationSecs, ok := jwtToken.Claims["dur"].(int64)
-	if !ok {
-		durationSecs = int64(jwtToken.Claims["dur"].(float64))
-	}
-	userId := jwtToken.Claims["usr"].(string)
-
-	return &TokenData{
-		IsServer:     isServer,
-		DurationSecs: durationSecs,
-		UserId:       userId,
-	}, nil
-}
-
 func extractTokenDuration(r *http.Request) int64 {
 
 	durString := r.Header.Get(TOKEN_DURATION_KEY)
@@ -147,10 +120,6 @@ func extractTokenDuration(r *http.Request) int64 {
 	return 0
 }
 
-func hasServerToken(tokenString, secret string) bool {
-	td, err := UnpackSessionTokenAndVerify(tokenString, secret)
-	if err != nil {
-		return false
-	}
-	return td.IsServer
+func (tokenData *TokenData) getToken() string {
+	return tokenData.token
 }
