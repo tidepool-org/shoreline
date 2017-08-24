@@ -61,13 +61,13 @@ func getSessionToken(request *http.Request) string {
 }
 
 func makeAccessRequest(token string) *http.Request {
-	request, _ := http.NewRequest("GET", "/", nil)
+	request := &http.Request{Header: http.Header{}}
 	request.Header.Set("authorization", "Bearer "+token)
 	return request
 }
 
 func makeSessionRequest(token string) *http.Request {
-	request, _ := http.NewRequest("GET", "/", nil)
+	request := &http.Request{Header: http.Header{}}
 	request.Header.Set(TP_SESSION_TOKEN, token)
 	return request
 }
@@ -102,9 +102,9 @@ func (v *jwtValidator) validateAsAccessToken(request *http.Request) (*TokenData,
 
 	userID := claims["sub"].(string)
 	if len(userID) <= 6 && !strings.Contains(userID, "auth0|") {
-		return nil, errors.New("Error invlaid access_token userID")
+		return nil, errors.New("Error invalid access_token userID")
 	}
-	userID = strings.Split(userID, "auth0|")[1]
+	userID = strings.TrimPrefix(userID, "auth0|")
 
 	return &TokenData{
 		IsServer:     false,
