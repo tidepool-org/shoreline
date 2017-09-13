@@ -160,7 +160,7 @@ func (a *Api) GetStatus(res http.ResponseWriter, req *http.Request) {
 // status: 401 STATUS_SERVER_TOKEN_REQUIRED
 // status: 500 STATUS_ERR_FINDING_USR
 func (a *Api) GetUsers(res http.ResponseWriter, req *http.Request) {
-	if tokenData, err := a.authenticateRequest(req); err != nil {
+	if tokenData, err := a.jwtValidator.ValidateRequest(req); err != nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
 
 	} else if !tokenData.IsServer {
@@ -235,7 +235,7 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 // status: 409 STATUS_USR_ALREADY_EXISTS
 // status: 500 STATUS_ERR_GENERATING_TOKEN
 func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
-	if tokenData, err := a.authenticateRequest(req); err != nil {
+	if tokenData, err := a.jwtValidator.ValidateRequest(req); err != nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
 
 	} else if custodianUserId := vars["userid"]; !tokenData.IsServer && custodianUserId != tokenData.UserId {
@@ -276,7 +276,7 @@ func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, va
 // status: 500 STATUS_ERR_FINDING_USR
 // status: 500 STATUS_ERR_UPDATING_USR
 func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
-	if tokenData, err := a.authenticateRequest(req); err != nil {
+	if tokenData, err := a.jwtValidator.ValidateRequest(req); err != nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
 
 	} else if updateUserDetails, err := ParseUpdateUserDetails(req.Body); err != nil {
@@ -369,7 +369,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 // status: 401 STATUS_UNAUTHORIZED
 // status: 500 STATUS_ERR_FINDING_USR
 func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[string]string) {
-	if tokenData, err := a.authenticateRequest(req); err != nil {
+	if tokenData, err := a.jwtValidator.ValidateRequest(req); err != nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
 	} else {
 		var user *User
@@ -406,7 +406,7 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 
 func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 
-	td, err := a.authenticateRequest(req)
+	td, err := a.jwtValidator.ValidateRequest(req)
 
 	if err != nil {
 		a.logger.Println(http.StatusUnauthorized, err.Error())
@@ -535,7 +535,7 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 // status: 500 STATUS_ERR_GENERATING_TOKEN
 func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 
-	td, err := a.authenticateRequest(req)
+	td, err := a.jwtValidator.ValidateRequest(req)
 
 	if err != nil {
 		a.logger.Println(http.StatusUnauthorized, err.Error())
@@ -591,7 +591,7 @@ func (a *Api) LongtermLogin(res http.ResponseWriter, req *http.Request, vars map
 // status: 401 STATUS_NO_TOKEN
 // status: 404 STATUS_NO_TOKEN_MATCH
 func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars map[string]string) {
-	serverTokenData, err := a.authenticateRequest(req)
+	serverTokenData, err := a.jwtValidator.ValidateRequest(req)
 	if err == nil && serverTokenData.IsServer {
 		checkTokenData, err := a.authenticateToken(vars["token"])
 		if err != nil {
@@ -643,10 +643,6 @@ func (a *Api) sendError(res http.ResponseWriter, statusCode int, reason string, 
 
 	a.logger.Printf("%s:%d RESPONSE ERROR: [%d %s] %s", file, line, statusCode, reason, strings.Join(messages, "; "))
 	sendModelAsResWithStatus(res, status.NewStatus(statusCode, reason), statusCode)
-}
-
-func (a *Api) authenticateRequest(request *http.Request) (*TokenData, error) {
-	return a.jwtValidator.ValidateRequest(request)
 }
 
 func (a *Api) authenticateToken(token string) (*TokenData, error) {

@@ -143,9 +143,15 @@ func (v *jwtValidator) ValidateRequest(request *http.Request) (*TokenData, error
 	if request == nil {
 		return nil, errors.New("The request needs to be set")
 	}
+	//TODO: initially tokens are side-by-side so we will check both
 	if isAccessToken(request) {
-		return v.validateAsAccessToken(request)
-	} else if isSessionToken(request) {
+		tokenData, tokenError := v.validateAsAccessToken(request)
+		if tokenError == nil && tokenData != nil {
+			return tokenData, nil
+		}
+	}
+
+	if isSessionToken(request) {
 		return v.validateAsSessionToken(request)
 	}
 	return nil, errors.New("The request has no valid token")
