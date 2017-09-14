@@ -1253,16 +1253,16 @@ func Test_Login_Error_PasswordMismatch(t *testing.T) {
 	T_ExpectErrorResponse(t, response, 401, "No user matched the given details")
 }
 
-func Test_Login_Error_EmailNotVerified(t *testing.T) {
-	authorization := T_CreateAuthorization(t, "a@b.co", "password")
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5"}}, nil}}
-	defer T_ExpectResponsablesEmpty(t)
+// func Test_Login_Error_EmailNotVerified(t *testing.T) {
+// 	authorization := T_CreateAuthorization(t, "a@b.co", "password")
+// 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5"}}, nil}}
+// 	defer T_ExpectResponsablesEmpty(t)
 
-	headers := http.Header{}
-	headers.Add("Authorization", authorization)
-	response := T_PerformRequestHeaders(t, "POST", "/login", headers)
-	T_ExpectErrorResponse(t, response, 403, "The user hasn't verified this account yet")
-}
+// 	headers := http.Header{}
+// 	headers.Add("Authorization", authorization)
+// 	response := T_PerformRequestHeaders(t, "POST", "/login", headers)
+// 	T_ExpectErrorResponse(t, response, 403, "The user hasn't verified this account yet")
+// }
 
 func Test_Login_Error_ErrorCreatingToken(t *testing.T) {
 	authorization := T_CreateAuthorization(t, "a@b.co", "password")
@@ -1574,16 +1574,16 @@ func Test_LongTermLogin_Error_PasswordMismatch(t *testing.T) {
 	T_ExpectErrorResponse(t, response, 401, "No user matched the given details")
 }
 
-func Test_LongTermLogin_Error_EmailNotVerified(t *testing.T) {
-	authorization := T_CreateAuthorization(t, "a@b.co", "password")
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5"}}, nil}}
-	defer T_ExpectResponsablesEmpty(t)
+// func Test_LongTermLogin_Error_EmailNotVerified(t *testing.T) {
+// 	authorization := T_CreateAuthorization(t, "a@b.co", "password")
+// 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5"}}, nil}}
+// 	defer T_ExpectResponsablesEmpty(t)
 
-	headers := http.Header{}
-	headers.Add("Authorization", authorization)
-	response := T_PerformRequestHeaders(t, "POST", "/login/thelongtermkey", headers)
-	T_ExpectErrorResponse(t, response, 403, "The user hasn't verified this account yet")
-}
+// 	headers := http.Header{}
+// 	headers.Add("Authorization", authorization)
+// 	response := T_PerformRequestHeaders(t, "POST", "/login/thelongtermkey", headers)
+// 	T_ExpectErrorResponse(t, response, 403, "The user hasn't verified this account yet")
+// }
 
 func Test_LongTermLogin_Error_ErrorCreatingToken(t *testing.T) {
 	authorization := T_CreateAuthorization(t, "a@b.co", "password")

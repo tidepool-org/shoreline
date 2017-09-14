@@ -1242,39 +1242,39 @@ func Test_User_PasswordsMatch_NoMatch_MissingSalt(t *testing.T) {
 	}
 }
 
-func Test_User_IsVerified(t *testing.T) {
-	usernameWithSecret := "one@abc.com"
-	passwordWithSecret := "3th3Hardw0y"
-	userWithSecret, err := NewUser(&NewUserDetails{Username: &usernameWithSecret, Password: &passwordWithSecret, Emails: []string{"test+secret@foo.bar"}}, "some salt")
-	if err != nil {
-		t.Fatalf("Failure creating user with secret: %#v", err)
-	}
+// func Test_User_IsVerified(t *testing.T) {
+// 	usernameWithSecret := "one@abc.com"
+// 	passwordWithSecret := "3th3Hardw0y"
+// 	userWithSecret, err := NewUser(&NewUserDetails{Username: &usernameWithSecret, Password: &passwordWithSecret, Emails: []string{"test+secret@foo.bar"}}, "some salt")
+// 	if err != nil {
+// 		t.Fatalf("Failure creating user with secret: %#v", err)
+// 	}
 
-	username := "two@abc.com"
-	password := "3th3Hardw0y"
-	user, err := NewUser(&NewUserDetails{Username: &username, Password: &password, Emails: []string{"test@foo.bar"}}, "some salt")
-	if err != nil {
-		t.Fatalf("Failure creating user: %#v", err)
-	}
+// 	username := "two@abc.com"
+// 	password := "3th3Hardw0y"
+// 	user, err := NewUser(&NewUserDetails{Username: &username, Password: &password, Emails: []string{"test@foo.bar"}}, "some salt")
+// 	if err != nil {
+// 		t.Fatalf("Failure creating user: %#v", err)
+// 	}
 
-	//no secret
-	if userWithSecret.IsEmailVerified("") == true {
-		t.Fatalf("the user should not have been verified")
-	}
+// 	//no secret
+// 	if userWithSecret.IsEmailVerified("") == true {
+// 		t.Fatalf("the user should not have been verified")
+// 	}
 
-	if user.IsEmailVerified("") == true {
-		t.Fatalf("the user should not have been verified")
-	}
+// 	if user.IsEmailVerified("") == true {
+// 		t.Fatalf("the user should not have been verified")
+// 	}
 
-	//with secret
-	if userWithSecret.IsEmailVerified("+secret") == false {
-		t.Fatalf("the user should say they are verified as we both have the secret")
-	}
+// 	//with secret
+// 	if userWithSecret.IsEmailVerified("+secret") == false {
+// 		t.Fatalf("the user should say they are verified as we both have the secret")
+// 	}
 
-	if user.IsEmailVerified("+secret") == true {
-		t.Fatalf("the user should say they are verified as they don't have the secret")
-	}
-}
+// 	if user.IsEmailVerified("+secret") == true {
+// 		t.Fatalf("the user should say they are verified as they don't have the secret")
+// 	}
+// }
 
 func Test_User_DeepClone(t *testing.T) {
 	user := &User{
