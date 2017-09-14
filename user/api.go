@@ -479,10 +479,8 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 	} else if !result.PasswordsMatch(password, a.ApiConfig.Salt) {
 		a.sendError(res, http.StatusUnauthorized, STATUS_NO_MATCH, "Passwords do not match")
 
-	} else if !result.IsEmailVerified(a.ApiConfig.VerificationSecret) {
-		a.sendError(res, http.StatusForbidden, STATUS_NOT_VERIFIED)
-
 	} else {
+		//TODO: we need to sort out the email verification process when we switch to auth0
 		tokenData := &TokenData{DurationSecs: extractTokenDuration(req), UserId: result.Id}
 		tokenConfig := TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: a.ApiConfig.Secret}
 		if sessionToken, err := CreateSessionTokenAndSave(tokenData, tokenConfig, a.Store); err != nil {
