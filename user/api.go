@@ -481,6 +481,8 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 
 	} else if !result.IsEmailVerified(a.ApiConfig.VerificationSecret) {
 		a.sendError(res, http.StatusForbidden, STATUS_NOT_VERIFIED)
+	} else if !result.IsEmailVerified(a.ApiConfig.VerificationSecret) {
+		a.sendError(res, http.StatusForbidden, STATUS_NOT_VERIFIED)
 	} else {
 		tokenData := &TokenData{DurationSecs: extractTokenDuration(req), UserId: result.Id}
 		tokenConfig := TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: a.ApiConfig.Secret}

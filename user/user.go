@@ -489,7 +489,7 @@ func (u *User) IsEmailVerified(secret string) bool {
 			}
 		}
 	}
-	return true
+	return u.EmailVerified
 }
 
 func (u *User) DeepClone() *User {
