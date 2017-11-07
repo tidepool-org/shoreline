@@ -17,8 +17,6 @@ import (
 	"github.com/tidepool-org/go-common/clients"
 	"github.com/tidepool-org/go-common/clients/highwater"
 	"github.com/tidepool-org/go-common/clients/status"
-	"github.com/tidepool-org/shoreline/common"
-	"github.com/tidepool-org/shoreline/oauth2"
 	"github.com/tidepool-org/shoreline/user/mailchimp"
 )
 
@@ -28,9 +26,9 @@ type (
 		ApiConfig        ApiConfig
 		metrics          highwater.Client
 		perms            clients.Gatekeeper
-		oauth            oauth2.Client
 		logger           *log.Logger
 		mailchimpManager mailchimp.Manager
+		jwtValidator     JWTValidator
 	}
 	ApiConfig struct {
 		//used for services
@@ -48,6 +46,9 @@ type (
 		VerificationSecret string           `json:"verificationSecret"`
 		ClinicDemoUserID   string           `json:"clinicDemoUserId"`
 		Mailchimp          mailchimp.Config `json:"mailchimp"`
+		// Auth0Domain that you use e.g. https://YOUR_DOMAIN.auth0.com/
+		// with both the leading  `https://` and trailing `/` required
+		Auth0Domain string `json:"auth0Domain"`
 	}
 	varsHandler func(http.ResponseWriter, *http.Request, map[string]string)
 )
@@ -87,7 +88,7 @@ const (
 	STATUS_INVALID_ROLE          = "The role specified is invalid"
 )
 
-func InitApi(cfg ApiConfig, store Storage, metrics highwater.Client) *Api {
+func InitApi(cfg ApiConfig, store Storage, metrics highwater.Client, validator JWTValidator) *Api {
 	logger := log.New(os.Stdout, USER_API_PREFIX, log.LstdFlags|log.Lshortfile)
 
 	mailchimpManager, err := mailchimp.NewManager(logger, &http.Client{Timeout: 15 * time.Second}, &cfg.Mailchimp)
@@ -101,15 +102,12 @@ func InitApi(cfg ApiConfig, store Storage, metrics highwater.Client) *Api {
 		metrics:          metrics,
 		logger:           logger,
 		mailchimpManager: mailchimpManager,
+		jwtValidator:     validator,
 	}
 }
 
 func (a *Api) AttachPerms(perms clients.Gatekeeper) {
 	a.perms = perms
-}
-
-func (a *Api) AttachOauth(client oauth2.Client) {
-	a.oauth = client
 }
 
 func (a *Api) SetHandlers(prefix string, rtr *mux.Router) {
@@ -130,8 +128,6 @@ func (a *Api) SetHandlers(prefix string, rtr *mux.Router) {
 	rtr.HandleFunc("/login", a.Login).Methods("POST")
 	rtr.HandleFunc("/login", a.RefreshSession).Methods("GET")
 	rtr.Handle("/login/{longtermkey}", varsHandler(a.LongtermLogin)).Methods("POST")
-
-	rtr.HandleFunc("/oauthlogin", a.oauth2Login).Methods("POST")
 
 	rtr.HandleFunc("/serverlogin", a.ServerLogin).Methods("POST")
 
@@ -164,8 +160,7 @@ func (a *Api) GetStatus(res http.ResponseWriter, req *http.Request) {
 // status: 401 STATUS_SERVER_TOKEN_REQUIRED
 // status: 500 STATUS_ERR_FINDING_USR
 func (a *Api) GetUsers(res http.ResponseWriter, req *http.Request) {
-	sessionToken := req.Header.Get(TP_SESSION_TOKEN)
-	if tokenData, err := a.authenticateSessionToken(sessionToken); err != nil {
+	if tokenData, err := a.jwtValidator.ValidateRequest(req); err != nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
 
 	} else if !tokenData.IsServer {
@@ -181,7 +176,7 @@ func (a *Api) GetUsers(res http.ResponseWriter, req *http.Request) {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err.Error())
 
 	} else {
-		a.logMetric("getusers", sessionToken, map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
+		a.logMetric("getusers", tokenData.getToken(), map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
 		a.sendUsers(res, users, tokenData.IsServer)
 	}
 }
@@ -240,8 +235,7 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 // status: 409 STATUS_USR_ALREADY_EXISTS
 // status: 500 STATUS_ERR_GENERATING_TOKEN
 func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
-	sessionToken := req.Header.Get(TP_SESSION_TOKEN)
-	if tokenData, err := a.authenticateSessionToken(sessionToken); err != nil {
+	if tokenData, err := a.jwtValidator.ValidateRequest(req); err != nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
 
 	} else if custodianUserId := vars["userid"]; !tokenData.IsServer && custodianUserId != tokenData.UserId {
@@ -270,7 +264,7 @@ func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, va
 			if a.mailchimpManager != nil {
 				a.mailchimpManager.CreateListMembershipForUser(newCustodialUser)
 			}
-			a.logMetricForUser(newCustodialUser.Id, "custodialusercreated", sessionToken, map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
+			a.logMetricForUser(newCustodialUser.Id, "custodialusercreated", tokenData.getToken(), map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
 			a.sendUserWithStatus(res, newCustodialUser, http.StatusCreated, tokenData.IsServer)
 		}
 	}
@@ -282,8 +276,7 @@ func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, va
 // status: 500 STATUS_ERR_FINDING_USR
 // status: 500 STATUS_ERR_UPDATING_USR
 func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
-	sessionToken := req.Header.Get(TP_SESSION_TOKEN)
-	if tokenData, err := a.authenticateSessionToken(sessionToken); err != nil {
+	if tokenData, err := a.jwtValidator.ValidateRequest(req); err != nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
 
 	} else if updateUserDetails, err := ParseUpdateUserDetails(req.Body); err != nil {
@@ -366,7 +359,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 			if a.mailchimpManager != nil {
 				a.mailchimpManager.UpdateListMembershipForUser(originalUser, updatedUser)
 			}
-			a.logMetricForUser(updatedUser.Id, "userupdated", sessionToken, map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
+			a.logMetricForUser(updatedUser.Id, "userupdated", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
 			a.sendUser(res, updatedUser, tokenData.IsServer)
 		}
 	}
@@ -376,8 +369,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 // status: 401 STATUS_UNAUTHORIZED
 // status: 500 STATUS_ERR_FINDING_USR
 func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[string]string) {
-	sessionToken := req.Header.Get(TP_SESSION_TOKEN)
-	if tokenData, err := a.authenticateSessionToken(sessionToken); err != nil {
+	if tokenData, err := a.jwtValidator.ValidateRequest(req); err != nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
 	} else {
 		var user *User
@@ -406,7 +398,7 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 			a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED)
 
 		} else {
-			a.logMetricForUser(user.Id, "getuserinfo", sessionToken, map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
+			a.logMetricForUser(user.Id, "getuserinfo", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
 			a.sendUser(res, result, tokenData.IsServer)
 		}
 	}
@@ -414,7 +406,7 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 
 func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 
-	td, err := a.authenticateSessionToken(req.Header.Get(TP_SESSION_TOKEN))
+	td, err := a.jwtValidator.ValidateRequest(req)
 
 	if err != nil {
 		a.logger.Println(http.StatusUnauthorized, err.Error())
@@ -441,13 +433,13 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 			if err = a.Store.RemoveUser(toDelete); err == nil {
 
 				if td.IsServer {
-					a.logMetricForUser(id, "deleteuser", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "true"})
+					a.logMetricForUser(id, "deleteuser", td.getToken(), map[string]string{"server": "true"})
 				} else {
-					a.logMetric("deleteuser", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "false"})
+					a.logMetric("deleteuser", td.getToken(), map[string]string{"server": "false"})
 				}
 				//cleanup if any
 				if td.IsServer == false {
-					a.Store.RemoveTokenByID(req.Header.Get(TP_SESSION_TOKEN))
+					a.Store.RemoveTokenByID(td.getToken())
 				}
 				//all good
 				res.WriteHeader(http.StatusAccepted)
@@ -489,7 +481,8 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 
 	} else if !result.IsEmailVerified(a.ApiConfig.VerificationSecret) {
 		a.sendError(res, http.StatusForbidden, STATUS_NOT_VERIFIED)
-
+	} else if !result.IsEmailVerified(a.ApiConfig.VerificationSecret) {
+		a.sendError(res, http.StatusForbidden, STATUS_NOT_VERIFIED)
 	} else {
 		tokenData := &TokenData{DurationSecs: extractTokenDuration(req), UserId: result.Id}
 		tokenConfig := TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: a.ApiConfig.Secret}
@@ -538,71 +531,12 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 	return
 }
 
-// status: 200 TP_SESSION_TOKEN, oauthUser, oauthTarget
-// status: 400 invalid_request
-// status: 401 invalid_token
-// status: 403 insufficient_scope
-func (a *Api) oauth2Login(w http.ResponseWriter, r *http.Request) {
-
-	//oauth is not enabled
-	if a.oauth == nil {
-		a.logger.Println(http.StatusServiceUnavailable, "OAuth is not enabled")
-		w.WriteHeader(http.StatusServiceUnavailable)
-		return
-	}
-
-	if ah := r.Header.Get("Authorization"); ah != "" {
-		if len(ah) > 6 && strings.ToUpper(ah[0:6]) == "BEARER" {
-			if auth_token := ah[7:]; auth_token != "" {
-
-				//check the actual token
-				result, err := a.oauth.CheckToken(auth_token)
-				if err != nil || result == nil {
-					a.logger.Println(http.StatusUnauthorized, "oauth2Login error checking token ", err)
-					w.WriteHeader(http.StatusUnauthorized)
-					return
-				}
-
-				//check the corresponding user
-				fndUsr, errUsr := a.Store.FindUser(&User{Id: result["userId"].(string)})
-				if errUsr != nil || fndUsr == nil {
-					a.logger.Println(http.StatusUnauthorized, "oauth2Login error getting user ", errUsr.Error())
-					w.WriteHeader(http.StatusUnauthorized)
-					return
-				}
-
-				//generate token and send the response
-				if sessionToken, err := CreateSessionTokenAndSave(
-					&TokenData{DurationSecs: 0, UserId: result["userId"].(string), IsServer: false},
-					TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: a.ApiConfig.Secret},
-					a.Store,
-				); err != nil {
-					a.logger.Println(http.StatusUnauthorized, "oauth2Login error creating session token", err.Error())
-					common.OutputJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": "invalid_token"})
-					return
-				} else {
-					//We are redirecting to the app
-					w.Header().Set(TP_SESSION_TOKEN, sessionToken.ID)
-					common.OutputJSON(w, http.StatusOK, map[string]interface{}{"oauthUser": fndUsr, "oauthTarget": result["authUserId"]})
-					return
-				}
-			}
-		}
-		a.logger.Println(http.StatusUnauthorized, STATUS_AUTH_HEADER_INVLAID)
-		common.OutputJSON(w, http.StatusUnauthorized, map[string]interface{}{"error": STATUS_AUTH_HEADER_INVLAID})
-		return
-	}
-	a.logger.Println(http.StatusBadRequest, STATUS_AUTH_HEADER_REQUIRED)
-	common.OutputJSON(w, http.StatusBadRequest, map[string]interface{}{"error": STATUS_AUTH_HEADER_REQUIRED})
-	return
-}
-
 // status: 200 TP_SESSION_TOKEN, TokenData
 // status: 401 STATUS_NO_TOKEN
 // status: 500 STATUS_ERR_GENERATING_TOKEN
 func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 
-	td, err := a.authenticateSessionToken(req.Header.Get(TP_SESSION_TOKEN))
+	td, err := a.jwtValidator.ValidateRequest(req)
 
 	if err != nil {
 		a.logger.Println(http.StatusUnauthorized, err.Error())
@@ -658,21 +592,19 @@ func (a *Api) LongtermLogin(res http.ResponseWriter, req *http.Request, vars map
 // status: 401 STATUS_NO_TOKEN
 // status: 404 STATUS_NO_TOKEN_MATCH
 func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars map[string]string) {
-
-	if hasServerToken(req.Header.Get(TP_SESSION_TOKEN), a.ApiConfig.Secret) {
-		td, err := a.authenticateSessionToken(vars["token"])
+	serverTokenData, err := a.jwtValidator.ValidateRequest(req)
+	if err == nil && serverTokenData.IsServer {
+		checkTokenData, err := a.authenticateToken(vars["token"])
 		if err != nil {
-			a.logger.Println(http.StatusUnauthorized, STATUS_NO_TOKEN, err.Error())
+			a.logger.Println(http.StatusUnauthorized, STATUS_NO_TOKEN, err)
 			sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_TOKEN), http.StatusUnauthorized)
 			return
 		}
-
-		sendModelAsRes(res, td)
+		sendModelAsRes(res, checkTokenData)
 		return
 	}
-	a.logger.Println(http.StatusUnauthorized, STATUS_NO_TOKEN)
-	sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_TOKEN), http.StatusUnauthorized)
-	return
+	a.logger.Println(http.StatusUnauthorized, STATUS_SERVER_TOKEN_REQUIRED, err)
+	sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_SERVER_TOKEN_REQUIRED), http.StatusUnauthorized)
 }
 
 // status: 200
@@ -714,16 +646,24 @@ func (a *Api) sendError(res http.ResponseWriter, statusCode int, reason string, 
 	sendModelAsResWithStatus(res, status.NewStatus(statusCode, reason), statusCode)
 }
 
-func (a *Api) authenticateSessionToken(sessionToken string) (*TokenData, error) {
-	if sessionToken == "" {
-		return nil, errors.New("Session token is empty")
-	} else if tokenData, err := UnpackSessionTokenAndVerify(sessionToken, a.ApiConfig.Secret); err != nil {
-		return nil, err
-	} else if _, err := a.Store.FindTokenByID(sessionToken); err != nil {
-		return nil, err
-	} else {
-		return tokenData, nil
+func (a *Api) authenticateToken(token string) (*TokenData, error) {
+	if token == "" {
+		return nil, errors.New("Token is empty")
 	}
+
+	validatedTokenData, _ := a.jwtValidator.ValidateRequest(makeAccessRequest(token))
+	if validatedTokenData != nil {
+		return validatedTokenData, nil
+	}
+
+	validatedTokenData, _ = a.jwtValidator.ValidateRequest(makeSessionRequest(token))
+	if validatedTokenData != nil {
+		_, err := a.Store.FindTokenByID(validatedTokenData.token)
+		if err == nil {
+			return validatedTokenData, nil
+		}
+	}
+	return nil, errors.New("Token is not valid")
 }
 
 func (a *Api) tokenUserHasRequestedPermissions(tokenData *TokenData, groupId string, requestedPermissions clients.Permissions) (clients.Permissions, error) {
@@ -731,36 +671,39 @@ func (a *Api) tokenUserHasRequestedPermissions(tokenData *TokenData, groupId str
 		return requestedPermissions, nil
 	} else if tokenData.UserId == groupId {
 		return requestedPermissions, nil
-	} else if actualPermissions, err := a.perms.UserInGroup(tokenData.UserId, groupId); err != nil {
-		return clients.Permissions{}, err
-	} else {
-		finalPermissions := make(clients.Permissions, 0)
-		for permission, _ := range requestedPermissions {
-			if reflect.DeepEqual(requestedPermissions[permission], actualPermissions[permission]) {
-				finalPermissions[permission] = requestedPermissions[permission]
-			}
-		}
-		return finalPermissions, nil
 	}
+	actualPermissions, err := a.perms.UserInGroup(tokenData.UserId, groupId)
+	if err != nil {
+		return clients.Permissions{}, err
+	}
+	finalPermissions := make(clients.Permissions, 0)
+	for permission := range requestedPermissions {
+		if reflect.DeepEqual(requestedPermissions[permission], actualPermissions[permission]) {
+			finalPermissions[permission] = requestedPermissions[permission]
+		}
+	}
+	return finalPermissions, nil
+
 }
 
 func (a *Api) removeUserPermissions(groupId string, removePermissions clients.Permissions) error {
-	if originalUserPermissions, err := a.perms.UsersInGroup(groupId); err != nil {
+	originalUserPermissions, err := a.perms.UsersInGroup(groupId)
+	if err != nil {
 		return err
-	} else {
-		for userId, originalPermissions := range originalUserPermissions {
-			finalPermissions := make(clients.Permissions)
-			for name, value := range originalPermissions {
-				if _, ok := removePermissions[name]; !ok {
-					finalPermissions[name] = value
-				}
-			}
-			if len(finalPermissions) != len(originalPermissions) {
-				if _, err := a.perms.SetPermissions(userId, groupId, finalPermissions); err != nil {
-					return err
-				}
+	}
+	for userId, originalPermissions := range originalUserPermissions {
+		finalPermissions := make(clients.Permissions)
+		for name, value := range originalPermissions {
+			if _, ok := removePermissions[name]; !ok {
+				finalPermissions[name] = value
 			}
 		}
-		return nil
+		if len(finalPermissions) != len(originalPermissions) {
+			if _, err := a.perms.SetPermissions(userId, groupId, finalPermissions); err != nil {
+				return err
+			}
+		}
 	}
+	return nil
+
 }
