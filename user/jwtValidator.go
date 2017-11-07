@@ -80,7 +80,7 @@ func (v *jwtValidator) validateAsAccessToken(request *http.Request) (*TokenData,
 			},
 		),
 		[]string{
-			"open-api",
+			"open-api", //TODO: this will likley need to be expanded or added as config
 			v.config.Auth0Domain + "userinfo",
 		},
 		v.config.Auth0Domain,
