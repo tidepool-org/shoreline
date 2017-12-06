@@ -1,6 +1,7 @@
 package auth0
 
 import (
+	"errors"
 	"net/http"
 	"time"
 
@@ -29,6 +30,10 @@ func NewKeyProvider(key interface{}) SecretProvider {
 		return key, nil
 	})
 }
+
+var (
+	ErrNoJWTHeaders = errors.New("No headers in the token")
+)
 
 // Configuration contains
 // all the information about the
@@ -71,6 +76,15 @@ func (v *JWTValidator) ValidateRequest(r *http.Request) (*jwt.JSONWebToken, erro
 		return nil, err
 	}
 
+	if len(token.Headers) < 1 {
+		return nil, ErrNoJWTHeaders
+	}
+
+	header := token.Headers[0]
+	if header.Algorithm != string(v.config.signIn) {
+		return nil, ErrInvalidAlgorithm
+	}
+
 	claims := jwt.Claims{}
 	key, err := v.config.secretProvider.GetSecret(r)
 	if err != nil {
@@ -89,10 +103,10 @@ func (v *JWTValidator) ValidateRequest(r *http.Request) (*jwt.JSONWebToken, erro
 }
 
 // Claims unmarshall the claims of the provided token
-func (v *JWTValidator) Claims(req *http.Request, token *jwt.JSONWebToken, values interface{}) error {
+func (v *JWTValidator) Claims(req *http.Request, token *jwt.JSONWebToken, values ...interface{}) error {
 	key, err := v.config.secretProvider.GetSecret(req)
 	if err != nil {
 		return err
 	}
-	return token.Claims(key, values)
+	return token.Claims(key, values...)
 }

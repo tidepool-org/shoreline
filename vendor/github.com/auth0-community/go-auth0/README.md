@@ -18,7 +18,6 @@ go get github.com/auth0-community/go-auth0
 Using HS256, the validation key is the secret you retrieve in the dashboard.
 ```go
 // Creates a configuration with the Auth0 information
-// If you're secret is not base64 encoded, provide your key as a string
 secret, _ := base64.URLEncoding.DecodeString(os.Getenv("AUTH0_CLIENT_SECRET"))
 secretProvider := auth0.NewKeyProvider(secret)
 audience := os.Getenv("AUTH0_CLIENT_ID")
@@ -61,7 +60,6 @@ func LoadPublicKey(data []byte) (interface{}, error) {
 	return nil, fmt.Errorf("square/go-jose: parse error, got '%s' and '%s'", err0, err1)
 }
 // Create a configuration with the Auth0 information
-// If you're secret is not base64 encoded, provide your key as a string
 secret, _ := LoadPublicKey(sharedKey)
 secretProvider := auth0.NewKeyProvider(secret)
 audience := os.Getenv("AUTH0_CLIENT_ID")
@@ -109,31 +107,31 @@ func shouldAccess(wantedGroups []string, groups []interface{}) bool {
 func Auth0Groups(wantedGroups ...string) gin.HandlerFunc {
 
 	return gin.HandlerFunc(func(c *gin.Context) {
-		jwt, err := validator.ValidateRequest(c.Request)
 
+		tok, err := validator.ValidateRequest(c.Request)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 			c.Abort()
-			log.Println("InvalidToken:", jwt)
+			log.Println("Invalid token:", err)
 			return
 		}
-        
-        claims := map[string]interface{}{}
-        err = validator.Claims(c.Request, tok, &claims)
-        
-        if err != nil {
-        			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid claims"})
-        			c.Abort()
-        			return
-        		}
-        		
-		metadata, okMetadata := jwt.Claims().Get("app_metadata").(map[string]interface{})
+
+		claims := map[string]interface{}{}
+		err = validator.Claims(c.Request, tok, &claims)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid claims"})
+			c.Abort()
+			log.Println("Invalid claims:", err)
+			return
+		}
+
+		metadata, okMetadata := claims["app_metadata"].(map[string]interface{})
 		authorization, okAuthorization := metadata["authorization"].(map[string]interface{})
 		groups, hasGroups := authorization["groups"].([]interface{})
-
 		if !okMetadata || !okAuthorization || !hasGroups || !shouldAccess(wantedGroups, groups) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "need more privileges"})
 			c.Abort()
+			log.Println("Need more provileges")
 			return
 		}
 		c.Next()
@@ -143,3 +141,5 @@ func Auth0Groups(wantedGroups ...string) gin.HandlerFunc {
 // Use it
 r.PUT("/news", auth.Auth0Groups(auth.AdminGroup), api.GetNews)
 ```
+
+For a sample usage, take a look inside the `example` directory.

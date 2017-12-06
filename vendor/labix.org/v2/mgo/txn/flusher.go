@@ -400,7 +400,7 @@ func (f *flusher) rescan(t *transaction, force bool) (revnos []int64, err error)
 	if !force {
 		prereqs, found := f.hasPreReqs(tt, dkeys)
 		if found && prereqs {
-			// Its state is already known.
+			// It's state is already known.
 			return nil, errPreReqs
 		}
 	}

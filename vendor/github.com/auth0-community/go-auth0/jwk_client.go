@@ -7,15 +7,14 @@ import (
 	"sync"
 
 	"github.com/go-errors/errors"
-	"github.com/square/go-jose"
+	"gopkg.in/square/go-jose.v2"
 )
 
 var (
-	DefaultOptions        = JWKClientOptions{""}
 	ErrInvalidContentType = errors.New("Should have a JSON content type for JWKS endpoint.")
 	ErrNoKeyFound         = errors.New("No Keys has been found")
 	ErrInvalidTokenHeader = errors.New("No valid header found")
-	ErrInvalidAlgorithm   = errors.New("Only RS252 is supported")
+	ErrInvalidAlgorithm   = errors.New("Only RS256 is supported")
 )
 
 type JWKClientOptions struct {
@@ -23,61 +22,74 @@ type JWKClientOptions struct {
 }
 
 type JWKS struct {
-	Keys []jose.JsonWebKey `json:"keys"`
+	Keys []jose.JSONWebKey `json:"keys"`
 }
 
 type JWKClient struct {
-	keys    map[string]jose.JsonWebKey
+	keys    map[string]jose.JSONWebKey
 	mu      sync.Mutex
 	options JWKClientOptions
 }
 
+// NewJWKClient creates a new JWKClient instance from the
+// provided options.
 func NewJWKClient(options JWKClientOptions) *JWKClient {
-	return &JWKClient{keys: map[string]jose.JsonWebKey{}, options: options}
+	return &JWKClient{keys: map[string]jose.JSONWebKey{}, options: options}
 }
 
-func (j *JWKClient) GetKey(ID string) (jose.JsonWebKey, bool) {
+// GetKey returns the key associated with the provided ID.
+func (j *JWKClient) GetKey(ID string) (jose.JSONWebKey, error) {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 
-	key, exist := j.keys[ID]
-
+	searchedKey, exist := j.keys[ID]
 	if !exist {
-		j.downloadKeys()
+		if keys, err := j.downloadKeys(); err != nil {
+			return jose.JSONWebKey{}, err
+		} else {
+
+			for _, key := range keys {
+				// Cache key
+				j.keys[key.KeyID] = key
+
+				if key.KeyID == ID {
+					searchedKey = key
+					exist = true
+				}
+			}
+		}
 	}
 
-	key, exist = j.keys[ID]
-	return key, exist
+	if exist {
+		return searchedKey, nil
+	}
+	return jose.JSONWebKey{}, ErrNoKeyFound
 }
 
-func (j *JWKClient) downloadKeys() error {
+func (j *JWKClient) downloadKeys() ([]jose.JSONWebKey, error) {
 	resp, err := http.Get(j.options.URI)
 
 	if err != nil {
-		return err
+		return []jose.JSONWebKey{}, err
 	}
 	defer resp.Body.Close()
 
 	if contentH := resp.Header.Get("Content-Type"); !strings.HasPrefix(contentH, "application/json") {
-		return ErrInvalidContentType
+		return []jose.JSONWebKey{}, ErrInvalidContentType
 	}
 
 	var jwks = JWKS{}
 	err = json.NewDecoder(resp.Body).Decode(&jwks)
 
 	if err != nil {
-		return err
+		return []jose.JSONWebKey{}, err
 	}
 
 	if len(jwks.Keys) < 1 {
-		return ErrNoKeyFound
+		return []jose.JSONWebKey{}, ErrNoKeyFound
 	}
 
-	for _, key := range jwks.Keys {
-		j.keys[key.KeyID] = key
-	}
-
-	return nil
+	return jwks.Keys, nil
 }
 
 func (j *JWKClient) GetSecret(req *http.Request) (interface{}, error) {
@@ -96,10 +108,5 @@ func (j *JWKClient) GetSecret(req *http.Request) (interface{}, error) {
 		return nil, ErrInvalidAlgorithm
 	}
 
-	webKey, exist := j.GetKey(header.KeyID)
-	if !exist {
-		return nil, ErrNoKeyFound
-	}
-
-	return webKey.Key, nil
+	return j.GetKey(header.KeyID)
 }
