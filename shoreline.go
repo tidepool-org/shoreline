@@ -37,8 +37,8 @@ const (
 func main() {
 	var config Config
 
-	if err := common.LoadConfig([]string{"./config/env.json", "./config/server.json"}, &config); err != nil {
-		log.Panic(shoreline_service_prefix, "Problem loading config", err)
+	if err := common.LoadEnvironmentConfig([]string{"TIDEPOOL_SHORELINE_ENV", "TIDEPOOL_SHORELINE_SERVICE"}, &config); err != nil {
+		log.Panic("Problem loading config", err)
 	}
 
 	/*
