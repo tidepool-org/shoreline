@@ -5,21 +5,18 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"path"
+	"text/tabwriter"
+	"text/template"
 	"time"
 )
 
 // App is the main structure of a cli application. It is recomended that
-// an app be created with the cli.NewApp() function
+// and app be created with the cli.NewApp() function
 type App struct {
-	// The name of the program. Defaults to path.Base(os.Args[0])
+	// The name of the program. Defaults to os.Args[0]
 	Name string
-	// Full name of command for help, defaults to Name
-	HelpName string
 	// Description of the program.
 	Usage string
-	// Description of the program argument format.
-	ArgsUsage string
 	// Version of the program
 	Version string
 	// List of commands to execute
@@ -46,13 +43,9 @@ type App struct {
 	CommandNotFound func(context *Context, command string)
 	// Compilation date
 	Compiled time.Time
-	// List of all authors who contributed
-	Authors []Author
-	// Copyright of the binary if any
-	Copyright string
-	// Name of Author (Note: Use App.Authors, this is deprecated)
+	// Author
 	Author string
-	// Email of Author (Note: Use App.Authors, this is deprecated)
+	// Author e-mail
 	Email string
 	// Writer writer to write output to
 	Writer io.Writer
@@ -71,31 +64,35 @@ func compileTime() time.Time {
 // Creates a new cli Application with some reasonable defaults for Name, Usage, Version and Action.
 func NewApp() *App {
 	return &App{
-		Name:         path.Base(os.Args[0]),
-		HelpName:     path.Base(os.Args[0]),
+		Name:         os.Args[0],
 		Usage:        "A new cli application",
 		Version:      "0.0.0",
 		BashComplete: DefaultAppComplete,
 		Action:       helpCommand.Action,
 		Compiled:     compileTime(),
+		Author:       "Author",
+		Email:        "unknown@email",
 		Writer:       os.Stdout,
 	}
 }
 
 // Entry point to the cli app. Parses the arguments slice and routes to the proper flag/args combination
 func (a *App) Run(arguments []string) (err error) {
-	if a.Author != "" || a.Email != "" {
-		a.Authors = append(a.Authors, Author{Name: a.Author, Email: a.Email})
-	}
+	if HelpPrinter == nil {
+		defer func() {
+			HelpPrinter = nil
+		}()
 
-	newCmds := []Command{}
-	for _, c := range a.Commands {
-		if c.HelpName == "" {
-			c.HelpName = fmt.Sprintf("%s %s", a.HelpName, c.Name)
+		HelpPrinter = func(templ string, data interface{}) {
+			w := tabwriter.NewWriter(a.Writer, 0, 8, 1, '\t', 0)
+			t := template.Must(template.New("help").Parse(templ))
+			err := t.Execute(w, data)
+			if err != nil {
+				panic(err)
+			}
+			w.Flush()
 		}
-		newCmds = append(newCmds, c)
 	}
-	a.Commands = newCmds
 
 	// append help to commands
 	if a.Command(helpCommand.Name) == nil && !a.HideHelp {
@@ -121,52 +118,44 @@ func (a *App) Run(arguments []string) (err error) {
 	nerr := normalizeFlags(a.Flags, set)
 	if nerr != nil {
 		fmt.Fprintln(a.Writer, nerr)
-		context := NewContext(a, set, nil)
+		context := NewContext(a, set, set)
 		ShowAppHelp(context)
+		fmt.Fprintln(a.Writer)
 		return nerr
 	}
-	context := NewContext(a, set, nil)
+	context := NewContext(a, set, set)
+
+	if err != nil {
+		fmt.Fprintf(a.Writer, "Incorrect Usage.\n\n")
+		ShowAppHelp(context)
+		fmt.Fprintln(a.Writer)
+		return err
+	}
 
 	if checkCompletions(context) {
 		return nil
 	}
 
-	if err != nil {
-		fmt.Fprintln(a.Writer, "Incorrect Usage.")
-		fmt.Fprintln(a.Writer)
-		ShowAppHelp(context)
-		return err
-	}
-
-	if !a.HideHelp && checkHelp(context) {
-		ShowAppHelp(context)
+	if checkHelp(context) {
 		return nil
 	}
 
-	if !a.HideVersion && checkVersion(context) {
-		ShowVersion(context)
+	if checkVersion(context) {
 		return nil
 	}
 
 	if a.After != nil {
 		defer func() {
-			afterErr := a.After(context)
-			if afterErr != nil {
-				if err != nil {
-					err = NewMultiError(err, afterErr)
-				} else {
-					err = afterErr
-				}
-			}
+			// err is always nil here.
+			// There is a check to see if it is non-nil
+			// just few lines before.
+			err = a.After(context)
 		}()
 	}
 
 	if a.Before != nil {
 		err := a.Before(context)
 		if err != nil {
-			fmt.Fprintln(a.Writer, err)
-			fmt.Fprintln(a.Writer)
-			ShowAppHelp(context)
 			return err
 		}
 	}
@@ -205,15 +194,6 @@ func (a *App) RunAsSubcommand(ctx *Context) (err error) {
 		}
 	}
 
-	newCmds := []Command{}
-	for _, c := range a.Commands {
-		if c.HelpName == "" {
-			c.HelpName = fmt.Sprintf("%s %s", a.HelpName, c.Name)
-		}
-		newCmds = append(newCmds, c)
-	}
-	a.Commands = newCmds
-
 	// append flags
 	if a.EnableBashCompletion {
 		a.appendFlag(BashCompletionFlag)
@@ -224,28 +204,27 @@ func (a *App) RunAsSubcommand(ctx *Context) (err error) {
 	set.SetOutput(ioutil.Discard)
 	err = set.Parse(ctx.Args().Tail())
 	nerr := normalizeFlags(a.Flags, set)
-	context := NewContext(a, set, ctx)
+	context := NewContext(a, set, ctx.globalSet)
 
 	if nerr != nil {
 		fmt.Fprintln(a.Writer, nerr)
-		fmt.Fprintln(a.Writer)
 		if len(a.Commands) > 0 {
 			ShowSubcommandHelp(context)
 		} else {
 			ShowCommandHelp(ctx, context.Args().First())
 		}
+		fmt.Fprintln(a.Writer)
 		return nerr
+	}
+
+	if err != nil {
+		fmt.Fprintf(a.Writer, "Incorrect Usage.\n\n")
+		ShowSubcommandHelp(context)
+		return err
 	}
 
 	if checkCompletions(context) {
 		return nil
-	}
-
-	if err != nil {
-		fmt.Fprintln(a.Writer, "Incorrect Usage.")
-		fmt.Fprintln(a.Writer)
-		ShowSubcommandHelp(context)
-		return err
 	}
 
 	if len(a.Commands) > 0 {
@@ -260,14 +239,10 @@ func (a *App) RunAsSubcommand(ctx *Context) (err error) {
 
 	if a.After != nil {
 		defer func() {
-			afterErr := a.After(context)
-			if afterErr != nil {
-				if err != nil {
-					err = NewMultiError(err, afterErr)
-				} else {
-					err = afterErr
-				}
-			}
+			// err is always nil here.
+			// There is a check to see if it is non-nil
+			// just few lines before.
+			err = a.After(context)
 		}()
 	}
 
@@ -318,20 +293,4 @@ func (a *App) appendFlag(flag Flag) {
 	if !a.hasFlag(flag) {
 		a.Flags = append(a.Flags, flag)
 	}
-}
-
-// Author represents someone who has contributed to a cli project.
-type Author struct {
-	Name  string // The Authors name
-	Email string // The Authors email
-}
-
-// String makes Author comply to the Stringer interface, to allow an easy print in the templating process
-func (a Author) String() string {
-	e := ""
-	if a.Email != "" {
-		e = "<" + a.Email + "> "
-	}
-
-	return fmt.Sprintf("%v %v", a.Name, e)
 }
