@@ -12,7 +12,9 @@ CMD ["./dist/shoreline"]
 # Release
 FROM alpine:latest AS release
 
-RUN adduser -D shoreline
+RUN ["apk", "add", "--no-cache", "ca-certificates"]
+
+RUN ["adduser", "-D", "shoreline"]
 
 WORKDIR /home/shoreline
 
