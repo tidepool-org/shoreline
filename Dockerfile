@@ -14,12 +14,12 @@ FROM alpine:latest AS release
 
 RUN ["apk", "add", "--no-cache", "ca-certificates"]
 
-RUN ["adduser", "-D", "shoreline"]
+RUN ["adduser", "-D", "tidepool"]
 
-WORKDIR /home/shoreline
+WORKDIR /home/tidepool
 
-USER shoreline
+USER tidepool
 
-COPY --from=development --chown=shoreline /go/src/github.com/tidepool-org/shoreline/dist/shoreline .
+COPY --from=development --chown=tidepool /go/src/github.com/tidepool-org/shoreline/dist/shoreline .
 
 CMD ["./shoreline"]
