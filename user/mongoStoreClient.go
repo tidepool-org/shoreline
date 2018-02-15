@@ -2,7 +2,6 @@ package user
 
 import (
 	"fmt"
-	"log"
 	"regexp"
 	"sort"
 
@@ -26,7 +25,7 @@ func NewMongoStoreClient(config *mongo.Config) *MongoStoreClient {
 
 	mongoSession, err := mongo.Connect(config)
 	if err != nil {
-		log.Fatal(USER_API_PREFIX, err)
+		logger.Fatal(err)
 	}
 
 	return &MongoStoreClient{
@@ -43,7 +42,7 @@ func mgoTokensCollection(cpy *mgo.Session) *mgo.Collection {
 }
 
 func (d MongoStoreClient) Close() {
-	log.Print(USER_API_PREFIX, "Close the session")
+	logger.Println("Close the session")
 	d.session.Close()
 	return
 }
@@ -116,7 +115,7 @@ func (d MongoStoreClient) FindUsers(user *User) (results []*User, err error) {
 	}
 
 	if results == nil {
-		log.Print(USER_API_PREFIX, "no users found ")
+		logger.Println("no users found")
 		results = []*User{}
 	}
 
@@ -132,7 +131,7 @@ func (d MongoStoreClient) FindUsersByRole(role string) (results []*User, err err
 	}
 
 	if results == nil {
-		log.Print(USER_API_PREFIX, "no users found ")
+		logger.Println("no users found")
 		results = []*User{}
 	}
 

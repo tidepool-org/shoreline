@@ -3,7 +3,6 @@ package user
 import (
 	"encoding/base64"
 	"encoding/json"
-	"log"
 	"net/http"
 	"strings"
 )
@@ -21,7 +20,7 @@ func firstStringNotEmpty(strs ...string) string {
 func getGivenDetail(req *http.Request) (d map[string]string) {
 	if req.ContentLength > 0 {
 		if err := json.NewDecoder(req.Body).Decode(&d); err != nil {
-			log.Print(USER_API_PREFIX, "error trying to decode user detail ", err)
+			logger.Println("error trying to decode user detail ", err)
 			return nil
 		}
 	}
@@ -36,7 +35,7 @@ func unpackAuth(authLine string) (usr *User, pw string) {
 		parts := strings.SplitN(authLine, " ", 2)
 		payload := parts[1]
 		if decodedPayload, err := base64.URLEncoding.DecodeString(payload); err != nil {
-			log.Print(USER_API_PREFIX, "Error unpacking authorization header [%s]", err.Error())
+			logger.Println("Error unpacking authorization header ", err.Error())
 		} else {
 			details := strings.Split(string(decodedPayload), ":")
 			if details[0] != "" || details[1] != "" {
@@ -57,7 +56,7 @@ func sendModelAsResWithStatus(res http.ResponseWriter, model interface{}, status
 	res.WriteHeader(statusCode)
 
 	if jsonDetails, err := json.Marshal(model); err != nil {
-		log.Println(USER_API_PREFIX, err.Error())
+		logger.Println(err.Error())
 	} else {
 		res.Write(jsonDetails)
 	}
@@ -66,7 +65,7 @@ func sendModelAsResWithStatus(res http.ResponseWriter, model interface{}, status
 //send metric
 func (a *Api) logMetric(name, token string, params map[string]string) {
 	if token == "" {
-		a.logger.Println("Missing token so couldn't log metric")
+		logger.Println("Missing token so couldn't log metric")
 		return
 	}
 	if params == nil {
@@ -78,7 +77,7 @@ func (a *Api) logMetric(name, token string, params map[string]string) {
 //send metric
 func (a *Api) logMetricAsServer(name, token string, params map[string]string) {
 	if token == "" {
-		a.logger.Println("Missing token so couldn't log metric")
+		logger.Println("Missing token so couldn't log metric")
 		return
 	}
 	if params == nil {
@@ -90,7 +89,7 @@ func (a *Api) logMetricAsServer(name, token string, params map[string]string) {
 //send metric
 func (a *Api) logMetricForUser(id, name, token string, params map[string]string) {
 	if token == "" {
-		a.logger.Println("Missing token so couldn't log metric")
+		logger.Println("Missing token so couldn't log metric")
 		return
 	}
 	if params == nil {

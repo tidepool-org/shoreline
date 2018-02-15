@@ -7,12 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/http/httptest"
 
 	commonUserApi "github.com/tidepool-org/go-common/clients/shoreline"
 	"github.com/tidepool-org/go-common/clients/status"
+	"github.com/tidepool-org/go-common/tokens"
 )
 
 func extractUserData(data string) (*commonUserApi.UserData, error) {
@@ -92,7 +92,7 @@ func (client *UserClient) CheckToken(token string) *commonUserApi.TokenData {
 	request, _ := http.NewRequest("GET", "", nil)
 	request.Header.Add("x-tidepool-session-token", serverToken)
 	res := httptest.NewRecorder()
-	client.userapi.ServerCheckToken(res, request, map[string]string{"token": token})
+	client.userapi.ServerCheckSessionToken(res, request, map[string]string{"token": token})
 
 	body, _ := ioutil.ReadAll(res.Body)
 
@@ -101,7 +101,7 @@ func (client *UserClient) CheckToken(token string) *commonUserApi.TokenData {
 		var td commonUserApi.TokenData
 
 		if err := json.Unmarshal([]byte(string(body)), &td); err != nil {
-			log.Printf("Error parsing JSON results [%s]", err.Error())
+			logger.Printf("Error parsing JSON results [%s]", err.Error())
 			return nil
 		}
 
@@ -109,7 +109,7 @@ func (client *UserClient) CheckToken(token string) *commonUserApi.TokenData {
 	case 404:
 		return nil
 	default:
-		log.Printf("Unknown response code[%d] from user api", res.Code)
+		logger.Printf("Unknown response code[%d] from user api", res.Code)
 		return nil
 	}
 }
@@ -123,9 +123,9 @@ func (client *UserClient) TokenProvide() string {
 
 	client.userapi.ServerLogin(response, request)
 
-	log.Print(USER_API_PREFIX, "UserClient.TokenProvide")
+	logger.Print("UserClient.TokenProvide")
 
-	return response.Header().Get(TP_SESSION_TOKEN)
+	return response.Header().Get(tokens.TidepoolSessionTokenName)
 }
 
 // FIXME: Not required for OAUTH API, but still...

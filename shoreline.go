@@ -16,7 +16,6 @@ import (
 	"github.com/tidepool-org/go-common/clients/hakken"
 	"github.com/tidepool-org/go-common/clients/highwater"
 	"github.com/tidepool-org/go-common/clients/mongo"
-	"github.com/tidepool-org/shoreline/oauth2"
 	"github.com/tidepool-org/shoreline/user"
 )
 
@@ -26,7 +25,6 @@ type (
 		Service disc.ServiceListing `json:"service"`
 		Mongo   mongo.Config        `json:"mongo"`
 		User    user.ApiConfig      `json:"user"`
-		Oauth2  oauth2.ApiConfig    `json:"oauth2"`
 	}
 )
 
@@ -69,15 +67,30 @@ func main() {
 		WithConfig(&config.HighwaterConfig.HighwaterClientConfig).
 		Build()
 
+	validator, err := user.NewJWTValidator(
+		user.JWTValidatorConfig{
+			Auth0AccessTokenConfig: user.Auth0AccessTokenConfig{
+				Auth0Domain:    os.Getenv("TIDEPOOL_SHORELINE_AUTH0_DOMAIN"),
+				Auth0Audience:  os.Getenv("TIDEPOOL_SHORELINE_AUTH0_AUDIENCE"),
+				Auth0PublicKey: os.Getenv("TIDEPOOL_SHORELINE_AUTH0_PUBLICKEY"),
+			},
+			Secret: config.User.Secret,
+		},
+	)
+
+	if err != nil {
+		log.Fatal(shoreline_service_prefix, err)
+	}
+
 	rtr := mux.NewRouter()
 
 	/*
 	 * User-Api setup
 	 */
 
-	log.Print(shoreline_service_prefix, "adding", user.USER_API_PREFIX)
+	log.Println(shoreline_service_prefix, "adding api/user")
 
-	userapi := user.InitApi(config.User, user.NewMongoStoreClient(&config.Mongo), highwater)
+	userapi := user.InitApi(config.User, user.NewMongoStoreClient(&config.Mongo), highwater, validator)
 	userapi.SetHandlers("", rtr)
 
 	userClient := user.NewUserClient(userapi)
@@ -90,20 +103,6 @@ func main() {
 
 	log.Print(shoreline_service_prefix, "adding", "permsClient")
 	userapi.AttachPerms(permsClient)
-
-	/*
-	 * Oauth setup
-	 */
-
-	log.Print(shoreline_service_prefix, "adding", oauth2.OAUTH2_API_PREFIX)
-
-	oauthapi := oauth2.InitApi(config.Oauth2, oauth2.NewOAuthStorage(&config.Mongo), userClient, permsClient)
-	oauthapi.SetHandlers("", rtr)
-
-	oauthClient := oauth2.NewOAuth2Client(oauthapi)
-
-	log.Print(shoreline_service_prefix, oauth2.OAUTH2_API_PREFIX, "adding oauthClient")
-	userapi.AttachOauth(oauthClient)
 
 	/*
 	 * Serve it up and publish

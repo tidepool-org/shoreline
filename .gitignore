@@ -2,3 +2,5 @@ deploy/
 dist/
 
 artifact_go.sh
+
+shoreline
