@@ -12,12 +12,12 @@ import (
 	"github.com/codegangsta/cli"
 
 	"github.com/tidepool-org/go-common/clients/shoreline"
+	"github.com/tidepool-org/go-common/tokens"
 )
 
 const (
 	TidepoolServerName   = "x-tidepool-server-name"
 	TidepoolServerSecret = "x-tidepool-server-secret"
-	TidepoolSessionToken = "x-tidepool-session-token"
 )
 
 type admin struct {
@@ -246,7 +246,7 @@ func (a *admin) LoginAsServer() error {
 		return errors.New(fmt.Sprintf("Unexpected response status code from server login request: [%d] %s", res.StatusCode, body))
 	}
 
-	a.token = res.Header.Get(TidepoolSessionToken)
+	a.token = res.Header.Get(tokens.TidepoolSessionTokenName)
 	if a.token == "" {
 		return errors.New("No session token returned from server login request")
 	}
@@ -268,7 +268,7 @@ func (a *admin) GetUserByEmail(email string) (*shoreline.UserData, error) {
 		return nil, errors.New(fmt.Sprintf("Error creating new get user request: %s", err.Error()))
 	}
 
-	req.Header.Add(TidepoolSessionToken, a.token)
+	req.Header.Add(tokens.TidepoolSessionTokenName, a.token)
 
 	res, err := a.client.Do(req)
 	if err != nil {
@@ -301,7 +301,7 @@ func (a *admin) GetUsersWithRole(role string) ([]shoreline.UserData, error) {
 		return nil, errors.New(fmt.Sprintf("Error creating new get users request: %s", err.Error()))
 	}
 
-	req.Header.Add(TidepoolSessionToken, a.token)
+	req.Header.Add(tokens.TidepoolSessionTokenName, a.token)
 
 	res, err := a.client.Do(req)
 	if err != nil {
@@ -351,7 +351,7 @@ func (a *admin) ApplyUpdatesToUser(user *shoreline.UserData, updaters []UserUpda
 		return nil, errors.New(fmt.Sprintf("Error creating new update user request: %s", err.Error()))
 	}
 
-	req.Header.Add(TidepoolSessionToken, a.token)
+	req.Header.Add(tokens.TidepoolSessionTokenName, a.token)
 
 	res, err := a.client.Do(req)
 	if err != nil {

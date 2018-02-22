@@ -61,12 +61,6 @@ func main() {
 
 	httpClient := &http.Client{Transport: tr}
 
-	highwater := highwater.NewHighwaterClientBuilder().
-		WithHostGetter(config.HighwaterConfig.ToHostGetter(hakkenClient)).
-		WithHttpClient(httpClient).
-		WithConfig(&config.HighwaterConfig.HighwaterClientConfig).
-		Build()
-
 	validator, err := user.NewJWTValidator(
 		user.JWTValidatorConfig{
 			Auth0AccessTokenConfig: user.Auth0AccessTokenConfig{
@@ -90,7 +84,7 @@ func main() {
 
 	log.Println(shoreline_service_prefix, "adding api/user")
 
-	userapi := user.InitApi(config.User, user.NewMongoStoreClient(&config.Mongo), highwater, validator)
+	userapi := user.InitApi(config.User, user.NewMongoStoreClient(&config.Mongo), nil, validator)
 	userapi.SetHandlers("", rtr)
 
 	userClient := user.NewUserClient(userapi)
@@ -98,12 +92,20 @@ func main() {
 	permsClient := clients.NewGatekeeperClientBuilder().
 		WithHostGetter(config.GatekeeperConfig.ToHostGetter(hakkenClient)).
 		WithHttpClient(httpClient).
-		WithTokenProvider(userClient).
+		WithSecretProvider(userClient).
 		Build()
 
 	log.Print(shoreline_service_prefix, "adding", "permsClient")
 	userapi.AttachPerms(permsClient)
 
+	highwater := highwater.NewHighwaterClientBuilder().
+		WithHostGetter(config.HighwaterConfig.ToHostGetter(hakkenClient)).
+		WithHttpClient(httpClient).
+		WithConfig(&config.HighwaterConfig.HighwaterClientConfig).
+		WithSecretProvider(userClient).
+		Build()
+
+	userapi.AttachMetrics(highwater)
 	/*
 	 * Serve it up and publish
 	 */

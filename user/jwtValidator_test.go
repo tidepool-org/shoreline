@@ -41,8 +41,8 @@ func (m *mockJWTValidator) CheckToken(response http.ResponseWriter, request *htt
 			}
 		}
 	}
-	if tokens.IsSessionToken(request) {
-		token, err := responsableStore.FindTokenByID(tokens.GetSessionToken(request))
+	if session := request.Header.Get(tokens.TidepoolSessionTokenName); session != "" {
+		token, err := responsableStore.FindTokenByID(session)
 		if err == nil && token != nil {
 
 			id := token.UserID
@@ -76,7 +76,7 @@ func (m *mockJWTValidator) CheckAccessToken(request *http.Request, requiredScope
 }
 
 func (m *mockJWTValidator) CheckSessionToken(request *http.Request) *TokenData {
-	session := tokens.GetSessionToken(request)
+	session := request.Header.Get(tokens.TidepoolSessionTokenName)
 	if session != "" {
 		token, err := responsableStore.FindTokenByID(session)
 		if err == nil && token != nil {

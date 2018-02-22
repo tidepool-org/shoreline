@@ -23,7 +23,7 @@ func newSessionValidator(secret string) *sessionValidator {
 }
 
 func (s *sessionValidator) validate(request *http.Request) (*TokenData, error) {
-	sessionToken := tokens.GetSessionToken(request)
+	sessionToken := request.Header.Get(tokens.TidepoolSessionTokenName)
 	jwtToken, err := jwt.Parse(sessionToken, func(t *jwt.Token) ([]byte, error) { return []byte(s.secret), nil })
 	if err != nil {
 		return nil, err

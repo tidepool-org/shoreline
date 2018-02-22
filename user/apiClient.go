@@ -77,7 +77,7 @@ func (client *UserClient) Login(username, password string) (*commonUserApi.UserD
 			return nil, "", err
 		}
 
-		return ud, response.Header().Get("x-tidepool-session-token"), nil
+		return ud, response.Header().Get(tokens.TidepoolSessionTokenName), nil
 	case 404:
 		return nil, "", nil
 	default:
@@ -86,11 +86,8 @@ func (client *UserClient) Login(username, password string) (*commonUserApi.UserD
 }
 
 func (client *UserClient) CheckToken(token string) *commonUserApi.TokenData {
-
-	serverToken := client.TokenProvide()
-
 	request, _ := http.NewRequest("GET", "", nil)
-	request.Header.Add("x-tidepool-session-token", serverToken)
+	request.Header.Add(tokens.TidepoolLegacyServiceSecretHeaderKey, client.SecretProvide())
 	res := httptest.NewRecorder()
 	client.userapi.ServerCheckSessionToken(res, request, map[string]string{"token": token})
 
@@ -114,6 +111,10 @@ func (client *UserClient) CheckToken(token string) *commonUserApi.TokenData {
 	}
 }
 
+func (client *UserClient) SecretProvide() string {
+	return client.userapi.ApiConfig.ServerSecret
+}
+
 func (client *UserClient) TokenProvide() string {
 
 	request, _ := http.NewRequest("GET", "", nil)
@@ -124,8 +125,7 @@ func (client *UserClient) TokenProvide() string {
 	client.userapi.ServerLogin(response, request)
 
 	logger.Print("UserClient.TokenProvide")
-
-	return response.Header().Get(tokens.TidepoolSessionTokenName)
+	return response.Header().Get("x-tidepool-session-token")
 }
 
 // FIXME: Not required for OAUTH API, but still...

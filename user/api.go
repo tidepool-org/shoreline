@@ -98,6 +98,10 @@ func InitApi(cfg ApiConfig, store Storage, metrics highwater.Client, validator J
 	}
 }
 
+func (a *Api) AttachMetrics(metrics highwater.Client) {
+	a.metrics = metrics
+}
+
 func (a *Api) AttachPerms(perms clients.Gatekeeper) {
 	a.perms = perms
 }
@@ -454,7 +458,7 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 	return
 }
 
-// status: 200 tokens.TidepoolSessionTokenName,
+// status: 200 "x-tidepool-session-token"
 // status: 400 STATUS_MISSING_ID_PW
 // status: 401 STATUS_NO_MATCH
 // status: 403 STATUS_NOT_VERIFIED
@@ -496,7 +500,7 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 	}
 }
 
-// status: 200 tokens.TidepoolSessionTokenName
+// status: 200 "x-tidepool-session-token"
 // status: 400 STATUS_MISSING_ID_PW
 // status: 401 STATUS_PW_WRONG
 // status: 500 STATUS_ERR_GENERATING_TOKEN
@@ -530,7 +534,7 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 	return
 }
 
-// status: 200 tokens.TidepoolSessionTokenName, TokenData
+// status: 200 "x-tidepool-session-token", TokenData
 // status: 401 STATUS_NO_TOKEN
 // status: 500 STATUS_ERR_GENERATING_TOKEN
 func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
@@ -583,7 +587,7 @@ func (a *Api) LongtermLogin(res http.ResponseWriter, req *http.Request, vars map
 	// TODO: Does not actually add the TOKEN_DURATION_KEY to the response on success (as the old unittests would imply)
 }
 
-// status: 200 TidepoolSessionToken, TokenData
+// status: 200 TokenData
 // status: 401 STATUS_NO_TOKEN
 // status: 404 STATUS_NO_TOKEN_MATCH
 func (a *Api) ServerCheckBearerToken(res http.ResponseWriter, req *http.Request, vars map[string]string) {
@@ -612,7 +616,7 @@ func (a *Api) ServerCheckBearerToken(res http.ResponseWriter, req *http.Request,
 	sendModelAsRes(res, tokenData)
 }
 
-// status: 200 tokens.TidepoolSessionTokenName, TokenData
+// status: 200 TokenData
 // status: 401 STATUS_NO_TOKEN
 // status: 404 STATUS_NO_TOKEN_MATCH
 func (a *Api) ServerCheckSessionToken(res http.ResponseWriter, req *http.Request, vars map[string]string) {
@@ -642,7 +646,7 @@ func (a *Api) ServerCheckSessionToken(res http.ResponseWriter, req *http.Request
 }
 
 func (a *Api) Logout(res http.ResponseWriter, req *http.Request) {
-	token := tokens.GetSessionToken(req)
+	token := req.Header.Get(tokens.TidepoolSessionTokenName)
 	err := a.Store.RemoveTokenByID(token)
 	if err != nil {
 		//sliently fail but still log it
