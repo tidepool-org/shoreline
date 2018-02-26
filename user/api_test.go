@@ -157,6 +157,8 @@ func T_ExpectSuccessResponse(t *testing.T, response *httptest.ResponseRecorder, 
 }
 
 func T_ExpectSuccessResponseWithJSON(t *testing.T, response *httptest.ResponseRecorder, expectedCode int) {
+	logger.Println("T_ExpectSuccessResponseWithJSON: ", response)
+
 	if response.Code != expectedCode {
 		t.Fatalf("Unexpected response status code: %d", response.Code)
 	}

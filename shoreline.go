@@ -87,12 +87,10 @@ func main() {
 	userapi := user.InitApi(config.User, user.NewMongoStoreClient(&config.Mongo), nil, validator)
 	userapi.SetHandlers("", rtr)
 
-	userClient := user.NewUserClient(userapi)
-
 	permsClient := clients.NewGatekeeperClientBuilder().
 		WithHostGetter(config.GatekeeperConfig.ToHostGetter(hakkenClient)).
 		WithHttpClient(httpClient).
-		WithSecretProvider(userClient).
+		WithSecret(config.User.ServerSecret).
 		Build()
 
 	log.Print(shoreline_service_prefix, "adding", "permsClient")
@@ -102,7 +100,7 @@ func main() {
 		WithHostGetter(config.HighwaterConfig.ToHostGetter(hakkenClient)).
 		WithHttpClient(httpClient).
 		WithConfig(&config.HighwaterConfig.HighwaterClientConfig).
-		WithSecretProvider(userClient).
+		WithSecret(config.User.ServerSecret).
 		Build()
 
 	userapi.AttachMetrics(highwater)

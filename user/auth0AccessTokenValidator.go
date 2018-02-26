@@ -26,7 +26,7 @@ type auth0AccessTokenValidator struct {
 
 func makeBearerRequest(token string) *http.Request {
 	request := &http.Request{Header: http.Header{}}
-	request.Header.Set("authorization", "Bearer "+token)
+	request.Header.Set("authorization", token)
 	return request
 }
 

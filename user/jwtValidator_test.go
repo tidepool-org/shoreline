@@ -9,7 +9,7 @@ import (
 	"github.com/tidepool-org/go-common/tokens"
 )
 
-const testAccessToken = "one.fake.acccess_token"
+const testAccessToken = "Bearer one.fake.acccess_token"
 
 var jwtValidatorTestUser = &User{Id: "334-22-999", Username: "jwtTest@new.bar", Emails: []string{"jwtTest@new.bar"}}
 
@@ -31,14 +31,12 @@ type mockJWTValidator struct {
 }
 
 func (m *mockJWTValidator) CheckToken(response http.ResponseWriter, request *http.Request, requiredScopes string) *TokenData {
-	if tokens.IsBearerToken(request) {
-		if tokens.GetBearerToken(request) == testAccessToken {
-			return &TokenData{
-				IsServer:     false,
-				DurationSecs: int64(60 * 60),
-				UserId:       m.userID,
-				token:        tokens.GetBearerToken(request),
-			}
+	if bearer := tokens.GetBearerToken(request); bearer != "" {
+		return &TokenData{
+			IsServer:     false,
+			DurationSecs: int64(60 * 60),
+			UserId:       m.userID,
+			token:        tokens.GetBearerToken(request),
 		}
 	}
 	if session := request.Header.Get(tokens.TidepoolSessionTokenName); session != "" {
@@ -96,9 +94,9 @@ func (m *mockJWTValidator) CheckSessionToken(request *http.Request) *TokenData {
 	return nil
 }
 
-func makeBearerHeader() http.Header {
+func testMakeBearerHeader() http.Header {
 	headers := http.Header{}
-	headers.Add("Authorization", "BEARER "+testAccessToken)
+	headers.Add("Authorization", testAccessToken)
 	return headers
 }
 
@@ -124,7 +122,7 @@ func TestGetUserInfoSessionToken(t *testing.T) {
 func TestGetUserInfoAccessToken(t *testing.T) {
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: jwtValidatorTestUser.Id, Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", EmailVerified: true, PwHash: "xyz", Hash: "123"}}, nil}}
 	defer T_ExpectResponsablesEmpty(t)
-	response := T_PerformRequestHeaders(t, "GET", "/user/"+jwtValidatorTestUser.Id, makeBearerHeader())
+	response := T_PerformRequestHeaders(t, "GET", "/user/"+jwtValidatorTestUser.Id, testMakeBearerHeader())
 	T_ExpectSuccessResponseWithJSONMap(t, response, 200)
 }
 
@@ -140,6 +138,7 @@ func TestGetTokenWithInvalidAccessToken(t *testing.T) {
 }
 
 func TestGetTokenWithAccessToken(t *testing.T) {
+
 	jwtServerToken := T_CreateSessionToken(t, "shoreline-jwt", true, testTokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{jwtServerToken, nil}}
 	defer T_ExpectResponsablesEmpty(t)

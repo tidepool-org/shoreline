@@ -71,10 +71,8 @@ func (v *jwtValidator) CheckAccessToken(request *http.Request, requiredScopes st
 }
 
 func (v *jwtValidator) CheckSessionToken(request *http.Request) *TokenData {
-	logger.Println("validating session request", requestURLPath(request))
 	data, err := v.session.validate(request)
 	if data != nil {
-		logger.Println("## SUCCESS ## validated as session request", requestURLPath(request))
 		return data
 	}
 	if err != nil {
