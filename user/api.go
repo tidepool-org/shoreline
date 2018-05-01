@@ -224,9 +224,6 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 		if sessionToken, err := CreateSessionTokenAndSave(&tokenData, tokenConfig, a.Store); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN, err)
 		} else {
-			if a.mailchimpManager != nil {
-				a.mailchimpManager.CreateListMembershipForUser(newUser)
-			}
 			a.logMetricForUser(newUser.Id, "usercreated", sessionToken.ID, map[string]string{"server": "false"})
 			res.Header().Set(TP_SESSION_TOKEN, sessionToken.ID)
 			a.sendUserWithStatus(res, newUser, http.StatusCreated, false)
@@ -267,9 +264,6 @@ func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, va
 		if _, err := a.perms.SetPermissions(custodianUserId, newCustodialUser.Id, permissions); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
 		} else {
-			if a.mailchimpManager != nil {
-				a.mailchimpManager.CreateListMembershipForUser(newCustodialUser)
-			}
 			a.logMetricForUser(newCustodialUser.Id, "custodialusercreated", sessionToken, map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
 			a.sendUserWithStatus(res, newCustodialUser, http.StatusCreated, tokenData.IsServer)
 		}
@@ -363,8 +357,14 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 				}
 			}
 
-			if a.mailchimpManager != nil {
-				a.mailchimpManager.UpdateListMembershipForUser(originalUser, updatedUser)
+			if updatedUser.EmailVerified && updatedUser.TermsAccepted != "" {
+				if a.mailchimpManager != nil {
+					if updateUserDetails.EmailVerified != nil || updateUserDetails.TermsAccepted != nil {
+						a.mailchimpManager.CreateListMembershipForUser(updatedUser)
+					} else {
+						a.mailchimpManager.UpdateListMembershipForUser(originalUser, updatedUser)
+					}
+				}
 			}
 			a.logMetricForUser(updatedUser.Id, "userupdated", sessionToken, map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
 			a.sendUser(res, updatedUser, tokenData.IsServer)
