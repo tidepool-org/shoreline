@@ -311,6 +311,22 @@ func Test_CreateListMembershipForUser_User_Email_Missing(t *testing.T) {
 	time.Sleep(time.Second)
 }
 
+func Test_CreateListMembershipForUser_User_Email_Tidepool_Io(t *testing.T) {
+	manager, _ := NewTestManagerWithClientMock(t)
+	newUserMock := NewUserMock()
+	newUserMock.EmailStub = func() string { return "test@tidepool.io" }
+	manager.CreateListMembershipForUser(newUserMock)
+	time.Sleep(time.Second)
+}
+
+func Test_CreateListMembershipForUser_User_Email_Tidepool_Org(t *testing.T) {
+	manager, _ := NewTestManagerWithClientMock(t)
+	newUserMock := NewUserMock()
+	newUserMock.EmailStub = func() string { return "test@tidepool.org" }
+	manager.CreateListMembershipForUser(newUserMock)
+	time.Sleep(time.Second)
+}
+
 func Test_CreateListMembershipForUser_Failure_Get_Do(t *testing.T) {
 	manager, clientMock := NewTestManagerWithClientMock(t)
 	newUserMock := NewUserMock()
@@ -510,6 +526,26 @@ func Test_UpdateListMembershipForUser_NewUser_Email_Missing(t *testing.T) {
 	oldUserMock.EmailStub = func() string { return "twelve@sample.com" }
 	newUserMock := NewUserMock()
 	newUserMock.EmailStub = func() string { return "" }
+	manager.UpdateListMembershipForUser(oldUserMock, newUserMock)
+	time.Sleep(time.Second)
+}
+
+func Test_UpdateListMembershipForUser_NewUser_Email_Tidepool_Io(t *testing.T) {
+	manager, _ := NewTestManagerWithClientMock(t)
+	oldUserMock := NewUserMock()
+	oldUserMock.EmailStub = func() string { return "twelve@sample.com" }
+	newUserMock := NewUserMock()
+	newUserMock.EmailStub = func() string { return "test@tidepool.io" }
+	manager.UpdateListMembershipForUser(oldUserMock, newUserMock)
+	time.Sleep(time.Second)
+}
+
+func Test_UpdateListMembershipForUser_NewUser_Email_Tidepool_Org(t *testing.T) {
+	manager, _ := NewTestManagerWithClientMock(t)
+	oldUserMock := NewUserMock()
+	oldUserMock.EmailStub = func() string { return "twelve@sample.com" }
+	newUserMock := NewUserMock()
+	newUserMock.EmailStub = func() string { return "test@tidepool.org" }
 	manager.UpdateListMembershipForUser(oldUserMock, newUserMock)
 	time.Sleep(time.Second)
 }

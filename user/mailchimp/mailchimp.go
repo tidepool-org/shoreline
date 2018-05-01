@@ -139,7 +139,7 @@ func (m *manager) upsertListMembership(oldUser User, newUser User) {
 	}
 
 	newEmail := strings.ToLower(newUser.Email())
-	if newEmail == "" {
+	if newEmail == "" || hasTidepoolDomain(newEmail) {
 		return
 	}
 
@@ -266,4 +266,8 @@ func (m *manager) emailHash(email string) string {
 
 func matchUsers(oldUser User, newUser User) bool {
 	return oldUser != nil && newUser != nil && oldUser.Email() == newUser.Email() && oldUser.IsClinic() == newUser.IsClinic()
+}
+
+func hasTidepoolDomain(email string) bool {
+	return strings.HasSuffix(email, "@tidepool.io") || strings.HasSuffix(email, "@tidepool.org")
 }
