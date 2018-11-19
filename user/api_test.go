@@ -2057,7 +2057,7 @@ func Test_AuthenticateSessionToken_Success_User(t *testing.T) {
 		t.Fatalf("Unexpected server token")
 	}
 	if tokenData.DurationSecs != TOKEN_DURATION {
-		t.Fatalf("Unexpected token duration: %f", tokenData.DurationSecs)
+		t.Fatalf("Unexpected token duration: %d", tokenData.DurationSecs)
 	}
 }
 
@@ -2080,7 +2080,7 @@ func Test_AuthenticateSessionToken_Success_Server(t *testing.T) {
 		t.Fatalf("Unexpected non-server token")
 	}
 	if tokenData.DurationSecs != TOKEN_DURATION {
-		t.Fatalf("Unexpected token duration: %f", tokenData.DurationSecs)
+		t.Fatalf("Unexpected token duration: %d", tokenData.DurationSecs)
 	}
 }
 
