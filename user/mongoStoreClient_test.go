@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"labix.org/v2/mgo"
+	mgo "gopkg.in/mgo.v2"
 
 	"github.com/tidepool-org/go-common/clients/mongo"
 )
