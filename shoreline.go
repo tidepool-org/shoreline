@@ -75,7 +75,7 @@ func main() {
 	 * User-Api setup
 	 */
 
-	log.Print(shoreline_service_prefix, "adding", user.USER_API_PREFIX)
+	log.Print(shoreline_service_prefix, "adding ", user.USER_API_PREFIX)
 
 	userapi := user.InitApi(config.User, user.NewMongoStoreClient(&config.Mongo), highwater)
 	userapi.SetHandlers("", rtr)
@@ -88,14 +88,14 @@ func main() {
 		WithTokenProvider(userClient).
 		Build()
 
-	log.Print(shoreline_service_prefix, "adding", "permsClient")
+	log.Print(shoreline_service_prefix, "adding ", "permsClient")
 	userapi.AttachPerms(permsClient)
 
 	/*
 	 * Oauth setup
 	 */
 
-	log.Print(shoreline_service_prefix, "adding", oauth2.OAUTH2_API_PREFIX)
+	log.Print(shoreline_service_prefix, "adding ", oauth2.OAUTH2_API_PREFIX)
 
 	oauthapi := oauth2.InitApi(config.Oauth2, oauth2.NewOAuthStorage(&config.Mongo), userClient, permsClient)
 	oauthapi.SetHandlers("", rtr)

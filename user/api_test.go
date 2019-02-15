@@ -35,7 +35,7 @@ var (
 	NO_PARAMS      = map[string]string{}
 	TOKEN_DURATION = int64(3600)
 	FAKE_CONFIG    = ApiConfig{
-		ServerSecret:       "shhh! don't tell",
+		ServerSecrets:       map[string]string{"default": "shhh! don't tell"},
 		Secret:             "shhh! don't tell *2",
 		TokenDurationSecs:  TOKEN_DURATION,
 		LongTermKey:        "thelongtermkey",
