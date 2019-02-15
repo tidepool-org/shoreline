@@ -48,10 +48,14 @@ func main() {
 		WithConfig(&config.HakkenConfig).
 		Build()
 
-	if err := hakkenClient.Start(); err != nil {
-		log.Fatal(shoreline_service_prefix, err)
+	if !config.HakkenConfig.SkipHakken {
+		if err := hakkenClient.Start(); err != nil {
+			log.Fatal(shoreline_service_prefix, err)
+		}
+		defer hakkenClient.Close()
+	} else {
+		log.Print("skipping hakken service")
 	}
-	defer hakkenClient.Close()
 
 	/*
 	 * Clients
