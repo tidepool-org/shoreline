@@ -118,7 +118,8 @@ func (client *UserClient) TokenProvide() string {
 
 	request, _ := http.NewRequest("GET", "", nil)
 	request.Header.Set(TP_SERVER_NAME, "shoreline")
-	request.Header.Set(TP_SERVER_SECRET, client.userapi.ApiConfig.ServerSecret)
+	// Shoreline, as a Tidepool microservice, is using the default password
+	request.Header.Set(TP_SERVER_SECRET, client.userapi.ApiConfig.ServerSecrets["default"])
 	response := httptest.NewRecorder()
 
 	client.userapi.ServerLogin(response, request)
