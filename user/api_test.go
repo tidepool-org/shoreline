@@ -35,7 +35,7 @@ var (
 	NO_PARAMS      = map[string]string{}
 	TOKEN_DURATION = int64(3600)
 	FAKE_CONFIG    = ApiConfig{
-		secrets: []Secret{Secret{Secret: "default", Pass: "This needs to be the same secret everywhere. YaHut75NsK1f9UKUXuWqxNN0RUwHFBCy"},
+		Secrets: []Secret{Secret{Secret: "default", Pass: "This needs to be the same secret everywhere. YaHut75NsK1f9UKUXuWqxNN0RUwHFBCy"},
 			Secret{Secret: "product_website", Pass: "Not so secret"}},
 		Secret:             "This is a local API secret for everyone. BsscSHqSHiwrBMJsEGqbvXiuIUPAjQXU",
 		TokenDurationSecs:  TOKEN_DURATION,

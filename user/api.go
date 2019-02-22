@@ -38,7 +38,7 @@ type (
 	}
 	ApiConfig struct {
 		//used for services
-		secrets              []Secret `json:"secrets"`
+		Secrets              []Secret `json:"secrets"`
 		ServerSecrets        map[string]string
 		LongTermKey          string `json:"longTermKey"`
 		LongTermDaysDuration int    `json:"longTermDaysDuration"`
@@ -105,7 +105,7 @@ func InitApi(cfg ApiConfig, store Storage, metrics highwater.Client) *Api {
 	// Server secrets retrieved from configuration are transformed into a hashtable for ease of access
 	// They are stored in a public property called ServerSecrets
 	cfg.ServerSecrets = make(map[string]string)
-	for _, sec := range cfg.secrets {
+	for _, sec := range cfg.Secrets {
 		cfg.ServerSecrets[sec.Secret] = sec.Pass
 	}
 
