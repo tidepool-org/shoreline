@@ -41,6 +41,12 @@ func main() {
 		log.Panic("Problem loading config", err)
 	}
 
+	// server secret may be passed via a separate env variable to accomodate easy secrets injection via Kubernetes
+	serverSecret, found := os.LookupEnv("SERVER_SECRET")
+	if found {
+		config.User.ServerSecret = serverSecret
+	}
+
 	/*
 	 * Hakken setup
 	 */
