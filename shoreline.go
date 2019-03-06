@@ -47,6 +47,11 @@ func main() {
 		config.User.ServerSecret = serverSecret
 	}
 
+	userSecret, found := os.LookupEnv("API_SECRET")
+	if found {
+		config.User.Secret = userSecret
+	}
+
 	/*
 	 * Hakken setup
 	 */
