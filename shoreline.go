@@ -52,6 +52,11 @@ func main() {
 		config.User.Secret = userSecret
 	}
 
+	mailchimpAPIKey, found := os.LookupEnv("MAILCHIMP_APIKEY")
+	if found {
+		config.User.Mailchimp.APIKey = mailchimpAPIKey
+	}
+
 	/*
 	 * Hakken setup
 	 */
