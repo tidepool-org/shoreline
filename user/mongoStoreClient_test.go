@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"labix.org/v2/mgo"
+	"github.com/globalsign/mgo"
 
 	"github.com/tidepool-org/go-common/clients/mongo"
 )
