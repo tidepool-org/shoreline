@@ -116,7 +116,7 @@ func (d MongoStoreClient) FindUsers(user *User) (results []*User, err error) {
 	}
 
 	if results == nil {
-		log.Print(USER_API_PREFIX, "no users found ")
+		log.Printf("no users found: query: (Id = %v) OR (Name ~= %v) OR (Emails IN %v)", user.Id, user.Username, user.Emails)
 		results = []*User{}
 	}
 
@@ -132,7 +132,7 @@ func (d MongoStoreClient) FindUsersByRole(role string) (results []*User, err err
 	}
 
 	if results == nil {
-		log.Print(USER_API_PREFIX, "no users found ")
+		log.Printf("no users found: query: role: %v", role)
 		results = []*User{}
 	}
 
