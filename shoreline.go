@@ -41,6 +41,22 @@ func main() {
 		log.Panic("Problem loading config", err)
 	}
 
+	// server secret may be passed via a separate env variable to accomodate easy secrets injection via Kubernetes
+	serverSecret, found := os.LookupEnv("SERVER_SECRET")
+	if found {
+		config.User.ServerSecret = serverSecret
+	}
+
+	userSecret, found := os.LookupEnv("API_SECRET")
+	if found {
+		config.User.Secret = userSecret
+	}
+
+	mailchimpAPIKey, found := os.LookupEnv("MAILCHIMP_APIKEY")
+	if found {
+		config.User.Mailchimp.APIKey = mailchimpAPIKey
+	}
+
 	/*
 	 * Hakken setup
 	 */
@@ -48,10 +64,14 @@ func main() {
 		WithConfig(&config.HakkenConfig).
 		Build()
 
-	if err := hakkenClient.Start(); err != nil {
-		log.Fatal(shoreline_service_prefix, err)
+	if !config.HakkenConfig.SkipHakken {
+		if err := hakkenClient.Start(); err != nil {
+			log.Fatal(shoreline_service_prefix, err)
+		}
+		defer hakkenClient.Close()
+	} else {
+		log.Print("skipping hakken service")
 	}
-	defer hakkenClient.Close()
 
 	/*
 	 * Clients
