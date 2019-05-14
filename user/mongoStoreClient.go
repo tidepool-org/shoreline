@@ -6,8 +6,8 @@ import (
 	"regexp"
 	"sort"
 
-	mgo "gopkg.in/mgo.v2"
-	"gopkg.in/mgo.v2/bson"
+	"github.com/globalsign/mgo"
+	"github.com/globalsign/mgo/bson"
 
 	"github.com/tidepool-org/go-common/clients/mongo"
 )
@@ -26,7 +26,7 @@ func NewMongoStoreClient(config *mongo.Config) *MongoStoreClient {
 
 	mongoSession, err := mongo.Connect(config)
 	if err != nil {
-		log.Fatal(USER_API_PREFIX, err)
+		log.Fatalf("Cannot connect to mongo: %v", err)
 	}
 
 	return &MongoStoreClient{
