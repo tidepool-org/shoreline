@@ -1,15 +1,13 @@
 [[constraint]]
-  # Required: the root import path of the project being constrained.
   name = "github.com/tidepool-org/go-common"
   source = "github.com/mdblp/go-common"
-  # Recommended: the version constraint to enforce for the project.
-  # Note that only one of "branch", "version" or "revision" can be specified.
-  branch = "merge/tidepool"
-[prune]
-  go-tests = true
-  unused-packages = true
+  branch = "master"
 
 [[constraint]]
   name = "github.com/dgrijalva/jwt-go"
   version = "v1.0.2"
+
+[prune]
+  go-tests = true
+  unused-packages = true
 
