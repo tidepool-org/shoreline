@@ -35,10 +35,10 @@ func unpackAuth(authLine string) (usr *User, pw string) {
 	if authLine != "" {
 		parts := strings.SplitN(authLine, " ", 2)
 		payload := parts[1]
-		if decodedPayload, err := base64.URLEncoding.DecodeString(payload); err != nil {
+		if decodedPayload, err := base64.StdEncoding.DecodeString(payload); err != nil {
 			log.Print(USER_API_PREFIX, "Error unpacking authorization header [%s]", err.Error())
 		} else {
-			details := strings.Split(string(decodedPayload), ":")
+			details := strings.SplitN(string(decodedPayload), ":", 2)
 			if details[0] != "" || details[1] != "" {
 				//Note the incoming `name` could infact be id, email or the username
 				return &User{Id: details[0], Username: details[0], Emails: []string{details[0]}}, details[1]
