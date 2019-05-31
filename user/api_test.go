@@ -16,9 +16,9 @@ import (
 	"testing"
 
 	"github.com/gorilla/mux"
-
 	"github.com/tidepool-org/go-common/clients"
 	"github.com/tidepool-org/go-common/clients/highwater"
+
 	"github.com/tidepool-org/shoreline/oauth2"
 )
 
@@ -86,7 +86,7 @@ func InitShoreline(config ApiConfig, store Storage, metrics highwater.Client, pe
 ////////////////////////////////////////////////////////////////////////////////
 
 func T_CreateAuthorization(t *testing.T, email string, password string) string {
-	return fmt.Sprintf("Basic %s", base64.URLEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", email, password))))
+	return fmt.Sprintf("Basic %s", base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", email, password))))
 }
 
 func T_CreateSessionToken(t *testing.T, userId string, isServer bool, duration int64) *SessionToken {
@@ -1282,6 +1282,23 @@ func Test_Login_Error_ErrorCreatingToken(t *testing.T) {
 func Test_Login_Success(t *testing.T) {
 	authorization := T_CreateAuthorization(t, "a@b.co", "password")
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5", EmailVerified: true}}, nil}}
+	responsableStore.AddTokenResponses = []error{nil}
+	defer T_ExpectResponsablesEmpty(t)
+
+	headers := http.Header{}
+	headers.Add("Authorization", authorization)
+	response := T_PerformRequestHeaders(t, "POST", "/login", headers)
+	successResponse := T_ExpectSuccessResponseWithJSONMap(t, response, 200)
+	T_ExpectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
+	T_ExpectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": true, "emails": []interface{}{"a@z.co"}, "username": "a@z.co", "termsAccepted": "2016-01-01T01:23:45-08:00"})
+	if response.Header().Get(TP_SESSION_TOKEN) == "" {
+		t.Fatalf("Missing expected %s header", TP_SESSION_TOKEN)
+	}
+}
+
+func Test_Login_Success_Password_Complex(t *testing.T) {
+	authorization := T_CreateAuthorization(t, "a@b.co", "`-=[]\\;',./~!@#$%^&*)(_+}{|\":<>?`¡™£¢∞§¶•ª–≠‘“æ…÷≥”’")
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", PwHash: "80464ae775ca97187d29bc4b3e391e959947138a", EmailVerified: true}}, nil}}
 	responsableStore.AddTokenResponses = []error{nil}
 	defer T_ExpectResponsablesEmpty(t)
 

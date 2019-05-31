@@ -41,6 +41,27 @@ func main() {
 		log.Panic("Problem loading config", err)
 	}
 
+	// server secret may be passed via a separate env variable to accomodate easy secrets injection via Kubernetes
+	// The server secret is the password any Tidepool service is supposed to know and pass to shoreline for authentication and for getting token
+	// With Mdblp, we consider we can have different server secrets
+	// These secrets are hosted in a map[string][string] instead of single string
+	// which 1st string represents Server/Service name and 2nd represents the actual secret
+	// here we consider this SERVER_SECRET that can be injected via Kubernetes is the one for the default server/service (any Tidepool service)
+	serverSecret, found := os.LookupEnv("SERVER_SECRET")
+	if found {
+		config.User.ServerSecrets["default"] = serverSecret
+	}
+
+	userSecret, found := os.LookupEnv("API_SECRET")
+	if found {
+		config.User.Secret = userSecret
+	}
+
+	mailchimpAPIKey, found := os.LookupEnv("MAILCHIMP_APIKEY")
+	if found {
+		config.User.Mailchimp.APIKey = mailchimpAPIKey
+	}
+
 	/*
 	 * Hakken setup
 	 */
@@ -48,10 +69,14 @@ func main() {
 		WithConfig(&config.HakkenConfig).
 		Build()
 
-	if err := hakkenClient.Start(); err != nil {
-		log.Fatal(shoreline_service_prefix, err)
+	if !config.HakkenConfig.SkipHakken {
+		if err := hakkenClient.Start(); err != nil {
+			log.Fatal(shoreline_service_prefix, err)
+		}
+		defer hakkenClient.Close()
+	} else {
+		log.Print("skipping hakken service")
 	}
-	defer hakkenClient.Close()
 
 	/*
 	 * Clients
