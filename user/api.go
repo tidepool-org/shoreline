@@ -338,7 +338,11 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 			if results, err := a.Store.FindUsers(dupCheck); err != nil {
 				a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err)
 				return
-			} else if len(results) > 0 {
+			} else if len(results) == 1 && results[0].Id != firstStringNotEmpty(vars["userid"], tokenData.UserId) {
+				//only throw an error if there is a user with a different id but with the same username/email
+				a.sendError(res, http.StatusConflict, STATUS_USR_ALREADY_EXISTS)
+				return
+			} else if len(results) > 1 {
 				a.sendError(res, http.StatusConflict, STATUS_USR_ALREADY_EXISTS)
 				return
 			}

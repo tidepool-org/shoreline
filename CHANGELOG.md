@@ -2,7 +2,11 @@
 
 Shoreline is the module that manages logins and user accounts.
 
-## dblp.0.1.4 - 2019-04-17
+## [UNRELEASED] - 
+### Fixed
+- Allow shoreline to accept a user update payload with un unchanged username or email.
+
+## [0.1.4] - 2019-04-17
 
 ### Changed
 - Fix status response of the service. On some cases (MongoDb restart mainly) the status was in error whereas all other entrypoints responded. 
