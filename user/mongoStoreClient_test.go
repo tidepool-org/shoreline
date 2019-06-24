@@ -10,7 +10,7 @@ import (
 )
 
 func mgoTestSetup() (*MongoStoreClient, error) {
-	mc := NewMongoStoreClient(&mongo.Config{ConnectionString: "mongodb://localhost/user_test"})
+	mc := NewMongoStoreClient(&mongo.Config{ConnectionString: "mongodb://127.0.0.1/user_test"})
 
 	/*
 	 * INIT THE TEST - we use a clean copy of the collection before we start

@@ -57,6 +57,8 @@ func main() {
 		config.User.Mailchimp.APIKey = mailchimpAPIKey
 	}
 
+	config.Mongo.FromEnv()
+
 	/*
 	 * Hakken setup
 	 */
