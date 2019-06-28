@@ -57,6 +57,21 @@ func main() {
 		config.User.Mailchimp.APIKey = mailchimpAPIKey
 	}
 
+	longTermKey, found := os.LookupEnv("LONG_TERM_KEY")
+	if found {
+		config.User.LongTermKey = longTermKey
+	}
+
+	verificationSecret, found := os.LookupEnv("VERIFICATION_SECRET")
+	if found {
+		config.User.VerificationSecret = verificationSecret
+	}
+
+	salt, found := os.LookupEnv("SALT")
+	if found {
+		config.User.Salt = salt
+	}
+
 	config.Mongo.FromEnv()
 
 	/*
