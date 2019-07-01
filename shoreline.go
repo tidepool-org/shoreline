@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/tls"
+	"encoding/json"
 	"log"
 	"net/http"
 	"os"
@@ -65,6 +66,30 @@ func main() {
 	verificationSecret, found := os.LookupEnv("VERIFICATION_SECRET")
 	if found {
 		config.User.VerificationSecret = verificationSecret
+	}
+
+	clinicLists, found := os.LookupEnv("CLINIC_LISTS")
+	if found {
+		if err := json.Unmarshal([]byte(clinicLists), &config.User.Mailchimp.ClinicLists); err != nil {
+			log.Panic("Problem loading clinic lists", err)
+		}
+	}
+
+	personalLists, found := os.LookupEnv("PERSONAL_LISTS")
+	if found {
+		if err := json.Unmarshal([]byte(personalLists), &config.User.Mailchimp.PersonalLists); err != nil {
+			log.Panic("Problem loading personal lists", err)
+		}
+	}
+
+	clinicDemoUserID, found := os.LookupEnv("DEMO_CLINIC_USER_ID")
+	if found {
+		config.User.ClinicDemoUserID = clinicDemoUserID
+	}
+
+	mailChimpURL, found := os.LookupEnv("MAILCHIMP_URL")
+	if found {
+		config.User.Mailchimp.URL = mailChimpURL
 	}
 
 	salt, found := os.LookupEnv("SALT")
