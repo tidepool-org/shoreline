@@ -1,6 +1,7 @@
 package oauth2
 
 import (
+	"log"
 	"testing"
 
 	"github.com/RangelReale/osin"
@@ -36,12 +37,14 @@ var (
 		AccessData:    access_data_other,
 	}
 
-	testingConfig = &mongo.Config{ConnectionString: "mongodb://localhost/user_test"}
+	testingConfig = &mongo.Config{ConnectionString: "mongodb://127.0.0.1/user_test?ssl=false"}
 )
 
 func TestOAuth_ClientStorage(t *testing.T) {
 
+	log.Print("ClientStorage")
 	os := NewOAuthStorage(testingConfig)
+	log.Printf("created os %v", os)
 
 	/*
 	 * INIT THE TEST - we use a clean copy of the collection before we start
@@ -62,11 +65,14 @@ func TestOAuth_ClientStorage(t *testing.T) {
 	} else if fndClient.GetId() != a_client.GetId() || fndClient.GetRedirectUri() != a_client.GetRedirectUri() || fndClient.GetSecret() != a_client.GetSecret() {
 		t.Fatalf("got %v expected %v", fndClient, a_client)
 	}
+	os.Close()
 }
 
 func TestOAuth_AccessStorage(t *testing.T) {
 
+	log.Print("AccessStorage")
 	os := NewOAuthStorage(testingConfig)
+	log.Printf("created os %v", os)
 
 	/*
 	 * INIT THE TEST - we use a clean copy of the collection before we start
@@ -91,7 +97,9 @@ func TestOAuth_AccessStorage(t *testing.T) {
 
 func TestOAuth_AuthorizeStorage(t *testing.T) {
 
+	log.Print("AuthorizeStorage")
 	os := NewOAuthStorage(testingConfig)
+	log.Printf("created os %v", os)
 
 	/*
 	 * INIT THE TEST - we use a clean copy of the collection before we start
