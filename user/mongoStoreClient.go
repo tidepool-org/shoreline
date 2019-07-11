@@ -26,7 +26,7 @@ func NewMongoStoreClient(config *mongo.Config) *MongoStoreClient {
 
 	mongoSession, err := mongo.Connect(config)
 	if err != nil {
-		log.Fatalf("Cannot connect to mongo: %v", err)
+		log.Fatalf("Cannot connect to mongo: %v, %v", config, err)
 	}
 
 	return &MongoStoreClient{
