@@ -1,8 +1,0 @@
-[prune]
-  go-tests = true
-  unused-packages = true
-
-[[constraint]]
-  name = "github.com/dgrijalva/jwt-go"
-  version = "v1.0.2"
-
