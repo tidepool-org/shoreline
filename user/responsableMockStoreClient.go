@@ -10,6 +10,11 @@ type FindUsersByRoleResponse struct {
 	Error error
 }
 
+type FindUsersWithIdsResponse struct {
+	Users []*User
+	Error error
+}
+
 type FindUserResponse struct {
 	User  *User
 	Error error
@@ -21,15 +26,16 @@ type FindTokenByIDResponse struct {
 }
 
 type ResponsableMockStoreClient struct {
-	PingResponses            []error
-	UpsertUserResponses      []error
-	FindUsersResponses       []FindUsersResponse
-	FindUsersByRoleResponses []FindUsersByRoleResponse
-	FindUserResponses        []FindUserResponse
-	RemoveUserResponses      []error
-	AddTokenResponses        []error
-	FindTokenByIDResponses   []FindTokenByIDResponse
-	RemoveTokenByIDResponses []error
+	PingResponses             []error
+	UpsertUserResponses       []error
+	FindUsersResponses        []FindUsersResponse
+	FindUsersByRoleResponses  []FindUsersByRoleResponse
+	FindUsersWithIdsResponses []FindUsersWithIdsResponse
+	FindUserResponses         []FindUserResponse
+	RemoveUserResponses       []error
+	AddTokenResponses         []error
+	FindTokenByIDResponses    []FindTokenByIDResponse
+	RemoveTokenByIDResponses  []error
 }
 
 func NewResponsableMockStoreClient() *ResponsableMockStoreClient {
@@ -41,6 +47,7 @@ func (r *ResponsableMockStoreClient) HasResponses() bool {
 		len(r.UpsertUserResponses) > 0 ||
 		len(r.FindUsersResponses) > 0 ||
 		len(r.FindUsersByRoleResponses) > 0 ||
+		len(r.FindUsersWithIdsResponses) > 0 ||
 		len(r.FindUserResponses) > 0 ||
 		len(r.RemoveUserResponses) > 0 ||
 		len(r.AddTokenResponses) > 0 ||
@@ -53,6 +60,7 @@ func (r *ResponsableMockStoreClient) Reset() {
 	r.UpsertUserResponses = nil
 	r.FindUsersResponses = nil
 	r.FindUsersByRoleResponses = nil
+	r.FindUsersWithIdsResponses = nil
 	r.FindUserResponses = nil
 	r.RemoveUserResponses = nil
 	r.AddTokenResponses = nil
@@ -95,6 +103,15 @@ func (r *ResponsableMockStoreClient) FindUsersByRole(role string) (found []*User
 		return response.Users, response.Error
 	}
 	panic("FindUsersByRoleResponses unavailable")
+}
+
+func (r *ResponsableMockStoreClient) FindUsersWithIds(ids []string) (found []*User, err error) {
+	if len(r.FindUsersWithIdsResponses) > 0 {
+		var response FindUsersWithIdsResponse
+		response, r.FindUsersWithIdsResponses = r.FindUsersWithIdsResponses[0], r.FindUsersWithIdsResponses[1:]
+		return response.Users, response.Error
+	}
+	panic("FindUsersWithIdsResponses unavailable")
 }
 
 func (r *ResponsableMockStoreClient) FindUser(user *User) (found *User, err error) {

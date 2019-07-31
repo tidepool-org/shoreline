@@ -84,6 +84,8 @@ const (
 	STATUS_GETSTATUS_ERR         = "Error checking service status"
 	STATUS_UNAUTHORIZED          = "Not authorized for requested operation"
 	STATUS_NO_QUERY              = "A query must be specified"
+	STATUS_PARAMETER_UNKNOWN     = "Unknown query parameter"
+	STATUS_ONE_QUERY_PARAM       = "Only one query parameter is allwoed"
 	STATUS_INVALID_ROLE          = "The role specified is invalid"
 )
 
@@ -160,7 +162,7 @@ func (a *Api) GetStatus(res http.ResponseWriter, req *http.Request) {
 
 //
 // status: 200
-// status: 400 STATUS_NO_ROLE
+// status: 400 STATUS_NO_QUERY, STATUS_PARAMETER_UNKNOWN
 // status: 401 STATUS_SERVER_TOKEN_REQUIRED
 // status: 500 STATUS_ERR_FINDING_USR
 func (a *Api) GetUsers(res http.ResponseWriter, req *http.Request) {
@@ -171,16 +173,29 @@ func (a *Api) GetUsers(res http.ResponseWriter, req *http.Request) {
 	} else if !tokenData.IsServer {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED)
 
+	} else if len(req.URL.Query()) == 0 {
+		a.sendError(res, http.StatusBadRequest, STATUS_NO_QUERY)
+
 	} else if role := req.URL.Query().Get("role"); role != "" && !IsValidRole(role) {
 		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_ROLE)
 
-	} else if role == "" {
-		a.sendError(res, http.StatusBadRequest, STATUS_NO_QUERY)
-
-	} else if users, err := a.Store.FindUsersByRole(role); err != nil {
-		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err.Error())
+	} else if userIds := strings.Split(req.URL.Query().Get("id"), ","); len(userIds[0]) > 0 && role != "" {
+		a.sendError(res, http.StatusBadRequest, STATUS_ONE_QUERY_PARAM)
 
 	} else {
+		var users []*User
+		switch {
+		case role != "":
+			if users, err = a.Store.FindUsersByRole(role); err != nil {
+				a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err.Error())
+			}
+		case len(userIds[0]) > 0:
+			if users, err = a.Store.FindUsersWithIds(userIds); err != nil {
+				a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err.Error())
+			}
+		default:
+			a.sendError(res, http.StatusBadRequest, STATUS_PARAMETER_UNKNOWN)
+		}
 		a.logMetric("getusers", sessionToken, map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
 		a.sendUsers(res, users, tokenData.IsServer)
 	}
