@@ -25,6 +25,9 @@ addons:
 services:
   - docker
 
+env:
+  - GO111MODULE=on
+
 script:
   - ./build.sh
   - ./test.sh
