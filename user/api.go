@@ -85,7 +85,7 @@ const (
 	STATUS_UNAUTHORIZED          = "Not authorized for requested operation"
 	STATUS_NO_QUERY              = "A query must be specified"
 	STATUS_PARAMETER_UNKNOWN     = "Unknown query parameter"
-	STATUS_ONE_QUERY_PARAM       = "Only one query parameter is allwoed"
+	STATUS_ONE_QUERY_PARAM       = "Only one query parameter is allowed"
 	STATUS_INVALID_ROLE          = "The role specified is invalid"
 )
 
