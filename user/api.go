@@ -157,6 +157,7 @@ func (a *Api) GetStatus(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 	res.WriteHeader(http.StatusOK)
+	fmt.Fprintf(res, "OK")
 	return
 }
 
