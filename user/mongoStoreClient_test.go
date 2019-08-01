@@ -206,6 +206,54 @@ func TestMongoStore_FindUsersByRole(t *testing.T) {
 
 }
 
+func TestMongoStore_FindUsersById(t *testing.T) {
+
+	var (
+		tests_fake_salt = "some fake salt for the tests"
+		user_one_name   = "test@foo.bar"
+		user_two_name   = "test_two@foo.bar"
+		user_pw         = "my0th3rT35t"
+		user_one_detail = &NewUserDetails{Username: &user_one_name, Emails: []string{user_one_name}, Password: &user_pw}
+		user_two_detail = &NewUserDetails{Username: &user_two_name, Emails: []string{user_two_name}, Password: &user_pw}
+	)
+
+	mc, err := mgoTestSetup()
+	if err != nil {
+		t.Fatalf("we could not initialise the test store %s", err.Error())
+	}
+
+	/*
+	 * THE TESTS
+	 */
+	userOne, _ := NewUser(user_one_detail, tests_fake_salt)
+	userTwo, _ := NewUser(user_two_detail, tests_fake_salt)
+
+	if err := mc.UpsertUser(userOne); err != nil {
+		t.Fatalf("we could not create the user %v", err)
+	}
+	if err := mc.UpsertUser(userTwo); err != nil {
+		t.Fatalf("we could not create the user %v", err)
+	}
+
+	if found, err := mc.FindUsersWithIds([]string{userOne.Id}); err != nil {
+		t.Fatalf("error finding users by role %s", err.Error())
+	} else if len(found) != 1 || found[0].Id != userOne.Id {
+		t.Fatalf("should only find user ID %s but found %v", userOne.Id, found)
+	}
+
+	if found, err := mc.FindUsersWithIds([]string{userTwo.Id}); err != nil {
+		t.Fatalf("error finding users by role %s", err.Error())
+	} else if len(found) != 1 || found[0].Id != userTwo.Id {
+		t.Fatalf("should only find user ID %s but found %v", userTwo.Id, found)
+	}
+
+	if found, err := mc.FindUsersWithIds([]string{userOne.Id, userTwo.Id}); err != nil {
+		t.Fatalf("error finding users by role %s", err.Error())
+	} else if len(found) != 2 || found[0].Id != userOne.Id || found[1].Id != userTwo.Id {
+		t.Fatalf("should only find user ID %s but found %v", userTwo.Id, found)
+	}
+}
+
 func TestMongoStoreTokenOperations(t *testing.T) {
 
 	testing_token_data := &TokenData{UserId: "2341", IsServer: true, DurationSecs: 3600}

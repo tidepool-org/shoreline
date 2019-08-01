@@ -139,6 +139,22 @@ func (d MongoStoreClient) FindUsersByRole(role string) (results []*User, err err
 	return results, nil
 }
 
+func (d MongoStoreClient) FindUsersWithIds(ids []string) (results []*User, err error) {
+	cpy := d.session.Copy()
+	defer cpy.Close()
+
+	if err = mgoUsersCollection(cpy).Find(bson.M{"userid": bson.M{"$in": ids}}).All(&results); err != nil {
+		return results, err
+	}
+
+	if results == nil {
+		log.Printf("no users found: query: id: %v", ids)
+		results = []*User{}
+	}
+
+	return results, nil
+}
+
 func (d MongoStoreClient) RemoveUser(user *User) (err error) {
 	cpy := d.session.Copy()
 	defer cpy.Close()
