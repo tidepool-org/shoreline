@@ -21,7 +21,7 @@ const (
 var (
 	api = InitApi(
 		ApiConfig{ExpireDays: 20},
-		NewOAuthStorage(&mongo.Config{ConnectionString: "mongodb://localhost/user_test"}),
+		NewOAuthStorage(&mongo.Config{ConnectionString: "mongodb://127.0.0.1/user_test"}),
 		shoreline.NewMock(user_secert_token),
 		clients.NewGatekeeperMock(nil, nil),
 	)

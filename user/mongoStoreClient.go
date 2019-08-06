@@ -6,8 +6,8 @@ import (
 	"regexp"
 	"sort"
 
-	"labix.org/v2/mgo"
-	"labix.org/v2/mgo/bson"
+	"github.com/globalsign/mgo"
+	"github.com/globalsign/mgo/bson"
 
 	"github.com/tidepool-org/go-common/clients/mongo"
 )
@@ -26,7 +26,7 @@ func NewMongoStoreClient(config *mongo.Config) *MongoStoreClient {
 
 	mongoSession, err := mongo.Connect(config)
 	if err != nil {
-		log.Fatal(USER_API_PREFIX, err)
+		log.Fatalf("Cannot connect to mongo: %v, %v", config, err)
 	}
 
 	return &MongoStoreClient{
@@ -116,7 +116,7 @@ func (d MongoStoreClient) FindUsers(user *User) (results []*User, err error) {
 	}
 
 	if results == nil {
-		log.Print(USER_API_PREFIX, "no users found ")
+		log.Printf("no users found: query: (Id = %v) OR (Name ~= %v) OR (Emails IN %v)", user.Id, user.Username, user.Emails)
 		results = []*User{}
 	}
 
@@ -132,7 +132,23 @@ func (d MongoStoreClient) FindUsersByRole(role string) (results []*User, err err
 	}
 
 	if results == nil {
-		log.Print(USER_API_PREFIX, "no users found ")
+		log.Printf("no users found: query: role: %v", role)
+		results = []*User{}
+	}
+
+	return results, nil
+}
+
+func (d MongoStoreClient) FindUsersWithIds(ids []string) (results []*User, err error) {
+	cpy := d.session.Copy()
+	defer cpy.Close()
+
+	if err = mgoUsersCollection(cpy).Find(bson.M{"userid": bson.M{"$in": ids}}).All(&results); err != nil {
+		return results, err
+	}
+
+	if results == nil {
+		log.Printf("no users found: query: id: %v", ids)
 		results = []*User{}
 	}
 

@@ -1,5 +1,5 @@
 # Development
-FROM golang:1.9.2-alpine AS development
+FROM golang:1.12.7-alpine AS development
 
 WORKDIR /go/src/github.com/tidepool-org/shoreline
 

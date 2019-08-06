@@ -362,7 +362,72 @@ func Test_GetUsers_Error_NoQuery(t *testing.T) {
 	T_ExpectErrorResponse(t, response, 400, "A query must be specified")
 }
 
-func Test_GetUsers_Error_FindUsersError(t *testing.T) {
+func Test_GetUsers_Error_InvalidQuery(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "abcdef1234", true, TOKEN_DURATION)
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
+	defer T_ExpectResponsablesEmpty(t)
+
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
+	response := T_PerformRequestHeaders(t, "GET", "/users?yolo=swag", headers)
+	T_ExpectErrorResponse(t, response, 400, "Unknown query parameter")
+}
+
+func Test_GetUsers_Error_FindUsersWithIdsError(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "abcdef1234", true, TOKEN_DURATION)
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
+	responsableStore.FindUsersWithIdsResponses = []FindUsersWithIdsResponse{{[]*User{}, errors.New("ERROR")}}
+	defer T_ExpectResponsablesEmpty(t)
+
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
+	response := T_PerformRequestHeaders(t, "GET", "/users?id=abcdef1234", headers)
+	T_ExpectErrorResponse(t, response, 500, "Error finding user")
+}
+
+func FindUsersWithIds(t *testing.T, userIds []string) {
+	rr := httptest.NewRecorder()
+
+	r, err := http.NewRequest("GET", "/users?id="+strings.Join(userIds, ","), nil)
+	r.Header.Set(TP_SESSION_TOKEN, SRVR_TOKEN.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	shoreline.GetUsers(rr, r)
+
+	rs := rr.Result()
+
+	if rs.StatusCode != http.StatusOK {
+		t.Fatalf("want %d; got %d", http.StatusOK, rs.StatusCode)
+	}
+
+	defer rs.Body.Close()
+	body, err := ioutil.ReadAll(rs.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var users []User
+	json.Unmarshal(body, &users)
+	if users != nil && len(users) != len(userIds) {
+		t.Fatalf("Expected %d user(s) with IDs '%#v'. Got %#v", len(userIds), userIds, users)
+	}
+
+	for index, user := range userIds {
+		if user != users[index].Id {
+			t.Fatalf("Expected user with ID '%s'. Got %#v", user, users[index])
+		}
+	}
+}
+
+func Test_GetUsers_Error_FindUsersWithIdsSuccess(t *testing.T) {
+	FindUsersWithIds(t, []string{"0000000000"})
+	FindUsersWithIds(t, []string{"0000000001"})
+	FindUsersWithIds(t, []string{"0000000000", "0000000001"})
+}
+
+func Test_GetUsers_Error_FindUsersByRoleError(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "abcdef1234", true, TOKEN_DURATION)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUsersByRoleResponses = []FindUsersByRoleResponse{{[]*User{}, errors.New("ERROR")}}
@@ -374,7 +439,7 @@ func Test_GetUsers_Error_FindUsersError(t *testing.T) {
 	T_ExpectErrorResponse(t, response, 500, "Error finding user")
 }
 
-func Test_GetUsers_Error_Success(t *testing.T) {
+func Test_GetUsers_Error_FindUsersByRoleSuccess(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "abcdef1234", true, TOKEN_DURATION)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUsersByRoleResponses = []FindUsersByRoleResponse{{[]*User{{Id: "0000000000"}, {Id: "1111111111"}}, nil}}
@@ -2074,7 +2139,7 @@ func Test_AuthenticateSessionToken_Success_User(t *testing.T) {
 		t.Fatalf("Unexpected server token")
 	}
 	if tokenData.DurationSecs != TOKEN_DURATION {
-		t.Fatalf("Unexpected token duration: %f", tokenData.DurationSecs)
+		t.Fatalf("Unexpected token duration: %v", tokenData.DurationSecs)
 	}
 }
 
@@ -2097,7 +2162,7 @@ func Test_AuthenticateSessionToken_Success_Server(t *testing.T) {
 		t.Fatalf("Unexpected non-server token")
 	}
 	if tokenData.DurationSecs != TOKEN_DURATION {
-		t.Fatalf("Unexpected token duration: %f", tokenData.DurationSecs)
+		t.Fatalf("Unexpected token duration: %v", tokenData.DurationSecs)
 	}
 }
 

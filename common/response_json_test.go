@@ -73,7 +73,7 @@ func TestResponseJSON_many(t *testing.T) {
 	}
 
 	if d, ok := output["people"]; !ok || d[0].Id != many[0].Id || d[1].Id != many[1].Id {
-		t.Fatalf("Invalid or not found output data= %s", d)
+		t.Fatalf("Invalid or not found output data= %v", d)
 	}
 }
 

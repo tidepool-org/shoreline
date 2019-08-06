@@ -63,6 +63,28 @@ func (d MockStoreClient) FindUsersByRole(role string) (found []*User, err error)
 	return nil, nil
 }
 
+func (d MockStoreClient) FindUsersWithIds(ids []string) (found []*User, err error) {
+	if d.doBad {
+		return found, errors.New("FindUsersWithIds failure")
+	}
+	var users []*User
+
+	// Create a pair of users to test with
+	usernameOne := "userOne@b.co"
+	usernameTwo := "userTwo@b.co"
+
+	for _, id := range ids {
+		switch id {
+		case "0000000000":
+			users = append(users, &User{Id: "0000000000", Username: usernameOne, Emails: []string{usernameOne}})
+		case "0000000001":
+			users = append(users, &User{Id: "0000000001", Username: usernameTwo, Emails: []string{usernameTwo}})
+		}
+	}
+
+	return users, nil
+}
+
 func (d MockStoreClient) FindUser(user *User) (found *User, err error) {
 
 	if d.doBad {
