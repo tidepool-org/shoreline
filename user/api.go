@@ -20,6 +20,7 @@ import (
 	"github.com/tidepool-org/shoreline/common"
 	"github.com/tidepool-org/shoreline/oauth2"
 	"github.com/tidepool-org/shoreline/user/mailchimp"
+	"github.com/tidepool-org/shoreline/user/marketo"
 )
 
 type (
@@ -31,6 +32,7 @@ type (
 		oauth            oauth2.Client
 		logger           *log.Logger
 		mailchimpManager mailchimp.Manager
+		marketoManager	 marketo.Manager
 	}
 	ApiConfig struct {
 		//used for services
@@ -48,6 +50,8 @@ type (
 		VerificationSecret string           `json:"verificationSecret"`
 		ClinicDemoUserID   string           `json:"clinicDemoUserId"`
 		Mailchimp          mailchimp.Config `json:"mailchimp"`
+		// to create type/file
+		Marketo			   marketo.Config	`json:"marketo"`
 	}
 	varsHandler func(http.ResponseWriter, *http.Request, map[string]string)
 )
@@ -96,6 +100,10 @@ func InitApi(cfg ApiConfig, store Storage, metrics highwater.Client) *Api {
 	if err != nil {
 		logger.Println("WARNING: Mailchimp Manager not configured;", err)
 	}
+	marketoManager, err := marketo.NewManager(logger, &cfg.Marketo)
+	if err != nil {
+		logger.Println("WARNING: Marketo Manager not configured;", err)
+	}
 
 	return &Api{
 		Store:            store,
@@ -103,6 +111,7 @@ func InitApi(cfg ApiConfig, store Storage, metrics highwater.Client) *Api {
 		metrics:          metrics,
 		logger:           logger,
 		mailchimpManager: mailchimpManager,
+		marketoManager:	  marketoManager,
 	}
 }
 
@@ -379,6 +388,13 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 						a.mailchimpManager.CreateListMembershipForUser(updatedUser)
 					} else {
 						a.mailchimpManager.UpdateListMembershipForUser(originalUser, updatedUser)
+					}
+				}
+				if a.marketoManager != nil {
+					if updateUserDetails.EmailVerified != nil || updateUserDetails.TermsAccepted != nil {
+						a.marketoManager.CreateListMembershipForUser(updatedUser)
+					} else {
+						a.marketoManager.UpdateListMembershipForUser(originalUser, updatedUser)
 					}
 				}
 			}

@@ -38,7 +38,7 @@ const (
 func main() {
 	var config Config
 
-	if err := common.LoadEnvironmentConfig([]string{"TIDEPOOL_SHORELINE_ENV", "TIDEPOOL_SHORELINE_SERVICE"}, &config); err != nil {
+	if err := common.LoadEnvironmentConfig([]string{"TIDEPOOL_SHORELINE_ENV", "TIDEPOOL_SHORELINE_SERVICE", "MARKETO_ID", "MARKETO_SECRET", "MARKETO_URL"}, &config); err != nil {
 		log.Panic("Problem loading config", err)
 	}
 
@@ -90,6 +90,14 @@ func main() {
 	mailChimpURL, found := os.LookupEnv("MAILCHIMP_URL")
 	if found {
 		config.User.Mailchimp.URL = mailChimpURL
+	}
+	marketoSecret, found := os.LookupEnv("MARKETO_SECRET")
+	if found {
+		config.User.Marketo.Secret = marketoSecret
+	}
+	marketoURL, found := os.LookupEnv("MARKETO_URL")
+	if found {
+		config.User.Marketo.Endpoint = marketoURL
 	}
 
 	salt, found := os.LookupEnv("SALT")
