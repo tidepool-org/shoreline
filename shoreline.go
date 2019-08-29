@@ -93,11 +93,11 @@ func main() {
 	}
 	marketoSecret, found := os.LookupEnv("MARKETO_SECRET")
 	if found {
-		config.User.Marketo.Secret = marketoSecret
+		config.User.Marketo.MARKETO_Secret = marketoSecret
 	}
 	marketoURL, found := os.LookupEnv("MARKETO_URL")
 	if found {
-		config.User.Marketo.Endpoint = marketoURL
+		config.User.Marketo.MARKETO_URL = marketoURL
 	}
 
 	salt, found := os.LookupEnv("SALT")

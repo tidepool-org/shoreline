@@ -1,5 +1,7 @@
 github.com/RangelReale/osin v1.0.1 h1:JcqBe8ljQq9WQJPtioXGxBWyIcfuVMw0BX6yJ9E4HKw=
 github.com/RangelReale/osin v1.0.1/go.mod h1:k/PH1SjZDitJDtK3zHm/XZRi+bRz6i3rhx9qE9p54CY=
+github.com/SpeakData/minimarketo v0.0.0-20170821092521-29339e452f44 h1:AlqM67XAlZL9CNdYqyhaeMKIzrdFdPMc/IzN+zvgp1w=
+github.com/SpeakData/minimarketo v0.0.0-20170821092521-29339e452f44/go.mod h1:uLiuODhOYuGlH08m3L6ycCgzGYikBJsV7MhXkVk/WkM=
 github.com/codegangsta/cli v1.20.0 h1:iX1FXEgwzd5+XN6wk5cVHOGQj6Q3Dcp20lUeS4lHNTw=
 github.com/codegangsta/cli v1.20.0/go.mod h1:/qJNoX69yVSKu5o4jLyXAENLRyk1uhi7zkbQ3slBdOA=
 github.com/dgrijalva/jwt-go v1.0.2 h1:KPldsxuKGsS2FPWsNeg9ZO18aCrGKujPoWXn2yo+KQM=
