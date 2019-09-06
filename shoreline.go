@@ -19,6 +19,7 @@ import (
 	"github.com/tidepool-org/go-common/clients/mongo"
 	"github.com/tidepool-org/shoreline/oauth2"
 	"github.com/tidepool-org/shoreline/user"
+	"github.com/tidepool-org/shoreline/user/marketo"
 )
 
 type (
@@ -38,7 +39,7 @@ const (
 func main() {
 	var config Config
 
-	if err := common.LoadEnvironmentConfig([]string{"TIDEPOOL_SHORELINE_ENV", "TIDEPOOL_SHORELINE_SERVICE", "MARKETO_ID", "MARKETO_SECRET", "MARKETO_URL"}, &config); err != nil {
+	if err := common.LoadEnvironmentConfig([]string{"TIDEPOOL_SHORELINE_ENV", "TIDEPOOL_SHORELINE_SERVICE", "MARKETO_ID", "MARKETO_SECRET", "MARKETO_URL", "CLINIC_ROLE", "PATIENT_ROLE", "TIMEOUT"}, &config); err != nil {
 		log.Panic("Problem loading config", err)
 	}
 
@@ -91,13 +92,29 @@ func main() {
 	if found {
 		config.User.Mailchimp.URL = mailChimpURL
 	}
-	marketoSecret, found := os.LookupEnv("MARKETO_SECRET")
+	marketoID, found := os.LookupEnv("MARKETO_ID")
 	if found {
-		config.User.Marketo.MARKETO_Secret = marketoSecret
+		config.User.Marketo.MARKETO_Secret = marketoID
 	}
 	marketoURL, found := os.LookupEnv("MARKETO_URL")
 	if found {
 		config.User.Marketo.MARKETO_URL = marketoURL
+	}
+	marketoSecret, found := os.LookupEnv("MARKETO_SECRET")
+	if found {
+		config.User.Marketo.MARKETO_Secret = marketoSecret
+	}
+	clinicRole, found := os.LookupEnv("CLINIC_ROLE")
+	if found {
+		config.User.Marketo.MARKETO_Secret = clinicRole
+	}
+	patientRole, found := os.LookupEnv("PATIENT_ROLE")
+	if found {
+		config.User.Marketo.MARKETO_Secret = patientRole
+	}
+	timeout, found := os.LookupEnv("TIMEOUT")
+	if found {
+		config.User.Marketo.MARKETO_Secret = timeout
 	}
 
 	salt, found := os.LookupEnv("SALT")
@@ -147,7 +164,16 @@ func main() {
 
 	log.Print(shoreline_service_prefix, "adding", user.USER_API_PREFIX)
 
-	userapi := user.InitApi(config.User, user.NewMongoStoreClient(&config.Mongo), highwater)
+	logger := log.New(os.Stdout, user.USER_API_PREFIX, log.LstdFlags|log.Lshortfile)
+	miniConfig := marketo.Miniconfig(*config.User.Marketo)
+	client, err := marketo.Client(miniConfig)
+	marketoManager, err := marketo.NewManager(logger, config.User.Marketo, client)
+	if err != nil {
+		logger.Println("WARNING: Marketo Manager not configured;", err)
+	}
+
+	clientStore := user.NewMongoStoreClient(&config.Mongo)
+	userapi := user.InitApi(config.User, logger, clientStore, highwater, marketoManager)
 	userapi.SetHandlers("", rtr)
 
 	userClient := user.NewUserClient(userapi)

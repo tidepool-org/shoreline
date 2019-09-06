@@ -1,26 +1,23 @@
 package marketo
 
 import (
-	"bytes"
-	"crypto/md5"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"log"
-	"net/http"
-	"strings"
-	"github.com/SpeakData/minimarketo"
-	"os"
 	"net/url"
+	"strings"
+
+	"github.com/SpeakData/minimarketo"
 )
+
 type User interface {
 	Email() string
-	FirstName() string
-	LastName() string
+	// FirstName() string
+	// LastName() string
 	IsClinic() bool
 }
+
 // Manager type for managing leads
 type Manager interface {
 	CreateListMembershipForUser(newUser User)
@@ -33,6 +30,7 @@ type LeadResult struct {
 	FirstName string `json:"firstName"`
 	LastName  string `json:"lastName"`
 	Email     string `json:"email"`
+	UserType  string `json:"userType"`
 	Created   string `json:"createdAt"`
 	Updated   string `json:"updatedAt"`
 }
@@ -47,7 +45,7 @@ type RecordResult struct {
 	} `json:"reasons,omitempty"`
 }
 
-type manager struct {
+type Connector struct {
 	logger *log.Logger
 	client minimarketo.Client
 	config Config
@@ -61,12 +59,15 @@ type Config struct {
 	MARKETO_URL string
 	ClinicRole  string
 	PatientRole string
-	Timeout 	uint
+	Timeout     uint
 }
 
 func (c *Config) Validate() error {
 	if c == nil {
 		return errors.New("marketo: config is missing")
+	}
+	if c.MARKETO_ID == "" {
+		return errors.New("marketo: ID is missing")
 	}
 	if c.MARKETO_URL == "" {
 		return errors.New("marketo: url is missing")
@@ -75,43 +76,51 @@ func (c *Config) Validate() error {
 		return errors.New("marketo: api key is missing")
 	}
 	if c.ClinicRole == "" {
-		return errors.New("marketo: Clinic role is missing")
+		return errors.New("marketo: clinic role is missing")
 	}
 	if c.PatientRole == "" {
-		return errors.New("marketo: Patient role is missing")
+		return errors.New("marketo: patient role is missing")
 	}
 	if c.Timeout == 0 {
-		return errors.New("marketo: client is missing")
+		return errors.New("marketo: timeout error")
 	}
 	return nil
 }
 
-func NewManager(logger *log.Logger, config *Config) (Manager, error) {
-	if logger == nil {
-		return nil, errors.New("marketo: logger is missing")
-	}
-	if err := config.Validate(); err != nil {
-		return nil, fmt.Errorf("marketo: config is not valid; %s", err)
-	}
-	var miniconfig = minimarketo.ClientConfig{
+func Miniconfig(config Config) minimarketo.ClientConfig {
+	return minimarketo.ClientConfig{
 		ID:       config.MARKETO_ID,
 		Secret:   config.MARKETO_Secret,
 		Endpoint: config.MARKETO_URL, // https://XXX-XXX-XXX.mktorest.com
 		Debug:    true,
 		Timeout:  config.Timeout,
 	}
-	var client, err = minimarketo.NewClient(miniconfig) 
-		if err != nil {
-			log.Fatal(err)
-		}
-	return &manager{
+}
+func Client(miniconfig minimarketo.ClientConfig) (client minimarketo.Client, err error) {
+	client, err = minimarketo.NewClient(miniconfig)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return
+}
+func NewManager(logger *log.Logger, config *Config, client minimarketo.Client) (Manager, error) {
+	if logger == nil {
+		return nil, errors.New("marketo: logger is missing")
+	}
+	if client == nil {
+		return nil, errors.New("marketo: client is missing")
+	}
+	if err := config.Validate(); err != nil {
+		return nil, fmt.Errorf("marketo: config is not valid; %s", err)
+	}
+	return &Connector{
 		logger: logger,
 		client: client,
 		config: *config,
 	}, nil
 }
 
-func (m *manager) CreateListMembershipForUser(newUser User) {
+func (m *Connector) CreateListMembershipForUser(newUser User) {
 	if newUser == nil {
 		return
 	}
@@ -119,7 +128,7 @@ func (m *manager) CreateListMembershipForUser(newUser User) {
 	go m.upsertListMembership(nil, newUser)
 }
 
-func (m *manager) UpdateListMembershipForUser(oldUser User, newUser User) {
+func (m *Connector) UpdateListMembershipForUser(oldUser User, newUser User) {
 	if oldUser == nil || newUser == nil {
 		return
 	}
@@ -127,7 +136,7 @@ func (m *manager) UpdateListMembershipForUser(oldUser User, newUser User) {
 	go m.upsertListMembership(oldUser, newUser)
 }
 
-func (m *manager) upsertListMembership(oldUser User, newUser User) {
+func (m *Connector) upsertListMembership(oldUser User, newUser User) {
 	if matchUsers(oldUser, newUser) {
 		return
 	}
@@ -143,15 +152,16 @@ func (m *manager) upsertListMembership(oldUser User, newUser User) {
 	if listEmail == "" {
 		listEmail = newEmail
 	}
-	if err := m.upsertListMember(m.typeForUser(newUser), listEmail, newEmail); err != nil {
+	if err := m.UpsertListMember(m.typeForUser(newUser), listEmail, newEmail); err != nil {
 		m.logger.Printf(`ERROR: marketo failure upserting member from "%s" to "%s"; %s`, listEmail, newEmail, err)
 	}
 }
 
-func (m *manager) upsertListMember(role string, listEmail string, newEmail string) error {
+// UpsertListMember creates or updates lead based on if lead already exists
+func (m *Connector) UpsertListMember(role string, listEmail string, newEmail string) error {
 	path := "/rest/v1/leads.json"
 	type Input struct {
-		ID		  int    `json:"id"`
+		ID        int    `json:"id"`
 		Email     string `json:"email"`
 		FirstName string `json:"firstName"`
 		LastName  string `json:"lastName"`
@@ -163,10 +173,10 @@ func (m *manager) upsertListMember(role string, listEmail string, newEmail strin
 		LookupField string  `json:"lookupField"`
 		Input       []Input `json:"input"`
 	}
-	exists, id := m.findLead(listEmail)
+	id, exists := m.FindLead(listEmail)
 	data := CreateData{
 		"updateOnly",
-		"ID",
+		"id",
 		[]Input{
 			Input{id, newEmail, "John", "Doe", role},
 		},
@@ -183,23 +193,22 @@ func (m *manager) upsertListMember(role string, listEmail string, newEmail strin
 	dataInBytes, err := json.Marshal(data)
 	response, err := m.client.Post(path, dataInBytes)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
+		return fmt.Errorf("marketo: could not get a response %v", err)
 	}
 	if !response.Success {
-		log.Fatal(response.Errors)
+		log.Println(response.Errors)
+		return errors.New("marketo: could not get a response")
 	}
 	var createResults []minimarketo.RecordResult
 	if err = json.Unmarshal(response.Result, &createResults); err != nil {
-		log.Fatal(err)
+		log.Println(err)
+		return fmt.Errorf("marketo: could not get a response %v", err)
 	}
-	for _, result := range createResults {
-		fmt.Printf("%+v", result)
-	}
+	return nil
 }
 
-
-
-func (m *manager) findLead(listEmail string)  (bool, int) {
+func (m *Connector) FindLead(listEmail string) (int, bool) {
 	path := "/rest/v1/leads.json?"
 	v := url.Values{
 		"filterType":   {"email"},
@@ -213,20 +222,23 @@ func (m *manager) findLead(listEmail string)  (bool, int) {
 	if !response.Success {
 		log.Fatal(response.Errors)
 	}
-	var leads []minimarketo.LeadResult
+	var leads []LeadResult
 	if err = json.Unmarshal(response.Result, &leads); err != nil {
 		log.Fatal(err)
 	}
-	if len(leads) == 0 {
-		return false, -1
+	if len(leads) != 1 {
+		return -1, false
 	}
-	return true, leads[0].ID
+	if len(leads) == 0 {
+		return -1, false
+	}
+	return leads[0].ID, true
 	// for _, lead := range leads {
 	// 	fmt.Printf("%+v", lead)
 	// }
 }
 
-func (m *manager) typeForUser(user User) string {
+func (m *Connector) typeForUser(user User) string {
 	if user.IsClinic() {
 		return m.config.ClinicRole
 	}

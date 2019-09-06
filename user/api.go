@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"reflect"
 	"runtime"
 	"strconv"
@@ -32,7 +31,7 @@ type (
 		oauth            oauth2.Client
 		logger           *log.Logger
 		mailchimpManager mailchimp.Manager
-		marketoManager	 marketo.Manager
+		marketoManager   marketo.Manager
 	}
 	ApiConfig struct {
 		//used for services
@@ -51,7 +50,7 @@ type (
 		ClinicDemoUserID   string           `json:"clinicDemoUserId"`
 		Mailchimp          mailchimp.Config `json:"mailchimp"`
 		// to create type/file
-		Marketo			   marketo.Config	`json:"marketo"`
+		Marketo *marketo.Config `json:"marketo"`
 	}
 	varsHandler func(http.ResponseWriter, *http.Request, map[string]string)
 )
@@ -93,25 +92,14 @@ const (
 	STATUS_INVALID_ROLE          = "The role specified is invalid"
 )
 
-func InitApi(cfg ApiConfig, store Storage, metrics highwater.Client) *Api {
-	logger := log.New(os.Stdout, USER_API_PREFIX, log.LstdFlags|log.Lshortfile)
-
-	mailchimpManager, err := mailchimp.NewManager(logger, &http.Client{Timeout: 15 * time.Second}, &cfg.Mailchimp)
-	if err != nil {
-		logger.Println("WARNING: Mailchimp Manager not configured;", err)
-	}
-	marketoManager, err := marketo.NewManager(logger, &cfg.Marketo)
-	if err != nil {
-		logger.Println("WARNING: Marketo Manager not configured;", err)
-	}
+func InitApi(cfg ApiConfig, logger *log.Logger, store Storage, metrics highwater.Client, manager marketo.Manager) *Api {
 
 	return &Api{
-		Store:            store,
-		ApiConfig:        cfg,
-		metrics:          metrics,
-		logger:           logger,
-		mailchimpManager: mailchimpManager,
-		marketoManager:	  marketoManager,
+		Store:          store,
+		ApiConfig:      cfg,
+		metrics:        metrics,
+		logger:         logger,
+		marketoManager: manager,
 	}
 }
 
