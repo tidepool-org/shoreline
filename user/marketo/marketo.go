@@ -44,6 +44,19 @@ type RecordResult struct {
 		Message string `json:"message"`
 	} `json:"reasons,omitempty"`
 }
+type Input struct {
+	ID        int    `json:"id"`
+	Email     string `json:"email"`
+	FirstName string `json:"firstName"`
+	LastName  string `json:"lastName"`
+	UserType  string `json:"userType"`
+	// Env		  string `json:"envType"`
+}
+type CreateData struct {
+	Action      string  `json:"action"`
+	LookupField string  `json:"lookupField"`
+	Input       []Input `json:"input"`
+}
 
 type Connector struct {
 	logger *log.Logger
@@ -125,7 +138,7 @@ func (m *Connector) CreateListMembershipForUser(newUser User) {
 		return
 	}
 
-	go m.upsertListMembership(nil, newUser)
+	go m.UpsertListMembership(nil, newUser)
 }
 
 func (m *Connector) UpdateListMembershipForUser(oldUser User, newUser User) {
@@ -133,10 +146,10 @@ func (m *Connector) UpdateListMembershipForUser(oldUser User, newUser User) {
 		return
 	}
 
-	go m.upsertListMembership(oldUser, newUser)
+	go m.UpsertListMembership(oldUser, newUser)
 }
 
-func (m *Connector) upsertListMembership(oldUser User, newUser User) {
+func (m *Connector) UpsertListMembership(oldUser User, newUser User) {
 	if matchUsers(oldUser, newUser) {
 		return
 	}
@@ -152,7 +165,7 @@ func (m *Connector) upsertListMembership(oldUser User, newUser User) {
 	if listEmail == "" {
 		listEmail = newEmail
 	}
-	if err := m.UpsertListMember(m.typeForUser(newUser), listEmail, newEmail); err != nil {
+	if err := m.UpsertListMember(m.TypeForUser(newUser), listEmail, newEmail); err != nil {
 		m.logger.Printf(`ERROR: marketo failure upserting member from "%s" to "%s"; %s`, listEmail, newEmail, err)
 	}
 }
@@ -160,19 +173,6 @@ func (m *Connector) upsertListMembership(oldUser User, newUser User) {
 // UpsertListMember creates or updates lead based on if lead already exists
 func (m *Connector) UpsertListMember(role string, listEmail string, newEmail string) error {
 	path := "/rest/v1/leads.json"
-	type Input struct {
-		ID        int    `json:"id"`
-		Email     string `json:"email"`
-		FirstName string `json:"firstName"`
-		LastName  string `json:"lastName"`
-		UserType  string `json:"userType"`
-		// Env		  string `json:"envType"`
-	}
-	type CreateData struct {
-		Action      string  `json:"action"`
-		LookupField string  `json:"lookupField"`
-		Input       []Input `json:"input"`
-	}
 	id, exists := m.FindLead(listEmail)
 	data := CreateData{
 		"updateOnly",
@@ -213,7 +213,7 @@ func (m *Connector) FindLead(listEmail string) (int, bool) {
 	v := url.Values{
 		"filterType":   {"email"},
 		"filterValues": {listEmail},
-		"fields":       {"email", "id"},
+		"fields":       {"email,id"},
 	}
 	response, err := m.client.Get(path + v.Encode())
 	if err != nil {
@@ -226,6 +226,7 @@ func (m *Connector) FindLead(listEmail string) (int, bool) {
 	if err = json.Unmarshal(response.Result, &leads); err != nil {
 		log.Fatal(err)
 	}
+	log.Printf("FIND LEAD %v", leads)
 	if len(leads) != 1 {
 		return -1, false
 	}
@@ -238,7 +239,7 @@ func (m *Connector) FindLead(listEmail string) (int, bool) {
 	// }
 }
 
-func (m *Connector) typeForUser(user User) string {
+func (m *Connector) TypeForUser(user User) string {
 	if user.IsClinic() {
 		return m.config.ClinicRole
 	}

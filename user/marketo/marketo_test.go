@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"runtime/debug"
 
 	// "strings"
 	"testing"
@@ -237,24 +238,100 @@ func Test_CreateListMembershipForUser_User_Email_Tidepool_Org(t *testing.T) {
 }
 
 // func Test_CreateListMembershipForUser_Clinic_Success(t *testing.T) {
-// 	config := NewTestConfig(t)
+// 	logger := log.New(ioutil.Discard, "", log.LstdFlags)
+// 	x := MockServer(t)
+// 	defer x.Close()
+// 	config := NewTestConfig(t, x)
 // 	client, err := marketo.Client(marketo.Miniconfig(*config))
+// 	log.Printf("MOCK CLIENT %v", client)
 // 	if err != nil {
 // 		log.Fatal(err)
 // 	}
-// 	manager := NewTestManagerWithClientMock(t)
+// 	manager, err := marketo.NewManager(logger, config, client)
 // 	newUserMock := NewUserMock()
 // 	newUserMock.EmailStub = func() string { return "one@sample.com" }
 // 	newUserMock.IsClinicStub = func() bool { return true }
 // 	// clientMock.DoOutputs = []DoOutput{{nil, errors.New("test failure")}}
 // 	manager.CreateListMembershipForUser(newUserMock)
-// 	// time.Sleep(time.Second)
+// 	time.Sleep(time.Second)
 
 // }
+func Test_UpdateListMembershipForUser_OldUser_Missing(t *testing.T) {
+	manager := NewTestManagerWithClientMock(t)
+	newUserMock := NewUserMock()
+	manager.UpdateListMembershipForUser(nil, newUserMock)
+	time.Sleep(time.Second)
+}
+
+func Test_UpdateListMembershipForUser_NewUser_Missing(t *testing.T) {
+	manager := NewTestManagerWithClientMock(t)
+	oldUserMock := NewUserMock()
+	manager.UpdateListMembershipForUser(oldUserMock, nil)
+	time.Sleep(time.Second)
+}
+
+func Test_UpdateListMembershipForUser_NewUser_Match_Personal(t *testing.T) {
+	manager := NewTestManagerWithClientMock(t)
+	oldUserMock := NewUserMock()
+	oldUserMock.EmailStub = func() string { return "ten@sample.com" }
+	oldUserMock.IsClinicStub = func() bool { return false }
+	newUserMock := NewUserMock()
+	newUserMock.EmailStub = func() string { return "ten@sample.com" }
+	newUserMock.IsClinicStub = func() bool { return false }
+	manager.UpdateListMembershipForUser(oldUserMock, newUserMock)
+	time.Sleep(time.Second)
+}
+
+func Test_UpdateListMembershipForUser_NewUser_Match_Clinic(t *testing.T) {
+	manager := NewTestManagerWithClientMock(t)
+	oldUserMock := NewUserMock()
+	oldUserMock.EmailStub = func() string { return "eleven@sample.com" }
+	oldUserMock.IsClinicStub = func() bool { return true }
+	newUserMock := NewUserMock()
+	newUserMock.EmailStub = func() string { return "eleven@sample.com" }
+	newUserMock.IsClinicStub = func() bool { return true }
+	manager.UpdateListMembershipForUser(oldUserMock, newUserMock)
+	time.Sleep(time.Second)
+}
+
+func Test_UpdateListMembershipForUser_NewUser_Email_Missing(t *testing.T) {
+	manager := NewTestManagerWithClientMock(t)
+	oldUserMock := NewUserMock()
+	oldUserMock.EmailStub = func() string { return "twelve@sample.com" }
+	newUserMock := NewUserMock()
+	newUserMock.EmailStub = func() string { return "" }
+	manager.UpdateListMembershipForUser(oldUserMock, newUserMock)
+	time.Sleep(time.Second)
+}
+
+func Test_UpdateListMembershipForUser_NewUser_Email_Tidepool_Io(t *testing.T) {
+	manager := NewTestManagerWithClientMock(t)
+	oldUserMock := NewUserMock()
+	oldUserMock.EmailStub = func() string { return "twelve@sample.com" }
+	newUserMock := NewUserMock()
+	newUserMock.EmailStub = func() string { return "test@tidepool.io" }
+	manager.UpdateListMembershipForUser(oldUserMock, newUserMock)
+	time.Sleep(time.Second)
+}
+
+func Test_UpdateListMembershipForUser_NewUser_Email_Tidepool_Org(t *testing.T) {
+	manager := NewTestManagerWithClientMock(t)
+	oldUserMock := NewUserMock()
+	oldUserMock.EmailStub = func() string { return "twelve@sample.com" }
+	newUserMock := NewUserMock()
+	newUserMock.EmailStub = func() string { return "test@tidepool.org" }
+	manager.UpdateListMembershipForUser(oldUserMock, newUserMock)
+	time.Sleep(time.Second)
+}
 const (
 	createLeadResponseSuccess = `{
 		"requestId":"1000",
 		"result":[{"id":12345,"status":"created"}],
+		"success":true
+	}`
+	updateLeadResponseSuccess = `{
+		"requestId":"1000",
+		"result":[{"id":23,"status":"updated"}],
 		"success":true
 	}`
 	createLeadRequest = `{
@@ -273,6 +350,7 @@ type CreateLeadRequest struct {
 	Action      string `json:"action"`
 	LookupField string `json:"lookupField"`
 	Input       []struct {
+		ID        int    `json:"id"`
 		Email     string `json:"email"`
 		FirstName string `json:"firstName"`
 		LastName  string `json:"lastName"`
@@ -280,7 +358,12 @@ type CreateLeadRequest struct {
 	} `json:"input"`
 }
 
-func Test_UpsertListMember(t *testing.T) {
+func Test_UpdateListMember(t *testing.T) {
+	getResponseSuccess := `{
+		"requestId":"1000",
+		"result":[{"id":23,"email":"tester@example.com"}],
+		"success":true
+	}`
 	path := "/rest/v1/leads.json"
 	email := "tester@example.com"
 	newEmail := "newtester@example.com"
@@ -289,21 +372,153 @@ func Test_UpsertListMember(t *testing.T) {
 	userType := "clinician"
 	called := 0
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("%v", r)
+		log.Printf("%v", called)
+		log.Println("RUNNING")
 		w.WriteHeader(http.StatusOK)
 		w.Header().Set("Content-Type", "application/json")
-		if called == 0 {
+		called++
+		if called == 1 {
 			// check method
 			if r.Method != "GET" {
 				t.Errorf("Expected 'GET' request, got '%s'", r.Method)
 			}
 
 			w.Write([]byte(fmt.Sprintf(authResponseSuccess, token)))
-		} else {
+		} 
+		if called == 2 {
+			if r.URL.EscapedPath() != "/rest/v1/leads.json" {
+				t.Errorf("Expected path to be /rest/v1/leads.json, got %s", r.URL.EscapedPath())
+			}
+
+			// check query params
+			params, err := url.ParseQuery(r.URL.RawQuery)
+			log.Printf("PARAMS NEW %v", params)
+			if err != nil {
+				t.Errorf("Error parsing query params: %v", err)
+			}
+			checkParam(t, params, "fields", "email,id")
+			checkParam(t, params, "filterType", "email")
+			checkParam(t, params, "filterValues", "tester@example.com")
+			// check method
+			if r.Method != "GET" {
+				t.Errorf("Expected 'GET' request, got '%s'", r.Method)
+			}
+			w.Write([]byte(getResponseSuccess))
+		} 
+		if called == 3 {
 			// check path
 			if r.URL.EscapedPath() != path {
 				t.Errorf("Expected path to be %s, got %s", path, r.URL.EscapedPath())
 			}
+			
+			// check method
+			if r.Method != "POST" {
+				t.Errorf("Expected 'POST' request, got '%s'", r.Method)
+			}
 
+			// check body
+			body, err := ioutil.ReadAll(r.Body)
+			if err != nil {
+				t.Error(err)
+			}
+			var requestBody CreateLeadRequest
+			if err := json.Unmarshal(body, &requestBody); err != nil {
+				log.Println(body)
+				log.Println(requestBody)
+				log.Println("Body")
+				t.Error(err)
+			}
+			if len(requestBody.Input) != 1 {
+				t.Errorf("Expected one lead, got %d", len(requestBody.Input))
+				log.Println(len(requestBody.Input))
+			}
+			if requestBody.Action != "updateOnly" {
+				t.Errorf("Expected 'updateOnly', got %s", requestBody.Action)
+			}
+			if requestBody.LookupField != "id" {
+				t.Errorf("Expected 'id', got %s", requestBody.LookupField)
+			}
+			if requestBody.Input[0].Email != newEmail {
+				t.Errorf("Expected %s, got %s", newEmail, requestBody.Input[0].Email)
+			}
+			if requestBody.Input[0].FirstName != firstName {
+				t.Errorf("Expected %s, got %s", firstName, requestBody.Input[0].FirstName)
+			}
+			if requestBody.Input[0].LastName != lastName {
+				t.Errorf("Expected %s, got %s", lastName, requestBody.Input[0].LastName)
+			}
+			if requestBody.Input[0].UserType != userType {
+				t.Errorf("Expected %s, got %s", userType, requestBody.Input[0].UserType)
+			}
+			w.Write([]byte(updateLeadResponseSuccess))
+		}
+	}))
+	defer ts.Close()
+	logger := log.New(ioutil.Discard, "", log.LstdFlags)
+	config := NewTestConfig(t, ts)
+	client, _ := marketo.Client(marketo.Miniconfig(*config))
+	manager, _ := marketo.NewManager(logger, config, client)
+	var s = manager.(*marketo.Connector)
+	var addOrUpdateMember = s.UpsertListMember(userType, email, newEmail)
+	if addOrUpdateMember != nil {
+		t.Error("Expected nil, returned not nil")
+	}
+}
+func Test_CreateListMember(t *testing.T) {
+	getResponseSuccess := `{
+		"requestId":"1000",
+		"result":[],
+		"success":true
+	}`
+	path := "/rest/v1/leads.json"
+	email := "tester@example.com"
+	newEmail := "newtester@example.com"
+	firstName := "John"
+	lastName := "Doe"
+	userType := "user"
+	called := 0
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("%v", r)
+		log.Printf("%v", called)
+		log.Println("RUNNING")
+		w.WriteHeader(http.StatusOK)
+		w.Header().Set("Content-Type", "application/json")
+		called++
+		if called == 1 {
+			// check method
+			if r.Method != "GET" {
+				t.Errorf("Expected 'GET' request, got '%s'", r.Method)
+			}
+
+			w.Write([]byte(fmt.Sprintf(authResponseSuccess, token)))
+		} 
+		if called == 2 {
+			if r.URL.EscapedPath() != "/rest/v1/leads.json" {
+				t.Errorf("Expected path to be /rest/v1/leads.json, got %s", r.URL.EscapedPath())
+			}
+
+			// check query params
+			params, err := url.ParseQuery(r.URL.RawQuery)
+			log.Printf("PARAMS NEW %v", params)
+			if err != nil {
+				t.Errorf("Error parsing query params: %v", err)
+			}
+			checkParam(t, params, "fields", "email,id")
+			checkParam(t, params, "filterType", "email")
+			checkParam(t, params, "filterValues", "tester@example.com")
+			// check method
+			if r.Method != "GET" {
+				t.Errorf("Expected 'GET' request, got '%s'", r.Method)
+			}
+			w.Write([]byte(getResponseSuccess))
+		} 
+		if called == 3 {
+			// check path
+			if r.URL.EscapedPath() != path {
+				t.Errorf("Expected path to be %s, got %s", path, r.URL.EscapedPath())
+			}
+			
 			// check method
 			if r.Method != "POST" {
 				t.Errorf("Expected 'POST' request, got '%s'", r.Method)
@@ -331,32 +546,29 @@ func Test_UpsertListMember(t *testing.T) {
 			if requestBody.LookupField != "email" {
 				t.Errorf("Expected 'email', got %s", requestBody.LookupField)
 			}
-			if requestBody.Input[0].Email != email {
-				t.Errorf("Expected %s, got %s", email, requestBody.Input[0].Email)
+			if requestBody.Input[0].Email != newEmail {
+				t.Errorf("Expected %s, got %s", newEmail, requestBody.Input[0].Email)
 			}
 			if requestBody.Input[0].FirstName != firstName {
-				t.Errorf("Expected %s, got %s", email, requestBody.Input[0].FirstName)
+				t.Errorf("Expected %s, got %s", firstName, requestBody.Input[0].FirstName)
 			}
 			if requestBody.Input[0].LastName != lastName {
-				t.Errorf("Expected %s, got %s", email, requestBody.Input[0].LastName)
+				t.Errorf("Expected %s, got %s", lastName, requestBody.Input[0].LastName)
 			}
 			if requestBody.Input[0].UserType != userType {
-				t.Errorf("Expected %s, got %s", email, requestBody.Input[0].UserType)
+				t.Errorf("Expected %s, got %s", userType, requestBody.Input[0].UserType)
 			}
 			w.Write([]byte(createLeadResponseSuccess))
 		}
-		called++
 	}))
 	defer ts.Close()
 	logger := log.New(ioutil.Discard, "", log.LstdFlags)
 	config := NewTestConfig(t, ts)
 	client, _ := marketo.Client(marketo.Miniconfig(*config))
+	// findLeadPath := "/rest/v1/leads.json?filterType=email&fields=email,id&filterValues=tester@example.com"
 	manager, _ := marketo.NewManager(logger, config, client)
 	var s = manager.(*marketo.Connector)
 	var addOrUpdateMember = s.UpsertListMember(userType, email, newEmail)
-	// id, exists := s.FindLead(email)
-	log.Println("requestBody")
-	log.Println(addOrUpdateMember)
 	if addOrUpdateMember != nil {
 		t.Error("Expected nil, returned not nil")
 	}
@@ -417,7 +629,7 @@ func Test_FindLead(t *testing.T) {
 	if err = json.Unmarshal(response.Result, &leads); err != nil {
 		log.Fatal(err)
 	}
-	if len(leads) == 1 {
+	if len(leads) == 0 {
 		t.Error("Lead is empty")
 		t.Log(leads)
 	}
@@ -428,6 +640,12 @@ func Test_FindLead(t *testing.T) {
 		t.Error("Failed to find lead")
 	}
 }
+// func Test_TypeForUser(t *testing.T) string {
+// 	if IsClinic() {
+// 		return m.config.ClinicRole
+// 	}
+// 	return m.config.PatientRole
+// }
 
 const (
 	clientID            = "1111"
@@ -462,6 +680,9 @@ const (
 )
 
 func checkParam(t *testing.T, params url.Values, key, expected string) {
+	log.Printf("PARAMS KEY %v", params[key][0])
+	log.Printf("EXPECTED %v", expected)
+	debug.PrintStack()
 	if params[key][0] != expected {
 		t.Errorf("expected '%s', got '%s'", expected, params[key][0])
 	}
