@@ -13,8 +13,6 @@ import (
 
 type User interface {
 	Email() string
-	// FirstName() string
-	// LastName() string
 	IsClinic() bool
 }
 
@@ -47,8 +45,6 @@ type RecordResult struct {
 type Input struct {
 	ID        int    `json:"id"`
 	Email     string `json:"email"`
-	FirstName string `json:"firstName"`
-	LastName  string `json:"lastName"`
 	UserType  string `json:"userType"`
 	// Env		  string `json:"envType"`
 }
@@ -178,7 +174,7 @@ func (m *Connector) UpsertListMember(role string, listEmail string, newEmail str
 		"updateOnly",
 		"id",
 		[]Input{
-			Input{id, newEmail, "John", "Doe", role},
+			Input{id, newEmail, role},
 		},
 	}
 	if !exists {
@@ -186,7 +182,7 @@ func (m *Connector) UpsertListMember(role string, listEmail string, newEmail str
 			"createOnly",
 			"email",
 			[]Input{
-				Input{id, newEmail, "John", "Doe", role},
+				Input{id, newEmail, role},
 			},
 		}
 	}

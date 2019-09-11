@@ -93,13 +93,17 @@ const (
 )
 
 func InitApi(cfg ApiConfig, logger *log.Logger, store Storage, metrics highwater.Client, manager marketo.Manager) *Api {
-
+	mailchimpManager, err := mailchimp.NewManager(logger, &http.Client{Timeout: 15 * time.Second}, &cfg.Mailchimp)
+	if err != nil {
+		logger.Println("WARNING: Mailchimp Manager not configured;", err)
+	}
 	return &Api{
-		Store:          store,
-		ApiConfig:      cfg,
-		metrics:        metrics,
-		logger:         logger,
-		marketoManager: manager,
+		Store:            store,
+		ApiConfig:        cfg,
+		metrics:          metrics,
+		logger:           logger,
+		marketoManager:   manager,
+		mailchimpManager: mailchimpManager,
 	}
 }
 
