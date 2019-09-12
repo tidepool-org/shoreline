@@ -88,7 +88,7 @@ func main() {
 		config.User.Marketo.PatientRole = marketoPatientRole
 	}
 	unParsedTimeout, found := (os.LookupEnv("MARKETO_TIMEOUT"))
-	parsedTimeout64, err := strconv.ParseUint(unParsedTimeout, 10, 64)
+	parsedTimeout64, err := strconv.ParseInt(unParsedTimeout, 10, 32)
 	parsedTimeout := uint(parsedTimeout64)
 	if err != nil {
 		log.Println(err)

@@ -30,7 +30,7 @@ func Test_Config_Validate_Missing(t *testing.T) {
 
 func Test_Config_Validate_URL_Missing(t *testing.T) {
 	config := NewTestConfig(t, MockServer(t))
-	config.Url = ""
+	config.URL = ""
 	err := config.Validate()
 	if err == nil {
 		t.Fatal("Validate returned successfully when error expected")
@@ -43,7 +43,7 @@ func Test_Config_Validate_ID_Missing(t *testing.T) {
 	x := MockServer(t)
 	defer x.Close()
 	config := NewTestConfig(t, x)
-	config.Id = ""
+	config.ID = ""
 	err := config.Validate()
 	if err == nil {
 		t.Fatal("Validate returned successfully when error expected")
@@ -61,7 +61,7 @@ func Test_Config_Validate_APIKey_Missing(t *testing.T) {
 	if err == nil {
 		t.Fatal("Validate returned successfully when error expected")
 	}
-	if err.Error() != "marketo: api key is missing" {
+	if err.Error() != "marketo: secret is missing" {
 		t.Fatalf("Validate error unexpected: %s", err)
 	}
 }
@@ -174,7 +174,7 @@ func Test_NewManager_Config_Invalid(t *testing.T) {
 	defer x.Close()
 	config := NewTestConfig(t, x)
 	client, err := marketo.Client(marketo.Miniconfig(*config))
-	config.Url = ""
+	config.URL = ""
 	manager, err := marketo.NewManager(logger, config, client)
 	if manager != nil {
 		t.Fatal("NewManager returned manager when error expected")
@@ -804,8 +804,8 @@ func MockServer(t *testing.T) (ts *httptest.Server) {
 }
 func NewTestConfig(t *testing.T, mockServer *httptest.Server) *marketo.Config {
 	return &marketo.Config{
-		Id:          clientID,
-		Url:         mockServer.URL,
+		ID:          clientID,
+		URL:         mockServer.URL,
 		Secret:      clientSecret,
 		ClinicRole:  "clinic",
 		PatientRole: "user",
@@ -829,43 +829,6 @@ func NewTestManagerWithClientMock(t *testing.T) marketo.Manager {
 	}
 	return manager
 }
-
-// Commented out below is from mailchimp but not used
-
-// type DoOutput struct {
-// 	Out1 *http.Response
-// 	Out2 error
-// }
-
-// type ClientMock struct {
-// 	id            int
-// 	DoInvocations int
-// 	DoInputs      []*http.Request
-// 	DoStub        func(request *http.Request) (*http.Response, error)
-// 	DoOutputs     []DoOutput
-// }
-
-// func NewClientMock() *ClientMock {
-// 	return &ClientMock{id: rand.Int()}
-// }
-
-// func (c *ClientMock) Do(request *http.Request) (*http.Response, error) {
-// 	c.DoInvocations++
-// 	c.DoInputs = append(c.DoInputs, request)
-// 	if c.DoStub != nil {
-// 		return c.DoStub(request)
-// 	}
-// 	if len(c.DoOutputs) == 0 {
-// 		panic(fmt.Sprintf("Unexpected invocation of Do on ClientMock: %#v", c))
-// 	}
-// 	output := c.DoOutputs[0]
-// 	c.DoOutputs = c.DoOutputs[1:]
-// 	return output.Out1, output.Out2
-// }
-
-// func (c *ClientMock) AllOutputsConsumed() bool {
-// 	return len(c.DoOutputs) == 0
-// }
 
 type UserMock struct {
 	id                  int

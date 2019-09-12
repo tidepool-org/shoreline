@@ -53,6 +53,7 @@ type Input struct {
 	UserType string `json:"userType"`
 	// Env		  string `json:"envType"`
 }
+
 // CreateData is the full marketo request format
 type CreateData struct {
 	Action      string  `json:"action"`
@@ -117,13 +118,14 @@ func Miniconfig(config Config) minimarketo.ClientConfig {
 	}
 }
 
-// Client defines client 
-func Client(miniconfig minimarketo.ClientConfig) (client minimarketo.Client, err error) {
-	client, err = minimarketo.NewClient(miniconfig)
+// Client defines client
+func Client(miniconfig minimarketo.ClientConfig) (minimarketo.Client, error) {
+	client, err := minimarketo.NewClient(miniconfig)
 	if err != nil {
 		log.Fatal(err)
+		return nil, err
 	}
-	return
+	return client, nil
 }
 
 // NewManager creates a new manager based off of input arguments
@@ -144,7 +146,7 @@ func NewManager(logger *log.Logger, config *Config, client minimarketo.Client) (
 	}, nil
 }
 
-// CreateListMembershipForUser creates a user
+// CreateListMembershipForUser is an asynchronous function that creates a user
 func (m *Connector) CreateListMembershipForUser(newUser User) {
 	if newUser == nil {
 		return
@@ -153,7 +155,7 @@ func (m *Connector) CreateListMembershipForUser(newUser User) {
 	go m.UpsertListMembership(nil, newUser)
 }
 
-// UpdateListMembershipForUser updates a user
+// UpdateListMembershipForUser is an asynchronous function that updates a user
 func (m *Connector) UpdateListMembershipForUser(oldUser User, newUser User) {
 	if oldUser == nil || newUser == nil {
 		return
@@ -216,7 +218,7 @@ func (m *Connector) UpsertListMember(role string, listEmail string, newEmail str
 	}
 	if !response.Success {
 		log.Println(response.Errors)
-		return errors.New("marketo: could not get a response")
+		return fmt.Errorf("marketo: issue with request %v", response.Errors)
 	}
 	var createResults []minimarketo.RecordResult
 	if err = json.Unmarshal(response.Result, &createResults); err != nil {
