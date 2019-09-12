@@ -1,9 +1,6 @@
 package marketo_test
 
 import (
-	// "crypto/md5"
-	// "encoding/hex"
-	// "errors"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -14,11 +11,9 @@ import (
 	"net/url"
 	"runtime/debug"
 
-	// "strings"
 	"testing"
 	"time"
 
-	// "github.com/SpeakData/minimarketo"
 	"github.com/tidepool-org/shoreline/user/marketo"
 )
 
@@ -237,25 +232,116 @@ func Test_CreateListMembershipForUser_User_Email_Tidepool_Org(t *testing.T) {
 	time.Sleep(time.Second)
 }
 
-// func Test_CreateListMembershipForUser_Clinic_Success(t *testing.T) {
-// 	logger := log.New(ioutil.Discard, "", log.LstdFlags)
-// 	x := MockServer(t)
-// 	defer x.Close()
-// 	config := NewTestConfig(t, x)
-// 	client, err := marketo.Client(marketo.Miniconfig(*config))
-// 	log.Printf("MOCK CLIENT %v", client)
-// 	if err != nil {
-// 		log.Fatal(err)
-// 	}
-// 	manager, err := marketo.NewManager(logger, config, client)
-// 	newUserMock := NewUserMock()
-// 	newUserMock.EmailStub = func() string { return "one@sample.com" }
-// 	newUserMock.IsClinicStub = func() bool { return true }
-// 	// clientMock.DoOutputs = []DoOutput{{nil, errors.New("test failure")}}
-// 	manager.CreateListMembershipForUser(newUserMock)
-// 	time.Sleep(time.Second)
+func Test_CreateListMembershipForUser_NewUser_Match_Personal(t *testing.T) {
+	getResponseSuccess := `{
+		"requestId":"1000",
+		"result":[],
+		"success":true
+	}`
+	called := 0
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Header().Set("Content-Type", "application/json")
+		called++
+		if called == 1 {
+			// check method
+			if r.Method != "GET" {
+				t.Errorf("Expected 'GET' request, got '%s'", r.Method)
+			}
 
-// }
+			w.Write([]byte(fmt.Sprintf(authResponseSuccess, token)))
+		} 
+		if called == 2 {
+			if r.URL.EscapedPath() != "/rest/v1/leads.json" {
+				t.Errorf("Expected path to be /rest/v1/leads.json, got %s", r.URL.EscapedPath())
+			}
+
+			// check query params
+			params, err := url.ParseQuery(r.URL.RawQuery)
+			if err != nil {
+				t.Errorf("Error parsing query params: %v", err)
+			}
+			checkParam(t, params, "fields", "email,id")
+			checkParam(t, params, "filterType", "email")
+			checkParam(t, params, "filterValues", "tester@example.com")
+			// check method
+			if r.Method != "GET" {
+				t.Errorf("Expected 'GET' request, got '%s'", r.Method)
+			}
+			w.Write([]byte(getResponseSuccess))
+		} 
+	}))
+	defer ts.Close()
+	logger := log.New(ioutil.Discard, "", log.LstdFlags)
+	config := NewTestConfig(t, ts)
+	client, _ := marketo.Client(marketo.Miniconfig(*config))
+	manager, _ := marketo.NewManager(logger, config, client)
+	var s = manager.(*marketo.Connector)
+	newUserMock := NewUserMock()
+	newUserMock.EmailStub = func() string { return "tester@example.com" }
+	newUserMock.IsClinicStub = func() bool { return false }
+	s.CreateListMembershipForUser(newUserMock)
+	user := s.TypeForUser(newUserMock)
+	if user != "user" {
+		t.Errorf("Expected '%v', got 'clinic'", user)
+	}
+	time.Sleep(time.Second)
+}
+func Test_CreateListMembershipForUser_NewUser_Match_Clinic(t *testing.T) {
+	getResponseSuccess := `{
+		"requestId":"1000",
+		"result":[],
+		"success":true
+	}`
+	called := 0
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Header().Set("Content-Type", "application/json")
+		called++
+		if called == 1 {
+			// check method
+			if r.Method != "GET" {
+				t.Errorf("Expected 'GET' request, got '%s'", r.Method)
+			}
+
+			w.Write([]byte(fmt.Sprintf(authResponseSuccess, token)))
+		} 
+		if called == 2 {
+			if r.URL.EscapedPath() != "/rest/v1/leads.json" {
+				t.Errorf("Expected path to be /rest/v1/leads.json, got %s", r.URL.EscapedPath())
+			}
+
+			// check query params
+			params, err := url.ParseQuery(r.URL.RawQuery)
+			if err != nil {
+				t.Errorf("Error parsing query params: %v", err)
+			}
+			checkParam(t, params, "fields", "email,id")
+			checkParam(t, params, "filterType", "email")
+			checkParam(t, params, "filterValues", "tester@example.com")
+			// check method
+			if r.Method != "GET" {
+				t.Errorf("Expected 'GET' request, got '%s'", r.Method)
+			}
+			w.Write([]byte(getResponseSuccess))
+		} 
+	}))
+	defer ts.Close()
+	logger := log.New(ioutil.Discard, "", log.LstdFlags)
+	config := NewTestConfig(t, ts)
+	client, _ := marketo.Client(marketo.Miniconfig(*config))
+	manager, _ := marketo.NewManager(logger, config, client)
+	var s = manager.(*marketo.Connector)
+	newUserMock := NewUserMock()
+	newUserMock.EmailStub = func() string { return "tester@example.com" }
+	newUserMock.IsClinicStub = func() bool { return true }
+	s.CreateListMembershipForUser(newUserMock)
+	user := s.TypeForUser(newUserMock)
+	if user != "clinic" {
+		t.Errorf("Expected '%v', got 'user'", user)
+	}
+	time.Sleep(time.Second)
+}
 func Test_UpdateListMembershipForUser_OldUser_Missing(t *testing.T) {
 	manager := NewTestManagerWithClientMock(t)
 	newUserMock := NewUserMock()
@@ -272,25 +358,35 @@ func Test_UpdateListMembershipForUser_NewUser_Missing(t *testing.T) {
 
 func Test_UpdateListMembershipForUser_NewUser_Match_Personal(t *testing.T) {
 	manager := NewTestManagerWithClientMock(t)
+	var s = manager.(*marketo.Connector)
 	oldUserMock := NewUserMock()
 	oldUserMock.EmailStub = func() string { return "ten@sample.com" }
 	oldUserMock.IsClinicStub = func() bool { return false }
 	newUserMock := NewUserMock()
 	newUserMock.EmailStub = func() string { return "ten@sample.com" }
 	newUserMock.IsClinicStub = func() bool { return false }
-	manager.UpdateListMembershipForUser(oldUserMock, newUserMock)
+	s.UpdateListMembershipForUser(oldUserMock, newUserMock)
+	user := s.TypeForUser(newUserMock)
+	if user != "user" {
+		t.Errorf("Expected '%v', got 'clinic'", user)
+	}
 	time.Sleep(time.Second)
 }
 
 func Test_UpdateListMembershipForUser_NewUser_Match_Clinic(t *testing.T) {
 	manager := NewTestManagerWithClientMock(t)
+	var s = manager.(*marketo.Connector)
 	oldUserMock := NewUserMock()
 	oldUserMock.EmailStub = func() string { return "eleven@sample.com" }
 	oldUserMock.IsClinicStub = func() bool { return true }
 	newUserMock := NewUserMock()
 	newUserMock.EmailStub = func() string { return "eleven@sample.com" }
 	newUserMock.IsClinicStub = func() bool { return true }
-	manager.UpdateListMembershipForUser(oldUserMock, newUserMock)
+	s.UpdateListMembershipForUser(oldUserMock, newUserMock)
+	user := s.TypeForUser(newUserMock)
+	if user != "clinic" {
+		t.Errorf("Expected '%v', got 'user'", user)
+	}
 	time.Sleep(time.Second)
 }
 
@@ -367,14 +463,9 @@ func Test_UpdateListMember(t *testing.T) {
 	path := "/rest/v1/leads.json"
 	email := "tester@example.com"
 	newEmail := "newtester@example.com"
-	firstName := "John"
-	lastName := "Doe"
-	userType := "clinician"
+	userType := "clinic"
 	called := 0
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("%v", r)
-		log.Printf("%v", called)
-		log.Println("RUNNING")
 		w.WriteHeader(http.StatusOK)
 		w.Header().Set("Content-Type", "application/json")
 		called++
@@ -393,7 +484,6 @@ func Test_UpdateListMember(t *testing.T) {
 
 			// check query params
 			params, err := url.ParseQuery(r.URL.RawQuery)
-			log.Printf("PARAMS NEW %v", params)
 			if err != nil {
 				t.Errorf("Error parsing query params: %v", err)
 			}
@@ -424,14 +514,10 @@ func Test_UpdateListMember(t *testing.T) {
 			}
 			var requestBody CreateLeadRequest
 			if err := json.Unmarshal(body, &requestBody); err != nil {
-				log.Println(body)
-				log.Println(requestBody)
-				log.Println("Body")
 				t.Error(err)
 			}
 			if len(requestBody.Input) != 1 {
 				t.Errorf("Expected one lead, got %d", len(requestBody.Input))
-				log.Println(len(requestBody.Input))
 			}
 			if requestBody.Action != "updateOnly" {
 				t.Errorf("Expected 'updateOnly', got %s", requestBody.Action)
@@ -441,12 +527,6 @@ func Test_UpdateListMember(t *testing.T) {
 			}
 			if requestBody.Input[0].Email != newEmail {
 				t.Errorf("Expected %s, got %s", newEmail, requestBody.Input[0].Email)
-			}
-			if requestBody.Input[0].FirstName != firstName {
-				t.Errorf("Expected %s, got %s", firstName, requestBody.Input[0].FirstName)
-			}
-			if requestBody.Input[0].LastName != lastName {
-				t.Errorf("Expected %s, got %s", lastName, requestBody.Input[0].LastName)
 			}
 			if requestBody.Input[0].UserType != userType {
 				t.Errorf("Expected %s, got %s", userType, requestBody.Input[0].UserType)
@@ -474,14 +554,9 @@ func Test_CreateListMember(t *testing.T) {
 	path := "/rest/v1/leads.json"
 	email := "tester@example.com"
 	newEmail := "newtester@example.com"
-	firstName := "John"
-	lastName := "Doe"
 	userType := "user"
 	called := 0
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("%v", r)
-		log.Printf("%v", called)
-		log.Println("RUNNING")
 		w.WriteHeader(http.StatusOK)
 		w.Header().Set("Content-Type", "application/json")
 		called++
@@ -500,7 +575,6 @@ func Test_CreateListMember(t *testing.T) {
 
 			// check query params
 			params, err := url.ParseQuery(r.URL.RawQuery)
-			log.Printf("PARAMS NEW %v", params)
 			if err != nil {
 				t.Errorf("Error parsing query params: %v", err)
 			}
@@ -531,14 +605,10 @@ func Test_CreateListMember(t *testing.T) {
 			}
 			var requestBody CreateLeadRequest
 			if err := json.Unmarshal(body, &requestBody); err != nil {
-				log.Println(body)
-				log.Println(requestBody)
-				log.Println("Body")
 				t.Error(err)
 			}
 			if len(requestBody.Input) != 1 {
 				t.Errorf("Expected one lead, got %d", len(requestBody.Input))
-				log.Println(len(requestBody.Input))
 			}
 			if requestBody.Action != "createOnly" {
 				t.Errorf("Expected 'createOnly', got %s", requestBody.Action)
@@ -548,12 +618,6 @@ func Test_CreateListMember(t *testing.T) {
 			}
 			if requestBody.Input[0].Email != newEmail {
 				t.Errorf("Expected %s, got %s", newEmail, requestBody.Input[0].Email)
-			}
-			if requestBody.Input[0].FirstName != firstName {
-				t.Errorf("Expected %s, got %s", firstName, requestBody.Input[0].FirstName)
-			}
-			if requestBody.Input[0].LastName != lastName {
-				t.Errorf("Expected %s, got %s", lastName, requestBody.Input[0].LastName)
 			}
 			if requestBody.Input[0].UserType != userType {
 				t.Errorf("Expected %s, got %s", userType, requestBody.Input[0].UserType)
@@ -565,7 +629,6 @@ func Test_CreateListMember(t *testing.T) {
 	logger := log.New(ioutil.Discard, "", log.LstdFlags)
 	config := NewTestConfig(t, ts)
 	client, _ := marketo.Client(marketo.Miniconfig(*config))
-	// findLeadPath := "/rest/v1/leads.json?filterType=email&fields=email,id&filterValues=tester@example.com"
 	manager, _ := marketo.NewManager(logger, config, client)
 	var s = manager.(*marketo.Connector)
 	var addOrUpdateMember = s.UpsertListMember(userType, email, newEmail)
@@ -580,9 +643,6 @@ func Test_FindLead(t *testing.T) {
 		"success":true
 	}`
 	findLeadPath := "/rest/v1/leads.json?filterType=email&fields=email,id&filterValues=tester@example.com"
-	// invalidFindLeadPath := "/rest/v1leads.json?filterType=email&fields=email,id&filterValues=tester@example.com"
-	// firstName := "John"
-	// lastName := "Doe"
 	called := 0
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -631,7 +691,6 @@ func Test_FindLead(t *testing.T) {
 	}
 	if len(leads) == 0 {
 		t.Error("Lead is empty")
-		t.Log(leads)
 	}
 	if len(leads) != 1 {
 		t.Error("Lead does not exist")
@@ -640,12 +699,37 @@ func Test_FindLead(t *testing.T) {
 		t.Error("Failed to find lead")
 	}
 }
-// func Test_TypeForUser(t *testing.T) string {
-// 	if IsClinic() {
-// 		return m.config.ClinicRole
-// 	}
-// 	return m.config.PatientRole
-// }
+func Test_FindLeadWithNoBody(t *testing.T) {
+	invalidFindLeadPath := "/rest/v1leads.json?filterType=email&fields=email,id&filterValues=tester@example.com"
+	called := 0
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Header().Set("Content-Type", "application/json")
+		if called == 0 {
+			w.Write([]byte(fmt.Sprintf(authResponseSuccess, token)))
+		}
+		called++
+
+	}))
+	defer ts.Close()
+	config := NewTestConfig(t, ts)
+	client, err := marketo.Client(marketo.Miniconfig(*config))
+	if err != nil {
+		t.Error(err)
+	}
+	_, err = client.Get(invalidFindLeadPath)
+	if err != nil {
+		if called != 2 {
+			t.Errorf("Expected only two calls: %d", called)
+		}
+		expectedError := fmt.Sprintf("No body! Check URL: %s%s", ts.URL, invalidFindLeadPath)
+		if err.Error() != expectedError {
+			t.Errorf("Expected %s, got %s", expectedError, err)
+		}
+		return
+	}
+	t.Error("Expectation not met")
+}
 
 const (
 	clientID            = "1111"
@@ -722,8 +806,8 @@ func NewTestConfig(t *testing.T, mockServer *httptest.Server) *marketo.Config {
 		MARKETO_ID:     clientID,
 		MARKETO_URL:    mockServer.URL,
 		MARKETO_Secret: clientSecret,
-		ClinicRole:     "Clinician",
-		PatientRole:    "User",
+		ClinicRole:     "clinic",
+		PatientRole:    "user",
 		Timeout:        15000000000,
 	}
 }
@@ -745,40 +829,42 @@ func NewTestManagerWithClientMock(t *testing.T) marketo.Manager {
 	return manager
 }
 
-type DoOutput struct {
-	Out1 *http.Response
-	Out2 error
-}
+// Commented out below is from mailchimp but not used
 
-type ClientMock struct {
-	id            int
-	DoInvocations int
-	DoInputs      []*http.Request
-	DoStub        func(request *http.Request) (*http.Response, error)
-	DoOutputs     []DoOutput
-}
+// type DoOutput struct {
+// 	Out1 *http.Response
+// 	Out2 error
+// }
 
-func NewClientMock() *ClientMock {
-	return &ClientMock{id: rand.Int()}
-}
+// type ClientMock struct {
+// 	id            int
+// 	DoInvocations int
+// 	DoInputs      []*http.Request
+// 	DoStub        func(request *http.Request) (*http.Response, error)
+// 	DoOutputs     []DoOutput
+// }
 
-func (c *ClientMock) Do(request *http.Request) (*http.Response, error) {
-	c.DoInvocations++
-	c.DoInputs = append(c.DoInputs, request)
-	if c.DoStub != nil {
-		return c.DoStub(request)
-	}
-	if len(c.DoOutputs) == 0 {
-		panic(fmt.Sprintf("Unexpected invocation of Do on ClientMock: %#v", c))
-	}
-	output := c.DoOutputs[0]
-	c.DoOutputs = c.DoOutputs[1:]
-	return output.Out1, output.Out2
-}
+// func NewClientMock() *ClientMock {
+// 	return &ClientMock{id: rand.Int()}
+// }
 
-func (c *ClientMock) AllOutputsConsumed() bool {
-	return len(c.DoOutputs) == 0
-}
+// func (c *ClientMock) Do(request *http.Request) (*http.Response, error) {
+// 	c.DoInvocations++
+// 	c.DoInputs = append(c.DoInputs, request)
+// 	if c.DoStub != nil {
+// 		return c.DoStub(request)
+// 	}
+// 	if len(c.DoOutputs) == 0 {
+// 		panic(fmt.Sprintf("Unexpected invocation of Do on ClientMock: %#v", c))
+// 	}
+// 	output := c.DoOutputs[0]
+// 	c.DoOutputs = c.DoOutputs[1:]
+// 	return output.Out1, output.Out2
+// }
+
+// func (c *ClientMock) AllOutputsConsumed() bool {
+// 	return len(c.DoOutputs) == 0
+// }
 
 type UserMock struct {
 	id                  int

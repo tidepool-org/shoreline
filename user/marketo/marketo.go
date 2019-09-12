@@ -222,7 +222,6 @@ func (m *Connector) FindLead(listEmail string) (int, bool) {
 	if err = json.Unmarshal(response.Result, &leads); err != nil {
 		log.Fatal(err)
 	}
-	log.Printf("FIND LEAD %v", leads)
 	if len(leads) != 1 {
 		return -1, false
 	}
@@ -230,9 +229,6 @@ func (m *Connector) FindLead(listEmail string) (int, bool) {
 		return -1, false
 	}
 	return leads[0].ID, true
-	// for _, lead := range leads {
-	// 	fmt.Printf("%+v", lead)
-	// }
 }
 
 func (m *Connector) TypeForUser(user User) string {
