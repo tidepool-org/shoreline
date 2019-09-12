@@ -30,7 +30,7 @@ func Test_Config_Validate_Missing(t *testing.T) {
 
 func Test_Config_Validate_URL_Missing(t *testing.T) {
 	config := NewTestConfig(t, MockServer(t))
-	config.MARKETO_URL = ""
+	config.Url = ""
 	err := config.Validate()
 	if err == nil {
 		t.Fatal("Validate returned successfully when error expected")
@@ -43,7 +43,7 @@ func Test_Config_Validate_ID_Missing(t *testing.T) {
 	x := MockServer(t)
 	defer x.Close()
 	config := NewTestConfig(t, x)
-	config.MARKETO_ID = ""
+	config.Id = ""
 	err := config.Validate()
 	if err == nil {
 		t.Fatal("Validate returned successfully when error expected")
@@ -56,7 +56,7 @@ func Test_Config_Validate_APIKey_Missing(t *testing.T) {
 	x := MockServer(t)
 	defer x.Close()
 	config := NewTestConfig(t, x)
-	config.MARKETO_Secret = ""
+	config.Secret = ""
 	err := config.Validate()
 	if err == nil {
 		t.Fatal("Validate returned successfully when error expected")
@@ -174,7 +174,7 @@ func Test_NewManager_Config_Invalid(t *testing.T) {
 	defer x.Close()
 	config := NewTestConfig(t, x)
 	client, err := marketo.Client(marketo.Miniconfig(*config))
-	config.MARKETO_URL = ""
+	config.Url = ""
 	manager, err := marketo.NewManager(logger, config, client)
 	if manager != nil {
 		t.Fatal("NewManager returned manager when error expected")
@@ -250,7 +250,7 @@ func Test_CreateListMembershipForUser_NewUser_Match_Personal(t *testing.T) {
 			}
 
 			w.Write([]byte(fmt.Sprintf(authResponseSuccess, token)))
-		} 
+		}
 		if called == 2 {
 			if r.URL.EscapedPath() != "/rest/v1/leads.json" {
 				t.Errorf("Expected path to be /rest/v1/leads.json, got %s", r.URL.EscapedPath())
@@ -269,7 +269,7 @@ func Test_CreateListMembershipForUser_NewUser_Match_Personal(t *testing.T) {
 				t.Errorf("Expected 'GET' request, got '%s'", r.Method)
 			}
 			w.Write([]byte(getResponseSuccess))
-		} 
+		}
 	}))
 	defer ts.Close()
 	logger := log.New(ioutil.Discard, "", log.LstdFlags)
@@ -305,7 +305,7 @@ func Test_CreateListMembershipForUser_NewUser_Match_Clinic(t *testing.T) {
 			}
 
 			w.Write([]byte(fmt.Sprintf(authResponseSuccess, token)))
-		} 
+		}
 		if called == 2 {
 			if r.URL.EscapedPath() != "/rest/v1/leads.json" {
 				t.Errorf("Expected path to be /rest/v1/leads.json, got %s", r.URL.EscapedPath())
@@ -324,7 +324,7 @@ func Test_CreateListMembershipForUser_NewUser_Match_Clinic(t *testing.T) {
 				t.Errorf("Expected 'GET' request, got '%s'", r.Method)
 			}
 			w.Write([]byte(getResponseSuccess))
-		} 
+		}
 	}))
 	defer ts.Close()
 	logger := log.New(ioutil.Discard, "", log.LstdFlags)
@@ -419,6 +419,7 @@ func Test_UpdateListMembershipForUser_NewUser_Email_Tidepool_Org(t *testing.T) {
 	manager.UpdateListMembershipForUser(oldUserMock, newUserMock)
 	time.Sleep(time.Second)
 }
+
 const (
 	createLeadResponseSuccess = `{
 		"requestId":"1000",
@@ -476,7 +477,7 @@ func Test_UpdateListMember(t *testing.T) {
 			}
 
 			w.Write([]byte(fmt.Sprintf(authResponseSuccess, token)))
-		} 
+		}
 		if called == 2 {
 			if r.URL.EscapedPath() != "/rest/v1/leads.json" {
 				t.Errorf("Expected path to be /rest/v1/leads.json, got %s", r.URL.EscapedPath())
@@ -495,13 +496,13 @@ func Test_UpdateListMember(t *testing.T) {
 				t.Errorf("Expected 'GET' request, got '%s'", r.Method)
 			}
 			w.Write([]byte(getResponseSuccess))
-		} 
+		}
 		if called == 3 {
 			// check path
 			if r.URL.EscapedPath() != path {
 				t.Errorf("Expected path to be %s, got %s", path, r.URL.EscapedPath())
 			}
-			
+
 			// check method
 			if r.Method != "POST" {
 				t.Errorf("Expected 'POST' request, got '%s'", r.Method)
@@ -567,7 +568,7 @@ func Test_CreateListMember(t *testing.T) {
 			}
 
 			w.Write([]byte(fmt.Sprintf(authResponseSuccess, token)))
-		} 
+		}
 		if called == 2 {
 			if r.URL.EscapedPath() != "/rest/v1/leads.json" {
 				t.Errorf("Expected path to be /rest/v1/leads.json, got %s", r.URL.EscapedPath())
@@ -586,13 +587,13 @@ func Test_CreateListMember(t *testing.T) {
 				t.Errorf("Expected 'GET' request, got '%s'", r.Method)
 			}
 			w.Write([]byte(getResponseSuccess))
-		} 
+		}
 		if called == 3 {
 			// check path
 			if r.URL.EscapedPath() != path {
 				t.Errorf("Expected path to be %s, got %s", path, r.URL.EscapedPath())
 			}
-			
+
 			// check method
 			if r.Method != "POST" {
 				t.Errorf("Expected 'POST' request, got '%s'", r.Method)
@@ -803,12 +804,12 @@ func MockServer(t *testing.T) (ts *httptest.Server) {
 }
 func NewTestConfig(t *testing.T, mockServer *httptest.Server) *marketo.Config {
 	return &marketo.Config{
-		MARKETO_ID:     clientID,
-		MARKETO_URL:    mockServer.URL,
-		MARKETO_Secret: clientSecret,
-		ClinicRole:     "clinic",
-		PatientRole:    "user",
-		Timeout:        15000000000,
+		Id:          clientID,
+		Url:         mockServer.URL,
+		Secret:      clientSecret,
+		ClinicRole:  "clinic",
+		PatientRole: "user",
+		Timeout:     15000000000,
 	}
 }
 

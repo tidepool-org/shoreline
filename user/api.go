@@ -18,20 +18,18 @@ import (
 	"github.com/tidepool-org/go-common/clients/status"
 	"github.com/tidepool-org/shoreline/common"
 	"github.com/tidepool-org/shoreline/oauth2"
-	"github.com/tidepool-org/shoreline/user/mailchimp"
 	"github.com/tidepool-org/shoreline/user/marketo"
 )
 
 type (
 	Api struct {
-		Store            Storage
-		ApiConfig        ApiConfig
-		metrics          highwater.Client
-		perms            clients.Gatekeeper
-		oauth            oauth2.Client
-		logger           *log.Logger
-		mailchimpManager mailchimp.Manager
-		marketoManager   marketo.Manager
+		Store          Storage
+		ApiConfig      ApiConfig
+		metrics        highwater.Client
+		perms          clients.Gatekeeper
+		oauth          oauth2.Client
+		logger         *log.Logger
+		marketoManager marketo.Manager
 	}
 	ApiConfig struct {
 		//used for services
@@ -46,9 +44,8 @@ type (
 		//used for token
 		Secret string `json:"apiSecret"`
 		//allows for the skipping of verification for testing
-		VerificationSecret string           `json:"verificationSecret"`
-		ClinicDemoUserID   string           `json:"clinicDemoUserId"`
-		Mailchimp          mailchimp.Config `json:"mailchimp"`
+		VerificationSecret string `json:"verificationSecret"`
+		ClinicDemoUserID   string `json:"clinicDemoUserId"`
 		// to create type/file
 		Marketo *marketo.Config `json:"marketo"`
 	}
@@ -93,17 +90,12 @@ const (
 )
 
 func InitApi(cfg ApiConfig, logger *log.Logger, store Storage, metrics highwater.Client, manager marketo.Manager) *Api {
-	mailchimpManager, err := mailchimp.NewManager(logger, &http.Client{Timeout: 15 * time.Second}, &cfg.Mailchimp)
-	if err != nil {
-		logger.Println("WARNING: Mailchimp Manager not configured;", err)
-	}
 	return &Api{
-		Store:            store,
-		ApiConfig:        cfg,
-		metrics:          metrics,
-		logger:           logger,
-		marketoManager:   manager,
-		mailchimpManager: mailchimpManager,
+		Store:          store,
+		ApiConfig:      cfg,
+		metrics:        metrics,
+		logger:         logger,
+		marketoManager: manager,
 	}
 }
 
@@ -375,13 +367,6 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 			}
 
 			if updatedUser.EmailVerified && updatedUser.TermsAccepted != "" {
-				if a.mailchimpManager != nil {
-					if updateUserDetails.EmailVerified != nil || updateUserDetails.TermsAccepted != nil {
-						a.mailchimpManager.CreateListMembershipForUser(updatedUser)
-					} else {
-						a.mailchimpManager.UpdateListMembershipForUser(originalUser, updatedUser)
-					}
-				}
 				if a.marketoManager != nil {
 					if updateUserDetails.EmailVerified != nil || updateUserDetails.TermsAccepted != nil {
 						a.marketoManager.CreateListMembershipForUser(updatedUser)

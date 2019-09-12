@@ -2,11 +2,11 @@ package main
 
 import (
 	"crypto/tls"
-	"encoding/json"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 
 	"github.com/gorilla/mux"
@@ -39,7 +39,7 @@ const (
 func main() {
 	var config Config
 
-	if err := common.LoadEnvironmentConfig([]string{"TIDEPOOL_SHORELINE_ENV", "TIDEPOOL_SHORELINE_SERVICE", "MARKETO_ID", "MARKETO_SECRET", "MARKETO_URL", "CLINIC_ROLE", "PATIENT_ROLE", "TIMEOUT"}, &config); err != nil {
+	if err := common.LoadEnvironmentConfig([]string{"TIDEPOOL_SHORELINE_ENV", "TIDEPOOL_SHORELINE_SERVICE"}, &config); err != nil {
 		log.Panic("Problem loading config", err)
 	}
 
@@ -54,11 +54,6 @@ func main() {
 		config.User.Secret = userSecret
 	}
 
-	mailchimpAPIKey, found := os.LookupEnv("MAILCHIMP_APIKEY")
-	if found {
-		config.User.Mailchimp.APIKey = mailchimpAPIKey
-	}
-
 	longTermKey, found := os.LookupEnv("LONG_TERM_KEY")
 	if found {
 		config.User.LongTermKey = longTermKey
@@ -68,53 +63,38 @@ func main() {
 	if found {
 		config.User.VerificationSecret = verificationSecret
 	}
-
-	clinicLists, found := os.LookupEnv("CLINIC_LISTS")
-	if found {
-		if err := json.Unmarshal([]byte(clinicLists), &config.User.Mailchimp.ClinicLists); err != nil {
-			log.Panic("Problem loading clinic lists", err)
-		}
-	}
-
-	personalLists, found := os.LookupEnv("PERSONAL_LISTS")
-	if found {
-		if err := json.Unmarshal([]byte(personalLists), &config.User.Mailchimp.PersonalLists); err != nil {
-			log.Panic("Problem loading personal lists", err)
-		}
-	}
-
 	clinicDemoUserID, found := os.LookupEnv("DEMO_CLINIC_USER_ID")
 	if found {
 		config.User.ClinicDemoUserID = clinicDemoUserID
 	}
-
-	mailChimpURL, found := os.LookupEnv("MAILCHIMP_URL")
-	if found {
-		config.User.Mailchimp.URL = mailChimpURL
-	}
 	marketoID, found := os.LookupEnv("MARKETO_ID")
 	if found {
-		config.User.Marketo.MARKETO_Secret = marketoID
+		config.User.Marketo.ID = marketoID
 	}
 	marketoURL, found := os.LookupEnv("MARKETO_URL")
 	if found {
-		config.User.Marketo.MARKETO_URL = marketoURL
+		config.User.Marketo.URL = marketoURL
 	}
 	marketoSecret, found := os.LookupEnv("MARKETO_SECRET")
 	if found {
-		config.User.Marketo.MARKETO_Secret = marketoSecret
+		config.User.Marketo.Secret = marketoSecret
 	}
-	clinicRole, found := os.LookupEnv("CLINIC_ROLE")
+	marketoClinicRole, found := os.LookupEnv("MARKETO_CLINIC_ROLE")
 	if found {
-		config.User.Marketo.MARKETO_Secret = clinicRole
+		config.User.Marketo.ClinicRole = marketoClinicRole
 	}
-	patientRole, found := os.LookupEnv("PATIENT_ROLE")
+	marketoPatientRole, found := os.LookupEnv("MARKETO_PATIENT_ROLE")
 	if found {
-		config.User.Marketo.MARKETO_Secret = patientRole
+		config.User.Marketo.PatientRole = marketoPatientRole
 	}
-	timeout, found := os.LookupEnv("TIMEOUT")
+	unParsedTimeout, found := (os.LookupEnv("MARKETO_TIMEOUT"))
+	parsedTimeout64, err := strconv.ParseUint(unParsedTimeout, 10, 64)
+	parsedTimeout := uint(parsedTimeout64)
+	if err != nil {
+		log.Println(err)
+	}
 	if found {
-		config.User.Marketo.MARKETO_Secret = timeout
+		config.User.Marketo.Timeout = parsedTimeout
 	}
 
 	salt, found := os.LookupEnv("SALT")
