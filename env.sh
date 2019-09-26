@@ -35,9 +35,3 @@ export TIDEPOOL_SHORELINE_SERVICE='{
         "expireDays": 14
     }
 }'
-export MARKETO_ID="21ae66a0-9309-4631-bb8e-2f897e3a04c3"
-export MARKETO_SECRET="EdkQQuwsSOKvE4JB6oG1VIejBG5yU79o"
-export MARKETO_URL="https://248-ISZ-536.mktorest.com"
-export MARKETO_CLINIC_ROLE="clinic"
-export MARKETO_PATIENT_ROLE="user"
-export MARKETO_TIMEOUT="15000000000"

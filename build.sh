@@ -1,4 +1,4 @@
-#!/bin/sh -euxv
+#!/bin/sh -eu
 
 rm -rf dist
 mkdir dist
