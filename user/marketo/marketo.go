@@ -48,7 +48,7 @@ type RecordResult struct {
 
 // Input type is the request user information format sent to marketo
 type Input struct {
-	ID       int    `json:"id"`
+	ID       int    `json:"id,omitempty"`
 	Email    string `json:"email"`
 	UserType string `json:"userType"`
 	// Env		  string `json:"envType"`
@@ -206,23 +206,23 @@ func (m *Connector) UpsertListMember(role string, listEmail string, newEmail str
 			"createOnly",
 			"email",
 			[]Input{
-				Input{id, newEmail, role},
+				Input{0, newEmail, role},
 			},
 		}
 	}
 	dataInBytes, err := json.Marshal(data)
 	response, err := m.client.Post(path, dataInBytes)
 	if err != nil {
-		log.Println(err)
+		m.logger.Println(err)
 		return fmt.Errorf("marketo: could not get a response %v", err)
 	}
 	if !response.Success {
-		log.Println(response.Errors)
+		m.logger.Println(response.Errors)
 		return fmt.Errorf("marketo: issue with request %v", response.Errors)
 	}
 	var createResults []minimarketo.RecordResult
 	if err = json.Unmarshal(response.Result, &createResults); err != nil {
-		log.Println(err)
+		m.logger.Println(err)
 		return fmt.Errorf("marketo: could not get a response %v", err)
 	}
 	return nil
@@ -237,16 +237,16 @@ func (m *Connector) FindLead(listEmail string) (int, bool, error) {
 	}
 	response, err := m.client.Get(path + v.Encode())
 	if err != nil {
-		log.Fatal(err)
+		m.logger.Fatal(err)
 		return -1, false, err
 	}
 	if !response.Success {
-		log.Fatal(response.Errors)
+		m.logger.Fatal(response.Errors)
 		return -1, false, err
 	}
 	var leads []LeadResult
 	if err = json.Unmarshal(response.Result, &leads); err != nil {
-		log.Fatal(err)
+		m.logger.Fatal(err)
 		return -1, false, err
 	}
 	if len(leads) != 1 {

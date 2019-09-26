@@ -38,9 +38,11 @@ const (
 
 func main() {
 	var config Config
+	logger := log.New(os.Stdout, user.USER_API_PREFIX, log.LstdFlags|log.Lshortfile)
+
 
 	if err := common.LoadEnvironmentConfig([]string{"TIDEPOOL_SHORELINE_ENV", "TIDEPOOL_SHORELINE_SERVICE"}, &config); err != nil {
-		log.Panic("Problem loading config", err)
+		logger.Panic("Problem loading Shorline config", err)
 	}
 
 	// server secret may be passed via a separate env variable to accomodate easy secrets injection via Kubernetes
@@ -88,10 +90,13 @@ func main() {
 		config.User.Marketo.PatientRole = marketoPatientRole
 	}
 	unParsedTimeout, found := (os.LookupEnv("MARKETO_TIMEOUT"))
+	if !found {
+		logger.Panicln("Missing marketo timeout")
+	}
 	parsedTimeout64, err := strconv.ParseInt(unParsedTimeout, 10, 32)
 	parsedTimeout := uint(parsedTimeout64)
 	if err != nil {
-		log.Println(err)
+		logger.Println(err)
 	}
 	if found {
 		config.User.Marketo.Timeout = parsedTimeout
@@ -113,11 +118,11 @@ func main() {
 
 	if !config.HakkenConfig.SkipHakken {
 		if err := hakkenClient.Start(); err != nil {
-			log.Fatal(shoreline_service_prefix, err)
+			logger.Fatal(shoreline_service_prefix, err)
 		}
 		defer hakkenClient.Close()
 	} else {
-		log.Print("skipping hakken service")
+		logger.Print("skipping hakken service")
 	}
 
 	/*
@@ -142,12 +147,11 @@ func main() {
 	 * User-Api setup
 	 */
 
-	log.Print(shoreline_service_prefix, "adding", user.USER_API_PREFIX)
+	logger.Print(shoreline_service_prefix, "adding", user.USER_API_PREFIX)
 
-	logger := log.New(os.Stdout, user.USER_API_PREFIX, log.LstdFlags|log.Lshortfile)
-	miniConfig := marketo.Miniconfig(*config.User.Marketo)
+	miniConfig := marketo.Miniconfig(config.User.Marketo)
 	client, err := marketo.Client(miniConfig)
-	marketoManager, err := marketo.NewManager(logger, config.User.Marketo, client)
+	marketoManager, err := marketo.NewManager(logger, &config.User.Marketo, client)
 	if err != nil {
 		logger.Println("WARNING: Marketo Manager not configured;", err)
 	}
@@ -164,21 +168,21 @@ func main() {
 		WithTokenProvider(userClient).
 		Build()
 
-	log.Print(shoreline_service_prefix, "adding", "permsClient")
+	logger.Print(shoreline_service_prefix, "adding", "permsClient")
 	userapi.AttachPerms(permsClient)
 
 	/*
 	 * Oauth setup
 	 */
 
-	log.Print(shoreline_service_prefix, "adding", oauth2.OAUTH2_API_PREFIX)
+	logger.Print(shoreline_service_prefix, "adding", oauth2.OAUTH2_API_PREFIX)
 
 	oauthapi := oauth2.InitApi(config.Oauth2, oauth2.NewOAuthStorage(&config.Mongo), userClient, permsClient)
 	oauthapi.SetHandlers("", rtr)
 
 	oauthClient := oauth2.NewOAuth2Client(oauthapi)
 
-	log.Print(shoreline_service_prefix, oauth2.OAUTH2_API_PREFIX, "adding oauthClient")
+	logger.Print(shoreline_service_prefix, oauth2.OAUTH2_API_PREFIX, "adding oauthClient")
 	userapi.AttachOauth(oauthClient)
 
 	/*
@@ -198,7 +202,7 @@ func main() {
 		start = func() error { return server.ListenAndServe() }
 	}
 	if err := start(); err != nil {
-		log.Fatal(shoreline_service_prefix, err)
+		logger.Fatal(shoreline_service_prefix, err)
 	}
 
 	hakkenClient.Publish(&config.Service)
@@ -208,7 +212,7 @@ func main() {
 	go func() {
 		for {
 			sig := <-signals
-			log.Printf(shoreline_service_prefix+"Got signal [%s]", sig)
+			logger.Printf(shoreline_service_prefix+"Got signal [%s]", sig)
 
 			if sig == syscall.SIGINT || sig == syscall.SIGTERM {
 				server.Close()

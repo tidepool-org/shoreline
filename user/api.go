@@ -33,22 +33,22 @@ type (
 	}
 	ApiConfig struct {
 		//used for services
-		ServerSecret         string 	`json:"serverSecret"`
-		LongTermKey          string 	`json:"longTermKey"`
-		LongTermDaysDuration int    	`json:"longTermDaysDuration"`
+		ServerSecret         string `json:"serverSecret"`
+		LongTermKey          string `json:"longTermKey"`
+		LongTermDaysDuration int    `json:"longTermDaysDuration"`
 		//so we can change the default lifetime of the token
 		//we use seconds, this also helps for testing as you can time it out easily
-		TokenDurationSecs 	 int64  	`json:"tokenDurationSecs"`
+		TokenDurationSecs int64 `json:"tokenDurationSecs"`
 		//used for pw
-		Salt 				 string 	`json:"salt"`
+		Salt string `json:"salt"`
 		//used for token
-		Secret 				 string 	`json:"apiSecret"`
+		Secret string `json:"apiSecret"`
 		//allows for the skipping of verification for testing
-		VerificationSecret 	 string 	`json:"verificationSecret"`
-		ClinicDemoUserID   	 string 	`json:"clinicDemoUserId"`
+		VerificationSecret string `json:"verificationSecret"`
+		ClinicDemoUserID   string `json:"clinicDemoUserId"`
 		// to create type/file
-		Marketo 	   *marketo.Config 	`json:"marketo"`
-}
+		Marketo marketo.Config `json:"marketo"`
+	}
 	varsHandler func(http.ResponseWriter, *http.Request, map[string]string)
 )
 

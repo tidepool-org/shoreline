@@ -1,4 +1,4 @@
 deploy/
 dist/
-
+env.sh
 artifact_go.sh
