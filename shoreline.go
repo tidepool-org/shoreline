@@ -42,7 +42,7 @@ func main() {
 
 
 	if err := common.LoadEnvironmentConfig([]string{"TIDEPOOL_SHORELINE_ENV", "TIDEPOOL_SHORELINE_SERVICE"}, &config); err != nil {
-		logger.Panic("Problem loading Shorline config", err)
+		logger.Panic("Problem loading Shoreline config", err)
 	}
 
 	// server secret may be passed via a separate env variable to accomodate easy secrets injection via Kubernetes
@@ -69,36 +69,23 @@ func main() {
 	if found {
 		config.User.ClinicDemoUserID = clinicDemoUserID
 	}
-	marketoID, found := os.LookupEnv("MARKETO_ID")
+	config.User.Marketo.ID, _ = os.LookupEnv("MARKETO_ID")
+	
+	config.User.Marketo.URL, _ = os.LookupEnv("MARKETO_URL")
+	
+	config.User.Marketo.Secret, _ = os.LookupEnv("MARKETO_SECRET")
+	
+	config.User.Marketo.ClinicRole, _ = os.LookupEnv("MARKETO_CLINIC_ROLE")
+	
+	config.User.Marketo.PatientRole, _ = os.LookupEnv("MARKETO_PATIENT_ROLE")
+	
+	unParsedTimeout, found := os.LookupEnv("MARKETO_TIMEOUT")
 	if found {
-		config.User.Marketo.ID = marketoID
-	}
-	marketoURL, found := os.LookupEnv("MARKETO_URL")
-	if found {
-		config.User.Marketo.URL = marketoURL
-	}
-	marketoSecret, found := os.LookupEnv("MARKETO_SECRET")
-	if found {
-		config.User.Marketo.Secret = marketoSecret
-	}
-	marketoClinicRole, found := os.LookupEnv("MARKETO_CLINIC_ROLE")
-	if found {
-		config.User.Marketo.ClinicRole = marketoClinicRole
-	}
-	marketoPatientRole, found := os.LookupEnv("MARKETO_PATIENT_ROLE")
-	if found {
-		config.User.Marketo.PatientRole = marketoPatientRole
-	}
-	unParsedTimeout, found := (os.LookupEnv("MARKETO_TIMEOUT"))
-	if !found {
-		logger.Panicln("Missing marketo timeout")
-	}
-	parsedTimeout64, err := strconv.ParseInt(unParsedTimeout, 10, 32)
-	parsedTimeout := uint(parsedTimeout64)
-	if err != nil {
-		logger.Println(err)
-	}
-	if found {
+		parsedTimeout64, err := strconv.ParseInt(unParsedTimeout, 10, 32)
+		parsedTimeout := uint(parsedTimeout64)
+		if err != nil {
+			logger.Println(err)
+		}
 		config.User.Marketo.Timeout = parsedTimeout
 	}
 
