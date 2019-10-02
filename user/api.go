@@ -680,7 +680,7 @@ func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars 
 		return
 	}
 	a.logger.Println(http.StatusUnauthorized, STATUS_NO_TOKEN)
-	a.logger.Printf("header session token: %v", req.Header.Get(TP_SESSION_TOKEN)
+	a.logger.Printf("header session token: %v", req.Header.Get(TP_SESSION_TOKEN))
 	a.logger.Printf("expected session token: %v", a.ApiConfig.Secret)
 	a.logger.Printf("request %v", req)
 	sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_TOKEN), http.StatusUnauthorized)
