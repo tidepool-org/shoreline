@@ -148,7 +148,9 @@ func NewManager(logger *log.Logger, config *Config, client minimarketo.Client) (
 
 // CreateListMembershipForUser is an asynchronous function that creates a user
 func (m *Connector) CreateListMembershipForUser(newUser User) {
+	m.logger.Printf("CreateListMembershipForUser %v", newUser)
 	if newUser == nil {
+		m.Logger.Printf("nil user")
 		return
 	}
 
@@ -157,7 +159,9 @@ func (m *Connector) CreateListMembershipForUser(newUser User) {
 
 // UpdateListMembershipForUser is an asynchronous function that updates a user
 func (m *Connector) UpdateListMembershipForUser(oldUser User, newUser User) {
+	m.logger.Printf("UpdateListMembershipForUser %v %v", oldUser, newUser)
 	if oldUser == nil || newUser == nil {
+		m.Logger.Printf("nil user")
 		return
 	}
 
@@ -167,10 +171,16 @@ func (m *Connector) UpdateListMembershipForUser(oldUser User, newUser User) {
 // UpsertListMembership creates or updates a user depending on if the user already exists or not
 func (m *Connector) UpsertListMembership(oldUser User, newUser User) error {
 	if matchUsers(oldUser, newUser) {
+		m.Logger.Printf("user mismatch")
 		return nil
 	}
 	newEmail := strings.ToLower(newUser.Email())
-	if newEmail == "" || hasTidepoolDomain(newEmail) {
+	if newEmail == ""  {
+		m.Logger.Printf("empty email")
+		return nil
+	}
+	if hasTidepoolDomain(newEmail) {
+		m.Logger.Printf("tidepool domain email")
 		return nil
 	}
 
