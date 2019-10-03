@@ -150,7 +150,7 @@ func NewManager(logger *log.Logger, config *Config, client minimarketo.Client) (
 func (m *Connector) CreateListMembershipForUser(newUser User) {
 	m.logger.Printf("CreateListMembershipForUser %v", newUser)
 	if newUser == nil {
-		m.Logger.Printf("nil user")
+		m.logger.Printf("nil user")
 		return
 	}
 
@@ -161,7 +161,7 @@ func (m *Connector) CreateListMembershipForUser(newUser User) {
 func (m *Connector) UpdateListMembershipForUser(oldUser User, newUser User) {
 	m.logger.Printf("UpdateListMembershipForUser %v %v", oldUser, newUser)
 	if oldUser == nil || newUser == nil {
-		m.Logger.Printf("nil user")
+		m.logger.Printf("nil user")
 		return
 	}
 
@@ -171,16 +171,16 @@ func (m *Connector) UpdateListMembershipForUser(oldUser User, newUser User) {
 // UpsertListMembership creates or updates a user depending on if the user already exists or not
 func (m *Connector) UpsertListMembership(oldUser User, newUser User) error {
 	if matchUsers(oldUser, newUser) {
-		m.Logger.Printf("user mismatch")
+		m.logger.Printf("user mismatch")
 		return nil
 	}
 	newEmail := strings.ToLower(newUser.Email())
 	if newEmail == ""  {
-		m.Logger.Printf("empty email")
+		m.logger.Printf("empty email")
 		return nil
 	}
 	if hasTidepoolDomain(newEmail) {
-		m.Logger.Printf("tidepool domain email")
+		m.logger.Printf("tidepool domain email")
 		return nil
 	}
 

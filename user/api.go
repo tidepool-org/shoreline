@@ -304,7 +304,7 @@ func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, va
 // status: 500 STATUS_ERR_FINDING_USR
 // status: 500 STATUS_ERR_UPDATING_USR
 func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
-	a.logger.Prinf("UpdateUser %v", req)
+	a.logger.Printf("UpdateUser %v", req)
 	sessionToken := req.Header.Get(TP_SESSION_TOKEN)
 	if tokenData, err := a.authenticateSessionToken(sessionToken); err != nil {
 		a.logger.Printf("failed request: %v", req)
