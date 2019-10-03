@@ -671,6 +671,7 @@ func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars 
 	if hasServerToken(req.Header.Get(TP_SESSION_TOKEN), a.ApiConfig.Secret) {
 		td, err := a.authenticateSessionToken(vars["token"])
 		if err != nil {
+			a.logger.Printf("failed request: %v", req)
 			a.logger.Println(http.StatusUnauthorized, STATUS_NO_TOKEN, err.Error())
 			sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_TOKEN), http.StatusUnauthorized)
 			return
