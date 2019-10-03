@@ -171,7 +171,6 @@ func (m *Connector) UpdateListMembershipForUser(oldUser User, newUser User) {
 // UpsertListMembership creates or updates a user depending on if the user already exists or not
 func (m *Connector) UpsertListMembership(oldUser User, newUser User) error {
 	if matchUsers(oldUser, newUser) {
-		m.logger.Printf("user mismatch")
 		return nil
 	}
 	newEmail := strings.ToLower(newUser.Email())
