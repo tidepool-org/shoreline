@@ -40,7 +40,6 @@ func main() {
 	var config Config
 	logger := log.New(os.Stdout, user.USER_API_PREFIX, log.LstdFlags|log.Lshortfile)
 
-
 	if err := common.LoadEnvironmentConfig([]string{"TIDEPOOL_SHORELINE_ENV", "TIDEPOOL_SHORELINE_SERVICE"}, &config); err != nil {
 		logger.Panic("Problem loading Shoreline config", err)
 	}
@@ -70,15 +69,15 @@ func main() {
 		config.User.ClinicDemoUserID = clinicDemoUserID
 	}
 	config.User.Marketo.ID, _ = os.LookupEnv("MARKETO_ID")
-	
+
 	config.User.Marketo.URL, _ = os.LookupEnv("MARKETO_URL")
-	
+
 	config.User.Marketo.Secret, _ = os.LookupEnv("MARKETO_SECRET")
-	
+
 	config.User.Marketo.ClinicRole, _ = os.LookupEnv("MARKETO_CLINIC_ROLE")
-	
+
 	config.User.Marketo.PatientRole, _ = os.LookupEnv("MARKETO_PATIENT_ROLE")
-	
+
 	unParsedTimeout, found := os.LookupEnv("MARKETO_TIMEOUT")
 	if found {
 		parsedTimeout64, err := strconv.ParseInt(unParsedTimeout, 10, 32)
