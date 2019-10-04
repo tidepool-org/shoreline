@@ -1,5 +1,7 @@
 github.com/RangelReale/osin v1.0.1 h1:JcqBe8ljQq9WQJPtioXGxBWyIcfuVMw0BX6yJ9E4HKw=
 github.com/RangelReale/osin v1.0.1/go.mod h1:k/PH1SjZDitJDtK3zHm/XZRi+bRz6i3rhx9qE9p54CY=
+github.com/SpeakData/minimarketo v0.0.0-20170821092521-29339e452f44 h1:AlqM67XAlZL9CNdYqyhaeMKIzrdFdPMc/IzN+zvgp1w=
+github.com/SpeakData/minimarketo v0.0.0-20170821092521-29339e452f44/go.mod h1:uLiuODhOYuGlH08m3L6ycCgzGYikBJsV7MhXkVk/WkM=
 github.com/codegangsta/cli v1.20.0 h1:iX1FXEgwzd5+XN6wk5cVHOGQj6Q3Dcp20lUeS4lHNTw=
 github.com/codegangsta/cli v1.20.0/go.mod h1:/qJNoX69yVSKu5o4jLyXAENLRyk1uhi7zkbQ3slBdOA=
 github.com/dgrijalva/jwt-go v1.0.2 h1:KPldsxuKGsS2FPWsNeg9ZO18aCrGKujPoWXn2yo+KQM=
@@ -17,7 +19,7 @@ github.com/kr/text v0.1.0 h1:45sCR5RtlFHMR4UwH9sdQ5TC8v0qDQCHnXt+kaKSTVE=
 github.com/kr/text v0.1.0/go.mod h1:4Jbv+DJW3UT/LiOwJeYQe1efqtUx/iVham/4vfdArNI=
 github.com/pborman/uuid v0.0.0-20180906182336-adf5a7427709 h1:zNBQb37RGLmJybyMcs983HfUfpkw9OTFD9tbBfAViHE=
 github.com/pborman/uuid v0.0.0-20180906182336-adf5a7427709/go.mod h1:VyrYX9gd7irzKovcSS6BIIEwPRkP2Wm2m9ufcdFSJ34=
-github.com/tidepool-org/go-common v0.4.0 h1:VivOv+WVC05zWbaFULqWeNnT1iXRB2D3MO9SODyapMg=
-github.com/tidepool-org/go-common v0.4.0/go.mod h1:A5KjrZSMM6QQJhdj+cZ5CX46Gtgd09A45HEcz9C5rxs=
+github.com/tidepool-org/go-common v0.5.0 h1:Atycq5m1l0P8YBRTz0NZGs8PKAx7cr8iRQzzdyRXFCo=
+github.com/tidepool-org/go-common v0.5.0/go.mod h1:tZr3DhGKfB4CbgwaeItEW7sulUXZTBUJ1vi4SVgdYxE=
 gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127 h1:qIbj1fsPNlZgppZ+VLlY7N33q108Sa+fhmuc+sWQYwY=
 gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=

@@ -7,8 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"reflect"
 	"regexp"
 	"strings"
@@ -30,7 +32,14 @@ const (
 type (
 	MockOAuth struct{}
 )
-
+func InitApiTest(cfg ApiConfig, logger *log.Logger, store Storage, metrics highwater.Client) *Api {
+	return &Api{
+		Store:          store,
+		ApiConfig:      cfg,
+		metrics:        metrics,
+		logger:         logger,
+	}
+}
 var (
 	NO_PARAMS      = map[string]string{}
 	TOKEN_DURATION = int64(3600)
@@ -57,19 +66,20 @@ var (
 	/*
 	 * expected path
 	 */
+	logger      = log.New(os.Stdout, USER_API_PREFIX, log.LstdFlags|log.Lshortfile)
 	mockStore   = NewMockStoreClient(FAKE_CONFIG.Salt, false, false)
 	mockMetrics = highwater.NewMock()
-	shoreline   = InitApi(FAKE_CONFIG, mockStore, mockMetrics)
+	shoreline   = InitApiTest(FAKE_CONFIG, logger, mockStore, mockMetrics)
 	/*
 	 *
 	 */
 	mockNoDupsStore = NewMockStoreClient(FAKE_CONFIG.Salt, true, false)
-	shorelineNoDups = InitApi(FAKE_CONFIG, mockNoDupsStore, mockMetrics)
+	shorelineNoDups = InitApiTest(FAKE_CONFIG, logger, mockNoDupsStore, mockMetrics)
 	/*
 	 * failure path
 	 */
 	mockStoreFails = NewMockStoreClient(FAKE_CONFIG.Salt, false, MAKE_IT_FAIL)
-	shorelineFails = InitApi(FAKE_CONFIG, mockStoreFails, mockMetrics)
+	shorelineFails = InitApiTest(FAKE_CONFIG, logger, mockStoreFails, mockMetrics)
 
 	responsableStore      = NewResponsableMockStoreClient()
 	responsableGatekeeper = NewResponsableMockGatekeeper()
@@ -77,7 +87,7 @@ var (
 )
 
 func InitShoreline(config ApiConfig, store Storage, metrics highwater.Client, perms clients.Gatekeeper) *Api {
-	api := InitApi(config, store, metrics)
+	api := InitApiTest(config, logger, store, metrics)
 	api.AttachPerms(perms)
 	return api
 }
