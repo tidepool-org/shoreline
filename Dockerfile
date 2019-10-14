@@ -1,11 +1,18 @@
 # Development
 FROM golang:1.12.7-alpine AS development
 
+RUN apk --no-cache update && \
+    apk --no-cache upgrade && \
+    apk add build-base git
+
+# Using Go module (go 1.12 need this variable to be set to enable modules)
+# The variable should default to "on", in Go 1.14 release
+ENV GO111MODULE on
+
 WORKDIR /go/src/github.com/tidepool-org/shoreline
-
 COPY . .
-
-RUN  ./build.sh
+RUN go get
+RUN ./build.sh
 
 CMD ["./dist/shoreline"]
 

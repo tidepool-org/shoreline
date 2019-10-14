@@ -50,7 +50,10 @@ func (d MongoStoreClient) Close() {
 
 func (d MongoStoreClient) Ping() error {
 	// do we have a store session
-	if err := d.session.Ping(); err != nil {
+	cpy := d.session.Copy()
+	defer cpy.Close()
+
+	if err := cpy.Ping(); err != nil {
 		return err
 	}
 	return nil

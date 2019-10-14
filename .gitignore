@@ -1,4 +1,7 @@
 deploy/
 dist/
+.vscode/launch.json
+vendor/
 
+*.exe
 artifact_go.sh

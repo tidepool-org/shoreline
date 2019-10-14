@@ -1,16 +1,18 @@
-module github.com/tidepool-org/shoreline
+module github.com/mdblp/shoreline
 
 go 1.12
+
+replace github.com/tidepool-org/shoreline => ./
+
+replace github.com/tidepool-org/go-common => github.com/mdblp/go-common dblp.0.2.0
 
 require (
 	github.com/RangelReale/osin v1.0.1
 	github.com/codegangsta/cli v1.20.0
-	github.com/dgrijalva/jwt-go v1.0.2
+	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/globalsign/mgo v0.0.0-20181015135952-eeefdecb41b8
-	github.com/google/uuid v1.1.1 // indirect
 	github.com/gorilla/mux v1.7.3
-	github.com/kr/pretty v0.1.0 // indirect
-	github.com/pborman/uuid v0.0.0-20180906182336-adf5a7427709 // indirect
-	github.com/tidepool-org/go-common v0.4.0
-	gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127 // indirect
+	github.com/pborman/uuid v1.2.0 // indirect
+	github.com/tidepool-org/go-common v0.0.0-00010101000000-000000000000
+	github.com/tidepool-org/shoreline v0.0.0-00010101000000-000000000000
 )

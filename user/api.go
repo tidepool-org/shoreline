@@ -32,9 +32,14 @@ type (
 		logger           *log.Logger
 		mailchimpManager mailchimp.Manager
 	}
+	Secret struct {
+		Secret string `json:"secret"`
+		Pass   string `json:"pass"`
+	}
 	ApiConfig struct {
 		//used for services
-		ServerSecret         string `json:"serverSecret"`
+		Secrets              []Secret `json:"secrets"`
+		ServerSecrets        map[string]string
 		LongTermKey          string `json:"longTermKey"`
 		LongTermDaysDuration int    `json:"longTermDaysDuration"`
 		//so we can change the default lifetime of the token
@@ -87,6 +92,8 @@ const (
 	STATUS_PARAMETER_UNKNOWN     = "Unknown query parameter"
 	STATUS_ONE_QUERY_PARAM       = "Only one query parameter is allowed"
 	STATUS_INVALID_ROLE          = "The role specified is invalid"
+	STATUS_OK                    = "OK"
+	STATUS_NO_EXPECTED_PWD       = "No expected password is found"
 )
 
 func InitApi(cfg ApiConfig, store Storage, metrics highwater.Client) *Api {
@@ -95,6 +102,13 @@ func InitApi(cfg ApiConfig, store Storage, metrics highwater.Client) *Api {
 	mailchimpManager, err := mailchimp.NewManager(logger, &http.Client{Timeout: 15 * time.Second}, &cfg.Mailchimp)
 	if err != nil {
 		logger.Println("WARNING: Mailchimp Manager not configured;", err)
+	}
+
+	// Server secrets retrieved from configuration are transformed into a hashtable for ease of access
+	// They are stored in a public property called ServerSecrets
+	cfg.ServerSecrets = make(map[string]string)
+	for _, sec := range cfg.Secrets {
+		cfg.ServerSecrets[sec.Secret] = sec.Pass
 	}
 
 	return &Api{
@@ -157,7 +171,7 @@ func (a *Api) GetStatus(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 	res.WriteHeader(http.StatusOK)
-	fmt.Fprintf(res, "OK")
+	res.Write([]byte(STATUS_OK))
 	return
 }
 
@@ -339,7 +353,11 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 			if results, err := a.Store.FindUsers(dupCheck); err != nil {
 				a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err)
 				return
-			} else if len(results) > 0 {
+			} else if len(results) == 1 && results[0].Id != firstStringNotEmpty(vars["userid"], tokenData.UserId) {
+				//only throw an error if there is a user with a different id but with the same username/email
+				a.sendError(res, http.StatusConflict, STATUS_USR_ALREADY_EXISTS)
+				return
+			} else if len(results) > 1 {
 				a.sendError(res, http.StatusConflict, STATUS_USR_ALREADY_EXISTS)
 				return
 			}
@@ -526,29 +544,57 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 // status: 500 STATUS_ERR_GENERATING_TOKEN
 func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 
+	// which server is knocking at the door and what password is it using to enter?
 	server, pw := req.Header.Get(TP_SERVER_NAME), req.Header.Get(TP_SERVER_SECRET)
+	// the expected secret is the secret that the requesting server is supposed to give to be delivered the token
+	expectedSecret := ""
 
+	// if server or password is not given we obviously have a problem
 	if server == "" || pw == "" {
 		a.logger.Println(http.StatusBadRequest, STATUS_MISSING_ID_PW)
 		sendModelAsResWithStatus(res, status.NewStatus(http.StatusBadRequest, STATUS_MISSING_ID_PW), http.StatusBadRequest)
 		return
 	}
-	if pw == a.ApiConfig.ServerSecret {
+
+	// At this stage both given password and server are passed and known
+
+	// What is the expected password for this specific requesting server?
+	expectedSecret = a.ApiConfig.ServerSecrets[server]
+
+	// Case specific to all Tidepool microservices that share the same secret
+	// This is done in order to maintain the current behaviour where Tidepool servers use the default password
+	// TODO: maintain a list of possible requesting micro-services?
+	if expectedSecret == "" {
+		expectedSecret = a.ApiConfig.ServerSecrets["default"]
+	}
+
+	// If no expected secret can be compared to, we have a problem and cannot continue
+	if expectedSecret == "" {
+		a.logger.Println(http.StatusInternalServerError, STATUS_NO_EXPECTED_PWD)
+		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_NO_EXPECTED_PWD), http.StatusInternalServerError)
+		return
+	}
+
+	// If the expected secret is the one given at the door then we can generate a token
+	if pw == expectedSecret {
 		//generate new token
 		if sessionToken, err := CreateSessionTokenAndSave(
 			&TokenData{DurationSecs: extractTokenDuration(req), UserId: server, IsServer: true},
 			TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: a.ApiConfig.Secret},
 			a.Store,
 		); err != nil {
+			// Error generating the token
 			a.logger.Println(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN, err.Error())
 			sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN), http.StatusInternalServerError)
 			return
 		} else {
+			// Server is provided with the generated token
 			a.logMetricAsServer("serverlogin", sessionToken.ID, nil)
 			res.Header().Set(TP_SESSION_TOKEN, sessionToken.ID)
 			return
 		}
 	}
+	// If the password given at the door is wrong, we cannot generate the token
 	a.logger.Println(http.StatusUnauthorized, STATUS_PW_WRONG)
 	sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_PW_WRONG), http.StatusUnauthorized)
 	return
