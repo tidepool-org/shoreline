@@ -135,11 +135,16 @@ func main() {
 
 	logger.Print(shoreline_service_prefix, "adding", user.USER_API_PREFIX)
 
-	miniConfig := marketo.Miniconfig(config.User.Marketo)
-	client, err := marketo.Client(miniConfig)
-	marketoManager, err := marketo.NewManager(logger, &config.User.Marketo, client)
-	if err != nil {
-		logger.Println("WARNING: Marketo Manager not configured;", err)
+	var marketoManager marketo.Manager
+	if err := config.User.Marketo.Validate(); err != nil {
+		logger.Println("WARNING: Marketo config is invalid", err)
+	} else {
+		miniConfig := marketo.Miniconfig(config.User.Marketo)
+		client, err := marketo.Client(miniConfig)
+		marketoManager, err = marketo.NewManager(logger, &config.User.Marketo, client)
+		if err != nil {
+			logger.Println("WARNING: Marketo Manager not configured;", err)
+		}
 	}
 
 	clientStore := user.NewMongoStoreClient(&config.Mongo)
