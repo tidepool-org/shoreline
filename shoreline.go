@@ -32,10 +32,6 @@ type (
 	}
 )
 
-const (
-	shoreline_service_prefix = "shoreline "
-)
-
 func main() {
 	var config Config
 	logger := log.New(os.Stdout, user.USER_API_PREFIX, log.LstdFlags|log.Lshortfile)
@@ -104,7 +100,7 @@ func main() {
 
 	if !config.HakkenConfig.SkipHakken {
 		if err := hakkenClient.Start(); err != nil {
-			logger.Fatal(shoreline_service_prefix, err)
+			logger.Fatal(err)
 		}
 		defer hakkenClient.Close()
 	} else {
@@ -133,48 +129,51 @@ func main() {
 	 * User-Api setup
 	 */
 
-	logger.Print(shoreline_service_prefix, "adding", user.USER_API_PREFIX)
-
-	miniConfig := marketo.Miniconfig(config.User.Marketo)
-	client, err := marketo.Client(miniConfig)
-	marketoManager, err := marketo.NewManager(logger, &config.User.Marketo, client)
-	if err != nil {
-		logger.Println("WARNING: Marketo Manager not configured;", err)
+	var marketoManager marketo.Manager
+	if err := config.User.Marketo.Validate(); err != nil {
+		logger.Println("WARNING: Marketo config is invalid", err)
+	} else {
+		logger.Print("initializing marketo manager")
+		miniConfig := marketo.Miniconfig(config.User.Marketo)
+		client, err := marketo.Client(miniConfig)
+		marketoManager, err = marketo.NewManager(logger, &config.User.Marketo, client)
+		if err != nil {
+			logger.Println("WARNING: Marketo Manager not configured;", err)
+		}
 	}
 
 	clientStore := user.NewMongoStoreClient(&config.Mongo)
 	userapi := user.InitApi(config.User, logger, clientStore, highwater, marketoManager)
+	logger.Print("installing handlers")
 	userapi.SetHandlers("", rtr)
 
 	userClient := user.NewUserClient(userapi)
 
+	logger.Print("creating gatekeeper client")
 	permsClient := clients.NewGatekeeperClientBuilder().
 		WithHostGetter(config.GatekeeperConfig.ToHostGetter(hakkenClient)).
 		WithHttpClient(httpClient).
 		WithTokenProvider(userClient).
 		Build()
 
-	logger.Print(shoreline_service_prefix, "adding", "permsClient")
 	userapi.AttachPerms(permsClient)
 
 	/*
 	 * Oauth setup
 	 */
 
-	logger.Print(shoreline_service_prefix, "adding", oauth2.OAUTH2_API_PREFIX)
-
 	oauthapi := oauth2.InitApi(config.Oauth2, oauth2.NewOAuthStorage(&config.Mongo), userClient, permsClient)
 	oauthapi.SetHandlers("", rtr)
 
 	oauthClient := oauth2.NewOAuth2Client(oauthapi)
 
-	logger.Print(shoreline_service_prefix, oauth2.OAUTH2_API_PREFIX, "adding oauthClient")
 	userapi.AttachOauth(oauthClient)
 
 	/*
 	 * Serve it up and publish
 	 */
 	done := make(chan bool)
+	logger.Print("creating http server")
 	server := common.NewServer(&http.Server{
 		Addr:    config.Service.GetPort(),
 		Handler: rtr,
@@ -187,18 +186,22 @@ func main() {
 	} else {
 		start = func() error { return server.ListenAndServe() }
 	}
+
+	logger.Print("starting http server")
 	if err := start(); err != nil {
-		logger.Fatal(shoreline_service_prefix, err)
+		logger.Fatal(err)
 	}
 
 	hakkenClient.Publish(&config.Service)
+
+	logger.Print("listenting for signals")
 
 	signals := make(chan os.Signal, 40)
 	signal.Notify(signals)
 	go func() {
 		for {
 			sig := <-signals
-			logger.Printf(shoreline_service_prefix+"Got signal [%s]", sig)
+			logger.Printf("Got signal [%s]", sig)
 
 			if sig == syscall.SIGINT || sig == syscall.SIGTERM {
 				server.Close()
