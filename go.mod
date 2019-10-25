@@ -4,7 +4,7 @@ go 1.12
 
 replace github.com/tidepool-org/shoreline => ./
 
-replace github.com/tidepool-org/go-common => github.com/mdblp/go-common dblp.0.2.0
+replace github.com/tidepool-org/go-common => github.com/mdblp/go-common v0.3.0
 
 require (
 	github.com/RangelReale/osin v1.0.1

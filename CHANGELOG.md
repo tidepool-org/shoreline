@@ -2,6 +2,10 @@
 
 Shoreline is the module that manages logins and user accounts.
 
+## Unreleased
+### Added
+- [PT-732] Display the application version number on the status endpoint (/status).
+
 ## 0.3.0 - 2019-10-14
 ### Added
 - [PT-581] Integration of Tidepool v0.15.0 changes

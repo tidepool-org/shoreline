@@ -18,6 +18,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/tidepool-org/go-common/clients"
 	"github.com/tidepool-org/go-common/clients/highwater"
+	"github.com/tidepool-org/go-common/clients/version"
 
 	"github.com/tidepool-org/shoreline/oauth2"
 )
@@ -281,12 +282,20 @@ func TestGetStatus_StatusOk(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/status", nil)
 	response := httptest.NewRecorder()
 
+	version.ReleaseNumber = "1.2.3"
+	version.FullCommit = "e0c73b95646559e9a3696d41711e918398d557fb"
+
 	shoreline.SetHandlers("", rtr)
 
 	shoreline.GetStatus(response, request)
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("Resp given [%d] expected [%d] ", response.Code, http.StatusOK)
+	}
+	body, _ := ioutil.ReadAll(response.Body)
+
+	if string(body) != "{\"status\":{\"code\":200,\"reason\":\"OK\"},\"version\":\"1.2.3+e0c73b95646559e9a3696d41711e918398d557fb\"}" {
+		t.Fatalf("Message given [%s] expected [%s] ", string(body), "{\"status\":{\"code\":200,\"reason\":\"OK\"},\"version\":\"1.2.3+e0c73b95646559e9a3696d41711e918398d557fb\"}")
 	}
 
 }
@@ -295,6 +304,9 @@ func TestGetStatus_StatusInternalServerError(t *testing.T) {
 
 	request, _ := http.NewRequest("GET", "/status", nil)
 	response := httptest.NewRecorder()
+
+	version.ReleaseNumber = "1.2.3"
+	version.FullCommit = "e0c73b95646559e9a3696d41711e918398d557fb"
 
 	shorelineFails.SetHandlers("", rtr)
 
@@ -306,8 +318,8 @@ func TestGetStatus_StatusInternalServerError(t *testing.T) {
 
 	body, _ := ioutil.ReadAll(response.Body)
 
-	if string(body) != "Session failure" {
-		t.Fatalf("Message given [%s] expected [%s] ", string(body), "Session failure")
+	if string(body) != "{\"status\":{\"code\":500,\"reason\":\"Session failure\"},\"version\":\"1.2.3+e0c73b95646559e9a3696d41711e918398d557fb\"}" {
+		t.Fatalf("Message given [%s] expected [%s] ", string(body), "{\"status\":{\"code\":500,\"reason\":\"Session failure\"},\"version\":\"1.2.3+e0c73b95646559e9a3696d41711e918398d557fb\"}")
 	}
 
 }

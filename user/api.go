@@ -1,6 +1,7 @@
 package user
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -164,14 +165,21 @@ func (h varsHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 }
 
 func (a *Api) GetStatus(res http.ResponseWriter, req *http.Request) {
+	var s status.ApiStatus
 	if err := a.Store.Ping(); err != nil {
 		a.logger.Println(http.StatusInternalServerError, STATUS_GETSTATUS_ERR, err.Error())
-		res.WriteHeader(http.StatusInternalServerError)
-		res.Write([]byte(err.Error()))
-		return
+		s = status.NewApiStatus(http.StatusInternalServerError, err.Error())
+	} else {
+		s = status.NewApiStatus(http.StatusOK, "OK")
 	}
-	res.WriteHeader(http.StatusOK)
-	res.Write([]byte(STATUS_OK))
+	if jsonDetails, err := json.Marshal(s); err != nil {
+		log.Printf("Error marshaling StatusApi data [%s]", s)
+		http.Error(res, "Error marshaling data for response", http.StatusInternalServerError)
+	} else {
+		res.Header().Set("content-type", "application/json")
+		res.WriteHeader(s.Status.Code)
+		res.Write(jsonDetails)
+	}
 	return
 }
 
