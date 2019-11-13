@@ -2,11 +2,11 @@ package main
 
 import (
 	"crypto/tls"
-	"encoding/json"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 
 	"github.com/gorilla/mux"
@@ -19,6 +19,7 @@ import (
 	"github.com/tidepool-org/go-common/clients/mongo"
 	"github.com/tidepool-org/shoreline/oauth2"
 	"github.com/tidepool-org/shoreline/user"
+	"github.com/tidepool-org/shoreline/user/marketo"
 )
 
 type (
@@ -31,15 +32,12 @@ type (
 	}
 )
 
-const (
-	shoreline_service_prefix = "shoreline "
-)
-
 func main() {
 	var config Config
+	logger := log.New(os.Stdout, user.USER_API_PREFIX, log.LstdFlags|log.Lshortfile)
 
 	if err := common.LoadEnvironmentConfig([]string{"TIDEPOOL_SHORELINE_ENV", "TIDEPOOL_SHORELINE_SERVICE"}, &config); err != nil {
-		log.Panic("Problem loading config", err)
+		logger.Panic("Problem loading Shoreline config", err)
 	}
 
 	// server secret may be passed via a separate env variable to accomodate easy secrets injection via Kubernetes
@@ -53,11 +51,6 @@ func main() {
 		config.User.Secret = userSecret
 	}
 
-	mailchimpAPIKey, found := os.LookupEnv("MAILCHIMP_APIKEY")
-	if found {
-		config.User.Mailchimp.APIKey = mailchimpAPIKey
-	}
-
 	longTermKey, found := os.LookupEnv("LONG_TERM_KEY")
 	if found {
 		config.User.LongTermKey = longTermKey
@@ -67,29 +60,28 @@ func main() {
 	if found {
 		config.User.VerificationSecret = verificationSecret
 	}
-
-	clinicLists, found := os.LookupEnv("CLINIC_LISTS")
-	if found {
-		if err := json.Unmarshal([]byte(clinicLists), &config.User.Mailchimp.ClinicLists); err != nil {
-			log.Panic("Problem loading clinic lists", err)
-		}
-	}
-
-	personalLists, found := os.LookupEnv("PERSONAL_LISTS")
-	if found {
-		if err := json.Unmarshal([]byte(personalLists), &config.User.Mailchimp.PersonalLists); err != nil {
-			log.Panic("Problem loading personal lists", err)
-		}
-	}
-
 	clinicDemoUserID, found := os.LookupEnv("DEMO_CLINIC_USER_ID")
 	if found {
 		config.User.ClinicDemoUserID = clinicDemoUserID
 	}
+	config.User.Marketo.ID, _ = os.LookupEnv("MARKETO_ID")
 
-	mailChimpURL, found := os.LookupEnv("MAILCHIMP_URL")
+	config.User.Marketo.URL, _ = os.LookupEnv("MARKETO_URL")
+
+	config.User.Marketo.Secret, _ = os.LookupEnv("MARKETO_SECRET")
+
+	config.User.Marketo.ClinicRole, _ = os.LookupEnv("MARKETO_CLINIC_ROLE")
+
+	config.User.Marketo.PatientRole, _ = os.LookupEnv("MARKETO_PATIENT_ROLE")
+
+	unParsedTimeout, found := os.LookupEnv("MARKETO_TIMEOUT")
 	if found {
-		config.User.Mailchimp.URL = mailChimpURL
+		parsedTimeout64, err := strconv.ParseInt(unParsedTimeout, 10, 32)
+		parsedTimeout := uint(parsedTimeout64)
+		if err != nil {
+			logger.Println(err)
+		}
+		config.User.Marketo.Timeout = parsedTimeout
 	}
 
 	salt, found := os.LookupEnv("SALT")
@@ -108,11 +100,11 @@ func main() {
 
 	if !config.HakkenConfig.SkipHakken {
 		if err := hakkenClient.Start(); err != nil {
-			log.Fatal(shoreline_service_prefix, err)
+			logger.Fatal(err)
 		}
 		defer hakkenClient.Close()
 	} else {
-		log.Print("skipping hakken service")
+		logger.Print("skipping hakken service")
 	}
 
 	/*
@@ -137,40 +129,51 @@ func main() {
 	 * User-Api setup
 	 */
 
-	log.Print(shoreline_service_prefix, "adding", user.USER_API_PREFIX)
+	var marketoManager marketo.Manager
+	if err := config.User.Marketo.Validate(); err != nil {
+		logger.Println("WARNING: Marketo config is invalid", err)
+	} else {
+		logger.Print("initializing marketo manager")
+		miniConfig := marketo.Miniconfig(config.User.Marketo)
+		client, err := marketo.Client(miniConfig)
+		marketoManager, err = marketo.NewManager(logger, &config.User.Marketo, client)
+		if err != nil {
+			logger.Println("WARNING: Marketo Manager not configured;", err)
+		}
+	}
 
-	userapi := user.InitApi(config.User, user.NewMongoStoreClient(&config.Mongo), highwater)
+	clientStore := user.NewMongoStoreClient(&config.Mongo)
+	userapi := user.InitApi(config.User, logger, clientStore, highwater, marketoManager)
+	logger.Print("installing handlers")
 	userapi.SetHandlers("", rtr)
 
 	userClient := user.NewUserClient(userapi)
 
+	logger.Print("creating gatekeeper client")
 	permsClient := clients.NewGatekeeperClientBuilder().
 		WithHostGetter(config.GatekeeperConfig.ToHostGetter(hakkenClient)).
 		WithHttpClient(httpClient).
 		WithTokenProvider(userClient).
 		Build()
 
-	log.Print(shoreline_service_prefix, "adding", "permsClient")
 	userapi.AttachPerms(permsClient)
 
 	/*
 	 * Oauth setup
 	 */
 
-	log.Print(shoreline_service_prefix, "adding", oauth2.OAUTH2_API_PREFIX)
-
 	oauthapi := oauth2.InitApi(config.Oauth2, oauth2.NewOAuthStorage(&config.Mongo), userClient, permsClient)
 	oauthapi.SetHandlers("", rtr)
 
 	oauthClient := oauth2.NewOAuth2Client(oauthapi)
 
-	log.Print(shoreline_service_prefix, oauth2.OAUTH2_API_PREFIX, "adding oauthClient")
 	userapi.AttachOauth(oauthClient)
 
 	/*
 	 * Serve it up and publish
 	 */
 	done := make(chan bool)
+	logger.Print("creating http server")
 	server := common.NewServer(&http.Server{
 		Addr:    config.Service.GetPort(),
 		Handler: rtr,
@@ -183,18 +186,22 @@ func main() {
 	} else {
 		start = func() error { return server.ListenAndServe() }
 	}
+
+	logger.Print("starting http server")
 	if err := start(); err != nil {
-		log.Fatal(shoreline_service_prefix, err)
+		logger.Fatal(err)
 	}
 
 	hakkenClient.Publish(&config.Service)
+
+	logger.Print("listenting for signals")
 
 	signals := make(chan os.Signal, 40)
 	signal.Notify(signals)
 	go func() {
 		for {
 			sig := <-signals
-			log.Printf(shoreline_service_prefix+"Got signal [%s]", sig)
+			logger.Printf("Got signal [%s]", sig)
 
 			if sig == syscall.SIGINT || sig == syscall.SIGTERM {
 				server.Close()

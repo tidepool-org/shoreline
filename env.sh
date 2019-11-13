@@ -29,6 +29,7 @@ export TIDEPOOL_SHORELINE_SERVICE='{
         "salt": "ADihSEI7tOQQP9xfXMO9HfRpXKu1NpIJ",
         "verificationSecret": "+skip",
         "clinicDemoUserId": ""
+
     },
     "oauth2": {
         "expireDays": 14
