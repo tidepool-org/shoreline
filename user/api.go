@@ -666,7 +666,7 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 
 	if td.IsServer == false && td.DurationSecs > two_hours_in_secs {
 		//long-duration let us know detail and keep it rolling
-		a.logger.Println("long-duration token set for ", fmt.Sprint(time.Duration(td.DurationSecs)*time.Second))
+		//a.logger.Println("long-duration token set for ", fmt.Sprint(time.Duration(td.DurationSecs)*time.Second))
 	}
 	//refresh
 	if sessionToken, err := CreateSessionTokenAndSave(
