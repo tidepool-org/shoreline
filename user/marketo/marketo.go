@@ -122,7 +122,7 @@ func Miniconfig(config Config) minimarketo.ClientConfig {
 func Client(miniconfig minimarketo.ClientConfig) (minimarketo.Client, error) {
 	client, err := minimarketo.NewClient(miniconfig)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 		return nil, err
 	}
 	return client, nil
@@ -246,16 +246,16 @@ func (m *Connector) FindLead(listEmail string) (int, bool, error) {
 	}
 	response, err := m.client.Get(path + v.Encode())
 	if err != nil {
-		m.logger.Fatal(err)
+		m.logger.Println(err)
 		return -1, false, err
 	}
 	if !response.Success {
-		m.logger.Fatal(response.Errors)
+		m.logger.Println(response.Errors)
 		return -1, false, err
 	}
 	var leads []LeadResult
 	if err = json.Unmarshal(response.Result, &leads); err != nil {
-		m.logger.Fatal(err)
+		m.logger.Println(err)
 		return -1, false, err
 	}
 	if len(leads) != 1 {
