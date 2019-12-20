@@ -1,3 +1,20 @@
+// @title Shoreline API
+// @version 0.0.1
+// @description The purpose of this API is to provide authentication for end users and other tidepool Services
+// @license.name BSD 2-Clause "Simplified" License
+// @host localhost
+// @BasePath /auth
+// @accept json
+// @produce json
+// @schemes https
+
+// @securityDefinitions.basic BasicAuth
+// @in header
+// @name Authorization
+
+// @securityDefinitions.apikey TidepoolAuth
+// @in header
+// @name x-tidepool-session-token
 package main
 
 import (

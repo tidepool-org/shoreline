@@ -164,6 +164,14 @@ func (h varsHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	h(res, req, vars)
 }
 
+// @Summary Get the api status
+// @Description Get the api status
+// @ID shoreline-user-api-getstatus
+// @Accept  json
+// @Produce  json
+// @Success 200
+// @Failure 500 {string} string "error description"
+// @Router /status [get]
 func (a *Api) GetStatus(res http.ResponseWriter, req *http.Request) {
 	var s status.ApiStatus
 	if err := a.Store.Ping(); err != nil {
@@ -183,11 +191,19 @@ func (a *Api) GetStatus(res http.ResponseWriter, req *http.Request) {
 	return
 }
 
-//
-// status: 200
-// status: 400 STATUS_NO_QUERY, STATUS_PARAMETER_UNKNOWN
-// status: 401 STATUS_SERVER_TOKEN_REQUIRED
-// status: 500 STATUS_ERR_FINDING_USR
+// @Summary Get users
+// @Description Get users
+// @ID shoreline-user-api-getusers
+// @Accept  json
+// @Produce  json
+// @Param role query string false "Role" Enums(clinic)
+// @Param id query string false "List of UserId separated by ,"
+// @Security TidepoolAuth
+// @Success 200 {array} user.User
+// @Failure 500 {object} status.Status "message returned:\"Error finding user\" "
+// @Failure 400 {object} status.Status "message returned:\"The role specified is invalid\" or \"A query must be specified\" or \"Only one query parameter is allowed\" or \"Unknown query parameter\""
+// @Failure 401 {object} status.Status "message returned:\"Not authorized for requested operation\" "
+// @Router /users [get]
 func (a *Api) GetUsers(res http.ResponseWriter, req *http.Request) {
 	sessionToken := req.Header.Get(TP_SESSION_TOKEN)
 	if tokenData, err := a.authenticateSessionToken(sessionToken); err != nil {
@@ -224,10 +240,18 @@ func (a *Api) GetUsers(res http.ResponseWriter, req *http.Request) {
 	}
 }
 
-// status: 201 User
-// status: 400 STATUS_MISSING_USR_DETAILS
-// status: 409 STATUS_USR_ALREADY_EXISTS
-// status: 500 STATUS_ERR_GENERATING_TOKEN
+// @Summary Create user
+// @Description Create user
+// @ID shoreline-user-api-createuser
+// @Accept  json
+// @Produce  json
+// @Param user body user.NewUserDetails true "user details"
+// @Success 201 {object} user.User
+// @Header 201 {string} x-tidepool-session-token "authentication token"
+// @Failure 500 {object} status.Status "message returned:\"Error creating the user\" or \"Error generating the token\" "
+// @Failure 409 {object} status.Status "message returned:\"User already exists\" "
+// @Failure 400 {object} status.Status "message returned:\"Invalid user details were given\" "
+// @Router /user [post]
 func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 	if newUserDetails, err := ParseNewUserDetails(req.Body); err != nil {
 		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, err)
@@ -269,11 +293,20 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 	}
 }
 
-// status: 201 User
-// status: 400 STATUS_MISSING_USR_DETAILS
-// status: 401 STATUS_UNAUTHORIZED
-// status: 409 STATUS_USR_ALREADY_EXISTS
-// status: 500 STATUS_ERR_GENERATING_TOKEN
+// @Summary Create custodial user
+// @Description Create custodial user
+// @ID shoreline-user-api-createcustodialuser
+// @Accept  json
+// @Produce  json
+// @Param userid path int true "custodian user id"
+// @Param user body user.NewCustodialUserDetails true "user custodial details"
+// @Security TidepoolAuth
+// @Success 201 {object} user.User
+// @Failure 500 {object} status.Status "message returned:\"Error creating the user\" "
+// @Failure 409 {object} status.Status "message returned:\"User already exists\" "
+// @Failure 401 {object} status.Status "message returned:\"Not authorized for requested operation\" "
+// @Failure 400 {object} status.Status "message returned:\"Invalid user details were given\" "
+// @Router /user/{userid}/user [post]
 func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 	sessionToken := req.Header.Get(TP_SESSION_TOKEN)
 	if tokenData, err := a.authenticateSessionToken(sessionToken); err != nil {
@@ -308,11 +341,20 @@ func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, va
 	}
 }
 
-// status: 200
-// status: 400 STATUS_INVALID_USER_DETAILS
-// status: 409 STATUS_USR_ALREADY_EXISTS
-// status: 500 STATUS_ERR_FINDING_USR
-// status: 500 STATUS_ERR_UPDATING_USR
+// @Summary Update user
+// @Description Update user
+// @ID shoreline-user-api-updateuser
+// @Accept  json
+// @Produce  json
+// @Param userid path int true "user id"
+// @Param user body user.UpdateUserDetails true "user update details"
+// @Security TidepoolAuth
+// @Success 200 {object} user.UpdateUserDetails
+// @Failure 500 {object} status.Status "message returned:\"Error updating user\" or \"Error finding user\" "
+// @Failure 409 {object} status.Status "message returned:\"User already exists\" "
+// @Failure 401 {object} status.Status "message returned:\"Not authorized for requested operation\" "
+// @Failure 400 {object} status.Status "message returned:\"Invalid user details were given\" "
+// @Router /user/{userid} [put]
 func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 	sessionToken := req.Header.Get(TP_SESSION_TOKEN)
 	if tokenData, err := a.authenticateSessionToken(sessionToken); err != nil {
@@ -414,9 +456,18 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 	}
 }
 
-// status: 200
-// status: 401 STATUS_UNAUTHORIZED
-// status: 500 STATUS_ERR_FINDING_USR
+// @Summary Get user information
+// @Description Get user information
+// @ID shoreline-user-api-getuserinfo
+// @Accept  json
+// @Produce  json
+// @Param userid path int true "user id" optional
+// @Security TidepoolAuth
+// @Success 200 {object} user.User
+// @Failure 500 {object} status.Status "message returned:\"Error finding user\" "
+// @Failure 404 {object} status.Status "message returned:\"User not found\" "
+// @Failure 401 {object} status.Status "message returned:\"Not authorized for requested operation\" "
+// @Router /user/{userid} [get]
 func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 	sessionToken := req.Header.Get(TP_SESSION_TOKEN)
 	if tokenData, err := a.authenticateSessionToken(sessionToken); err != nil {
@@ -454,6 +505,19 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 	}
 }
 
+// @Summary Delete user
+// @Description Delete user
+// @ID shoreline-user-api-deleteuser
+// @Accept  json
+// @Produce  json
+// @Param userid path int true "user id for server request, from token for personal request" optional
+// @Param password body string true "password"
+// @Security TidepoolAuth
+// @Success 202
+// @Failure 500 {string} string ""
+// @Failure 403 {object} status.Status "message returned:\"Missing id and/or password\" "
+// @Failure 401 {string} string ""
+// @Router /user/{userid} [delete]
 func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 
 	td, err := a.authenticateSessionToken(req.Header.Get(TP_SESSION_TOKEN))
@@ -505,11 +569,20 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 	return
 }
 
-// status: 200 TP_SESSION_TOKEN,
-// status: 400 STATUS_MISSING_ID_PW
-// status: 401 STATUS_NO_MATCH
-// status: 403 STATUS_NOT_VERIFIED
-// status: 500 STATUS_ERR_FINDING_USR, STATUS_ERR_UPDATING_TOKEN
+// @Summary Login user
+// @Description Login user
+// @ID shoreline-user-api-login
+// @Accept  json
+// @Produce  json
+// @Param tokenduration header number false "token duration"
+// @Security BasicAuth
+// @Success 200 {object} user.User
+// @Header 200 {string} x-tidepool-session-token "au"
+// @Failure 500 {object} status.Status "message returned:\"Error finding user\" or \"Error updating token\" "
+// @Failure 403 {object} status.Status "message returned:\"The user hasn't verified this account yet\" "
+// @Failure 401 {object} status.Status "message returned:\"No user matched the given details\" "
+// @Failure 400 {object} status.Status "message returned:\"Missing id and/or password\" "
+// @Router /login [post]
 func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 	if user, password := unpackAuth(req.Header.Get("Authorization")); user == nil {
 		a.sendError(res, http.StatusBadRequest, STATUS_MISSING_ID_PW)
@@ -546,10 +619,19 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 	}
 }
 
-// status: 200 TP_SESSION_TOKEN
-// status: 400 STATUS_MISSING_ID_PW
-// status: 401 STATUS_PW_WRONG
-// status: 500 STATUS_ERR_GENERATING_TOKEN
+// @Summary Login server
+// @Description Login server
+// @ID shoreline-user-api-serverlogin
+// @Accept  json
+// @Produce  json
+// @Param x-tidepool-server-name header string true "server name"
+// @Param x-tidepool-server-secret header string true "server secret"
+// @Success 200
+// @Header 200 {string} x-tidepool-session-token "authentication token"
+// @Failure 500 {object} status.Status "message returned:\"Error generating the token\" or \"No expected password is found\""
+// @Failure 401 {object} status.Status "message returned:\"Wrong password\" "
+// @Failure 400 {object} status.Status "message returned:\"Missing id and/or password\" "
+// @Router /serverlogin [post]
 func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 
 	// which server is knocking at the door and what password is it using to enter?
@@ -608,10 +690,17 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 	return
 }
 
-// status: 200 TP_SESSION_TOKEN, oauthUser, oauthTarget
-// status: 400 invalid_request
-// status: 401 invalid_token
-// status: 403 insufficient_scope
+// @Summary Login oauth2
+// @Description Login oauth2
+// @ID shoreline-user-api-oauth2login
+// @Accept  json
+// @Produce  json
+// @Success 200 {string} string  "generic json format { \"oauthUser\" : fndUsr, \"oauthTarget\" : result[\"authUserId\"] }"
+// @Header 200 {string} x-tidepool-session-token "authentication token"
+// @Failure 503 {string} string ""
+// @Failure 401 {string} string "generic json format { \"error\" : errorMsg }"
+// @Failure 400 {string} string "generic json format { \"error\" : errorMsg }"
+// @Router /oauthlogin [post]
 func (a *Api) oauth2Login(w http.ResponseWriter, r *http.Request) {
 
 	//oauth is not enabled
@@ -667,9 +756,19 @@ func (a *Api) oauth2Login(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
-// status: 200 TP_SESSION_TOKEN, TokenData
-// status: 401 STATUS_NO_TOKEN
-// status: 500 STATUS_ERR_GENERATING_TOKEN
+// @Summary Refresh session
+// @Description Refresh session
+// @ID shoreline-user-api-refreshsession
+// @Accept  json
+// @Produce  json
+// @Param x-tidepool-server-name header string true "server name"
+// @Param x-tidepool-server-secret header string true "server secret"
+// @Security TidepoolAuth
+// @Success 200 {object} user.TokenData  "Token details"
+// @Header 200 {string} x-tidepool-session-token "authentication token"
+// @Failure 500 {object} status.Status "message returned:\"Error generating the token\" "
+// @Failure 401 {string} string ""
+// @Router /login [get]
 func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 
 	td, err := a.authenticateSessionToken(req.Header.Get(TP_SESSION_TOKEN))
@@ -702,6 +801,20 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 	}
 }
 
+// @Summary Longterm login
+// @Description Longterm login
+// @ID shoreline-user-api-longtermlogin
+// @Accept  json
+// @Produce  json
+// @Param longtermkey path string true "long term key"
+// @Security BasicAuth
+// @Success 200 {object} user.User
+// @Header 200 {string} x-tidepool-session-token "authentication token"
+// @Failure 500 {object} status.Status "message returned:\"Error finding user\" or \"Error updating token\" "
+// @Failure 403 {object} status.Status "message returned:\"The user hasn't verified this account yet\" "
+// @Failure 401 {object} status.Status "message returned:\"No user matched the given details\" "
+// @Failure 400 {object} status.Status "message returned:\"Missing id and/or password\" "
+// @Router /login/{longtermkey} [post]
 // Set the longeterm duration and then process as per Login
 // note: see Login for return codes
 func (a *Api) LongtermLogin(res http.ResponseWriter, req *http.Request, vars map[string]string) {
@@ -724,9 +837,15 @@ func (a *Api) LongtermLogin(res http.ResponseWriter, req *http.Request, vars map
 	// TODO: Does not actually add the TOKEN_DURATION_KEY to the response on success (as the old unittests would imply)
 }
 
-// status: 200 TP_SESSION_TOKEN, TokenData
-// status: 401 STATUS_NO_TOKEN
-// status: 404 STATUS_NO_TOKEN_MATCH
+// @Summary Check server token
+// @Description Check server token
+// @ID shoreline-user-api-serverchecktoken
+// @Accept  json
+// @Produce  json
+// @Security TidepoolAuth
+// @Success 200 {object} user.TokenData  "Token details"
+// @Failure 401 {object} status.Status "message returned:\"No x-tidepool-session-token was found\" "
+// @Router /token/{token} [get]
 func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 
 	if hasServerToken(req.Header.Get(TP_SESSION_TOKEN), a.ApiConfig.Secret) {
@@ -745,7 +864,14 @@ func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars 
 	return
 }
 
-// status: 200
+// @Summary Logout
+// @Description Logout
+// @ID shoreline-user-api-logout
+// @Accept  json
+// @Produce  json
+// @Security TidepoolAuth
+// @Success 200 {string} string ""
+// @Router /logout [post]
 func (a *Api) Logout(res http.ResponseWriter, req *http.Request) {
 	if id := req.Header.Get(TP_SESSION_TOKEN); id != "" {
 		if err := a.Store.RemoveTokenByID(id); err != nil {
@@ -758,7 +884,13 @@ func (a *Api) Logout(res http.ResponseWriter, req *http.Request) {
 	return
 }
 
-// status: 200 AnonIdHashPair
+// @Summary AnonymousIdHashPair ?
+// @Description AnonymousIdHashPair ?
+// @ID shoreline-user-api-anonymousidhashpair
+// @Accept  json
+// @Produce  json
+// @Success 200 {object} user.AnonIdHashPair "AnonymousIdHashPair?"
+// @Router /private [get]
 func (a *Api) AnonymousIdHashPair(res http.ResponseWriter, req *http.Request) {
 	idHashPair := NewAnonIdHashPair([]string{a.ApiConfig.Salt}, req.URL.Query())
 	sendModelAsRes(res, idHashPair)
