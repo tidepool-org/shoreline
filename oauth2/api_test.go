@@ -1,6 +1,7 @@
 package oauth2
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -21,7 +22,7 @@ const (
 var (
 	api = InitApi(
 		ApiConfig{ExpireDays: 20},
-		NewOAuthStorage(&mongo.Config{ConnectionString: "mongodb://127.0.0.1/user_test"}),
+		NewOAuthStorage(&mongo.Config{ConnectionString: "mongodb://127.0.0.1/user_test", Database: "user_test"}),
 		shoreline.NewMock(user_secert_token),
 		clients.NewGatekeeperMock(nil, nil),
 	)
@@ -30,10 +31,8 @@ var (
 //using the attached mongo session setup and required data for testing.
 //NOTE: we just blow away the test data for each test
 func setupClientForTest() {
-	cpy := api.storage.session.Copy()
-	defer cpy.Close()
 	//just drop and don't worry about any errors
-	cpy.DB("").DropDatabase()
+	api.storage.client.Database(api.storage.database).Drop(context.Background())
 	//TODO: we are reusing `a_client` from the oauthStore_test.go tests. We need to do this in a nicer way
 	api.storage.SetClient(a_client.GetId(), a_client)
 }
@@ -116,9 +115,9 @@ func Test_GET_authorize(t *testing.T) {
 	//What we are looking for
 	expectedAuthFormParts := []string{
 		"/auth/oauth2/authorize?response_type=code&client_id=1234&state=&scope=&redirect_uri=http%3A%2F%2Flocalhost%3A14000",
-		"method=\"POST\"",                                                        //it should be a POST
-		scopeView.grantMsg,                                                       //should show user would be granting view permissons
-		scopeUpload.grantMsg,                                                     //should show user would be granting upload permissons
+		"method=\"POST\"",    //it should be a POST
+		scopeView.grantMsg,   //should show user would be granting view permissons
+		scopeUpload.grantMsg, //should show user would be granting upload permissons
 		"<input type=\"text\" name=\"login\" placeholder=\"Email\" />",           //should ask for users email address
 		"<input type=\"password\" name=\"password\" placeholder=\"Password\" />", //should ask for users password
 		"<input type=\"submit\" value=\"Grant access to Tidepool\"/>",            //should allow them to submit

@@ -1,6 +1,7 @@
 package oauth2
 
 import (
+	"context"
 	"log"
 	"testing"
 
@@ -37,7 +38,7 @@ var (
 		AccessData:    access_data_other,
 	}
 
-	testingConfig = &mongo.Config{ConnectionString: "mongodb://127.0.0.1/user_test?ssl=false"}
+	testingConfig = &mongo.Config{ConnectionString: "mongodb://127.0.0.1/user_test?ssl=false", Database: "user_test"}
 )
 
 func TestOAuth_ClientStorage(t *testing.T) {
@@ -49,11 +50,8 @@ func TestOAuth_ClientStorage(t *testing.T) {
 	/*
 	 * INIT THE TEST - we use a clean copy of the collection before we start
 	 */
-	cpy := os.session.Copy()
-	defer cpy.Close()
-
 	//just drop and don't worry about any errors
-	cpy.DB("").DropDatabase()
+	os.client.Database(os.database).Drop(context.Background())
 
 	/*
 	 * THE TESTS
@@ -77,11 +75,8 @@ func TestOAuth_AccessStorage(t *testing.T) {
 	/*
 	 * INIT THE TEST - we use a clean copy of the collection before we start
 	 */
-	cpy := os.session.Copy()
-	defer cpy.Close()
-
 	//just drop and don't worry about any errors
-	cpy.DB("").DropDatabase()
+	os.client.Database(os.database).Drop(context.Background())
 
 	/*
 	 * THE TESTS
@@ -104,11 +99,8 @@ func TestOAuth_AuthorizeStorage(t *testing.T) {
 	/*
 	 * INIT THE TEST - we use a clean copy of the collection before we start
 	 */
-	cpy := os.session.Copy()
-	defer cpy.Close()
-
 	//just drop and don't worry about any errors
-	cpy.DB("").DropDatabase()
+	os.client.Database(os.database).Drop(context.Background())
 
 	/*
 	 * THE TESTS
