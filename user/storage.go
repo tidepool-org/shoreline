@@ -1,7 +1,6 @@
 package user
 
 type Storage interface {
-	Close()
 	Ping() error
 	UpsertUser(user *User) error
 	FindUser(user *User) (*User, error)

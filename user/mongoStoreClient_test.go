@@ -1,29 +1,24 @@
 package user
 
 import (
+	"context"
 	"strings"
 	"testing"
 
-	"github.com/globalsign/mgo"
-
-	"github.com/tidepool-org/go-common/clients/mongo"
+	tpMongo "github.com/tidepool-org/go-common/clients/mongo"
 )
 
-func mgoTestSetup() (*MongoStoreClient, error) {
-	mc := NewMongoStoreClient(&mongo.Config{ConnectionString: "mongodb://127.0.0.1/user_test"})
+var testingConfig = &tpMongo.Config{ConnectionString: "mongodb://127.0.0.1/user_test", Database: "user_test"}
+
+func mongoTestSetup() (*MongoStoreClient, error) {
+	mc := NewMongoStoreClient(testingConfig)
 
 	/*
 	 * INIT THE TEST - we use a clean copy of the collection before we start
 	 */
-	cpy := mc.session.Copy()
-	defer cpy.Close()
-
 	//just drop and don't worry about any errors
-	mgoUsersCollection(cpy).DropCollection()
+	usersCollection(mc).Drop(context.Background())
 
-	if err := mgoUsersCollection(cpy).Create(&mgo.CollectionInfo{}); err != nil {
-		return nil, err
-	}
 	return mc, nil
 }
 
@@ -39,7 +34,7 @@ func TestMongoStoreUserOperations(t *testing.T) {
 
 	const tests_fake_salt = "some fake salt for the tests"
 
-	mc, err := mgoTestSetup()
+	mc, err := mongoTestSetup()
 	if err != nil {
 		t.Fatalf("we initialise the test store %s", err.Error())
 	}
@@ -178,7 +173,7 @@ func TestMongoStore_FindUsersByRole(t *testing.T) {
 		user_two_detail = &NewUserDetails{Username: &user_two_name, Emails: []string{user_two_name}, Password: &user_pw}
 	)
 
-	mc, err := mgoTestSetup()
+	mc, err := mongoTestSetup()
 	if err != nil {
 		t.Fatalf("we initialise the test store %s", err.Error())
 	}
@@ -217,7 +212,7 @@ func TestMongoStore_FindUsersById(t *testing.T) {
 		user_two_detail = &NewUserDetails{Username: &user_two_name, Emails: []string{user_two_name}, Password: &user_pw}
 	)
 
-	mc, err := mgoTestSetup()
+	mc, err := mongoTestSetup()
 	if err != nil {
 		t.Fatalf("we could not initialise the test store %s", err.Error())
 	}
@@ -259,7 +254,7 @@ func TestMongoStoreTokenOperations(t *testing.T) {
 	testing_token_data := &TokenData{UserId: "2341", IsServer: true, DurationSecs: 3600}
 	testing_token_config := TokenConfig{DurationSecs: 1200, Secret: "some secret for the tests"}
 
-	mc, err := mgoTestSetup()
+	mc, err := mongoTestSetup()
 	if err != nil {
 		t.Fatalf("we initialise the test store %s", err.Error())
 	}

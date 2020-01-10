@@ -1,58 +1,90 @@
 package oauth2
 
 import (
+	"context"
 	"log"
+	"time"
 
 	"github.com/RangelReale/osin"
-	"github.com/globalsign/mgo"
-	"github.com/globalsign/mgo/bson"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 
-	"github.com/tidepool-org/go-common/clients/mongo"
+	tpMongo "github.com/tidepool-org/go-common/clients/mongo"
 )
 
+// OAuthStorage - Mongo Storage Client
 type OAuthStorage struct {
-	session *mgo.Session
+	client   *mongo.Client
+	context  context.Context
+	database string
 }
 
 const (
 	//mongo collections
-	client_collection    = "oauth_client"
-	authorize_collection = "oauth_authorize"
-	access_collection    = "oauth_access"
-	db_name              = ""
+	clientCollection    = "oauth_client"
+	authorizeCollection = "oauth_authorize"
+	accessCollection    = "oauth_access"
 
-	refreshtoken = "refreshtoken"
+	refreshToken = "refreshtoken"
 )
 
 //filter used to exclude the mongo _id from being returned
 var selectFilter = bson.M{"_id": 0}
 
-//We implement the interface from osin.Storage
-func NewOAuthStorage(config *mongo.Config) *OAuthStorage {
-
-	mongoSession, err := mongo.Connect(config)
+// NewOAuthStorage creates a new OAuthStorage. We implement the interface from osin.Storage
+func NewOAuthStorage(config *tpMongo.Config) *OAuthStorage {
+	connectionString, err := config.ToConnectionString()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	storage := &OAuthStorage{session: mongoSession}
-
-	index := mgo.Index{
-		Key:        []string{refreshtoken},
-		Unique:     false, // refreshtoken is sometimes empty
-		DropDups:   false,
-		Background: true,
-		Sparse:     true,
+	clientOptions := options.Client().ApplyURI(connectionString)
+	mongoClient, err := mongo.Connect(context.TODO(), clientOptions)
+	if err != nil {
+		log.Fatal(err)
 	}
 
-	accesses := storage.session.DB(db_name).C(access_collection)
-
-	idxErr := accesses.EnsureIndex(index)
-	if idxErr != nil {
-		log.Printf(OAUTH2_API_PREFIX+"NewOAuthStorage EnsureIndex error[%s] ", idxErr.Error())
-		log.Fatal(idxErr)
+	storage := &OAuthStorage{
+		client:   mongoClient,
+		context:  context.Background(),
+		database: config.Database,
 	}
+
 	return storage
+}
+
+// WithContext returns a shallow copy of c with its context changed
+// to ctx. The provided ctx must be non-nil.
+func (s *OAuthStorage) WithContext(ctx context.Context) *OAuthStorage {
+	if ctx == nil {
+		panic("nil context")
+	}
+	s2 := new(OAuthStorage)
+	*s2 = *s
+	s2.context = ctx
+	return s2
+}
+
+// EnsureIndexes - make sure indexes exist for the MongoDB collection
+func (s *OAuthStorage) EnsureIndexes() error {
+	index := mongo.IndexModel{
+		Keys: bson.D{{Key: refreshToken, Value: 1}},
+		Options: options.Index().
+			SetBackground(true).
+			SetSparse(true),
+	}
+
+	accesses := s.client.Database(s.database).Collection(accessCollection)
+
+	opts := options.CreateIndexes().SetMaxTime(10 * time.Second)
+
+	if _, err := accesses.Indexes().CreateOne(s.context, index, opts); err != nil {
+		log.Printf(OAUTH2_API_PREFIX+"NewOAuthStorage EnsureIndex error[%s] ", err.Error())
+		log.Fatal(err)
+	}
+
+	return nil
 }
 
 func getUserData(raw interface{}) (ud map[string]interface{}) {
@@ -83,23 +115,25 @@ func getClient(raw interface{}) *osin.DefaultClient {
 	return &osin.DefaultClient{}
 }
 
+// Clone the OAuthStorage
 func (s *OAuthStorage) Clone() osin.Storage {
 	return s
 }
 
+// Close the OAuthStorage
 func (s *OAuthStorage) Close() {
 	log.Print(OAUTH2_API_PREFIX, "OAuthStorage.Close(): closing the connection")
-	//s.session.Close()
 	return
 }
 
-func (store *OAuthStorage) GetClient(id string) (osin.Client, error) {
+// GetClient with a specific id
+func (s *OAuthStorage) GetClient(id string) (osin.Client, error) {
 	log.Printf(OAUTH2_API_PREFIX+"GetClient id[%s]", id)
-	cpy := store.session.Copy()
-	defer cpy.Close()
-	clients := cpy.DB(db_name).C(client_collection)
+	clients := s.client.Database(s.database).Collection(clientCollection)
+
 	client := &osin.DefaultClient{}
-	if err := clients.Find(bson.M{"id": id}).Select(selectFilter).One(client); err != nil {
+	opts := options.FindOne().SetProjection(selectFilter)
+	if err := clients.FindOne(s.context, bson.M{"id": id}, opts).Decode(client); err != nil {
 		log.Printf(OAUTH2_API_PREFIX+"GetClient error[%s]", err.Error())
 		return nil, err
 	}
@@ -108,32 +142,37 @@ func (store *OAuthStorage) GetClient(id string) (osin.Client, error) {
 	return client, nil
 }
 
-func (store *OAuthStorage) SetClient(id string, client osin.Client) error {
-	cpy := store.session.Copy()
-	defer cpy.Close()
-	clients := cpy.DB(db_name).C(client_collection)
+// SetClient - update the client data for a Client ID, or insert it if it doesn't exist.
+func (s *OAuthStorage) SetClient(id string, client osin.Client) error {
+	log.Printf(OAUTH2_API_PREFIX+"SetClient %v", client)
+	clients := s.client.Database(s.database).Collection(clientCollection)
 
 	//see https://github.com/RangelReale/osin/issues/40
 	clientToSave := osin.DefaultClient{}
 	clientToSave.CopyFrom(client)
 
-	_, err := clients.Upsert(bson.M{"id": id}, clientToSave)
-	return err
+	opts := options.FindOneAndUpdate().SetUpsert(true)
+	result := clients.FindOneAndUpdate(s.context, bson.M{"id": id}, clientToSave, opts)
+	if result.Err() != mongo.ErrNoDocuments {
+		return result.Err()
+	}
+	return nil
 }
 
-func (store *OAuthStorage) SaveAuthorize(data *osin.AuthorizeData) error {
+// SaveAuthorize updates the AuthorizeData, or inserts if if it doesn't exist.
+func (s *OAuthStorage) SaveAuthorize(data *osin.AuthorizeData) error {
 	log.Printf(OAUTH2_API_PREFIX+"SaveAuthorize for code[%s]", data.Code)
-	cpy := store.session.Copy()
-	defer cpy.Close()
-	authorizations := cpy.DB(db_name).C(authorize_collection)
+	authorizations := s.client.Database(s.database).Collection(authorizeCollection)
 
 	//see https://github.com/RangelReale/osin/issues/40
 	data.UserData = data.Client.(*osin.DefaultClient)
 	data.Client = nil
 
-	if _, err := authorizations.Upsert(bson.M{"code": data.Code}, data); err != nil {
-		log.Printf(OAUTH2_API_PREFIX+"SaveAuthorize error[%s]", err.Error())
-		return err
+	opts := options.FindOneAndUpdate().SetUpsert(true)
+	result := authorizations.FindOneAndUpdate(s.context, bson.M{"code": data.Code}, data, opts)
+	if result.Err() != mongo.ErrNoDocuments {
+		log.Printf(OAUTH2_API_PREFIX+"SaveAuthorize error[%s]", result.Err())
+		return result.Err()
 	}
 	return nil
 }
@@ -141,14 +180,13 @@ func (store *OAuthStorage) SaveAuthorize(data *osin.AuthorizeData) error {
 // LoadAuthorize looks up AuthorizeData by a code.
 // Client information MUST be loaded together.
 // Optionally can return error if expired.
-func (store *OAuthStorage) LoadAuthorize(code string) (*osin.AuthorizeData, error) {
+func (s *OAuthStorage) LoadAuthorize(code string) (*osin.AuthorizeData, error) {
 	log.Printf(OAUTH2_API_PREFIX+"LoadAuthorize for code[%s]", code)
-	cpy := store.session.Copy()
-	defer cpy.Close()
-	authorizations := cpy.DB(db_name).C(authorize_collection)
+	authorizations := s.client.Database(s.database).Collection(authorizeCollection)
 	data := &osin.AuthorizeData{}
 
-	if err := authorizations.Find(bson.M{"code": code}).Select(selectFilter).One(data); err != nil {
+	opts := options.FindOne().SetProjection(selectFilter)
+	if err := authorizations.FindOne(s.context, bson.M{"code": code}, opts).Decode(data); err != nil {
 		log.Printf(OAUTH2_API_PREFIX+"LoadAuthorize error[%s]", err.Error())
 		return nil, err
 	}
@@ -161,20 +199,21 @@ func (store *OAuthStorage) LoadAuthorize(code string) (*osin.AuthorizeData, erro
 	return data, nil
 }
 
-func (store *OAuthStorage) RemoveAuthorize(code string) error {
+// RemoveAuthorize removes an AuthorizeData by a code.
+func (s *OAuthStorage) RemoveAuthorize(code string) error {
 	log.Printf(OAUTH2_API_PREFIX+"RemoveAuthorize for code[%s]", code)
-	cpy := store.session.Copy()
-	defer cpy.Close()
-	authorizations := cpy.DB(db_name).C(authorize_collection)
-	return authorizations.Remove(bson.M{"code": code})
+	authorizations := s.client.Database(s.database).Collection(authorizeCollection)
+	result := authorizations.FindOneAndDelete(s.context, bson.M{"code": code})
+	if result.Err() != mongo.ErrNoDocuments {
+		return result.Err()
+	}
+	return nil
 }
 
 // SaveAccess writes AccessData.
 // If RefreshToken is not blank, it must save in a way that can be loaded using LoadRefresh.
-func (store *OAuthStorage) SaveAccess(data *osin.AccessData) error {
+func (s *OAuthStorage) SaveAccess(data *osin.AccessData) error {
 	log.Printf(OAUTH2_API_PREFIX+"SaveAccess for token[%s]", data.AccessToken)
-	cpy := store.session.Copy()
-	defer cpy.Close()
 
 	// see https://github.com/RangelReale/osin/issues/40
 	data.UserData = data.AuthorizeData.UserData //Note: we want to save all the details that where set on Authorization
@@ -183,25 +222,26 @@ func (store *OAuthStorage) SaveAccess(data *osin.AccessData) error {
 	data.AuthorizeData = nil
 	data.AccessData = nil
 
-	accesses := cpy.DB(db_name).C(access_collection)
+	accesses := s.client.Database(s.database).Collection(accessCollection)
 
-	if _, err := accesses.Upsert(bson.M{"accesstoken": data.AccessToken}, data); err != nil {
-		log.Printf(OAUTH2_API_PREFIX+"SaveAccess error[%s]", err.Error())
+	opts := options.FindOneAndUpdate().SetUpsert(true)
+	result := accesses.FindOneAndUpdate(s.context, bson.M{"accesstoken": data.AccessToken}, data, opts)
+	if result.Err() != mongo.ErrNoDocuments {
+		log.Printf(OAUTH2_API_PREFIX+"SaveAccess error[%s]", result.Err())
+		return result.Err()
 	}
-
 	return nil
 }
 
 // LoadAccess retrieves access data by token. Client information MUST be loaded together.
 // AuthorizeData and AccessData DON'T NEED to be loaded if not easily available.
 // Optionally can return error if expired.
-func (store *OAuthStorage) LoadAccess(token string) (ad *osin.AccessData, err error) {
+func (s *OAuthStorage) LoadAccess(token string) (ad *osin.AccessData, err error) {
 	log.Print(OAUTH2_API_PREFIX, "LoadAccess for token ", token)
-	cpy := store.session.Copy()
-	defer cpy.Close()
-	accesses := cpy.DB(db_name).C(access_collection)
+	accesses := s.client.Database(s.database).Collection(accessCollection)
 
-	if err = accesses.Find(bson.M{"accesstoken": token}).Select(selectFilter).One(&ad); err != nil {
+	opts := options.FindOne().SetProjection(selectFilter)
+	if err = accesses.FindOne(s.context, bson.M{"accesstoken": token}, opts).Decode(&ad); err != nil {
 		log.Print(OAUTH2_API_PREFIX, "LoadAccess error ", err.Error())
 		return nil, err
 	}
@@ -212,22 +252,25 @@ func (store *OAuthStorage) LoadAccess(token string) (ad *osin.AccessData, err er
 	return ad, nil
 }
 
-func (store *OAuthStorage) RemoveAccess(token string) error {
+// RemoveAccess removes access data by token.
+func (s *OAuthStorage) RemoveAccess(token string) error {
 	log.Printf(OAUTH2_API_PREFIX+"RemoveAccess for token[%s]", token)
-	cpy := store.session.Copy()
-	defer cpy.Close()
-	accesses := cpy.DB(db_name).C(access_collection)
-	return accesses.Remove(bson.M{"accesstoken": token})
+	accesses := s.client.Database(s.database).Collection(accessCollection)
+	result := accesses.FindOneAndDelete(s.context, bson.M{"accesstoken": token})
+	if result.Err() != mongo.ErrNoDocuments {
+		return result.Err()
+	}
+	return nil
 }
 
-func (store *OAuthStorage) LoadRefresh(token string) (*osin.AccessData, error) {
+// LoadRefresh token data
+func (s *OAuthStorage) LoadRefresh(token string) (*osin.AccessData, error) {
 	log.Printf(OAUTH2_API_PREFIX+"LoadRefresh for token[%s]", token)
-	cpy := store.session.Copy()
-	defer cpy.Close()
-	accesses := cpy.DB(db_name).C(access_collection)
+	accesses := s.client.Database(s.database).Collection(accessCollection)
 	data := new(osin.AccessData)
 
-	if err := accesses.Find(bson.M{"refreshtoken": token}).Select(selectFilter).One(data); err != nil {
+	opts := options.FindOne().SetProjection(selectFilter)
+	if err := accesses.FindOne(s.context, bson.M{"refreshtoken": token}, opts).Decode(data); err != nil {
 		log.Printf(OAUTH2_API_PREFIX+"LoadRefresh error[%s]", err.Error())
 		return nil, err
 	}
@@ -235,13 +278,17 @@ func (store *OAuthStorage) LoadRefresh(token string) (*osin.AccessData, error) {
 	return data, nil
 }
 
-func (store *OAuthStorage) RemoveRefresh(token string) error {
+// RemoveRefresh token data
+func (s *OAuthStorage) RemoveRefresh(token string) error {
 	log.Printf(OAUTH2_API_PREFIX+"RemoveRefresh for token[%s]", token)
-	cpy := store.session.Copy()
-	defer cpy.Close()
-	accesses := cpy.DB(db_name).C(access_collection)
-	return accesses.Update(bson.M{"refreshtoken": token}, bson.M{
+	accesses := s.client.Database(s.database).Collection(accessCollection)
+	data := bson.M{
 		"$unset": bson.M{
-			refreshtoken: 1,
-		}})
+			refreshToken: 1,
+		}}
+	result := accesses.FindOneAndUpdate(s.context, bson.M{"accesstoken": token}, data)
+	if result.Err() != mongo.ErrNoDocuments {
+		return result.Err()
+	}
+	return nil
 }

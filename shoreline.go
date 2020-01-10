@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"log"
 	"net/http"
@@ -8,6 +9,7 @@ import (
 	"os/signal"
 	"strconv"
 	"syscall"
+	"time"
 
 	"github.com/gorilla/mux"
 
@@ -143,6 +145,15 @@ func main() {
 	}
 
 	clientStore := user.NewMongoStoreClient(&config.Mongo)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+
+	err := clientStore.WithContext(ctx).EnsureIndexes()
+	if err != nil {
+		logger.Fatal(err)
+	} else {
+		cancel()
+	}
+
 	userapi := user.InitApi(config.User, logger, clientStore, highwater, marketoManager)
 	logger.Print("installing handlers")
 	userapi.SetHandlers("", rtr)
@@ -162,7 +173,17 @@ func main() {
 	 * Oauth setup
 	 */
 
-	oauthapi := oauth2.InitApi(config.Oauth2, oauth2.NewOAuthStorage(&config.Mongo), userClient, permsClient)
+	oauthStore := oauth2.NewOAuthStorage(&config.Mongo)
+	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+
+	err = oauthStore.WithContext(ctx).EnsureIndexes()
+	if err != nil {
+		logger.Fatal(err)
+	} else {
+		cancel()
+	}
+
+	oauthapi := oauth2.InitApi(config.Oauth2, oauthStore, userClient, permsClient)
 	oauthapi.SetHandlers("", rtr)
 
 	oauthClient := oauth2.NewOAuth2Client(oauthapi)
