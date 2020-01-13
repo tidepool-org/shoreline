@@ -141,8 +141,9 @@ func (msc *MongoStoreClient) FindUsers(user *User) (results []*User, err error) 
 		fieldsToMatch = append(fieldsToMatch, bson.M{"userid": user.Id})
 	}
 	if user.Username != "" {
-		//case insensitive match
-		// FIXME: should use an index with collation, not a case-insensitive regex, since that won't use an index
+		// case insensitive match
+		// TODO: should use an index with collation, not a case-insensitive regex, since that won't use an index
+		// However, we need MongoDB 3.2 to do this. See https://tidepool.atlassian.net/browse/BACK-1133
 		fieldsToMatch = append(fieldsToMatch,
 			bson.M{"username": bson.M{"$regex": primitive.Regex{Pattern: fmt.Sprintf(MATCH, regexp.QuoteMeta(user.Username)), Options: "i"}}},
 		)
