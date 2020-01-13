@@ -1,7 +1,5 @@
 # github.com/DataDog/zstd v1.4.4
 github.com/DataDog/zstd
-# github.com/RangelReale/osin v1.0.1
-github.com/RangelReale/osin
 # github.com/SpeakData/minimarketo v0.0.0-20170821092521-29339e452f44
 github.com/SpeakData/minimarketo
 # github.com/codegangsta/cli v1.20.0
@@ -18,12 +16,8 @@ github.com/globalsign/mgo/internal/scram
 github.com/go-stack/stack
 # github.com/golang/snappy v0.0.1
 github.com/golang/snappy
-# github.com/google/uuid v1.1.1
-github.com/google/uuid
 # github.com/gorilla/mux v1.7.3
 github.com/gorilla/mux
-# github.com/pborman/uuid v0.0.0-20180906182336-adf5a7427709
-github.com/pborman/uuid
 # github.com/pkg/errors v0.8.1
 github.com/pkg/errors
 # github.com/tidepool-org/go-common v0.5.0
