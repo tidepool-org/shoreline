@@ -1,5 +1,6 @@
 package user
 
+// Storage interface
 type Storage interface {
 	Ping() error
 	UpsertUser(user *User) error

@@ -665,7 +665,7 @@ func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars 
 func (a *Api) Logout(res http.ResponseWriter, req *http.Request) {
 	if id := req.Header.Get(TP_SESSION_TOKEN); id != "" {
 		if err := a.Store.RemoveTokenByID(id); err != nil {
-			//sliently fail but still log it
+			//silently fail but still log it
 			a.logger.Println("Logout was unable to delete token", err.Error())
 		}
 	}
