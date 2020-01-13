@@ -6,7 +6,7 @@ require (
 	github.com/DataDog/zstd v1.4.4 // indirect
 	github.com/SpeakData/minimarketo v0.0.0-20170821092521-29339e452f44
 	github.com/cpuguy83/go-md2man/v2 v2.0.0 // indirect
-	github.com/dgrijalva/jwt-go v1.0.2
+	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/go-stack/stack v1.8.0 // indirect
 	github.com/golang/snappy v0.0.1 // indirect
 	github.com/google/go-cmp v0.4.0 // indirect

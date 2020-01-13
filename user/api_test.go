@@ -1983,7 +1983,7 @@ func Test_AuthenticateSessionToken_Invalid(t *testing.T) {
 	if err == nil {
 		t.Fatalf("Unexpected success")
 	}
-	if err.Error() != "Token contains an invalid number of segments" {
+	if err.Error() != "token contains an invalid number of segments" {
 		t.Fatalf("Unexpected error: %s", err.Error())
 	}
 	if tokenData != nil {
