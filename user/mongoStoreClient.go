@@ -112,7 +112,7 @@ func (msc *MongoStoreClient) UpsertUser(user *User) error {
 
 	// if the user already exists we update otherwise we add
 	opts := options.FindOneAndUpdate().SetUpsert(true)
-	result := usersCollection(msc).FindOneAndUpdate(msc.context, bson.M{"userid": user.Id}, user, opts)
+	result := usersCollection(msc).FindOneAndUpdate(msc.context, bson.M{"userid": user.Id}, bson.D{{Key: "$set", Value: user}}, opts)
 	if result.Err() != mongo.ErrNoDocuments {
 		return result.Err()
 	}
@@ -143,7 +143,9 @@ func (msc *MongoStoreClient) FindUsers(user *User) (results []*User, err error) 
 	if user.Username != "" {
 		//case insensitive match
 		// FIXME: should use an index with collation, not a case-insensitive regex, since that won't use an index
-		fieldsToMatch = append(fieldsToMatch, bson.M{"username": bson.M{"$regex": primitive.Regex{fmt.Sprintf(MATCH, regexp.QuoteMeta(user.Username)), "i"}}})
+		fieldsToMatch = append(fieldsToMatch,
+			bson.M{"username": bson.M{"$regex": primitive.Regex{Pattern: fmt.Sprintf(MATCH, regexp.QuoteMeta(user.Username)), Options: "i"}}},
+		)
 	}
 	if len(user.Emails) > 0 {
 		fieldsToMatch = append(fieldsToMatch, bson.M{"emails": bson.M{"$in": user.Emails}})
@@ -162,7 +164,6 @@ func (msc *MongoStoreClient) FindUsers(user *User) (results []*User, err error) 
 		return results, err
 	}
 
-	// TODO: does mongo-go-driver set results to nil?
 	if results == nil {
 		log.Printf("no users found: query: (Id = %v) OR (Name ~= %v) OR (Emails IN %v)", user.Id, user.Username, user.Emails)
 		results = []*User{}
@@ -182,7 +183,6 @@ func (msc *MongoStoreClient) FindUsersByRole(role string) (results []*User, err 
 		return results, err
 	}
 
-	// TODO: does mongo-go-driver set results to nil?
 	if results == nil {
 		log.Printf("no users found: query: role: %v", role)
 		results = []*User{}
@@ -202,7 +202,6 @@ func (msc *MongoStoreClient) FindUsersWithIds(ids []string) (results []*User, er
 		return results, err
 	}
 
-	// TODO: does mongo-go-driver set results to nil?
 	if results == nil {
 		log.Printf("no users found: query: id: %v", ids)
 		results = []*User{}
@@ -224,7 +223,7 @@ func (msc *MongoStoreClient) RemoveUser(user *User) (err error) {
 func (msc *MongoStoreClient) AddToken(st *SessionToken) error {
 	// if the token already exists we update otherwise we add
 	opts := options.FindOneAndUpdate().SetUpsert(true)
-	result := tokensCollection(msc).FindOneAndUpdate(msc.context, bson.M{"_id": st.ID}, st, opts)
+	result := tokensCollection(msc).FindOneAndUpdate(msc.context, bson.M{"_id": st.ID}, bson.D{{Key: "$set", Value: st}}, opts)
 	if result.Err() != mongo.ErrNoDocuments {
 		return result.Err()
 	}
