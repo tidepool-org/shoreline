@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"os"
 
-	"github.com/codegangsta/cli"
+	"github.com/urfave/cli"
 
 	"github.com/tidepool-org/go-common/clients/shoreline"
 )
