@@ -3,7 +3,7 @@ FROM golang:1.12.7-alpine AS development
 WORKDIR /go/src/github.com/tidepool-org/shoreline
 RUN adduser -D tidepool && \
     chown -R tidepool /go/src/github.com/tidepool-org/shoreline
-RUN apk add --no-cache git
+RUN apk add --no-cache git gcc
 USER tidepool
 COPY --chown=tidepool . .
 RUN ./build.sh
