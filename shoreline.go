@@ -19,7 +19,6 @@ import (
 	"github.com/tidepool-org/go-common/clients/hakken"
 	"github.com/tidepool-org/go-common/clients/highwater"
 	"github.com/tidepool-org/go-common/clients/mongo"
-	"github.com/tidepool-org/shoreline/oauth2"
 	"github.com/tidepool-org/shoreline/user"
 	"github.com/tidepool-org/shoreline/user/marketo"
 )
@@ -30,7 +29,6 @@ type (
 		Service disc.ServiceListing `json:"service"`
 		Mongo   mongo.Config        `json:"mongo"`
 		User    user.ApiConfig      `json:"user"`
-		Oauth2  oauth2.ApiConfig    `json:"oauth2"`
 	}
 )
 
@@ -168,27 +166,6 @@ func main() {
 		Build()
 
 	userapi.AttachPerms(permsClient)
-
-	/*
-	 * Oauth setup
-	 */
-
-	oauthStore := oauth2.NewOAuthStorage(&config.Mongo)
-	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
-
-	err = oauthStore.WithContext(ctx).EnsureIndexes()
-	if err != nil {
-		logger.Fatal(err)
-	} else {
-		cancel()
-	}
-
-	oauthapi := oauth2.InitApi(config.Oauth2, oauthStore, userClient, permsClient)
-	oauthapi.SetHandlers("", rtr)
-
-	oauthClient := oauth2.NewOAuth2Client(oauthapi)
-
-	userapi.AttachOauth(oauthClient)
 
 	/*
 	 * Serve it up and publish
