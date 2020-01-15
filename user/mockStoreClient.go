@@ -1,6 +1,9 @@
 package user
 
-import "errors"
+import (
+	"context"
+	"errors"
+)
 
 type MockStoreClient struct {
 	salt            string
@@ -12,7 +15,7 @@ func NewMockStoreClient(salt string, returnDifferent, doBad bool) *MockStoreClie
 	return &MockStoreClient{salt: salt, doBad: doBad, returnDifferent: returnDifferent}
 }
 
-func (d MockStoreClient) Close() {}
+func (d *MockStoreClient) WithContext(ctx context.Context) *MongoStoreClient { return nil }
 
 func (d MockStoreClient) Ping() error {
 	if d.doBad {

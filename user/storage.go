@@ -1,8 +1,11 @@
 package user
 
+import "context"
+
 // Storage interface
 type Storage interface {
 	Ping() error
+	WithContext(ctx context.Context) *MongoStoreClient
 	UpsertUser(user *User) error
 	FindUser(user *User) (*User, error)
 	FindUsers(user *User) ([]*User, error)
