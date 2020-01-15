@@ -70,7 +70,13 @@ func (r *ResponsableMockStoreClient) Reset() {
 	r.RemoveTokenByIDResponses = nil
 }
 
-func (r *ResponsableMockStoreClient) WithContext(ctx context.Context) *MongoStoreClient { return nil }
+func (r *ResponsableMockStoreClient) EnsureIndexes() error { return nil }
+
+func (r *ResponsableMockStoreClient) WithContext(ctx context.Context) Storage {
+	// For mock clients, return itself, since the mock client has state
+	// for testing that we need to preserve.
+	return r
+}
 
 func (r *ResponsableMockStoreClient) Ping() (err error) {
 	if len(r.PingResponses) > 0 {
