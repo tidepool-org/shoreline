@@ -1,5 +1,7 @@
 package user
 
+import "context"
+
 type FindUsersResponse struct {
 	Users []*User
 	Error error
@@ -68,8 +70,7 @@ func (r *ResponsableMockStoreClient) Reset() {
 	r.RemoveTokenByIDResponses = nil
 }
 
-func (r *ResponsableMockStoreClient) Close() {
-}
+func (r *ResponsableMockStoreClient) WithContext(ctx context.Context) *MongoStoreClient { return nil }
 
 func (r *ResponsableMockStoreClient) Ping() (err error) {
 	if len(r.PingResponses) > 0 {
