@@ -50,7 +50,7 @@ func NewMongoStoreClient(config *tpMongo.Config) *MongoStoreClient {
 
 // WithContext returns a shallow copy of c with its context changed
 // to ctx. The provided ctx must be non-nil.
-func (msc *MongoStoreClient) WithContext(ctx context.Context) *MongoStoreClient {
+func (msc *MongoStoreClient) WithContext(ctx context.Context) Storage {
 	if ctx == nil {
 		panic("nil context")
 	}
