@@ -33,7 +33,7 @@ $ source gotest
 
 ### Tests for a specific package
 
-Go into the package directory e.g. `oauth2` then use `go test -v` within that directory.
+Go into the package directory e.g. `user` then use `go test -v` within that directory.
 
 ## Config
 

@@ -1,84 +1,128 @@
 package user
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"regexp"
 	"sort"
+	"time"
 
-	"github.com/globalsign/mgo"
-	"github.com/globalsign/mgo/bson"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 
-	"github.com/tidepool-org/go-common/clients/mongo"
+	tpMongo "github.com/tidepool-org/go-common/clients/mongo"
 )
 
 const (
-	USERS_COLLECTION  = "users"
-	TOKENS_COLLECTION = "tokens"
+	usersCollectionName  = "users"
+	tokensCollectionName = "tokens"
+	userStoreAPIPrefix   = "api/user/store"
 )
 
+// MongoStoreClient - Mongo Storage Client
 type MongoStoreClient struct {
-	session *mgo.Session
+	client   *mongo.Client
+	context  context.Context
+	database string
 }
 
-//We implement the interface from user.Storage
-func NewMongoStoreClient(config *mongo.Config) *MongoStoreClient {
-
-	mongoSession, err := mongo.Connect(config)
+// NewMongoStoreClient creates a new MongoStoreClient
+func NewMongoStoreClient(config *tpMongo.Config) *MongoStoreClient {
+	connectionString, err := config.ToConnectionString()
 	if err != nil {
-		log.Fatalf("Cannot connect to mongo: %v, %v", config, err)
+		log.Fatal(userStoreAPIPrefix, err)
+	}
+
+	clientOptions := options.Client().ApplyURI(connectionString)
+	mongoClient, err := mongo.Connect(context.TODO(), clientOptions)
+	if err != nil {
+		log.Fatal(userStoreAPIPrefix, err)
 	}
 
 	return &MongoStoreClient{
-		session: mongoSession,
+		client:   mongoClient,
+		context:  context.Background(),
+		database: config.Database,
 	}
 }
 
-func mgoUsersCollection(cpy *mgo.Session) *mgo.Collection {
-	return cpy.DB("").C(USERS_COLLECTION)
-}
-
-func mgoTokensCollection(cpy *mgo.Session) *mgo.Collection {
-	return cpy.DB("").C(TOKENS_COLLECTION)
-}
-
-func (d MongoStoreClient) Close() {
-	log.Print(USER_API_PREFIX, "Close the session")
-	d.session.Close()
-	return
-}
-
-func (d MongoStoreClient) Ping() error {
-	// do we have a store session
-	if err := d.session.Ping(); err != nil {
-		return err
+// WithContext returns a shallow copy of c with its context changed
+// to ctx. The provided ctx must be non-nil.
+func (msc *MongoStoreClient) WithContext(ctx context.Context) Storage {
+	if ctx == nil {
+		panic("nil context")
 	}
+	msc2 := new(MongoStoreClient)
+	*msc2 = *msc
+	msc2.context = ctx
+	return msc2
+}
+
+// EnsureIndexes - make sure indexes exist for the MongoDB collection
+func (msc *MongoStoreClient) EnsureIndexes() error {
+	indexes := []mongo.IndexModel{
+		{
+			Keys: bson.D{{Key: "userid", Value: 1}},
+			Options: options.Index().
+				SetBackground(true),
+		},
+		{
+			Keys: bson.D{{Key: "username", Value: 1}},
+			Options: options.Index().
+				SetBackground(true),
+		},
+		{
+			Keys: bson.D{{Key: "emails", Value: 1}},
+			Options: options.Index().
+				SetBackground(true),
+		},
+	}
+
+	opts := options.CreateIndexes().SetMaxTime(10 * time.Second)
+
+	if _, err := usersCollection(msc).Indexes().CreateMany(msc.context, indexes, opts); err != nil {
+		log.Fatal(userStoreAPIPrefix, err)
+	}
+
 	return nil
 }
 
-func (d MongoStoreClient) UpsertUser(user *User) error {
+func usersCollection(msc *MongoStoreClient) *mongo.Collection {
+	return msc.client.Database(msc.database).Collection(usersCollectionName)
+}
 
-	cpy := d.session.Copy()
-	defer cpy.Close()
+func tokensCollection(msc *MongoStoreClient) *mongo.Collection {
+	return msc.client.Database(msc.database).Collection(tokensCollectionName)
+}
 
+// Ping the MongoDB database
+func (msc *MongoStoreClient) Ping() error {
+	// do we have a store session
+	return msc.client.Ping(msc.context, nil)
+}
+
+// UpsertUser - Update an existing user's details, or insert a new user if the user doesn't already exist.
+func (msc *MongoStoreClient) UpsertUser(user *User) error {
 	if user.Roles != nil {
 		sort.Strings(user.Roles)
 	}
 
 	// if the user already exists we update otherwise we add
-	if _, err := mgoUsersCollection(cpy).Upsert(bson.M{"userid": user.Id}, user); err != nil {
-		return err
+	opts := options.FindOneAndUpdate().SetUpsert(true)
+	result := usersCollection(msc).FindOneAndUpdate(msc.context, bson.M{"userid": user.Id}, bson.D{{Key: "$set", Value: user}}, opts)
+	if result.Err() != mongo.ErrNoDocuments {
+		return result.Err()
 	}
 	return nil
 }
 
-func (d MongoStoreClient) FindUser(user *User) (result *User, err error) {
-
+// FindUser - find and return an existing user
+func (msc *MongoStoreClient) FindUser(user *User) (result *User, err error) {
 	if user.Id != "" {
-		cpy := d.session.Copy()
-		defer cpy.Close()
-
-		if err = mgoUsersCollection(cpy).Find(bson.M{"userid": user.Id}).One(&result); err != nil {
+		if err = usersCollection(msc).FindOne(msc.context, bson.M{"userid": user.Id}).Decode(&result); err != nil {
 			return result, err
 		}
 	}
@@ -86,8 +130,8 @@ func (d MongoStoreClient) FindUser(user *User) (result *User, err error) {
 	return result, nil
 }
 
-func (d MongoStoreClient) FindUsers(user *User) (results []*User, err error) {
-
+// FindUsers - find and return multiple existing users
+func (msc *MongoStoreClient) FindUsers(user *User) (results []*User, err error) {
 	fieldsToMatch := []bson.M{}
 	const (
 		MATCH = `^%s$`
@@ -97,8 +141,12 @@ func (d MongoStoreClient) FindUsers(user *User) (results []*User, err error) {
 		fieldsToMatch = append(fieldsToMatch, bson.M{"userid": user.Id})
 	}
 	if user.Username != "" {
-		//case insensitive match
-		fieldsToMatch = append(fieldsToMatch, bson.M{"username": bson.M{"$regex": bson.RegEx{fmt.Sprintf(MATCH, regexp.QuoteMeta(user.Username)), "i"}}})
+		// case insensitive match
+		// TODO: should use an index with collation, not a case-insensitive regex, since that won't use an index
+		// However, we need MongoDB 3.2 to do this. See https://tidepool.atlassian.net/browse/BACK-1133
+		fieldsToMatch = append(fieldsToMatch,
+			bson.M{"username": bson.M{"$regex": primitive.Regex{Pattern: fmt.Sprintf(MATCH, regexp.QuoteMeta(user.Username)), Options: "i"}}},
+		)
 	}
 	if len(user.Emails) > 0 {
 		fieldsToMatch = append(fieldsToMatch, bson.M{"emails": bson.M{"$in": user.Emails}})
@@ -108,10 +156,12 @@ func (d MongoStoreClient) FindUsers(user *User) (results []*User, err error) {
 		return []*User{}, nil
 	}
 
-	cpy := d.session.Copy()
-	defer cpy.Close()
+	cursor, err := usersCollection(msc).Find(msc.context, bson.M{"$or": fieldsToMatch})
+	if err != nil {
+		return nil, err
+	}
 
-	if err = mgoUsersCollection(cpy).Find(bson.M{"$or": fieldsToMatch}).All(&results); err != nil {
+	if err = cursor.All(msc.context, &results); err != nil {
 		return results, err
 	}
 
@@ -123,11 +173,14 @@ func (d MongoStoreClient) FindUsers(user *User) (results []*User, err error) {
 	return results, nil
 }
 
-func (d MongoStoreClient) FindUsersByRole(role string) (results []*User, err error) {
-	cpy := d.session.Copy()
-	defer cpy.Close()
+// FindUsersByRole - find and return multiple users matching a Role
+func (msc *MongoStoreClient) FindUsersByRole(role string) (results []*User, err error) {
+	cursor, err := usersCollection(msc).Find(msc.context, bson.M{"roles": role})
+	if err != nil {
+		return nil, err
+	}
 
-	if err = mgoUsersCollection(cpy).Find(bson.M{"roles": role}).All(&results); err != nil {
+	if err = cursor.All(msc.context, &results); err != nil {
 		return results, err
 	}
 
@@ -139,11 +192,14 @@ func (d MongoStoreClient) FindUsersByRole(role string) (results []*User, err err
 	return results, nil
 }
 
-func (d MongoStoreClient) FindUsersWithIds(ids []string) (results []*User, err error) {
-	cpy := d.session.Copy()
-	defer cpy.Close()
+// FindUsersWithIds - find and return multiple users by Tidepool User ID
+func (msc *MongoStoreClient) FindUsersWithIds(ids []string) (results []*User, err error) {
+	cursor, err := usersCollection(msc).Find(msc.context, bson.M{"userid": bson.M{"$in": ids}})
+	if err != nil {
+		return nil, err
+	}
 
-	if err = mgoUsersCollection(cpy).Find(bson.M{"userid": bson.M{"$in": ids}}).All(&results); err != nil {
+	if err = cursor.All(msc.context, &results); err != nil {
 		return results, err
 	}
 
@@ -155,46 +211,42 @@ func (d MongoStoreClient) FindUsersWithIds(ids []string) (results []*User, err e
 	return results, nil
 }
 
-func (d MongoStoreClient) RemoveUser(user *User) (err error) {
-	cpy := d.session.Copy()
-	defer cpy.Close()
-
-	if err = mgoUsersCollection(cpy).Remove(bson.M{"userid": user.Id}); err != nil {
-		return err
+// RemoveUser - Remove a user from the database
+func (msc *MongoStoreClient) RemoveUser(user *User) (err error) {
+	result := usersCollection(msc).FindOneAndDelete(msc.context, bson.M{"userid": user.Id})
+	if result.Err() != mongo.ErrNoDocuments {
+		return result.Err()
 	}
 	return nil
 }
 
-func (d MongoStoreClient) AddToken(st *SessionToken) error {
-	cpy := d.session.Copy()
-	defer cpy.Close()
-
-	if _, err := mgoTokensCollection(cpy).Upsert(bson.M{"_id": st.ID}, st); err != nil {
-		return err
+// AddToken to the token collection
+func (msc *MongoStoreClient) AddToken(st *SessionToken) error {
+	// if the token already exists we update otherwise we add
+	opts := options.FindOneAndUpdate().SetUpsert(true)
+	result := tokensCollection(msc).FindOneAndUpdate(msc.context, bson.M{"_id": st.ID}, bson.D{{Key: "$set", Value: st}}, opts)
+	if result.Err() != mongo.ErrNoDocuments {
+		return result.Err()
 	}
 
 	return nil
 }
 
-func (d MongoStoreClient) FindTokenByID(id string) (*SessionToken, error) {
-	cpy := d.session.Copy()
-	defer cpy.Close()
-
+// FindTokenByID - find an auth token by its ID
+func (msc *MongoStoreClient) FindTokenByID(id string) (*SessionToken, error) {
 	sessionToken := &SessionToken{}
-	if err := mgoTokensCollection(cpy).Find(bson.M{"_id": id}).One(&sessionToken); err != nil {
+	if err := tokensCollection(msc).FindOne(msc.context, bson.M{"_id": id}).Decode(&sessionToken); err != nil {
 		return nil, err
 	}
 
 	return sessionToken, nil
 }
 
-func (d MongoStoreClient) RemoveTokenByID(id string) (err error) {
-	cpy := d.session.Copy()
-	defer cpy.Close()
-
-	if err = mgoTokensCollection(cpy).Remove(bson.M{"_id": id}); err != nil {
-		return err
+// RemoveTokenByID - delete an auth token matching an ID
+func (msc *MongoStoreClient) RemoveTokenByID(id string) (err error) {
+	result := tokensCollection(msc).FindOneAndDelete(msc.context, bson.M{"_id": id})
+	if result.Err() != mongo.ErrNoDocuments {
+		return result.Err()
 	}
-
 	return nil
 }
