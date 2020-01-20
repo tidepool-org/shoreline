@@ -19,7 +19,7 @@ import (
 const (
 	usersCollectionName  = "users"
 	tokensCollectionName = "tokens"
-	userStoreAPIPrefix   = "api/user/store"
+	userStoreAPIPrefix   = "api/user/store "
 )
 
 // MongoStoreClient - Mongo Storage Client

@@ -35,6 +35,9 @@ type (
 func main() {
 	var config Config
 	logger := log.New(os.Stdout, user.USER_API_PREFIX, log.LstdFlags|log.Lshortfile)
+	log.SetOutput(os.Stdout)
+	log.SetPrefix(user.USER_API_PREFIX)
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
 	if err := common.LoadEnvironmentConfig([]string{"TIDEPOOL_SHORELINE_ENV", "TIDEPOOL_SHORELINE_SERVICE"}, &config); err != nil {
 		logger.Panic("Problem loading Shoreline config", err)
