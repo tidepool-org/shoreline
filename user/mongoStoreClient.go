@@ -33,13 +33,13 @@ type MongoStoreClient struct {
 func NewMongoStoreClient(config *tpMongo.Config) *MongoStoreClient {
 	connectionString, err := config.ToConnectionString()
 	if err != nil {
-		log.Fatal(userStoreAPIPrefix, err)
+		log.Fatal(userStoreAPIPrefix, fmt.Sprintf("Invalid MongoDB configuration: %s", err))
 	}
 
 	clientOptions := options.Client().ApplyURI(connectionString)
-	mongoClient, err := mongo.Connect(context.TODO(), clientOptions)
+	mongoClient, err := mongo.Connect(context.Background(), clientOptions)
 	if err != nil {
-		log.Fatal(userStoreAPIPrefix, err)
+		log.Fatal(userStoreAPIPrefix, fmt.Sprintf("Invalid MongoDB connection string: %s", err))
 	}
 
 	return &MongoStoreClient{
@@ -61,7 +61,8 @@ func (msc *MongoStoreClient) WithContext(ctx context.Context) Storage {
 	return msc2
 }
 
-// EnsureIndexes - make sure indexes exist for the MongoDB collection
+// EnsureIndexes exist for the MongoDB collection. EnsureIndexes uses the Background() context, in order
+// to pass back the MongoDB errors, rather than any context errors.
 func (msc *MongoStoreClient) EnsureIndexes() error {
 	indexes := []mongo.IndexModel{
 		{
@@ -83,8 +84,8 @@ func (msc *MongoStoreClient) EnsureIndexes() error {
 
 	opts := options.CreateIndexes().SetMaxTime(10 * time.Second)
 
-	if _, err := usersCollection(msc).Indexes().CreateMany(msc.context, indexes, opts); err != nil {
-		log.Fatal(userStoreAPIPrefix, err)
+	if _, err := usersCollection(msc).Indexes().CreateMany(context.Background(), indexes, opts); err != nil {
+		log.Fatal(userStoreAPIPrefix, fmt.Sprintf("Unable to create indexes: %s", err))
 	}
 
 	return nil
@@ -102,6 +103,11 @@ func tokensCollection(msc *MongoStoreClient) *mongo.Collection {
 func (msc *MongoStoreClient) Ping() error {
 	// do we have a store session
 	return msc.client.Ping(msc.context, nil)
+}
+
+// Disconnect from the MongoDB database
+func (msc *MongoStoreClient) Disconnect() error {
+	return msc.client.Disconnect(msc.context)
 }
 
 // UpsertUser - Update an existing user's details, or insert a new user if the user doesn't already exist.
