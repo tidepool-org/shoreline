@@ -33,7 +33,6 @@ type (
 func main() {
 	var config Config
 	logger := log.New(os.Stdout, user.USER_API_PREFIX, log.LstdFlags|log.Lshortfile)
-	log.SetOutput(os.Stdout)
 	log.SetPrefix(user.USER_API_PREFIX)
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
