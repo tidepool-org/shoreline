@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"crypto/tls"
 	"log"
 	"net/http"
@@ -9,7 +8,6 @@ import (
 	"os/signal"
 	"strconv"
 	"syscall"
-	"time"
 
 	"github.com/gorilla/mux"
 
@@ -35,6 +33,8 @@ type (
 func main() {
 	var config Config
 	logger := log.New(os.Stdout, user.USER_API_PREFIX, log.LstdFlags|log.Lshortfile)
+	log.SetPrefix(user.USER_API_PREFIX)
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
 	if err := common.LoadEnvironmentConfig([]string{"TIDEPOOL_SHORELINE_ENV", "TIDEPOOL_SHORELINE_SERVICE"}, &config); err != nil {
 		logger.Panic("Problem loading Shoreline config", err)
@@ -143,14 +143,8 @@ func main() {
 	}
 
 	clientStore := user.NewMongoStoreClient(&config.Mongo)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-
-	err := clientStore.WithContext(ctx).EnsureIndexes()
-	if err != nil {
-		logger.Fatal(err)
-	} else {
-		cancel()
-	}
+	defer clientStore.Disconnect()
+	clientStore.EnsureIndexes()
 
 	userapi := user.InitApi(config.User, logger, clientStore, highwater, marketoManager)
 	logger.Print("installing handlers")
