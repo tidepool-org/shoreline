@@ -6,7 +6,6 @@ import (
 	"log"
 	"regexp"
 	"sort"
-	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -82,9 +81,7 @@ func (msc *MongoStoreClient) EnsureIndexes() error {
 		},
 	}
 
-	opts := options.CreateIndexes().SetMaxTime(10 * time.Second)
-
-	if _, err := usersCollection(msc).Indexes().CreateMany(context.Background(), indexes, opts); err != nil {
+	if _, err := usersCollection(msc).Indexes().CreateMany(context.Background(), indexes); err != nil {
 		log.Fatal(userStoreAPIPrefix, fmt.Sprintf("Unable to create indexes: %s", err))
 	}
 
