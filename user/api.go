@@ -25,6 +25,10 @@ import (
 )
 
 var (
+	failedMarketoUploadCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "failedMarketoUploadCounter",
+		Help: "The total number of failure to connections to marketo due to errors",
+	})
 	statusNoUsrDetailsCounter = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "statusNoUsrDetailsCounter",
 		Help: "The total number of STATUS_NO_USR_DETAILS errors",
@@ -479,13 +483,13 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 			}
 
 			if updatedUser.EmailVerified && updatedUser.TermsAccepted != "" {
-				if a.marketoManager != nil {
+				if a.marketoManager.IsAvailable() {
 					if updateUserDetails.EmailVerified != nil || updateUserDetails.TermsAccepted != nil {
 						a.marketoManager.CreateListMembershipForUser(updatedUser)
 					} else {
 						a.marketoManager.UpdateListMembershipForUser(originalUser, updatedUser)
 					}
-				}
+				} else {failedMarketoUploadCounter.Inc()}
 			}
 			a.logMetricForUser(updatedUser.Id, "userupdated", sessionToken, map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
 			a.sendUser(res, updatedUser, tokenData.IsServer)

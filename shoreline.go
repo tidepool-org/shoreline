@@ -134,9 +134,7 @@ func main() {
 		logger.Println("WARNING: Marketo config is invalid", err)
 	} else {
 		logger.Print("initializing marketo manager")
-		miniConfig := marketo.Miniconfig(config.User.Marketo)
-		client, err := marketo.Client(miniConfig)
-		marketoManager, err = marketo.NewManager(logger, &config.User.Marketo, client)
+		marketoManager, err = marketo.NewManager(logger, &config.User.Marketo)
 		if err != nil {
 			logger.Println("WARNING: Marketo Manager not configured;", err)
 		}
