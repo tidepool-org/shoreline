@@ -121,7 +121,8 @@ func Test_NewManager_Logger_Missing(t *testing.T) {
 	defer x.Close()
 	config := NewTestConfig(t, x)
 	manager, err := marketo.NewManager(nil, config)
-	if manager != nil {
+
+	if manager.IsAvailable() {
 		t.Fatal("NewManager returned manager when error expected")
 	}
 	if err == nil {
@@ -138,7 +139,7 @@ func Test_NewManager_Client_Missing(t *testing.T) {
 	defer x.Close()
 	config := NewTestConfig(t, x)
 	manager, err := marketo.NewManager(logger, config)
-	if manager != nil {
+	if manager.IsAvailable() {
 		t.Fatal("NewManager returned manager when error expected")
 	}
 	if err == nil {
@@ -154,7 +155,7 @@ func Test_NewManager_Config_Missing(t *testing.T) {
 	x := MockServer(t)
 	defer x.Close()
 	manager, err := marketo.NewManager(logger, nil)
-	if manager != nil {
+	if manager.IsAvailable() {
 		t.Fatal("NewManager returned manager when error expected")
 	}
 	if err == nil {
