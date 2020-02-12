@@ -173,7 +173,7 @@ func Test_NewManager_Config_Invalid(t *testing.T) {
 	config := NewTestConfig(t, x)
 	config.URL = ""
 	manager, err := marketo.NewManager(logger, config)
-	if manager != nil {
+	if manager.IsAvailable() {
 		t.Fatal("NewManager returned manager when error expected")
 	}
 	if err == nil {
