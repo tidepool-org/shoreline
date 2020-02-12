@@ -120,8 +120,7 @@ func Test_NewManager_Logger_Missing(t *testing.T) {
 	x := MockServer(t)
 	defer x.Close()
 	config := NewTestConfig(t, x)
-	client, err := marketo.Client(marketo.Miniconfig(*config))
-	manager, err := marketo.NewManager(nil, config, client)
+	manager, err := marketo.NewManager(nil, config)
 	if manager != nil {
 		t.Fatal("NewManager returned manager when error expected")
 	}
@@ -138,7 +137,7 @@ func Test_NewManager_Client_Missing(t *testing.T) {
 	x := MockServer(t)
 	defer x.Close()
 	config := NewTestConfig(t, x)
-	manager, err := marketo.NewManager(logger, config, nil)
+	manager, err := marketo.NewManager(logger, config)
 	if manager != nil {
 		t.Fatal("NewManager returned manager when error expected")
 	}
@@ -154,9 +153,7 @@ func Test_NewManager_Config_Missing(t *testing.T) {
 	logger := log.New(ioutil.Discard, "", log.LstdFlags)
 	x := MockServer(t)
 	defer x.Close()
-	config := NewTestConfig(t, x)
-	client, err := marketo.Client(marketo.Miniconfig(*config))
-	manager, err := marketo.NewManager(logger, nil, client)
+	manager, err := marketo.NewManager(logger, nil)
 	if manager != nil {
 		t.Fatal("NewManager returned manager when error expected")
 	}
@@ -173,9 +170,8 @@ func Test_NewManager_Config_Invalid(t *testing.T) {
 	x := MockServer(t)
 	defer x.Close()
 	config := NewTestConfig(t, x)
-	client, err := marketo.Client(marketo.Miniconfig(*config))
 	config.URL = ""
-	manager, err := marketo.NewManager(logger, config, client)
+	manager, err := marketo.NewManager(logger, config)
 	if manager != nil {
 		t.Fatal("NewManager returned manager when error expected")
 	}
@@ -192,8 +188,7 @@ func Test_NewManager_Success(t *testing.T) {
 	x := MockServer(t)
 	defer x.Close()
 	config := NewTestConfig(t, x)
-	client, err := marketo.Client(marketo.Miniconfig(*config))
-	manager, err := marketo.NewManager(logger, config, client)
+	manager, err := marketo.NewManager(logger, config)
 	if manager == nil {
 		t.Fatal("NewManager did not return manager when success expected")
 	}
@@ -274,8 +269,7 @@ func Test_CreateListMembershipForUser_NewUser_Match_Personal(t *testing.T) {
 	defer ts.Close()
 	logger := log.New(ioutil.Discard, "", log.LstdFlags)
 	config := NewTestConfig(t, ts)
-	client, _ := marketo.Client(marketo.Miniconfig(*config))
-	manager, _ := marketo.NewManager(logger, config, client)
+	manager, _ := marketo.NewManager(logger, config)
 	var s = manager.(*marketo.Connector)
 	newUserMock := NewUserMock()
 	newUserMock.EmailStub = func() string { return "tester@example.com" }
@@ -329,8 +323,7 @@ func Test_CreateListMembershipForUser_NewUser_Match_Clinic(t *testing.T) {
 	defer ts.Close()
 	logger := log.New(ioutil.Discard, "", log.LstdFlags)
 	config := NewTestConfig(t, ts)
-	client, _ := marketo.Client(marketo.Miniconfig(*config))
-	manager, _ := marketo.NewManager(logger, config, client)
+	manager, _ := marketo.NewManager(logger, config)
 	var s = manager.(*marketo.Connector)
 	newUserMock := NewUserMock()
 	newUserMock.EmailStub = func() string { return "tester@example.com" }
@@ -538,8 +531,7 @@ func Test_UpdateListMember(t *testing.T) {
 	defer ts.Close()
 	logger := log.New(ioutil.Discard, "", log.LstdFlags)
 	config := NewTestConfig(t, ts)
-	client, _ := marketo.Client(marketo.Miniconfig(*config))
-	manager, _ := marketo.NewManager(logger, config, client)
+	manager, _ := marketo.NewManager(logger, config)
 	var s = manager.(*marketo.Connector)
 	var addOrUpdateMember = s.UpsertListMember(userType, email, newEmail)
 	if addOrUpdateMember != nil {
@@ -629,8 +621,7 @@ func Test_CreateListMember(t *testing.T) {
 	defer ts.Close()
 	logger := log.New(ioutil.Discard, "", log.LstdFlags)
 	config := NewTestConfig(t, ts)
-	client, _ := marketo.Client(marketo.Miniconfig(*config))
-	manager, _ := marketo.NewManager(logger, config, client)
+	manager, _ := marketo.NewManager(logger, config)
 	var s = manager.(*marketo.Connector)
 	var addOrUpdateMember = s.UpsertListMember(userType, email, newEmail)
 	if addOrUpdateMember != nil {
@@ -818,8 +809,7 @@ func NewTestManagerWithClientMock(t *testing.T) marketo.Manager {
 	x := MockServer(t)
 	defer x.Close()
 	config := NewTestConfig(t, x)
-	client, err := marketo.Client(marketo.Miniconfig(*config))
-	manager, _ := marketo.NewManager(logger, config, client)
+	manager, err := marketo.NewManager(logger, config)
 	if manager == nil {
 		t.Fatal("NewManager did not return manager when success expected")
 	}
