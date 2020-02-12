@@ -489,7 +489,9 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 					} else {
 						a.marketoManager.UpdateListMembershipForUser(originalUser, updatedUser)
 					}
-				} else {failedMarketoUploadCounter.Inc()}
+				} else {
+					failedMarketoUploadCounter.Inc()
+				}
 			}
 			a.logMetricForUser(updatedUser.Id, "userupdated", sessionToken, map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
 			a.sendUser(res, updatedUser, tokenData.IsServer)

@@ -11,6 +11,8 @@ import (
 
 	"github.com/gorilla/mux"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	common "github.com/tidepool-org/go-common"
 	"github.com/tidepool-org/go-common/clients"
 	"github.com/tidepool-org/go-common/clients/disc"
@@ -19,15 +21,15 @@ import (
 	"github.com/tidepool-org/go-common/clients/mongo"
 	"github.com/tidepool-org/shoreline/user"
 	"github.com/tidepool-org/shoreline/user/marketo"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 )
+
 var (
 	failedMarketoKeyConfigurationCounter = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "failedMarketoKeyConfigurationCounter",
 		Help: "The total number of failures to connect to marketo due to key configuration issues. Can not be resolved via retry",
 	})
 )
+
 type (
 	Config struct {
 		clients.Config
