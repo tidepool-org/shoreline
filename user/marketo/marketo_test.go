@@ -133,39 +133,6 @@ func Test_NewManager_Logger_Missing(t *testing.T) {
 	}
 }
 
-func Test_NewManager_Client_Missing(t *testing.T) {
-	logger := log.New(ioutil.Discard, "", log.LstdFlags)
-	x := MockServer(t)
-	defer x.Close()
-	config := NewTestConfig(t, x)
-	manager, err := marketo.NewManager(logger, config)
-	if manager.IsAvailable() {
-		t.Fatal("NewManager returned manager when error expected")
-	}
-	if err == nil {
-		t.Fatal("NewManager returned successfully when error expected")
-	}
-	if err.Error() != "marketo: client is missing" {
-		t.Fatalf("NewManager error unexpected: %s", err)
-	}
-}
-
-func Test_NewManager_Config_Missing(t *testing.T) {
-	logger := log.New(ioutil.Discard, "", log.LstdFlags)
-	x := MockServer(t)
-	defer x.Close()
-	manager, err := marketo.NewManager(logger, nil)
-	if manager.IsAvailable() {
-		t.Fatal("NewManager returned manager when error expected")
-	}
-	if err == nil {
-		t.Fatal("NewManager returned successfully when error expected")
-	}
-	if err.Error() != "marketo: config is not valid; marketo: config is missing" {
-		t.Fatalf("NewManager error unexpected: %s", err)
-	}
-}
-
 func Test_NewManager_Config_Invalid(t *testing.T) {
 	logger := log.New(ioutil.Discard, "", log.LstdFlags)
 	x := MockServer(t)
@@ -667,7 +634,7 @@ func Test_FindLead(t *testing.T) {
 	}))
 	defer ts.Close()
 	config := NewTestConfig(t, ts)
-	client, err := marketo.Client(marketo.Miniconfig(*config))
+	client, err := marketo.Client(marketo.Miniconfig(config))
 	if err != nil {
 		t.Error(err)
 	}
@@ -706,7 +673,7 @@ func Test_FindLeadWithNoBody(t *testing.T) {
 	}))
 	defer ts.Close()
 	config := NewTestConfig(t, ts)
-	client, err := marketo.Client(marketo.Miniconfig(*config))
+	client, err := marketo.Client(marketo.Miniconfig(config))
 	if err != nil {
 		t.Error(err)
 	}
@@ -794,8 +761,8 @@ func MockServer(t *testing.T) (ts *httptest.Server) {
 	}))
 	return
 }
-func NewTestConfig(t *testing.T, mockServer *httptest.Server) *marketo.Config {
-	return &marketo.Config{
+func NewTestConfig(t *testing.T, mockServer *httptest.Server) marketo.Config {
+	return marketo.Config{
 		ID:          clientID,
 		URL:         mockServer.URL,
 		Secret:      clientSecret,

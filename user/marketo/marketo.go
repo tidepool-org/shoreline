@@ -66,7 +66,7 @@ type CreateData struct {
 type Connector struct {
 	logger *log.Logger
 	client minimarketo.Client
-	config *Config
+	config Config
 }
 
 // Config is the env config
@@ -131,13 +131,13 @@ func Client(miniconfig minimarketo.ClientConfig) (minimarketo.Client, error) {
 
 // repairManager recreat
 func (m *Connector) repairManager() {
-	miniconfig := Miniconfig(*m.config)
+	miniconfig := Miniconfig(m.config)
 	client, _ := Client(miniconfig)
 	m.client = client
 }
 
 // NewManager creates a new manager based off of input arguments
-func NewManager(logger *log.Logger, config *Config) (Manager, error) {
+func NewManager(logger *log.Logger, config Config) (Manager, error) {
 	connector := Connector{
 		logger: logger,
 		config: config,
@@ -145,7 +145,7 @@ func NewManager(logger *log.Logger, config *Config) (Manager, error) {
 	if err := config.Validate(); err != nil {
 		return &connector, fmt.Errorf("marketo: config is not valid; %s", err)
 	}
-	miniconfig := Miniconfig(*config)
+	miniconfig := Miniconfig(config)
 	client, err := Client(miniconfig)
 	connector.client = client
 	if err != nil {
@@ -153,9 +153,6 @@ func NewManager(logger *log.Logger, config *Config) (Manager, error) {
 	}
 	if logger == nil {
 		return &connector, errors.New("marketo: logger is missing")
-	}
-	if config == nil {
-		return &connector, errors.New("marketo: config is missing")
 	}
 	if client == nil {
 		return &connector, errors.New("marketo: Could not connect to marketo")
@@ -302,9 +299,9 @@ func hasTidepoolDomain(email string) bool {
 
 // IsAvailable is a function used to test if the Parameters in connector are there and that you have a connection to marketo ready
 func (m *Connector) IsAvailable() bool {
-	if m.client == nil || m.logger == nil || m.config == nil {
+	if m.client == nil || m.logger == nil || &m.config == nil {
 		m.repairManager()
-		return m.client != nil && m.logger != nil && m.config !=nil
+		return m.client != nil && m.logger != nil && &m.config != nil
 	}
 	return true
 
