@@ -1,7 +1,6 @@
 package user
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -256,7 +255,7 @@ func (h varsHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 }
 
 func (a *Api) GetStatus(res http.ResponseWriter, req *http.Request) {
-	if err := a.Store.WithContext(req.Context()).Ping(); err != nil {
+	if err := a.Store.Ping(); err != nil {
 		a.logger.Println(http.StatusInternalServerError, STATUS_GETSTATUS_ERR, err.Error())
 		res.WriteHeader(http.StatusInternalServerError)
 		res.Write([]byte(err.Error()))
@@ -274,7 +273,7 @@ func (a *Api) GetStatus(res http.ResponseWriter, req *http.Request) {
 // status: 500 STATUS_ERR_FINDING_USR
 func (a *Api) GetUsers(res http.ResponseWriter, req *http.Request) {
 	sessionToken := req.Header.Get(TP_SESSION_TOKEN)
-	if tokenData, err := a.authenticateSessionToken(req.Context(), sessionToken); err != nil {
+	if tokenData, err := a.authenticateSessionToken(sessionToken); err != nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
 
 	} else if !tokenData.IsServer {
@@ -293,11 +292,11 @@ func (a *Api) GetUsers(res http.ResponseWriter, req *http.Request) {
 		var users []*User
 		switch {
 		case role != "":
-			if users, err = a.Store.WithContext(req.Context()).FindUsersByRole(role); err != nil {
+			if users, err = a.Store.FindUsersByRole(role); err != nil {
 				a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err.Error())
 			}
 		case len(userIds[0]) > 0:
-			if users, err = a.Store.WithContext(req.Context()).FindUsersWithIds(userIds); err != nil {
+			if users, err = a.Store.FindUsersWithIds(userIds); err != nil {
 				a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err.Error())
 			}
 		default:
@@ -320,13 +319,13 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, err)
 	} else if newUser, err := NewUser(newUserDetails, a.ApiConfig.Salt); err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
-	} else if existingUser, err := a.Store.WithContext(req.Context()).FindUsers(newUser); err != nil {
+	} else if existingUser, err := a.Store.FindUsers(newUser); err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
 
 	} else if len(existingUser) != 0 {
 		a.sendError(res, http.StatusConflict, STATUS_USR_ALREADY_EXISTS)
 
-	} else if err := a.Store.WithContext(req.Context()).UpsertUser(newUser); err != nil {
+	} else if err := a.Store.UpsertUser(newUser); err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
 
 	} else {
@@ -341,7 +340,7 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 
 		tokenData := TokenData{DurationSecs: extractTokenDuration(req), UserId: newUser.Id, IsServer: false}
 		tokenConfig := TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: a.ApiConfig.Secret}
-		if sessionToken, err := CreateSessionTokenAndSave(&tokenData, tokenConfig, a.Store.WithContext(req.Context())); err != nil {
+		if sessionToken, err := CreateSessionTokenAndSave(&tokenData, tokenConfig, a.Store); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN, err)
 		} else {
 			a.logMetricForUser(newUser.Id, "usercreated", sessionToken.ID, map[string]string{"server": "false"})
@@ -361,7 +360,7 @@ func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, va
 
 	sessionToken := req.Header.Get(TP_SESSION_TOKEN)
 
-	if tokenData, err := a.authenticateSessionToken(req.Context(), sessionToken); err != nil {
+	if tokenData, err := a.authenticateSessionToken(sessionToken); err != nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
 
 	} else if custodianUserID := vars["userid"]; !tokenData.IsServer && custodianUserID != tokenData.UserId {
@@ -373,13 +372,13 @@ func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, va
 	} else if newCustodialUser, err := NewCustodialUser(newCustodialUserDetails, a.ApiConfig.Salt); err != nil {
 		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, err)
 
-	} else if existingCustodialUser, err := a.Store.WithContext(req.Context()).FindUsers(newCustodialUser); err != nil {
+	} else if existingCustodialUser, err := a.Store.FindUsers(newCustodialUser); err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
 
 	} else if len(existingCustodialUser) != 0 {
 		a.sendError(res, http.StatusConflict, STATUS_USR_ALREADY_EXISTS)
 
-	} else if err := a.Store.WithContext(req.Context()).UpsertUser(newCustodialUser); err != nil {
+	} else if err := a.Store.UpsertUser(newCustodialUser); err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
 
 	} else {
@@ -402,7 +401,7 @@ func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, va
 func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 	a.logger.Printf("UpdateUser %v", req)
 	sessionToken := req.Header.Get(TP_SESSION_TOKEN)
-	if tokenData, err := a.authenticateSessionToken(req.Context(), sessionToken); err != nil {
+	if tokenData, err := a.authenticateSessionToken(sessionToken); err != nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
 
 	} else if updateUserDetails, err := ParseUpdateUserDetails(req.Body); err != nil {
@@ -411,7 +410,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 	} else if err := updateUserDetails.Validate(); err != nil {
 		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, err)
 
-	} else if originalUser, err := a.Store.WithContext(req.Context()).FindUser(&User{Id: firstStringNotEmpty(vars["userid"], tokenData.UserId)}); err != nil {
+	} else if originalUser, err := a.Store.FindUser(&User{Id: firstStringNotEmpty(vars["userid"], tokenData.UserId)}); err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err)
 
 	} else if originalUser == nil {
@@ -445,7 +444,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 				dupCheck.Emails = updatedUser.Emails
 			}
 
-			if results, err := a.Store.WithContext(req.Context()).FindUsers(dupCheck); err != nil {
+			if results, err := a.Store.FindUsers(dupCheck); err != nil {
 				a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err)
 				return
 			} else if len(results) > 0 {
@@ -473,7 +472,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 			updatedUser.EmailVerified = *updateUserDetails.EmailVerified
 		}
 
-		if err := a.Store.WithContext(req.Context()).UpsertUser(updatedUser); err != nil {
+		if err := a.Store.UpsertUser(updatedUser); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_USR, err)
 		} else {
 			if len(originalUser.PwHash) == 0 && len(updatedUser.PwHash) != 0 {
@@ -505,7 +504,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 // status: 500 STATUS_ERR_FINDING_USR
 func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 	sessionToken := req.Header.Get(TP_SESSION_TOKEN)
-	if tokenData, err := a.authenticateSessionToken(req.Context(), sessionToken); err != nil {
+	if tokenData, err := a.authenticateSessionToken(sessionToken); err != nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
 	} else {
 		var user *User
@@ -515,7 +514,7 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 			user = &User{Id: tokenData.UserId}
 		}
 
-		if results, err := a.Store.WithContext(req.Context()).FindUsers(user); err != nil {
+		if results, err := a.Store.FindUsers(user); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err)
 
 		} else if len(results) == 0 {
@@ -542,7 +541,7 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 
 func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 
-	td, err := a.authenticateSessionToken(req.Context(), req.Header.Get(TP_SESSION_TOKEN))
+	td, err := a.authenticateSessionToken(req.Header.Get(TP_SESSION_TOKEN))
 
 	if err != nil {
 		a.logger.Println(http.StatusUnauthorized, err.Error())
@@ -566,7 +565,7 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 		toDelete := &User{Id: id}
 
 		if err = toDelete.HashPassword(pw, a.ApiConfig.Salt); err == nil {
-			if err = a.Store.WithContext(req.Context()).RemoveUser(toDelete); err == nil {
+			if err = a.Store.RemoveUser(toDelete); err == nil {
 
 				if td.IsServer {
 					a.logMetricForUser(id, "deleteuser", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "true"})
@@ -575,7 +574,7 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 				}
 				//cleanup if any
 				if td.IsServer == false {
-					a.Store.WithContext(req.Context()).RemoveTokenByID(req.Header.Get(TP_SESSION_TOKEN))
+					a.Store.RemoveTokenByID(req.Header.Get(TP_SESSION_TOKEN))
 				}
 				//all good
 				res.WriteHeader(http.StatusAccepted)
@@ -600,7 +599,7 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 	if user, password := unpackAuth(req.Header.Get("Authorization")); user == nil {
 		a.sendError(res, http.StatusBadRequest, STATUS_MISSING_ID_PW)
 
-	} else if results, err := a.Store.WithContext(req.Context()).FindUsers(user); err != nil {
+	} else if results, err := a.Store.FindUsers(user); err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err)
 
 	} else if len(results) != 1 {
@@ -621,7 +620,7 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 	} else {
 		tokenData := &TokenData{DurationSecs: extractTokenDuration(req), UserId: result.Id}
 		tokenConfig := TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: a.ApiConfig.Secret}
-		if sessionToken, err := CreateSessionTokenAndSave(tokenData, tokenConfig, a.Store.WithContext(req.Context())); err != nil {
+		if sessionToken, err := CreateSessionTokenAndSave(tokenData, tokenConfig, a.Store); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_TOKEN, err)
 
 		} else {
@@ -650,7 +649,7 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 		if sessionToken, err := CreateSessionTokenAndSave(
 			&TokenData{DurationSecs: extractTokenDuration(req), UserId: server, IsServer: true},
 			TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: a.ApiConfig.Secret},
-			a.Store.WithContext(req.Context()),
+			a.Store,
 		); err != nil {
 			a.logger.Println(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN, err.Error())
 			sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN), http.StatusInternalServerError)
@@ -671,7 +670,7 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 // status: 500 STATUS_ERR_GENERATING_TOKEN
 func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 
-	td, err := a.authenticateSessionToken(req.Context(), req.Header.Get(TP_SESSION_TOKEN))
+	td, err := a.authenticateSessionToken(req.Header.Get(TP_SESSION_TOKEN))
 
 	if err != nil {
 		a.logger.Println(http.StatusUnauthorized, err.Error())
@@ -689,7 +688,7 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 	if sessionToken, err := CreateSessionTokenAndSave(
 		td,
 		TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: a.ApiConfig.Secret},
-		a.Store.WithContext(req.Context()),
+		a.Store,
 	); err != nil {
 		a.logger.Println(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN, err.Error())
 		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN), http.StatusInternalServerError)
@@ -729,7 +728,7 @@ func (a *Api) LongtermLogin(res http.ResponseWriter, req *http.Request, vars map
 func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 
 	if hasServerToken(req.Header.Get(TP_SESSION_TOKEN), a.ApiConfig.Secret) {
-		td, err := a.authenticateSessionToken(req.Context(), vars["token"])
+		td, err := a.authenticateSessionToken(vars["token"])
 		if err != nil {
 			a.logger.Printf("failed request: %v", req)
 			a.logger.Println(http.StatusUnauthorized, STATUS_NO_TOKEN, err.Error())
@@ -749,7 +748,7 @@ func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars 
 // status: 200
 func (a *Api) Logout(res http.ResponseWriter, req *http.Request) {
 	if id := req.Header.Get(TP_SESSION_TOKEN); id != "" {
-		if err := a.Store.WithContext(req.Context()).RemoveTokenByID(id); err != nil {
+		if err := a.Store.RemoveTokenByID(id); err != nil {
 			//silently fail but still log it
 			a.logger.Println("Logout was unable to delete token", err.Error())
 		}
@@ -868,12 +867,12 @@ func (a *Api) sendError(res http.ResponseWriter, statusCode int, reason string, 
 	sendModelAsResWithStatus(res, status.NewStatus(statusCode, reason), statusCode)
 }
 
-func (a *Api) authenticateSessionToken(ctx context.Context, sessionToken string) (*TokenData, error) {
+func (a *Api) authenticateSessionToken(sessionToken string) (*TokenData, error) {
 	if sessionToken == "" {
 		return nil, errors.New("Session token is empty")
 	} else if tokenData, err := UnpackSessionTokenAndVerify(sessionToken, a.ApiConfig.Secret); err != nil {
 		return nil, err
-	} else if _, err := a.Store.WithContext(ctx).FindTokenByID(sessionToken); err != nil {
+	} else if _, err := a.Store.FindTokenByID(sessionToken); err != nil {
 		return nil, err
 	} else {
 		return tokenData, nil

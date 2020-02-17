@@ -299,10 +299,9 @@ func hasTidepoolDomain(email string) bool {
 
 // IsAvailable is a function used to test if the Parameters in connector are there and that you have a connection to marketo ready
 func (m *Connector) IsAvailable() bool {
-	if m.client == nil || m.logger == nil || &m.config == nil {
-		m.repairManager()
-		return m.client != nil && m.logger != nil && &m.config != nil
+	if m.client != nil && m.logger != nil {
+		return true
 	}
-	return true
-
+	m.repairManager()
+	return m.client != nil && m.logger != nil
 }

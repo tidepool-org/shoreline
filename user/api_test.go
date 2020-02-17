@@ -2,7 +2,6 @@ package user
 
 import (
 	"bytes"
-	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -21,6 +20,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/tidepool-org/go-common/clients"
 	"github.com/tidepool-org/go-common/clients/highwater"
+	"github.com/tidepool-org/shoreline/user/marketo"
 )
 
 const (
@@ -28,12 +28,13 @@ const (
 	makeItFail = true
 )
 
-func InitAPITest(cfg ApiConfig, logger *log.Logger, store Storage, metrics highwater.Client) *Api {
+func InitAPITest(cfg ApiConfig, logger *log.Logger, store Storage, metrics highwater.Client, marketoManager marketo.Manager) *Api {
 	return &Api{
-		Store:     store,
-		ApiConfig: cfg,
-		metrics:   metrics,
-		logger:    logger,
+		Store:          store,
+		ApiConfig:      cfg,
+		metrics:        metrics,
+		logger:         logger,
+		marketoManager: marketoManager,
 	}
 }
 
@@ -48,6 +49,14 @@ var (
 		Salt:               "a mineral substance composed primarily of sodium chloride",
 		VerificationSecret: "",
 		ClinicDemoUserID:   "00000000",
+		Marketo: marketo.Config{
+			ID:          "1234",
+			Secret:      "shhh! don't tell *3",
+			URL:         "https:xxx-xxx-xxx.mktorest.com",
+			ClinicRole:  "clinic",
+			PatientRole: "user",
+			Timeout:     10,
+		},
 	}
 	/*
 	 * users and tokens
@@ -63,20 +72,21 @@ var (
 	/*
 	 * expected path
 	 */
-	logger      = log.New(os.Stdout, USER_API_PREFIX, log.LstdFlags|log.Lshortfile)
-	mockStore   = NewMockStoreClient(fakeConfig.Salt, false, false)
-	mockMetrics = highwater.NewMock()
-	shoreline   = InitAPITest(fakeConfig, logger, mockStore, mockMetrics)
+	logger             = log.New(os.Stdout, USER_API_PREFIX, log.LstdFlags|log.Lshortfile)
+	mockStore          = NewMockStoreClient(fakeConfig.Salt, false, false)
+	mockMetrics        = highwater.NewMock()
+	mockMarketoManager = NewTestManager()
+	shoreline          = InitAPITest(fakeConfig, logger, mockStore, mockMetrics, mockMarketoManager)
 	/*
 	 *
 	 */
 	mockNoDupsStore = NewMockStoreClient(fakeConfig.Salt, true, false)
-	shorelineNoDups = InitAPITest(fakeConfig, logger, mockNoDupsStore, mockMetrics)
+	shorelineNoDups = InitAPITest(fakeConfig, logger, mockNoDupsStore, mockMetrics, mockMarketoManager)
 	/*
 	 * failure path
 	 */
 	mockStoreFails = NewMockStoreClient(fakeConfig.Salt, false, makeItFail)
-	shorelineFails = InitAPITest(fakeConfig, logger, mockStoreFails, mockMetrics)
+	shorelineFails = InitAPITest(fakeConfig, logger, mockStoreFails, mockMetrics, mockMarketoManager)
 
 	responsableStore      = NewResponsableMockStoreClient()
 	responsableGatekeeper = NewResponsableMockGatekeeper()
@@ -84,12 +94,45 @@ var (
 )
 
 func InitShoreline(config ApiConfig, store Storage, metrics highwater.Client, perms clients.Gatekeeper) *Api {
-	api := InitAPITest(config, logger, store, metrics)
+	api := InitAPITest(config, logger, store, metrics, mockMarketoManager)
 	api.AttachPerms(perms)
 	return api
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// LIKE RECTANGLE what is needed in Area and Perimeter
+type MockUser struct {
+	
+}
+type MockManager struct {
+    
+}
+
+func (U *MockUser) Email() string {
+	return "Marketo@marketo.com"
+}
+func (U *MockUser) IsClinic() bool {
+	return false
+}
+func NewMockUser() marketo.User {
+	return &MockUser{
+
+	}
+}
+func (U *MockManager) CreateListMembershipForUser(newUser marketo.User) {
+
+}
+func (U *MockManager) UpdateListMembershipForUser(oldUser marketo.User, newUser marketo.User) {
+
+}
+func (U *MockManager) IsAvailable() bool {
+	return false
+}
+func NewTestManager() marketo.Manager {
+	return &MockManager{
+
+	}
+}
 
 func createAuthorization(t *testing.T, email string, password string) string {
 	return fmt.Sprintf("Basic %s", base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", email, password))))
@@ -1024,6 +1067,8 @@ func Test_UpdateUser_Success_Server_WithoutPassword(t *testing.T) {
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"roles\": [\"clinic\"], \"emailVerified\": true, \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
 	headers := http.Header{}
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
+	log.Printf("SESSION TOKEN: %v USER RESPONSES: %v USERS RESPONSES: %v TOKEN BY ID RESPONSES: %v", sessionToken, responsableStore.FindUserResponses, responsableStore.FindUsersResponses, responsableStore.FindTokenByIDResponses)
+	log.Printf("BODY: %v headers: %v", body, headers)
 	response := performRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
 	successResponse := expectSuccessResponseWithJSONMap(t, response, 200)
 	expectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
@@ -1967,7 +2012,7 @@ func TestAnonIdHashPair_InBulk(t *testing.T) {
 ////////////////////////////////////////////////////////////////////////////////
 
 func Test_AuthenticateSessionToken_Missing(t *testing.T) {
-	tokenData, err := responsableShoreline.authenticateSessionToken(context.Background(), "")
+	tokenData, err := responsableShoreline.authenticateSessionToken("")
 	if err == nil {
 		t.Fatalf("Unexpected success")
 	}
@@ -1980,7 +2025,7 @@ func Test_AuthenticateSessionToken_Missing(t *testing.T) {
 }
 
 func Test_AuthenticateSessionToken_Invalid(t *testing.T) {
-	tokenData, err := responsableShoreline.authenticateSessionToken(context.Background(), "xyz")
+	tokenData, err := responsableShoreline.authenticateSessionToken("xyz")
 	if err == nil {
 		t.Fatalf("Unexpected success")
 	}
@@ -1994,7 +2039,7 @@ func Test_AuthenticateSessionToken_Invalid(t *testing.T) {
 
 func Test_AuthenticateSessionToken_Expired(t *testing.T) {
 	sessionToken := createSessionToken(t, "abcdef1234", false, -3600)
-	tokenData, err := responsableShoreline.authenticateSessionToken(context.Background(), sessionToken.ID)
+	tokenData, err := responsableShoreline.authenticateSessionToken(sessionToken.ID)
 	if err == nil {
 		t.Fatalf("Unexpected success")
 	}
@@ -2011,7 +2056,7 @@ func Test_AuthenticateSessionToken_NotFound(t *testing.T) {
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{nil, errors.New("NOT FOUND")}}
 	defer expectResponsablesEmpty(t)
 
-	tokenData, err := responsableShoreline.authenticateSessionToken(context.Background(), sessionToken.ID)
+	tokenData, err := responsableShoreline.authenticateSessionToken(sessionToken.ID)
 	if err == nil {
 		t.Fatalf("Unexpected success")
 	}
@@ -2028,7 +2073,7 @@ func Test_AuthenticateSessionToken_Success_User(t *testing.T) {
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	defer expectResponsablesEmpty(t)
 
-	tokenData, err := responsableShoreline.authenticateSessionToken(context.Background(), sessionToken.ID)
+	tokenData, err := responsableShoreline.authenticateSessionToken(sessionToken.ID)
 	if err != nil {
 		t.Fatalf("Unexpected error: %#v", err)
 	}
@@ -2051,7 +2096,7 @@ func Test_AuthenticateSessionToken_Success_Server(t *testing.T) {
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	defer expectResponsablesEmpty(t)
 
-	tokenData, err := responsableShoreline.authenticateSessionToken(context.Background(), sessionToken.ID)
+	tokenData, err := responsableShoreline.authenticateSessionToken(sessionToken.ID)
 	if err != nil {
 		t.Fatalf("Unexpected error: %#v", err)
 	}
