@@ -105,20 +105,8 @@ func InitShoreline(config ApiConfig, store Storage, metrics highwater.Client, pe
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// LIKE RECTANGLE what is needed in Area and Perimeter
-type MockUser struct {
-}
+// creating a mock Marketo Manager
 type MockManager struct {
-}
-
-func (U *MockUser) Email() string {
-	return "Marketo@marketo.com"
-}
-func (U *MockUser) IsClinic() bool {
-	return false
-}
-func NewMockUser() marketo.User {
-	return &MockUser{}
 }
 func (U *MockManager) CreateListMembershipForUser(newUser marketo.User) {
 
