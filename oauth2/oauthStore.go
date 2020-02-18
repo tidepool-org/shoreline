@@ -50,7 +50,6 @@ func NewOAuthStorage(config *mongo.Config) *OAuthStorage {
 	idxErr := accesses.EnsureIndex(index)
 	if idxErr != nil {
 		log.Printf(OAUTH2_API_PREFIX+"NewOAuthStorage EnsureIndex error[%s] ", idxErr.Error())
-		log.Fatal(idxErr)
 	}
 	return storage
 }
