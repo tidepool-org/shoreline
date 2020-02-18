@@ -18,6 +18,121 @@ import (
 	"github.com/tidepool-org/go-common/clients/highwater"
 	"github.com/tidepool-org/go-common/clients/status"
 	"github.com/tidepool-org/shoreline/user/marketo"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+)
+
+var (
+	statusNoUsrDetailsCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusNoUsrDetailsCounter",
+		Help: "The total number of STATUS_NO_USR_DETAILS errors",
+	})
+	statusInvalidUserDetailsCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusInvalidUserDetailsCounter",
+		Help: "The total number of STATUS_INVALID_USER_DETAILS errors",
+	})
+	statusUserNotFoundCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusUserNotFoundCounter",
+		Help: "The total number of STATUS_USER_NOT_FOUND errors",
+	})
+	statusErrFindingUsrCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusErrFindingUsrCounter",
+		Help: "The total number of STATUS_ERR_FINDING_USR errors",
+	})
+	statusErrCreatingUsrCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusErrCreatingUsrCounter",
+		Help: "The total number of STATUS_ERR_CREATING_USR errors",
+	})
+	statusErrUpdatingUsrCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusErrUpdatingUsrCounter",
+		Help: "The total number of STATUS_ERR_UPDATING_USR errors",
+	})
+	statusUsrAlreadyExistsCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusUsrAlreadyExistsCounter",
+		Help: "The total number of STATUS_USR_ALREADY_EXISTS errors",
+	})
+	statusErrGeneratingTokenCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusErrGeneratingTokenCounter",
+		Help: "The total number of STATUS_ERR_GENERATING_TOKEN errors",
+	})
+	statusErrUpdatingTokenCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusErrUpdatingTokenCounter",
+		Help: "The total number of STATUS_ERR_UPDATING_TOKEN errors",
+	})
+	statusMissingUsrDetailsCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusMissingUsrDetailsCounter",
+		Help: "The total number of STATUS_MISSING_USR_DETAILS errors",
+	})
+	statusErrorUpdatingPwCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusErrorUpdatingPwCounter",
+		Help: "The total number of STATUS_ERROR_UPDATING_PW errors",
+	})
+	statusMissingIdPwCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusMissingIdPwCounter",
+		Help: "The total number of STATUS_MISSING_ID_PW errors",
+	})
+	statusNoMatchCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusNoMatchCounter",
+		Help: "The total number of STATUS_NO_MATCH errors",
+	})
+	statusNotVerifiedCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusNotVerifiedCounter",
+		Help: "The total number of STATUS_NOT_VERIFIED errors",
+	})
+	statusNoTokenMatchCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusNoTokenMatchCounter",
+		Help: "The total number of STATUS_NO_TOKEN_MATCH errors",
+	})
+	statusPwWrongCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusPwWrongCounter",
+		Help: "The total number of STATUS_PW_WRONG errors",
+	})
+	statusErrSendingEmailCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusErrSendingEmailCounter",
+		Help: "The total number of STATUS_ERR_SENDING_EMAIL errors",
+	})
+	statusNoTokenCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusNoTokenCounter",
+		Help: "The total number of STATUS_NO_TOKEN errors",
+	})
+	statusServerTokenRequiredCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusServerTokenRequiredCounter",
+		Help: "The total number of STATUS_SERVER_TOKEN_REQUIRED errors",
+	})
+	statusAuthHeaderRequiredCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusAuthHeaderRequiredCounter",
+		Help: "The total number of STATUS_AUTH_HEADER_REQUIRED errors",
+	})
+	statusAuthHeaderInvlaidCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusAuthHeaderInvlaidCounter",
+		Help: "The total number of STATUS_AUTH_HEADER_INVLAID errors",
+	})
+	statusGetstatusErrCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusGetstatusErrCounter",
+		Help: "The total number of STATUS_GETSTATUS_ERR errors",
+	})
+	statusUnauthorizedCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusUnauthorizedCounter",
+		Help: "The total number of STATUS_UNAUTHORIZED errors",
+	})
+	statusNoQueryCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusNoQueryCounter",
+		Help: "The total number of STATUS_NO_QUERY errors",
+	})
+	statusParameterUnknownCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusParameterUnknownCounter",
+		Help: "The total number of STATUS_PARAMETER_UNKNOWN errors",
+	})
+	statusOneQueryParamCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusOneQueryParamCounter",
+		Help: "The total number of STATUS_ONE_QUERY_PARAM errors",
+	})
+	statusInvalidRoleCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusInvalidRoleCounter",
+		Help: "The total number of STATUS_INVALID_ROLE errors",
+	})
 )
 
 type (
@@ -102,6 +217,8 @@ func (a *Api) AttachPerms(perms clients.Gatekeeper) {
 }
 
 func (a *Api) SetHandlers(prefix string, rtr *mux.Router) {
+	rtr.Handle("/metrics", promhttp.Handler())
+
 	rtr.HandleFunc("/status", a.GetStatus).Methods("GET")
 
 	rtr.HandleFunc("/users", a.GetUsers).Methods("GET")
@@ -146,7 +263,7 @@ func (a *Api) GetStatus(res http.ResponseWriter, req *http.Request) {
 	return
 }
 
-//
+// GetUsers returns all users
 // status: 200
 // status: 400 STATUS_NO_QUERY, STATUS_PARAMETER_UNKNOWN
 // status: 401 STATUS_SERVER_TOKEN_REQUIRED
@@ -158,19 +275,15 @@ func (a *Api) GetUsers(res http.ResponseWriter, req *http.Request) {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
 
 	} else if !tokenData.IsServer {
-		a.logger.Printf("failed request: %v", req)
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED)
 
 	} else if len(req.URL.Query()) == 0 {
-		a.logger.Printf("failed request: %v", req)
 		a.sendError(res, http.StatusBadRequest, STATUS_NO_QUERY)
 
 	} else if role := req.URL.Query().Get("role"); role != "" && !IsValidRole(role) {
-		a.logger.Printf("failed request: %v", req)
 		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_ROLE)
 
 	} else if userIds := strings.Split(req.URL.Query().Get("id"), ","); len(userIds[0]) > 0 && role != "" {
-		a.logger.Printf("failed request: %v", req)
 		a.sendError(res, http.StatusBadRequest, STATUS_ONE_QUERY_PARAM)
 
 	} else {
@@ -194,26 +307,23 @@ func (a *Api) GetUsers(res http.ResponseWriter, req *http.Request) {
 	}
 }
 
+// CreateUser creates a new user
 // status: 201 User
 // status: 400 STATUS_MISSING_USR_DETAILS
 // status: 409 STATUS_USR_ALREADY_EXISTS
 // status: 500 STATUS_ERR_GENERATING_TOKEN
 func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 	if newUserDetails, err := ParseNewUserDetails(req.Body); err != nil {
-		a.logger.Printf("failed request: %v", req)
 		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, err)
 	} else if err := newUserDetails.Validate(); err != nil { // TODO: Fix this duplicate work!
-		a.logger.Printf("failed request: %v", req)
 		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, err)
 	} else if newUser, err := NewUser(newUserDetails, a.ApiConfig.Salt); err != nil {
-		a.logger.Printf("failed request: %v", req)
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
 	} else if existingUser, err := a.Store.WithContext(req.Context()).FindUsers(newUser); err != nil {
 		a.logger.Printf("failed request: %v", req)
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
 
 	} else if len(existingUser) != 0 {
-		a.logger.Printf("failed request: %v", req)
 		a.sendError(res, http.StatusConflict, STATUS_USR_ALREADY_EXISTS)
 
 	} else if err := a.Store.WithContext(req.Context()).UpsertUser(newUser); err != nil {
@@ -243,27 +353,26 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 	}
 }
 
+// CreateCustodialUser creates a new custodial user
 // status: 201 User
 // status: 400 STATUS_MISSING_USR_DETAILS
 // status: 401 STATUS_UNAUTHORIZED
 // status: 409 STATUS_USR_ALREADY_EXISTS
 // status: 500 STATUS_ERR_GENERATING_TOKEN
 func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
+
 	sessionToken := req.Header.Get(TP_SESSION_TOKEN)
 	if tokenData, err := a.authenticateSessionToken(sessionToken, req.Context()); err != nil {
 		a.logger.Printf("failed request: %v", req)
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
 
-	} else if custodianUserId := vars["userid"]; !tokenData.IsServer && custodianUserId != tokenData.UserId {
-		a.logger.Printf("failed request: %v", req)
+	} else if custodianUserID := vars["userid"]; !tokenData.IsServer && custodianUserID != tokenData.UserId {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, "Token user id must match custodian user id or server")
 
 	} else if newCustodialUserDetails, err := ParseNewCustodialUserDetails(req.Body); err != nil {
-		a.logger.Printf("failed request: %v", req)
 		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, err)
 
 	} else if newCustodialUser, err := NewCustodialUser(newCustodialUserDetails, a.ApiConfig.Salt); err != nil {
-		a.logger.Printf("failed request: %v", req)
 		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, err)
 
 	} else if existingCustodialUser, err := a.Store.WithContext(req.Context()).FindUsers(newCustodialUser); err != nil {
@@ -271,7 +380,6 @@ func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, va
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
 
 	} else if len(existingCustodialUser) != 0 {
-		a.logger.Printf("failed request: %v", req)
 		a.sendError(res, http.StatusConflict, STATUS_USR_ALREADY_EXISTS)
 
 	} else if err := a.Store.WithContext(req.Context()).UpsertUser(newCustodialUser); err != nil {
@@ -280,8 +388,7 @@ func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, va
 
 	} else {
 		permissions := clients.Permissions{"custodian": clients.Allowed, "view": clients.Allowed, "upload": clients.Allowed}
-		if _, err := a.perms.SetPermissions(custodianUserId, newCustodialUser.Id, permissions); err != nil {
-			a.logger.Printf("failed request: %v", req)
+		if _, err := a.perms.SetPermissions(custodianUserID, newCustodialUser.Id, permissions); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
 		} else {
 			a.logMetricForUser(newCustodialUser.Id, "custodialusercreated", sessionToken, map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
@@ -290,6 +397,7 @@ func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, va
 	}
 }
 
+// UpdateUser updates a user
 // status: 200
 // status: 400 STATUS_INVALID_USER_DETAILS
 // status: 409 STATUS_USR_ALREADY_EXISTS
@@ -303,11 +411,9 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
 
 	} else if updateUserDetails, err := ParseUpdateUserDetails(req.Body); err != nil {
-		a.logger.Printf("failed request: %v", req)
 		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, err)
 
 	} else if err := updateUserDetails.Validate(); err != nil {
-		a.logger.Printf("failed request: %v", req)
 		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, err)
 
 	} else if originalUser, err := a.Store.WithContext(req.Context()).FindUser(&User{Id: firstStringNotEmpty(vars["userid"], tokenData.UserId)}); err != nil {
@@ -315,23 +421,18 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err)
 
 	} else if originalUser == nil {
-		a.logger.Printf("failed request: %v", req)
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, "User not found")
 
 	} else if permissions, err := a.tokenUserHasRequestedPermissions(tokenData, originalUser.Id, clients.Permissions{"root": clients.Allowed, "custodian": clients.Allowed}); err != nil {
-		a.logger.Printf("failed request: %v", req)
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err)
 
 	} else if len(permissions) == 0 {
-		a.logger.Printf("failed request: %v", req)
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, "User does not have permissions")
 
 	} else if (updateUserDetails.Roles != nil || updateUserDetails.EmailVerified != nil) && !tokenData.IsServer {
-		a.logger.Printf("failed request: %v", req)
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, "User does not have permissions")
 
 	} else if (updateUserDetails.Password != nil || updateUserDetails.TermsAccepted != nil) && permissions["root"] == nil {
-		a.logger.Printf("failed request: %v", req)
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, "User does not have permissions")
 
 	} else {
@@ -402,6 +503,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 	}
 }
 
+// GetUserInfo returns user info
 // status: 200
 // status: 401 STATUS_UNAUTHORIZED
 // status: 500 STATUS_ERR_FINDING_USR
@@ -412,8 +514,8 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
 	} else {
 		var user *User
-		if userId := vars["userid"]; userId != "" {
-			user = &User{Id: userId, Username: userId, Emails: []string{userId}}
+		if userID := vars["userid"]; userID != "" {
+			user = &User{Id: userID, Username: userID, Emails: []string{userID}}
 		} else {
 			user = &User{Id: tokenData.UserId}
 		}
@@ -423,23 +525,18 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err)
 
 		} else if len(results) == 0 {
-			a.logger.Printf("failed request: %v", req)
 			a.sendError(res, http.StatusNotFound, STATUS_USER_NOT_FOUND)
 
 		} else if len(results) != 1 {
-			a.logger.Printf("failed request: %v", req)
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, fmt.Sprintf("Found %d users matching %#v", len(results), user))
 
 		} else if result := results[0]; result == nil {
-			a.logger.Printf("failed request: %v", req)
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, "Found user is nil")
 
 		} else if permissions, err := a.tokenUserHasRequestedPermissions(tokenData, result.Id, clients.Permissions{"root": clients.Allowed, "custodian": clients.Allowed}); err != nil {
-			a.logger.Printf("failed request: %v", req)
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err)
 
 		} else if permissions["root"] == nil && permissions["custodian"] == nil {
-			a.logger.Printf("failed request: %v", req)
 			a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED)
 
 		} else {
@@ -507,7 +604,6 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 // status: 500 STATUS_ERR_FINDING_USR, STATUS_ERR_UPDATING_TOKEN
 func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 	if user, password := unpackAuth(req.Header.Get("Authorization")); user == nil {
-		a.logger.Printf("failed request: %v", req)
 		a.sendError(res, http.StatusBadRequest, STATUS_MISSING_ID_PW)
 
 	} else if results, err := a.Store.WithContext(req.Context()).FindUsers(user); err != nil {
@@ -515,23 +611,18 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err)
 
 	} else if len(results) != 1 {
-		a.logger.Printf("failed request: %v", req)
 		a.sendError(res, http.StatusUnauthorized, STATUS_NO_MATCH, fmt.Sprintf("Found %d users matching %#v", len(results), user))
 
 	} else if result := results[0]; result == nil {
-		a.logger.Printf("failed request: %v", req)
 		a.sendError(res, http.StatusUnauthorized, STATUS_NO_MATCH, "Found user is nil")
 
 	} else if result.IsDeleted() {
-		a.logger.Printf("failed request: %v", req)
 		a.sendError(res, http.StatusUnauthorized, STATUS_NO_MATCH, "User is marked deleted")
 
 	} else if !result.PasswordsMatch(password, a.ApiConfig.Salt) {
-		a.logger.Printf("failed request: %v", req)
 		a.sendError(res, http.StatusUnauthorized, STATUS_NO_MATCH, "Passwords do not match")
 
 	} else if !result.IsEmailVerified(a.ApiConfig.VerificationSecret) {
-		a.logger.Printf("failed request: %v", req)
 		a.sendError(res, http.StatusForbidden, STATUS_NOT_VERIFIED)
 
 	} else {
@@ -697,6 +788,89 @@ func (a *Api) sendError(res http.ResponseWriter, statusCode int, reason string, 
 		messages[index] = fmt.Sprintf("%v", extra)
 	}
 
+	switch reason {
+	case STATUS_NO_USR_DETAILS:
+		statusNoUsrDetailsCounter.Inc()
+
+	case STATUS_INVALID_USER_DETAILS:
+		statusInvalidUserDetailsCounter.Inc()
+
+	case STATUS_USER_NOT_FOUND:
+		statusUserNotFoundCounter.Inc()
+
+	case STATUS_ERR_FINDING_USR:
+		statusErrFindingUsrCounter.Inc()
+
+	case STATUS_ERR_CREATING_USR:
+		statusErrCreatingUsrCounter.Inc()
+
+	case STATUS_ERR_UPDATING_USR:
+		statusErrUpdatingUsrCounter.Inc()
+
+	case STATUS_USR_ALREADY_EXISTS:
+		statusUsrAlreadyExistsCounter.Inc()
+
+	case STATUS_ERR_GENERATING_TOKEN:
+		statusErrGeneratingTokenCounter.Inc()
+
+	case STATUS_ERR_UPDATING_TOKEN:
+		statusErrUpdatingTokenCounter.Inc()
+
+	case STATUS_MISSING_USR_DETAILS:
+		statusMissingUsrDetailsCounter.Inc()
+
+	case STATUS_ERROR_UPDATING_PW:
+		statusErrorUpdatingPwCounter.Inc()
+
+	case STATUS_MISSING_ID_PW:
+		statusMissingIdPwCounter.Inc()
+
+	case STATUS_NO_MATCH:
+		statusNoMatchCounter.Inc()
+
+	case STATUS_NOT_VERIFIED:
+		statusNotVerifiedCounter.Inc()
+
+	case STATUS_NO_TOKEN_MATCH:
+		statusNoTokenMatchCounter.Inc()
+
+	case STATUS_PW_WRONG:
+		statusPwWrongCounter.Inc()
+
+	case STATUS_ERR_SENDING_EMAIL:
+		statusErrSendingEmailCounter.Inc()
+
+	case STATUS_NO_TOKEN:
+		statusNoTokenCounter.Inc()
+
+	case STATUS_SERVER_TOKEN_REQUIRED:
+		statusServerTokenRequiredCounter.Inc()
+
+	case STATUS_AUTH_HEADER_REQUIRED:
+		statusAuthHeaderRequiredCounter.Inc()
+
+	case STATUS_AUTH_HEADER_INVLAID:
+		statusAuthHeaderInvlaidCounter.Inc()
+
+	case STATUS_GETSTATUS_ERR:
+		statusGetstatusErrCounter.Inc()
+
+	case STATUS_UNAUTHORIZED:
+		statusUnauthorizedCounter.Inc()
+
+	case STATUS_NO_QUERY:
+		statusNoQueryCounter.Inc()
+
+	case STATUS_PARAMETER_UNKNOWN:
+		statusParameterUnknownCounter.Inc()
+
+	case STATUS_ONE_QUERY_PARAM:
+		statusOneQueryParamCounter.Inc()
+
+	case STATUS_INVALID_ROLE:
+		statusInvalidRoleCounter.Inc()
+	}
+
 	a.logger.Printf("%s:%d RESPONSE ERROR: [%d %s] %s", file, line, statusCode, reason, strings.Join(messages, "; "))
 	sendModelAsResWithStatus(res, status.NewStatus(statusCode, reason), statusCode)
 }
@@ -722,7 +896,7 @@ func (a *Api) tokenUserHasRequestedPermissions(tokenData *TokenData, groupId str
 		return clients.Permissions{}, err
 	} else {
 		finalPermissions := make(clients.Permissions, 0)
-		for permission, _ := range requestedPermissions {
+		for permission := range requestedPermissions {
 			if reflect.DeepEqual(requestedPermissions[permission], actualPermissions[permission]) {
 				finalPermissions[permission] = requestedPermissions[permission]
 			}
@@ -732,22 +906,22 @@ func (a *Api) tokenUserHasRequestedPermissions(tokenData *TokenData, groupId str
 }
 
 func (a *Api) removeUserPermissions(groupId string, removePermissions clients.Permissions) error {
-	if originalUserPermissions, err := a.perms.UsersInGroup(groupId); err != nil {
+	originalUserPermissions, err := a.perms.UsersInGroup(groupId)
+	if err != nil {
 		return err
-	} else {
-		for userId, originalPermissions := range originalUserPermissions {
-			finalPermissions := make(clients.Permissions)
-			for name, value := range originalPermissions {
-				if _, ok := removePermissions[name]; !ok {
-					finalPermissions[name] = value
-				}
-			}
-			if len(finalPermissions) != len(originalPermissions) {
-				if _, err := a.perms.SetPermissions(userId, groupId, finalPermissions); err != nil {
-					return err
-				}
+	}
+	for userID, originalPermissions := range originalUserPermissions {
+		finalPermissions := make(clients.Permissions)
+		for name, value := range originalPermissions {
+			if _, ok := removePermissions[name]; !ok {
+				finalPermissions[name] = value
 			}
 		}
-		return nil
+		if len(finalPermissions) != len(originalPermissions) {
+			if _, err := a.perms.SetPermissions(userID, groupId, finalPermissions); err != nil {
+				return err
+			}
+		}
 	}
+	return nil
 }
