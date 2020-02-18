@@ -141,12 +141,12 @@ func main() {
 	var marketoManager marketo.Manager
 	if err := config.User.Marketo.Validate(); err != nil {
 		logger.Println("WARNING: Marketo config is invalid", err)
+		failedMarketoKeyConfigurationCounter.Inc()
 	} else {
 		logger.Print("initializing marketo manager")
 		marketoManager, err = marketo.NewManager(logger, config.User.Marketo)
 		if err != nil {
 			logger.Println("WARNING: Marketo Manager not configured;", err)
-			failedMarketoKeyConfigurationCounter.Inc()
 		}
 	}
 
