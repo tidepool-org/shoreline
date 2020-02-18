@@ -162,7 +162,8 @@ type (
 		VerificationSecret string `json:"verificationSecret"`
 		ClinicDemoUserID   string `json:"clinicDemoUserId"`
 		// to create type/file
-		Marketo marketo.Config `json:"marketo"`
+		Marketo      marketo.Config `json:"marketo"`
+		IsPermissive bool
 	}
 	varsHandler func(http.ResponseWriter, *http.Request, map[string]string)
 )
@@ -660,6 +661,14 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 		sendModelAsResWithStatus(res, status.NewStatus(http.StatusBadRequest, STATUS_MISSING_ID_PW), http.StatusBadRequest)
 		return
 	}
+
+	if a.ApiConfig.IsPermissive {
+		sessionToken, _ := CreateSessionToken(&TokenData{DurationSecs: extractTokenDuration(req), UserId: server, IsServer: true},
+			TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: a.ApiConfig.Secret})
+		res.Header().Set(TP_SESSION_TOKEN, sessionToken.ID)
+		return
+	}
+
 	if pw == a.ApiConfig.ServerSecret {
 		//generate new token
 		if sessionToken, err := CreateSessionTokenAndSave(
@@ -943,6 +952,9 @@ func (a *Api) sendError(res http.ResponseWriter, statusCode int, reason string, 
 }
 
 func (a *Api) authenticateSessionToken(sessionToken string) (*TokenData, error) {
+	if a.ApiConfig.IsPermissive {
+		return &TokenData{true, "", 3600}, nil
+	}
 	if sessionToken == "" {
 		return nil, errors.New("Session token is empty")
 	} else if tokenData, err := UnpackSessionTokenAndVerify(sessionToken, a.ApiConfig.Secret); err != nil {

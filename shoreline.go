@@ -40,6 +40,11 @@ func main() {
 		logger.Panic("Problem loading Shoreline config", err)
 	}
 
+	isPermissive, found := os.LookupEnv("IS_SHADOW")
+	if found {
+		config.User.IsPermissive = isPermissive == "true"
+	}
+
 	// server secret may be passed via a separate env variable to accomodate easy secrets injection via Kubernetes
 	serverSecret, found := os.LookupEnv("SERVER_SECRET")
 	if found {

@@ -11,5 +11,6 @@ require (
 	github.com/google/uuid v1.1.1 // indirect
 	github.com/gorilla/mux v1.7.3
 	github.com/pborman/uuid v0.0.0-20180906182336-adf5a7427709 // indirect
+	github.com/prometheus/client_golang v1.4.1
 	github.com/tidepool-org/go-common v0.5.0
 )
