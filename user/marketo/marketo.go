@@ -23,6 +23,7 @@ type User interface {
 type Manager interface {
 	CreateListMembershipForUser(newUser User)
 	UpdateListMembershipForUser(oldUser User, newUser User)
+	IsAvailable() bool
 }
 
 // LeadResult Find lead returns "result" in this format
@@ -128,22 +129,35 @@ func Client(miniconfig minimarketo.ClientConfig) (minimarketo.Client, error) {
 	return client, nil
 }
 
+// repairManager recreat
+func (m *Connector) repairManager() {
+	miniconfig := Miniconfig(m.config)
+	client, _ := Client(miniconfig)
+	m.client = client
+}
+
 // NewManager creates a new manager based off of input arguments
-func NewManager(logger *log.Logger, config *Config, client minimarketo.Client) (Manager, error) {
-	if logger == nil {
-		return nil, errors.New("marketo: logger is missing")
-	}
-	if client == nil {
-		return nil, errors.New("marketo: client is missing")
+func NewManager(logger *log.Logger, config Config) (Manager, error) {
+	connector := Connector{
+		logger: logger,
+		config: config,
 	}
 	if err := config.Validate(); err != nil {
-		return nil, fmt.Errorf("marketo: config is not valid; %s", err)
+		return &connector, fmt.Errorf("marketo: config is not valid; %s", err)
 	}
-	return &Connector{
-		logger: logger,
-		client: client,
-		config: *config,
-	}, nil
+	miniconfig := Miniconfig(config)
+	client, err := Client(miniconfig)
+	connector.client = client
+	if err != nil {
+		return &connector, err
+	}
+	if logger == nil {
+		return &connector, errors.New("marketo: logger is missing")
+	}
+	if client == nil {
+		return &connector, errors.New("marketo: Could not connect to marketo")
+	}
+	return &connector, nil
 }
 
 // CreateListMembershipForUser is an asynchronous function that creates a user
@@ -174,7 +188,7 @@ func (m *Connector) UpsertListMembership(oldUser User, newUser User) error {
 		return nil
 	}
 	newEmail := strings.ToLower(newUser.Email())
-	if newEmail == ""  {
+	if newEmail == "" {
 		m.logger.Printf("empty email")
 		return nil
 	}
@@ -281,4 +295,13 @@ func matchUsers(oldUser User, newUser User) bool {
 
 func hasTidepoolDomain(email string) bool {
 	return strings.HasSuffix(email, "@tidepool.io") || strings.HasSuffix(email, "@tidepool.org")
+}
+
+// IsAvailable is a function used to test if the Parameters in connector are there and that you have a connection to marketo ready
+func (m *Connector) IsAvailable() bool {
+	if m.client != nil && m.logger != nil {
+		return true
+	}
+	m.repairManager()
+	return m.client != nil && m.logger != nil
 }

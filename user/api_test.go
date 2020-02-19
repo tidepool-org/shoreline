@@ -20,8 +20,8 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/tidepool-org/go-common/clients"
 	"github.com/tidepool-org/go-common/clients/highwater"
-
 	"github.com/tidepool-org/shoreline/oauth2"
+	"github.com/tidepool-org/shoreline/user/marketo"
 )
 
 const (
@@ -32,14 +32,17 @@ const (
 type (
 	MockOAuth struct{}
 )
-func InitApiTest(cfg ApiConfig, logger *log.Logger, store Storage, metrics highwater.Client) *Api {
+
+func InitAPITest(cfg ApiConfig, logger *log.Logger, store Storage, metrics highwater.Client, marketoManager marketo.Manager) *Api {
 	return &Api{
 		Store:          store,
 		ApiConfig:      cfg,
 		metrics:        metrics,
 		logger:         logger,
+		marketoManager: marketoManager,
 	}
 }
+
 var (
 	NO_PARAMS      = map[string]string{}
 	TOKEN_DURATION = int64(3600)
@@ -51,6 +54,14 @@ var (
 		Salt:               "a mineral substance composed primarily of sodium chloride",
 		VerificationSecret: "",
 		ClinicDemoUserID:   "00000000",
+		Marketo: marketo.Config{
+			ID:          "1234",
+			Secret:      "shhh! don't tell *3",
+			URL:         "https:xxx-xxx-xxx.mktorest.com",
+			ClinicRole:  "clinic",
+			PatientRole: "user",
+			Timeout:     10,
+		},
 	}
 	/*
 	 * users and tokens
@@ -66,20 +77,21 @@ var (
 	/*
 	 * expected path
 	 */
-	logger      = log.New(os.Stdout, USER_API_PREFIX, log.LstdFlags|log.Lshortfile)
-	mockStore   = NewMockStoreClient(FAKE_CONFIG.Salt, false, false)
-	mockMetrics = highwater.NewMock()
-	shoreline   = InitApiTest(FAKE_CONFIG, logger, mockStore, mockMetrics)
+	logger             = log.New(os.Stdout, USER_API_PREFIX, log.LstdFlags|log.Lshortfile)
+	mockStore          = NewMockStoreClient(FAKE_CONFIG.Salt, false, false)
+	mockMetrics        = highwater.NewMock()
+	mockMarketoManager = NewTestManager()
+	shoreline          = InitAPITest(FAKE_CONFIG, logger, mockStore, mockMetrics, mockMarketoManager)
 	/*
 	 *
 	 */
 	mockNoDupsStore = NewMockStoreClient(FAKE_CONFIG.Salt, true, false)
-	shorelineNoDups = InitApiTest(FAKE_CONFIG, logger, mockNoDupsStore, mockMetrics)
+	shorelineNoDups = InitAPITest(FAKE_CONFIG, logger, mockNoDupsStore, mockMetrics, mockMarketoManager)
 	/*
 	 * failure path
 	 */
 	mockStoreFails = NewMockStoreClient(FAKE_CONFIG.Salt, false, MAKE_IT_FAIL)
-	shorelineFails = InitApiTest(FAKE_CONFIG, logger, mockStoreFails, mockMetrics)
+	shorelineFails = InitAPITest(FAKE_CONFIG, logger, mockStoreFails, mockMetrics, mockMarketoManager)
 
 	responsableStore      = NewResponsableMockStoreClient()
 	responsableGatekeeper = NewResponsableMockGatekeeper()
@@ -87,12 +99,27 @@ var (
 )
 
 func InitShoreline(config ApiConfig, store Storage, metrics highwater.Client, perms clients.Gatekeeper) *Api {
-	api := InitApiTest(config, logger, store, metrics)
+	api := InitAPITest(config, logger, store, metrics, mockMarketoManager)
 	api.AttachPerms(perms)
 	return api
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// creating a mock Marketo Manager
+type MockManager struct {
+}
+func (U *MockManager) CreateListMembershipForUser(newUser marketo.User) {
+
+}
+func (U *MockManager) UpdateListMembershipForUser(oldUser marketo.User, newUser marketo.User) {
+
+}
+func (U *MockManager) IsAvailable() bool {
+	return false
+}
+func NewTestManager() marketo.Manager {
+	return &MockManager{}
+}
 
 func T_CreateAuthorization(t *testing.T, email string, password string) string {
 	return fmt.Sprintf("Basic %s", base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", email, password))))

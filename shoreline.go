@@ -11,6 +11,8 @@ import (
 
 	"github.com/gorilla/mux"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	common "github.com/tidepool-org/go-common"
 	"github.com/tidepool-org/go-common/clients"
 	"github.com/tidepool-org/go-common/clients/disc"
@@ -20,6 +22,13 @@ import (
 	"github.com/tidepool-org/shoreline/oauth2"
 	"github.com/tidepool-org/shoreline/user"
 	"github.com/tidepool-org/shoreline/user/marketo"
+)
+
+var (
+	failedMarketoKeyConfigurationCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "failedMarketoKeyConfigurationCounter",
+		Help: "The total number of failures to connect to marketo due to key configuration issues. Can not be resolved via retry",
+	})
 )
 
 type (
@@ -132,11 +141,10 @@ func main() {
 	var marketoManager marketo.Manager
 	if err := config.User.Marketo.Validate(); err != nil {
 		logger.Println("WARNING: Marketo config is invalid", err)
+		failedMarketoKeyConfigurationCounter.Inc()
 	} else {
 		logger.Print("initializing marketo manager")
-		miniConfig := marketo.Miniconfig(config.User.Marketo)
-		client, err := marketo.Client(miniConfig)
-		marketoManager, err = marketo.NewManager(logger, &config.User.Marketo, client)
+		marketoManager, err = marketo.NewManager(logger, config.User.Marketo)
 		if err != nil {
 			logger.Println("WARNING: Marketo Manager not configured;", err)
 		}
