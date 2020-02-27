@@ -1,6 +1,7 @@
 package user
 
 import (
+	"container/list"
 	"encoding/base64"
 	"encoding/json"
 	"log"
@@ -141,4 +142,35 @@ func (a *Api) asSerializableUser(user *User, isServerRequest bool) interface{} {
 		serializable["passwordExists"] = (user.PwHash != "")
 	}
 	return serializable
+}
+
+func (a *Api) appendUserLoginInProgress(user *User) (code int, elem *list.Element) {
+	a.loginLimiter.mutex.Lock()
+	defer a.loginLimiter.mutex.Unlock()
+
+	// Simple rate limiter
+	a.loginLimiter.totalInProgress++
+	if a.loginLimiter.totalInProgress > a.ApiConfig.MaxConcurrentLogin {
+		return http.StatusTooManyRequests, nil
+	}
+
+	for e := a.loginLimiter.usersInProgress.Front(); e != nil; e = e.Next() {
+		if e.Value.(User).Username == user.Username {
+			return http.StatusTooManyRequests, nil
+		}
+	}
+
+	e := a.loginLimiter.usersInProgress.PushBack(user)
+	return http.StatusOK, e
+}
+
+func (a *Api) removeUserLoginInProgress(elem *list.Element) {
+	a.loginLimiter.mutex.Lock()
+
+	a.loginLimiter.totalInProgress--
+
+	if elem != nil {
+		a.loginLimiter.usersInProgress.Remove(elem)
+	}
+	a.loginLimiter.mutex.Unlock()
 }

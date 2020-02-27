@@ -27,6 +27,9 @@ export TIDEPOOL_SHORELINE_SERVICE='{
         "longTermDaysDuration": 30,
         "tokenDurationSecs": 2592000,
         "salt": "ADihSEI7tOQQP9xfXMO9HfRpXKu1NpIJ",
+        "maxFailedLogin": 5,
+        "delayBeforeNextLoginAttempt": 10,
+        "maxConcurrentLogin": 100,
         "verificationSecret": "+skip",
         "clinicDemoUserId": ""
     },

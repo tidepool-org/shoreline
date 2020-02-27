@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/tidepool-org/go-common/clients"
@@ -38,12 +39,15 @@ var (
 	FAKE_CONFIG    = ApiConfig{
 		Secrets: []Secret{Secret{Secret: "default", Pass: "This needs to be the same secret everywhere. YaHut75NsK1f9UKUXuWqxNN0RUwHFBCy"},
 			Secret{Secret: "product_website", Pass: "Not so secret"}},
-		Secret:             "This is a local API secret for everyone. BsscSHqSHiwrBMJsEGqbvXiuIUPAjQXU",
-		TokenDurationSecs:  TOKEN_DURATION,
-		LongTermKey:        "thelongtermkey",
-		Salt:               "a mineral substance composed primarily of sodium chloride",
-		VerificationSecret: "",
-		ClinicDemoUserID:   "00000000",
+		Secret:                      "This is a local API secret for everyone. BsscSHqSHiwrBMJsEGqbvXiuIUPAjQXU",
+		TokenDurationSecs:           TOKEN_DURATION,
+		LongTermKey:                 "thelongtermkey",
+		Salt:                        "a mineral substance composed primarily of sodium chloride",
+		MaxFailedLogin:              5,
+		DelayBeforeNextLoginAttempt: 10,
+		MaxConcurrentLogin:          100,
+		VerificationSecret:          "",
+		ClinicDemoUserID:            "00000000",
 	}
 	/*
 	 * users and tokens
@@ -502,7 +506,7 @@ func Test_CreateUser_Error_ConflictingEmail(t *testing.T) {
 
 	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\"}"
 	response := T_PerformRequestBody(t, "POST", "/user", body)
-	T_ExpectErrorResponse(t, response, 409, "User already exists")
+	T_ExpectErrorResponse(t, response, 409, "Error creating the user")
 }
 
 func Test_CreateUser_Error_ErrorUpsertingUser(t *testing.T) {
@@ -1321,7 +1325,7 @@ func Test_Login_Error_FindUsersError(t *testing.T) {
 	headers := http.Header{}
 	headers.Add("Authorization", authorization)
 	response := T_PerformRequestHeaders(t, "POST", "/login", headers)
-	T_ExpectErrorResponse(t, response, 500, "Error finding user")
+	T_ExpectErrorResponse(t, response, http.StatusInternalServerError, STATUS_ERR_FINDING_USR)
 }
 
 func Test_Login_Error_FindUsersMissing(t *testing.T) {
@@ -1349,6 +1353,7 @@ func Test_Login_Error_FindUsersNil(t *testing.T) {
 func Test_Login_Error_NoPassword(t *testing.T) {
 	authorization := T_CreateAuthorization(t, "a@b.co", "password")
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111"}}, nil}}
+	responsableStore.UpsertUserResponses = []error{nil}
 	defer T_ExpectResponsablesEmpty(t)
 
 	headers := http.Header{}
@@ -1360,6 +1365,28 @@ func Test_Login_Error_NoPassword(t *testing.T) {
 func Test_Login_Error_PasswordMismatch(t *testing.T) {
 	authorization := T_CreateAuthorization(t, "a@b.co", "MISMATCH")
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5"}}, nil}}
+	responsableStore.UpsertUserResponses = []error{nil}
+	defer T_ExpectResponsablesEmpty(t)
+
+	headers := http.Header{}
+	headers.Add("Authorization", authorization)
+	response := T_PerformRequestHeaders(t, "POST", "/login", headers)
+	T_ExpectErrorResponse(t, response, 401, "No user matched the given details")
+}
+
+func Test_Login_Error_AccountLock(t *testing.T) {
+	authorization := T_CreateAuthorization(t, "a@b.co", "password")
+	nextAttemptTime := time.Now().Add(time.Minute * time.Duration(FAKE_CONFIG.DelayBeforeNextLoginAttempt))
+	user := User{
+		Id:     "1111111111",
+		PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5",
+		FailedLogin: &FailedLoginInfos{
+			Count:                5,
+			Total:                10,
+			NextLoginAttemptTime: nextAttemptTime.Format(time.RFC3339),
+		},
+	}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&user}, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
 	headers := http.Header{}
@@ -1754,7 +1781,7 @@ func Test_LongTermLogin_Error_FindUsersError(t *testing.T) {
 	headers := http.Header{}
 	headers.Add("Authorization", authorization)
 	response := T_PerformRequestHeaders(t, "POST", "/login/thelongtermkey", headers)
-	T_ExpectErrorResponse(t, response, 500, "Error finding user")
+	T_ExpectErrorResponse(t, response, http.StatusInternalServerError, STATUS_ERR_FINDING_USR)
 }
 
 func Test_LongTermLogin_Error_FindUsersMissing(t *testing.T) {
@@ -1782,6 +1809,7 @@ func Test_LongTermLogin_Error_FindUsersNil(t *testing.T) {
 func Test_LongTermLogin_Error_NoPassword(t *testing.T) {
 	authorization := T_CreateAuthorization(t, "a@b.co", "password")
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111"}}, nil}}
+	responsableStore.UpsertUserResponses = []error{nil}
 	defer T_ExpectResponsablesEmpty(t)
 
 	headers := http.Header{}
@@ -1793,6 +1821,7 @@ func Test_LongTermLogin_Error_NoPassword(t *testing.T) {
 func Test_LongTermLogin_Error_PasswordMismatch(t *testing.T) {
 	authorization := T_CreateAuthorization(t, "a@b.co", "MISMATCH")
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5"}}, nil}}
+	responsableStore.UpsertUserResponses = []error{nil}
 	defer T_ExpectResponsablesEmpty(t)
 
 	headers := http.Header{}
