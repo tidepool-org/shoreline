@@ -155,7 +155,7 @@ func (a *Api) appendUserLoginInProgress(user *User) (code int, elem *list.Elemen
 	}
 
 	for e := a.loginLimiter.usersInProgress.Front(); e != nil; e = e.Next() {
-		if e.Value.(User).Username == user.Username {
+		if e.Value.(*User).Username == user.Username {
 			return http.StatusTooManyRequests, nil
 		}
 	}

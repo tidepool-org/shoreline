@@ -2,6 +2,10 @@
 
 Shoreline is the module that manages logins and user accounts.
 
+## 0.5.1 - 2020-03-18
+### Fixed
+- PT-1187 Login limiter crashes on simultaneous login
+
 ## 0.5.0 - 2020-03-04
 ### Added
 - PT-1026 Implement max login attempt on a user account

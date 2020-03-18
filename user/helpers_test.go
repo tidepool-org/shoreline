@@ -3,6 +3,7 @@ package user
 import (
 	"reflect"
 	"testing"
+	"net/http"
 )
 
 func Test_FirstStringNotEmpty_None(t *testing.T) {
@@ -128,5 +129,55 @@ func Test_AsSerializableUser_PasswordExists_False_NotServer(t *testing.T) {
 	serializableUser := shoreline.asSerializableUser(user, false).(map[string]interface{})
 	if len(serializableUser) != 0 {
 		t.Fatalf("Serializable user [%#v] does not match User [%#v] for passwordExists as not server", serializableUser, user)
+	}
+}
+
+func Test_appendUserLoginInProgress_RateLimitExceeded(t *testing.T) {
+	user := &User{}
+	shoreline.loginLimiter.totalInProgress = shoreline.ApiConfig.MaxConcurrentLogin
+	shoreline.loginLimiter.usersInProgress.Init()
+	code, _ := shoreline.appendUserLoginInProgress(user)
+	if(code != http.StatusTooManyRequests) {
+		t.Fatalf("appendUserLoginInProgress should return an http too many requests error when the limit is execedded")
+	}
+}
+
+func Test_appendUserLoginInProgress_UserAlreadyLoginIn(t *testing.T) {
+	user := &User{Username: "test@test.com"}
+	shoreline.loginLimiter.totalInProgress = 0
+	shoreline.loginLimiter.usersInProgress.Init()
+	code, _ := shoreline.appendUserLoginInProgress(user)
+	code, _ = shoreline.appendUserLoginInProgress(user)
+	if(code != http.StatusTooManyRequests) {
+		t.Fatalf("appendUserLoginInProgress should return an http too many requests error when the user is in the in progress list")
+	}
+}
+func Test_appendUserLoginInProgress_NoProblem(t *testing.T) {
+	user := &User{Username: "test2@test.com"}
+	shoreline.loginLimiter.totalInProgress = 0
+	shoreline.loginLimiter.usersInProgress.Init()
+	code, _ := shoreline.appendUserLoginInProgress(user)
+	if(code != http.StatusOK) {
+		t.Fatalf("appendUserLoginInProgress should return an http status ok when the user is not in the in progress list")
+	}
+	if(shoreline.loginLimiter.totalInProgress != 1) {
+		t.Fatalf("appendUserLoginInProgress should increment the total login counter")
+	}
+	if(shoreline.loginLimiter.usersInProgress.Len() !=1){
+		t.Fatalf("appendUserLoginInProgress should add users into userInProgress list")
+	}
+}
+
+func Test_removeUserLoginInProgress(t *testing.T) {
+	user := &User{Username: "test3@test.com"}
+	shoreline.loginLimiter.totalInProgress = 0
+	shoreline.loginLimiter.usersInProgress.Init()
+	_, elem := shoreline.appendUserLoginInProgress(user)
+	shoreline.removeUserLoginInProgress(elem)
+	if(shoreline.loginLimiter.totalInProgress != 0) {
+		t.Fatalf("removeUserLoginInProgress should decrement the total login counter")
+	}
+	if(shoreline.loginLimiter.usersInProgress.Len() !=0){
+		t.Fatalf("removeUserLoginInProgress should remove users from userInProgress list")
 	}
 }
