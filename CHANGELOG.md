@@ -2,6 +2,10 @@
 
 Shoreline is the module that manages logins and user accounts.
 
+## 0.5.2 - 2020-03-20
+### Fixed
+- Fix changelog
+
 ## 0.5.1 - 2020-03-18
 ### Fixed
 - PT-1187 Login limiter crashes on simultaneous login
@@ -26,39 +30,32 @@ Shoreline is the module that manages logins and user accounts.
 
 ### Changed
 - Update to MongoDb 3.6 drivers in order to use replica set connections
+- Fix status response of the service. On some cases (MongoDb restart mainly) the status was in error whereas all other entrypoints responded. 
 
 ### Fixed
 - Allow shoreline to accept a user update payload with un unchanged username or email.
 
-
-### Changed
-- Fix status response of the service. On some cases (MongoDb restart mainly) the status was in error whereas all other entrypoints responded. 
-
-## dblp.0.1.3 - 2019-02-22
+## 0.1.3 - 2019-02-22
 
 ### Changed
 - Change secrets property from public to private 
 - Fix issues with server secrets
 
-## dblp.0.1.2 - 2019-02-22
+## 0.1.2 - 2019-02-22
 
 ### Changed
 - Modify Go version
 
-## dblp.0.1.1 - 2019-02-20
+## 0.1.1 - 2019-02-20
 
 ### Added
 - Allow different secrets for multiple servers
 - 
 
-## dblp.0.1.0 - 2019-01-22
+## 0.1.0 - 2019-01-22
 
 ### Added
 - Add support to MongoDb Authentication
-
-## dblp.0.a - 2018-07-03
-
-### Added
 - Enable travis CI build 
 
 # Tidepool Changelog
