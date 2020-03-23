@@ -491,7 +491,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 			}
 
 			if updatedUser.EmailVerified && updatedUser.TermsAccepted != "" {
-				if a.marketoManager.IsAvailable() {
+				if a.marketoManager != nil && a.marketoManager.IsAvailable() {
 					if updateUserDetails.EmailVerified != nil || updateUserDetails.TermsAccepted != nil {
 						a.marketoManager.CreateListMembershipForUser(updatedUser)
 					} else {
