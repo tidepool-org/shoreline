@@ -62,11 +62,13 @@ func (msc *MongoStoreClient) WithContext(ctx context.Context) Storage {
 
 // EnsureIndexes exist for the MongoDB collection. EnsureIndexes uses the Background() context, in order
 // to pass back the MongoDB errors, rather than any context errors.
+// There is overlap between this `EnsureIndexes` function, and the one in `platform/users`
 func (msc *MongoStoreClient) EnsureIndexes() error {
 	indexes := []mongo.IndexModel{
 		{
 			Keys: bson.D{{Key: "userid", Value: 1}},
 			Options: options.Index().
+				SetUnique(true).
 				SetBackground(true),
 		},
 		{
