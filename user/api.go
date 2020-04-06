@@ -19,7 +19,6 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/tidepool-org/go-common/clients"
-	"github.com/tidepool-org/go-common/clients/highwater"
 	"github.com/tidepool-org/go-common/clients/status"
 	"github.com/tidepool-org/shoreline/common"
 	"github.com/tidepool-org/shoreline/oauth2"
@@ -30,10 +29,10 @@ type (
 	Api struct {
 		Store            Storage
 		ApiConfig        ApiConfig
-		metrics          highwater.Client
 		perms            clients.Gatekeeper
 		oauth            oauth2.Client
 		logger           *log.Logger
+		auditLogger      *log.Logger
 		mailchimpManager mailchimp.Manager
 		loginLimiter     LoginLimiter
 	}
@@ -82,6 +81,8 @@ const (
 	TP_SERVER_NAME   = "x-tidepool-server-name"
 	TP_SERVER_SECRET = "x-tidepool-server-secret"
 	TP_SESSION_TOKEN = "x-tidepool-session-token"
+	// TP_TRACE_SESSION Session trace: uuid v4
+	TP_TRACE_SESSION = "x-tidepool-trace-session"
 
 	STATUS_NO_USR_DETAILS        = "No user details were given"
 	STATUS_INVALID_USER_DETAILS  = "Invalid user details were given"
@@ -113,8 +114,9 @@ const (
 	STATUS_NO_EXPECTED_PWD       = "No expected password is found"
 )
 
-func InitApi(cfg ApiConfig, store Storage, metrics highwater.Client) *Api {
+func InitApi(cfg ApiConfig, store Storage) *Api {
 	logger := log.New(os.Stdout, USER_API_PREFIX, log.LstdFlags|log.Lshortfile)
+	auditLogger := log.New(os.Stdout, USER_API_PREFIX, log.LstdFlags)
 
 	mailchimpManager, err := mailchimp.NewManager(logger, &http.Client{Timeout: 15 * time.Second}, &cfg.Mailchimp)
 	if err != nil {
@@ -131,8 +133,8 @@ func InitApi(cfg ApiConfig, store Storage, metrics highwater.Client) *Api {
 	api := Api{
 		Store:            store,
 		ApiConfig:        cfg,
-		metrics:          metrics,
 		logger:           logger,
+		auditLogger:      auditLogger,
 		mailchimpManager: mailchimpManager,
 	}
 
@@ -255,7 +257,8 @@ func (a *Api) GetUsers(res http.ResponseWriter, req *http.Request) {
 		default:
 			a.sendError(res, http.StatusBadRequest, STATUS_PARAMETER_UNKNOWN)
 		}
-		a.logMetric("getusers", sessionToken, map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
+		// TODO: Verify no return in case of error here ?
+		a.logAudit(req, tokenData, "GetUsers")
 		a.sendUsers(res, users, tokenData.IsServer)
 	}
 }
@@ -308,7 +311,7 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 		if sessionToken, err := CreateSessionTokenAndSave(&tokenData, tokenConfig, a.Store); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN, err)
 		} else {
-			a.logMetricForUser(newUser.Id, "usercreated", sessionToken.ID, map[string]string{"server": "false"})
+			a.logAudit(req, &tokenData, "CreateUser isClinic{%t}", newUser.IsClinic())
 			res.Header().Set(TP_SESSION_TOKEN, sessionToken.ID)
 			a.sendUserWithStatus(res, newUser, http.StatusCreated, false)
 		}
@@ -357,7 +360,7 @@ func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, va
 		if _, err := a.perms.SetPermissions(custodianUserId, newCustodialUser.Id, permissions); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
 		} else {
-			a.logMetricForUser(newCustodialUser.Id, "custodialusercreated", sessionToken, map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
+			a.logAudit(req, tokenData, "CreateCustodialUser isClinic{%t}", newCustodialUser.IsClinic())
 			a.sendUserWithStatus(res, newCustodialUser, http.StatusCreated, tokenData.IsServer)
 		}
 	}
@@ -472,7 +475,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 					}
 				}
 			}
-			a.logMetricForUser(updatedUser.Id, "userupdated", sessionToken, map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
+			a.logAudit(req, tokenData, "UpdateUser isClinic{%t}", updatedUser.IsClinic())
 			a.sendUser(res, updatedUser, tokenData.IsServer)
 		}
 	}
@@ -521,7 +524,7 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 			a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED)
 
 		} else {
-			a.logMetricForUser(user.Id, "getuserinfo", sessionToken, map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
+			a.logAudit(req, tokenData, "GetUserInfo isClinic{%t}", result.IsClinic())
 			a.sendUser(res, result, tokenData.IsServer)
 		}
 	}
@@ -568,11 +571,7 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 		if err = toDelete.HashPassword(pw, a.ApiConfig.Salt); err == nil {
 			if err = a.Store.RemoveUser(toDelete); err == nil {
 
-				if td.IsServer {
-					a.logMetricForUser(id, "deleteuser", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "true"})
-				} else {
-					a.logMetric("deleteuser", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "false"})
-				}
+				a.logAudit(req, td, "DeleteUser")
 				//cleanup if any
 				if td.IsServer == false {
 					a.Store.RemoveTokenByID(req.Header.Get(TP_SESSION_TOKEN))
@@ -652,7 +651,7 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_TOKEN, err)
 
 		} else {
-			a.logMetric("userlogin", sessionToken.ID, nil)
+			a.logAudit(req, tokenData, "Login")
 			res.Header().Set(TP_SESSION_TOKEN, sessionToken.ID)
 			a.sendUser(res, result, false)
 		}
@@ -723,7 +722,7 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 			return
 		} else {
 			// Server is provided with the generated token
-			a.logMetricAsServer("serverlogin", sessionToken.ID, nil)
+			a.logAudit(req, nil, "ServerLogin")
 			res.Header().Set(TP_SESSION_TOKEN, sessionToken.ID)
 			return
 		}
@@ -839,6 +838,7 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN), http.StatusInternalServerError)
 		return
 	} else {
+		a.logAudit(req, td, "RefreshSession")
 		res.Header().Set(TP_SESSION_TOKEN, sessionToken.ID)
 		sendModelAsRes(res, td)
 		return
@@ -919,11 +919,12 @@ func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars 
 func (a *Api) Logout(res http.ResponseWriter, req *http.Request) {
 	if id := req.Header.Get(TP_SESSION_TOKEN); id != "" {
 		if err := a.Store.RemoveTokenByID(id); err != nil {
-			//sliently fail but still log it
+			// silently fail but still log it
 			a.logger.Println("Logout was unable to delete token", err.Error())
 		}
 	}
-	//otherwise all good
+	// otherwise all good
+	a.logAudit(req, nil, "Logout")
 	res.WriteHeader(http.StatusOK)
 	return
 }

@@ -34,7 +34,6 @@ import (
 	"github.com/tidepool-org/go-common/clients"
 	"github.com/tidepool-org/go-common/clients/disc"
 	"github.com/tidepool-org/go-common/clients/hakken"
-	"github.com/tidepool-org/go-common/clients/highwater"
 	"github.com/tidepool-org/go-common/clients/mongo"
 	"github.com/tidepool-org/shoreline/oauth2"
 	"github.com/tidepool-org/shoreline/user"
@@ -158,12 +157,6 @@ func main() {
 
 	httpClient := &http.Client{Transport: tr}
 
-	highwater := highwater.NewHighwaterClientBuilder().
-		WithHostGetter(config.HighwaterConfig.ToHostGetter(hakkenClient)).
-		WithHttpClient(httpClient).
-		WithConfig(&config.HighwaterConfig.HighwaterClientConfig).
-		Build()
-
 	rtr := mux.NewRouter()
 
 	/*
@@ -172,7 +165,7 @@ func main() {
 
 	log.Print(shoreline_service_prefix, "adding ", user.USER_API_PREFIX)
 
-	userapi := user.InitApi(config.User, user.NewMongoStoreClient(&config.Mongo), highwater)
+	userapi := user.InitApi(config.User, user.NewMongoStoreClient(&config.Mongo))
 	userapi.SetHandlers("", rtr)
 
 	userClient := user.NewUserClient(userapi)

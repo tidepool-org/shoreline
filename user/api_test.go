@@ -18,7 +18,6 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/tidepool-org/go-common/clients"
-	"github.com/tidepool-org/go-common/clients/highwater"
 	"github.com/tidepool-org/go-common/clients/version"
 
 	"github.com/tidepool-org/shoreline/oauth2"
@@ -63,27 +62,26 @@ var (
 	/*
 	 * expected path
 	 */
-	mockStore   = NewMockStoreClient(FAKE_CONFIG.Salt, false, false)
-	mockMetrics = highwater.NewMock()
-	shoreline   = InitApi(FAKE_CONFIG, mockStore, mockMetrics)
+	mockStore = NewMockStoreClient(FAKE_CONFIG.Salt, false, false)
+	shoreline = InitApi(FAKE_CONFIG, mockStore)
 	/*
 	 *
 	 */
 	mockNoDupsStore = NewMockStoreClient(FAKE_CONFIG.Salt, true, false)
-	shorelineNoDups = InitApi(FAKE_CONFIG, mockNoDupsStore, mockMetrics)
+	shorelineNoDups = InitApi(FAKE_CONFIG, mockNoDupsStore)
 	/*
 	 * failure path
 	 */
 	mockStoreFails = NewMockStoreClient(FAKE_CONFIG.Salt, false, MAKE_IT_FAIL)
-	shorelineFails = InitApi(FAKE_CONFIG, mockStoreFails, mockMetrics)
+	shorelineFails = InitApi(FAKE_CONFIG, mockStoreFails)
 
 	responsableStore      = NewResponsableMockStoreClient()
 	responsableGatekeeper = NewResponsableMockGatekeeper()
-	responsableShoreline  = InitShoreline(FAKE_CONFIG, responsableStore, mockMetrics, responsableGatekeeper)
+	responsableShoreline  = InitShoreline(FAKE_CONFIG, responsableStore, responsableGatekeeper)
 )
 
-func InitShoreline(config ApiConfig, store Storage, metrics highwater.Client, perms clients.Gatekeeper) *Api {
-	api := InitApi(config, store, metrics)
+func InitShoreline(config ApiConfig, store Storage, perms clients.Gatekeeper) *Api {
+	api := InitApi(config, store)
 	api.AttachPerms(perms)
 	return api
 }

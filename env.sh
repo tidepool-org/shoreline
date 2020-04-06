@@ -1,11 +1,5 @@
 export TIDEPOOL_SHORELINE_ENV='{
     "hakken": { "host": "localhost:8000" },
-    "highwater": {
-  	    "serviceSpec": { "type": "static", "hosts": ["http://localhost:9191"] },
-  	    "name": "highwater",
-        "metricsSource" : "user-api-local",
-        "metricsVersion" : "v0.0.1"
-    },
     "gatekeeper": { "serviceSpec": { "type": "static", "hosts": ["http://localhost:9123"] } }
 }'
 

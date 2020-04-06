@@ -4,6 +4,7 @@ import (
 	"container/list"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -64,40 +65,25 @@ func sendModelAsResWithStatus(res http.ResponseWriter, model interface{}, status
 	}
 }
 
-//send metric
-func (a *Api) logMetric(name, token string, params map[string]string) {
-	if token == "" {
-		a.logger.Println("Missing token so couldn't log metric")
-		return
-	}
-	if params == nil {
-		params = make(map[string]string)
-	}
-	return
-}
+// logAudit Variatic log for audit trails
+func (a *Api) logAudit(req *http.Request, tokenData *TokenData, format string, args ...interface{}) {
+	var prefix string
 
-//send metric
-func (a *Api) logMetricAsServer(name, token string, params map[string]string) {
-	if token == "" {
-		a.logger.Println("Missing token so couldn't log metric")
-		return
+	if req.RemoteAddr != "" {
+		prefix = fmt.Sprintf("remoteAddr{%s}, ", req.RemoteAddr)
 	}
-	if params == nil {
-		params = make(map[string]string)
-	}
-	return
-}
 
-//send metric
-func (a *Api) logMetricForUser(id, name, token string, params map[string]string) {
-	if token == "" {
-		a.logger.Println("Missing token so couldn't log metric")
-		return
+	traceSession := req.Header.Get(TP_TRACE_SESSION)
+	if traceSession != "" {
+		prefix += fmt.Sprintf("trace{%s}, ", traceSession)
 	}
-	if params == nil {
-		params = make(map[string]string)
+
+	if tokenData != nil {
+		prefix += fmt.Sprintf("isServer{%t}, ", tokenData.IsServer)
 	}
-	return
+
+	s := fmt.Sprintf(format, args...)
+	a.auditLogger.Printf("%s%s", prefix, s)
 }
 
 func (a *Api) sendUser(res http.ResponseWriter, user *User, isServerRequest bool) {
