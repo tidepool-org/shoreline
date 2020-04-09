@@ -2,9 +2,10 @@
 
 Shoreline is the module that manages logins and user accounts.
 
-## Unreleased
+## 0.6.0 - 2020-04-09
 ### Changed
 - PT-1200 Remove highwater from shoreline (was not used, only declared)
+- PT-1247 Allow by Configuration the parallel logins of same account
 
 ## 0.5.2 - 2020-03-20
 ### Fixed

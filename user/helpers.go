@@ -139,15 +139,16 @@ func (a *Api) appendUserLoginInProgress(user *User) (code int, elem *list.Elemen
 	if a.loginLimiter.totalInProgress > a.ApiConfig.MaxConcurrentLogin {
 		return http.StatusTooManyRequests, nil
 	}
-
-	for e := a.loginLimiter.usersInProgress.Front(); e != nil; e = e.Next() {
-		if e.Value.(*User).Username == user.Username {
-			return http.StatusTooManyRequests, nil
+	var loggedUser *list.Element
+	if a.ApiConfig.BlockParallelLogin {
+		for e := a.loginLimiter.usersInProgress.Front(); e != nil; e = e.Next() {
+			if e.Value.(*User).Username == user.Username {
+				return http.StatusTooManyRequests, nil
+			}
 		}
+		loggedUser = a.loginLimiter.usersInProgress.PushBack(user)
 	}
-
-	e := a.loginLimiter.usersInProgress.PushBack(user)
-	return http.StatusOK, e
+	return http.StatusOK, loggedUser
 }
 
 func (a *Api) removeUserLoginInProgress(elem *list.Element) {

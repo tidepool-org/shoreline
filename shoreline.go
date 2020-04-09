@@ -64,6 +64,7 @@ func main() {
 	config.User.MaxFailedLogin = 5
 	config.User.DelayBeforeNextLoginAttempt = 10 // 10 minutes
 	config.User.MaxConcurrentLogin = 100
+	config.User.BlockParallelLogin = true
 
 	if err := common.LoadEnvironmentConfig([]string{"TIDEPOOL_SHORELINE_ENV", "TIDEPOOL_SHORELINE_SERVICE"}, &config); err != nil {
 		log.Panic("Problem loading config", err)
