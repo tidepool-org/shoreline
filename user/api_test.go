@@ -86,7 +86,7 @@ var (
 	/*
 	 * failure path
 	 */
-	mockStoreFails = NewMockStoreClient(fakeConfig.Salt, false, MAKE_IT_FAIL)
+	mockStoreFails = NewMockStoreClient(fakeConfig.Salt, false, makeItFail)
 	shorelineFails = InitAPITest(fakeConfig, logger, mockStoreFails, mockMetrics, mockMarketoManager)
 
 	responsableStore      = NewResponsableMockStoreClient()
