@@ -60,15 +60,18 @@ func CreateSessionToken(data *TokenData, config TokenConfig) (*SessionToken, err
 	createdAt := now.Unix()
 	expiresAt := now.Add(time.Duration(data.DurationSecs) * time.Second).Unix()
 
-	token := jwt.New(jwt.GetSigningMethod("HS256"))
+	var svrClaim string
 	if data.IsServer {
-		token.Claims["svr"] = "yes"
+		svrClaim = "yes"
 	} else {
-		token.Claims["svr"] = "no"
+		svrClaim = "no"
 	}
-	token.Claims["usr"] = data.UserId
-	token.Claims["dur"] = data.DurationSecs
-	token.Claims["exp"] = expiresAt
+	token := jwt.NewWithClaims(jwt.GetSigningMethod("HS256"), jwt.MapClaims{
+		"svr": svrClaim,
+		"usr": data.UserId,
+		"dur": data.DurationSecs,
+		"exp": expiresAt,
+	})
 
 	tokenString, err := token.SignedString([]byte(config.Secret))
 	if err != nil {
@@ -111,7 +114,7 @@ func UnpackSessionTokenAndVerify(id string, secret string) (*TokenData, error) {
 		return nil, SessionToken_error_no_userid
 	}
 
-	jwtToken, err := jwt.Parse(id, func(t *jwt.Token) ([]byte, error) { return []byte(secret), nil })
+	jwtToken, err := jwt.Parse(id, func(t *jwt.Token) (interface{}, error) { return []byte(secret), nil })
 	if err != nil {
 		return nil, err
 	}
@@ -119,12 +122,14 @@ func UnpackSessionTokenAndVerify(id string, secret string) (*TokenData, error) {
 		return nil, SessionToken_invalid
 	}
 
-	isServer := jwtToken.Claims["svr"] == "yes"
-	durationSecs, ok := jwtToken.Claims["dur"].(int64)
+	claims := jwtToken.Claims.(jwt.MapClaims)
+
+	isServer := claims["svr"] == "yes"
+	durationSecs, ok := claims["dur"].(int64)
 	if !ok {
-		durationSecs = int64(jwtToken.Claims["dur"].(float64))
+		durationSecs = int64(claims["dur"].(float64))
 	}
-	userId := jwtToken.Claims["usr"].(string)
+	userId := claims["usr"].(string)
 
 	return &TokenData{
 		IsServer:     isServer,
