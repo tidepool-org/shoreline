@@ -30,6 +30,7 @@ type (
 	TokenConfig struct {
 		Secret       string
 		DurationSecs int64
+		PublicKey    string
 	}
 )
 
@@ -60,7 +61,7 @@ func CreateSessionToken(data *TokenData, config TokenConfig) (*SessionToken, err
 	createdAt := now.Unix()
 	expiresAt := now.Add(time.Duration(data.DurationSecs) * time.Second).Unix()
 
-	token := jwt.New(jwt.GetSigningMethod("HS256"))
+	token := jwt.New(jwt.GetSigningMethod("RS256"))
 	if data.IsServer {
 		token.Claims["svr"] = "yes"
 	} else {
@@ -69,6 +70,10 @@ func CreateSessionToken(data *TokenData, config TokenConfig) (*SessionToken, err
 	token.Claims["usr"] = data.UserId
 	token.Claims["dur"] = data.DurationSecs
 	token.Claims["exp"] = expiresAt
+	token.Claims["iss"] = "tidepool/shoreline"
+	token.Claims["sub"] = data.UserId
+	token.Claims["aud"] = "tidepool"
+	token.Claims["iam"] = createdAt
 
 	tokenString, err := token.SignedString([]byte(config.Secret))
 	if err != nil {
@@ -106,12 +111,19 @@ func CreateSessionTokenAndSave(data *TokenData, config TokenConfig, store Storag
 	return sessionToken, nil
 }
 
-func UnpackSessionTokenAndVerify(id string, secret string) (*TokenData, error) {
+func UnpackSessionTokenAndVerify(id string, secrets ...string) (*TokenData, error) {
 	if id == "" {
 		return nil, SessionToken_error_no_userid
 	}
 
-	jwtToken, err := jwt.Parse(id, func(t *jwt.Token) ([]byte, error) { return []byte(secret), nil })
+	var jwtToken *jwt.Token
+	var err error
+	for _, secret := range secrets {
+		jwtToken, err = jwt.Parse(id, func(t *jwt.Token) ([]byte, error) { return []byte(secret), nil })
+		if err == nil {
+			break
+		}
+	}
 	if err != nil {
 		return nil, err
 	}

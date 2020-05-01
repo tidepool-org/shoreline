@@ -161,7 +161,9 @@ type (
 		//used for pw
 		Salt string `json:"salt"`
 		//used for token
-		Secret string `json:"apiSecret"`
+		OldSecret string `json:"oldSecret"`
+		Secret    string `json:"apiSecret"`
+		PublicKey string `json:"publicKey"`
 		//allows for the skipping of verification for testing
 		VerificationSecret string `json:"verificationSecret"`
 		ClinicDemoUserID   string `json:"clinicDemoUserId"`
@@ -795,7 +797,8 @@ func (a *Api) LongtermLogin(res http.ResponseWriter, req *http.Request, vars map
 // status: 404 STATUS_NO_TOKEN_MATCH
 func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 
-	if hasServerToken(req.Header.Get(TP_SESSION_TOKEN), a.ApiConfig.Secret) {
+	if hasServerToken(req.Header.Get(TP_SESSION_TOKEN), a.ApiConfig.Secret) ||
+		hasServerToken(req.Header.Get(TP_SESSION_TOKEN), a.ApiConfig.PublicKey) {
 		td, err := a.authenticateSessionToken(vars["token"])
 		if err != nil {
 			a.logger.Printf("failed request: %v", req)
@@ -938,7 +941,7 @@ func (a *Api) sendError(res http.ResponseWriter, statusCode int, reason string, 
 func (a *Api) authenticateSessionToken(sessionToken string) (*TokenData, error) {
 	if sessionToken == "" {
 		return nil, errors.New("Session token is empty")
-	} else if tokenData, err := UnpackSessionTokenAndVerify(sessionToken, a.ApiConfig.Secret); err != nil {
+	} else if tokenData, err := UnpackSessionTokenAndVerify(sessionToken, a.ApiConfig.Secret, a.ApiConfig.PublicKey); err != nil {
 		return nil, err
 	} else if _, err := a.Store.FindTokenByID(sessionToken); err != nil {
 		return nil, err

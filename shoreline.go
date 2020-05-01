@@ -57,12 +57,22 @@ func main() {
 
 	userSecret, found := os.LookupEnv("API_SECRET")
 	if found {
-		config.User.Secret = userSecret
+		config.User.OldSecret = userSecret
 	}
 
 	longTermKey, found := os.LookupEnv("LONG_TERM_KEY")
 	if found {
 		config.User.LongTermKey = longTermKey
+	}
+
+	privateKey, found := os.LookupEnv("PRIVATE_KEY")
+	if found {
+		config.User.Secret = privateKey
+	}
+
+	publicKey, found := os.LookupEnv("PUBLIC_KEY")
+	if found {
+		config.User.PublicKey = publicKey
 	}
 
 	verificationSecret, found := os.LookupEnv("VERIFICATION_SECRET")
