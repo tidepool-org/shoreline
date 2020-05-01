@@ -14,5 +14,6 @@ require (
 	github.com/modern-go/reflect2 v1.0.1 // indirect
 	github.com/pborman/uuid v0.0.0-20180906182336-adf5a7427709 // indirect
 	github.com/prometheus/client_golang v1.4.1
+	github.com/rs/zerolog v1.18.0
 	github.com/tidepool-org/go-common v0.5.0
 )

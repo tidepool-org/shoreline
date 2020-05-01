@@ -2,6 +2,7 @@ package user
 
 import (
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -77,6 +78,7 @@ func CreateSessionToken(data *TokenData, config TokenConfig) (*SessionToken, err
 
 	tokenString, err := token.SignedString([]byte(config.Secret))
 	if err != nil {
+		log.Print("failed to sign")
 		return nil, err
 	}
 
