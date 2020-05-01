@@ -940,7 +940,7 @@ func (a *Api) sendError(res http.ResponseWriter, statusCode int, reason string, 
 func (a *Api) authenticateSessionToken(sessionToken string) (*TokenData, error) {
 	if sessionToken == "" {
 		return nil, errors.New("Session token is empty")
-	} else if tokenData, err := UnpackSessionTokenAndVerify(sessionToken, a.ApiConfig.Secret, a.ApiConfig.PublicKey); err != nil {
+	} else if tokenData, err := UnpackSessionTokenAndVerify(sessionToken, a.ApiConfig.OldSecret, a.ApiConfig.PublicKey); err != nil {
 		return nil, err
 	} else if _, err := a.Store.FindTokenByID(sessionToken); err != nil {
 		return nil, err
