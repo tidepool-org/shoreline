@@ -65,6 +65,13 @@ func main() {
 		config.User.LongTermKey = longTermKey
 	}
 
+	apiHost, found := os.LookupEnv("API_HOST")
+	if found {
+		config.User.APIHost = apiHost
+	} else {
+		config.User.APIHost = "localhost"
+	}
+
 	privateKey, found := os.LookupEnv("PRIVATE_KEY")
 	if found {
 		config.User.Secret = privateKey

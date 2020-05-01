@@ -32,6 +32,8 @@ type (
 		Secret       string
 		DurationSecs int64
 		PublicKey    string
+		Audience     string
+		Issuer       string
 	}
 )
 
@@ -71,9 +73,17 @@ func CreateSessionToken(data *TokenData, config TokenConfig) (*SessionToken, err
 	token.Claims["usr"] = data.UserId
 	token.Claims["dur"] = data.DurationSecs
 	token.Claims["exp"] = expiresAt
-	token.Claims["iss"] = "tidepool/shoreline"
+	if config.Issuer == "" {
+		token.Claims["iss"] = "localhost"
+	} else {
+		token.Claims["iss"] = config.Issuer
+	}
 	token.Claims["sub"] = data.UserId
-	token.Claims["aud"] = "tidepool"
+	if config.Audience == "" {
+		token.Claims["aud"] = "localhost"
+	} else {
+		token.Claims["aud"] = config.Audience
+	}
 	token.Claims["iam"] = createdAt
 
 	tokenString, err := token.SignedString([]byte(config.Secret))
