@@ -656,7 +656,7 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 		if sessionToken, err := CreateSessionTokenAndSave(
 			&TokenData{DurationSecs: extractTokenDuration(req), UserId: server, IsServer: true},
 			TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: a.ApiConfig.Secret,
-				Issuer: a.ApiConfig.APIHost, Audience: a.ApiConfig.APIHost}
+				Issuer: a.ApiConfig.APIHost, Audience: a.ApiConfig.APIHost},
 			a.Store,
 		); err != nil {
 			a.logger.Println(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN, err.Error())
@@ -710,7 +710,7 @@ func (a *Api) oauth2Login(w http.ResponseWriter, r *http.Request) {
 				if sessionToken, err := CreateSessionTokenAndSave(
 					&TokenData{DurationSecs: 0, UserId: result["userId"].(string), IsServer: false},
 					TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: a.ApiConfig.Secret,
-						Issuer: a.ApiConfig.APIHost, Audience: a.ApiConfig.APIHost}
+						Issuer: a.ApiConfig.APIHost, Audience: a.ApiConfig.APIHost},
 					a.Store,
 				); err != nil {
 					a.logger.Println(http.StatusUnauthorized, "oauth2Login error creating session token", err.Error())
@@ -756,7 +756,7 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 	if sessionToken, err := CreateSessionTokenAndSave(
 		td,
 		TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: a.ApiConfig.Secret,
-			Issuer: a.ApiConfig.APIHost, Audience: a.ApiConfig.APIHost}
+			Issuer: a.ApiConfig.APIHost, Audience: a.ApiConfig.APIHost},
 		a.Store,
 	); err != nil {
 		a.logger.Println(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN, err.Error())
