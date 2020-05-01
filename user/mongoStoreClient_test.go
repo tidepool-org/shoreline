@@ -257,7 +257,43 @@ func TestMongoStore_FindUsersById(t *testing.T) {
 func TestMongoStoreTokenOperations(t *testing.T) {
 
 	testing_token_data := &TokenData{UserId: "2341", IsServer: true, DurationSecs: 3600}
-	testing_token_config := TokenConfig{DurationSecs: 1200, Secret: "some secret for the tests"}
+	testing_token_config := TokenConfig{DurationSecs: 1200,
+		Secret: `-----BEGIN RSA PRIVATE KEY-----
+MIIEpAIBAAKCAQEAzg3MHpXfMuH4AJ4URtaG4QvZenpfuSz2FmIwdnPEtkrKFmL2
+6b89U1tw5WsYAE158znAzPptDA25hAsIcTAqULNsoY3WV2zmsLrUX8pUaCTfExXN
+dMFDruR676G3pJWcsI1GuePK5/v3dBHjjTYdtVJiogbCtP+XYT/k1qHZztwRY4oH
+Ma8LorxUZco0Mf6qOq5tmRUJhxvCESaqUTpTAIIfByMnPmnIHOHnsYtkiZQBms2x
+o1UfpYnqZX2CoN+wPoMoSAlRbnOmmHYbbMFVPNTj7NINwVb8K8iDU7lFR+JfN3UG
+lErVo7XCDQcbwTpiZbdj9zWSWbYtIBNBqkNxxwIDAQABAoIBAG3IMhmVlh6BAGYr
+0vfO8nvSmWNE8d0yFEbmt5VUptjMzhDRV2ZAascPr/27akU3AiNRgOR1BEZoxY+R
+ZUUQ+WqXvefxLuLTdbFxSRdkMEZwZp2/fwCWu53hw5IK4lIBGEOEccs2j3O77iJc
+KZWh4IArzbsvyOswRhIdPaoQ/3/TECPa5AXY7LAEj32XfP3K08rRAldgdfTv6XbV
+e/pzKMzqgPMIhZ3mG1n7CJ+DLhajEEG36KwszI6OttkjzyBzlsQb3rskEOypG3ZU
+k24B++v3Cm7FN0vG+FLFVzwS5rDrF+CUIFCyQU/nAB8nmkiNdCbDI0/614NeSSnE
+BZc6G1ECgYEA/zVJdpRx5kgFDyxmJrdVcXJ/digGDct6og0pffcJW1ygBnt+tLRd
+gpH+oBNUMz92GKb+wTTlOba0CNbJULM1sZklf604yzpIDji0HyI2oZ0fo+OEkpBz
+PyNrdnm2WXF4e3WCb1ehkxGMyfTH70RFKqmPRMka1xWAMXPgbP5Osj8CgYEAzrF3
+iAX+geyqagzQfbt5bf9zePmL4Dx6J37pgtZSo88sqtSU6+eYQsF/pS5KrtxD6Sql
+5qSbfKekmDhEF4DMUeva76JHmPIPdJH+fPyw6jOB6S3tS+i41S2CGNub1RLz7LCj
+NEZ9H5GBVmxBTdiZL3aZWgIxo63Nl0H39k6+TnkCgYEA44Nkx5LU659+6yUAuDku
+seGKIhLSOtAQtpEXUVW/ALTVcJH9xikZSALRRXGV2c4UgSu25xU52Ta4zzxz4j6x
+em92D5mkjQCbJhqE8VB19aP2hguZr3OZWktATTF6T8ipyR5cNtifkVXO9mgDKZnq
+M3tP3tmN1Ps0+mE8TM51588CgYBZYgtz6kuued8UL2h2Bv2zINYZyajAlsaoj8yB
+hReFuVDyqy2feq6wp6cAkq0/QwenLIdD34lR9dlK7oIbu9ofzyQFnyLhNESUv5HT
+ER+cmBuk7/R/cCuGHMD26PlRwnlzsMtTDuyLG0xYSEZRWMqd6ObWMr6urrmKoL+P
+Z2wK2QKBgQC7SZ47YM45pz23yjyrKx6dUAfw5imb6ylZPft24A+W2tFanfRDQITX
+wGHgJHaV+gd52zrP6s8AKzMjMcRtB0g0CGf5Qe1BHMh89fJsUKToT8L+040kWl/P
+upYmRYNT7J2Met0WVB6u6ZDFSMl+CIFLXHGtU47DjGUmQxqmhW8LOg==
+-----END RSA PRIVATE KEY-----`,
+		PublicKey: `-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAzg3MHpXfMuH4AJ4URtaG
+4QvZenpfuSz2FmIwdnPEtkrKFmL26b89U1tw5WsYAE158znAzPptDA25hAsIcTAq
+ULNsoY3WV2zmsLrUX8pUaCTfExXNdMFDruR676G3pJWcsI1GuePK5/v3dBHjjTYd
+tVJiogbCtP+XYT/k1qHZztwRY4oHMa8LorxUZco0Mf6qOq5tmRUJhxvCESaqUTpT
+AIIfByMnPmnIHOHnsYtkiZQBms2xo1UfpYnqZX2CoN+wPoMoSAlRbnOmmHYbbMFV
+PNTj7NINwVb8K8iDU7lFR+JfN3UGlErVo7XCDQcbwTpiZbdj9zWSWbYtIBNBqkNx
+xwIDAQAB
+-----END PUBLIC KEY-----`}
 
 	mc, err := mgoTestSetup()
 	if err != nil {
