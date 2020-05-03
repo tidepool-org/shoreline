@@ -84,7 +84,7 @@ func CreateSessionToken(data *TokenData, config TokenConfig) (*SessionToken, err
 	} else {
 		token.Claims["aud"] = config.Audience
 	}
-	token.Claims["iam"] = createdAt
+	token.Claims["iat"] = createdAt
 
 	tokenString, err := token.SignedString([]byte(config.Secret))
 	if err != nil {
