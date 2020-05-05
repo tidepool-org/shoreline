@@ -4,11 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"regexp"
 	"sort"
 
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
@@ -20,6 +18,12 @@ const (
 	tokensCollectionName = "tokens"
 	userStoreAPIPrefix   = "api/user/store "
 )
+
+// Because the `users` collection already exists on all environments (especially `prd`),
+// and MongoDB doesn't allow modification of default collation on an existing collection,
+// we need to specify collation manually everywhere we generate an index, or make a query
+// with the notable exception of the `_id` field
+var usersCollation *options.Collation = &options.Collation{Locale: "en", Strength: 1}
 
 // MongoStoreClient - Mongo Storage Client
 type MongoStoreClient struct {
@@ -63,26 +67,45 @@ func (msc *MongoStoreClient) WithContext(ctx context.Context) Storage {
 // EnsureIndexes exist for the MongoDB collection. EnsureIndexes uses the Background() context, in order
 // to pass back the MongoDB errors, rather than any context errors.
 func (msc *MongoStoreClient) EnsureIndexes() error {
-	indexes := []mongo.IndexModel{
+	usersIndexes := []mongo.IndexModel{
 		{
 			Keys: bson.D{{Key: "userid", Value: 1}},
 			Options: options.Index().
+				SetCollation(usersCollation).
+				SetUnique(true).
 				SetBackground(true),
 		},
 		{
 			Keys: bson.D{{Key: "username", Value: 1}},
 			Options: options.Index().
+				SetCollation(usersCollation).
 				SetBackground(true),
 		},
 		{
 			Keys: bson.D{{Key: "emails", Value: 1}},
 			Options: options.Index().
+				SetCollation(usersCollation).
 				SetBackground(true),
 		},
 	}
 
-	if _, err := usersCollection(msc).Indexes().CreateMany(context.Background(), indexes); err != nil {
-		log.Fatal(userStoreAPIPrefix, fmt.Sprintf("Unable to create indexes: %s", err))
+	if _, err := usersCollection(msc).Indexes().CreateMany(context.Background(), usersIndexes); err != nil {
+		log.Fatal(userStoreAPIPrefix, fmt.Sprintf("Unable to create users indexes: %s", err))
+	}
+
+	// Add indexes for tokens
+	tokenIndexes := []mongo.IndexModel{
+		{
+			Keys: bson.D{{Key: "expiresAt", Value: 1}},
+			Options: options.Index().
+				SetName("ExpireTokens").
+				SetExpireAfterSeconds(0).
+				SetBackground(true),
+		},
+	}
+
+	if _, err := tokensCollection(msc).Indexes().CreateMany(context.Background(), tokenIndexes); err != nil {
+		log.Fatal(userStoreAPIPrefix, fmt.Sprintf("Unable to create token indexes: %s", err))
 	}
 
 	return nil
@@ -114,7 +137,7 @@ func (msc *MongoStoreClient) UpsertUser(user *User) error {
 	}
 
 	// if the user already exists we update otherwise we add
-	opts := options.FindOneAndUpdate().SetUpsert(true)
+	opts := options.FindOneAndUpdate().SetUpsert(true).SetCollation(usersCollation)
 	result := usersCollection(msc).FindOneAndUpdate(msc.context, bson.M{"userid": user.Id}, bson.D{{Key: "$set", Value: user}}, opts)
 	if result.Err() != mongo.ErrNoDocuments {
 		return result.Err()
@@ -125,7 +148,8 @@ func (msc *MongoStoreClient) UpsertUser(user *User) error {
 // FindUser - find and return an existing user
 func (msc *MongoStoreClient) FindUser(user *User) (result *User, err error) {
 	if user.Id != "" {
-		if err = usersCollection(msc).FindOne(msc.context, bson.M{"userid": user.Id}).Decode(&result); err != nil {
+		opts := options.FindOne().SetCollation(usersCollation)
+		if err = usersCollection(msc).FindOne(msc.context, bson.M{"userid": user.Id}, opts).Decode(&result); err != nil {
 			return result, err
 		}
 	}
@@ -136,20 +160,12 @@ func (msc *MongoStoreClient) FindUser(user *User) (result *User, err error) {
 // FindUsers - find and return multiple existing users
 func (msc *MongoStoreClient) FindUsers(user *User) (results []*User, err error) {
 	fieldsToMatch := []bson.M{}
-	const (
-		MATCH = `^%s$`
-	)
 
 	if user.Id != "" {
 		fieldsToMatch = append(fieldsToMatch, bson.M{"userid": user.Id})
 	}
 	if user.Username != "" {
-		// case insensitive match
-		// TODO: should use an index with collation, not a case-insensitive regex, since that won't use an index
-		// However, we need MongoDB 3.2 to do this. See https://tidepool.atlassian.net/browse/BACK-1133
-		fieldsToMatch = append(fieldsToMatch,
-			bson.M{"username": bson.M{"$regex": primitive.Regex{Pattern: fmt.Sprintf(MATCH, regexp.QuoteMeta(user.Username)), Options: "i"}}},
-		)
+		fieldsToMatch = append(fieldsToMatch, bson.M{"username": user.Username})
 	}
 	if len(user.Emails) > 0 {
 		fieldsToMatch = append(fieldsToMatch, bson.M{"emails": bson.M{"$in": user.Emails}})
@@ -159,7 +175,8 @@ func (msc *MongoStoreClient) FindUsers(user *User) (results []*User, err error) 
 		return []*User{}, nil
 	}
 
-	cursor, err := usersCollection(msc).Find(msc.context, bson.M{"$or": fieldsToMatch})
+	opts := options.Find().SetCollation(usersCollation)
+	cursor, err := usersCollection(msc).Find(msc.context, bson.M{"$or": fieldsToMatch}, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -178,7 +195,8 @@ func (msc *MongoStoreClient) FindUsers(user *User) (results []*User, err error) 
 
 // FindUsersByRole - find and return multiple users matching a Role
 func (msc *MongoStoreClient) FindUsersByRole(role string) (results []*User, err error) {
-	cursor, err := usersCollection(msc).Find(msc.context, bson.M{"roles": role})
+	opts := options.Find().SetCollation(usersCollation)
+	cursor, err := usersCollection(msc).Find(msc.context, bson.M{"roles": role}, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -197,7 +215,8 @@ func (msc *MongoStoreClient) FindUsersByRole(role string) (results []*User, err 
 
 // FindUsersWithIds - find and return multiple users by Tidepool User ID
 func (msc *MongoStoreClient) FindUsersWithIds(ids []string) (results []*User, err error) {
-	cursor, err := usersCollection(msc).Find(msc.context, bson.M{"userid": bson.M{"$in": ids}})
+	opts := options.Find().SetCollation(usersCollation)
+	cursor, err := usersCollection(msc).Find(msc.context, bson.M{"userid": bson.M{"$in": ids}}, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -216,7 +235,8 @@ func (msc *MongoStoreClient) FindUsersWithIds(ids []string) (results []*User, er
 
 // RemoveUser - Remove a user from the database
 func (msc *MongoStoreClient) RemoveUser(user *User) (err error) {
-	result := usersCollection(msc).FindOneAndDelete(msc.context, bson.M{"userid": user.Id})
+	opts := options.FindOneAndDelete().SetCollation(usersCollation)
+	result := usersCollection(msc).FindOneAndDelete(msc.context, bson.M{"userid": user.Id}, opts)
 	if result.Err() != mongo.ErrNoDocuments {
 		return result.Err()
 	}

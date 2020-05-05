@@ -48,7 +48,7 @@ func Test_GenerateSessionToken_DurationFromConfig(t *testing.T) {
 	//given duration seconds trump the configured duration
 	token, _ := CreateSessionToken(testData.data, testData.config)
 
-	if token.ID == "" || token.Time == 0 {
+	if token.ID == "" || token.Time == time.Unix(0, 0) {
 		t.Fatalf("should generate a session token")
 	}
 
@@ -68,7 +68,7 @@ func Test_GenerateSessionToken_DurationSecsTrumpConfig(t *testing.T) {
 
 	token, _ := CreateSessionToken(testData.data, testData.config)
 
-	if token.ID == "" || token.Time == 0 {
+	if token.ID == "" || token.Time == time.Unix(0, 0) {
 		t.Fatalf("should generate a session token")
 	}
 
@@ -101,7 +101,7 @@ func Test_GenerateSessionToken_Server(t *testing.T) {
 
 	token, _ := CreateSessionToken(testData.data, testData.config)
 
-	if token.ID == "" || token.Time == 0 {
+	if token.ID == "" || token.Time == time.Unix(0, 0) {
 		t.Fatalf("should generate a session token")
 	}
 

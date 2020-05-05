@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	tpMongo "github.com/tidepool-org/go-common/clients/mongo"
 )
@@ -275,7 +276,7 @@ func TestMongoStoreTokenOperations(t *testing.T) {
 		if foundToken.ID == "" {
 			t.Fatalf("the token string isn't included %v", foundToken)
 		}
-		if foundToken.Time == 0 {
+		if foundToken.Time == time.Unix(0, 0) {
 			t.Fatalf("the time wasn't included %v", foundToken)
 		}
 	} else {

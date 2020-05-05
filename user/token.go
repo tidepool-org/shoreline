@@ -11,14 +11,14 @@ import (
 
 type (
 	SessionToken struct {
-		ID        string `json:"-" bson:"_id"`
-		IsServer  bool   `json:"isServer" bson:"isServer"`
-		ServerID  string `json:"-" bson:"serverId,omitempty"`
-		UserID    string `json:"userId,omitempty" bson:"userId,omitempty"`
-		Duration  int64  `json:"-" bson:"duration"`
-		ExpiresAt int64  `json:"-" bson:"expiresAt"`
-		CreatedAt int64  `json:"-" bson:"createdAt"`
-		Time      int64  `json:"-" bson:"time"`
+		ID        string    `json:"-" bson:"_id"`
+		IsServer  bool      `json:"isServer" bson:"isServer"`
+		ServerID  string    `json:"-" bson:"serverId,omitempty"`
+		UserID    string    `json:"userId,omitempty" bson:"userId,omitempty"`
+		Duration  int64     `json:"-" bson:"duration"`
+		ExpiresAt time.Time `json:"-" bson:"expiresAt"`
+		CreatedAt time.Time `json:"-" bson:"createdAt"`
+		Time      time.Time `json:"-" bson:"time"`
 	}
 
 	TokenData struct {
@@ -82,9 +82,9 @@ func CreateSessionToken(data *TokenData, config TokenConfig) (*SessionToken, err
 		ID:        tokenString,
 		IsServer:  data.IsServer,
 		Duration:  data.DurationSecs,
-		ExpiresAt: expiresAt,
-		CreatedAt: createdAt,
-		Time:      createdAt,
+		ExpiresAt: time.Unix(expiresAt, 0),
+		CreatedAt: time.Unix(createdAt, 0),
+		Time:      time.Unix(createdAt, 0),
 	}
 	if data.IsServer {
 		sessionToken.ServerID = data.UserId
