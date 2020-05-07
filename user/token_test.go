@@ -50,8 +50,9 @@ AIIfByMnPmnIHOHnsYtkiZQBms2xo1UfpYnqZX2CoN+wPoMoSAlRbnOmmHYbbMFV
 PNTj7NINwVb8K8iDU7lFR+JfN3UGlErVo7XCDQcbwTpiZbdj9zWSWbYtIBNBqkNx
 xwIDAQAB
 -----END PUBLIC KEY-----`,
-	Audience: "localhost",
-	Issuer:   "localhsot",
+	Audience:  "localhost",
+	Issuer:    "localhsot",
+	Algorithm: "RS256",
 }
 
 func Test_GenerateSessionToken(t *testing.T) {

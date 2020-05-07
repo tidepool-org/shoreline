@@ -88,6 +88,7 @@ xwIDAQAB
 			DurationSecs: TOKEN_DURATION,
 			Audience:     "localhost",
 			Issuer:       "localhost",
+			Algorithm:    "RS256",
 		}},
 
 		LongTermKey:        "thelongtermkey",
