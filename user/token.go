@@ -29,11 +29,12 @@ type (
 	}
 
 	TokenConfig struct {
-		Secret       string
+		EncodeKey    string
 		DurationSecs int64
-		PublicKey    string
+		DecodeKey    string
 		Audience     string
 		Issuer       string
+		Algorithm    string
 	}
 )
 
@@ -64,7 +65,7 @@ func CreateSessionToken(data *TokenData, config TokenConfig) (*SessionToken, err
 	createdAt := now.Unix()
 	expiresAt := now.Add(time.Duration(data.DurationSecs) * time.Second).Unix()
 
-	token := jwt.New(jwt.GetSigningMethod("RS256"))
+	token := jwt.New(jwt.GetSigningMethod(config.Algorithm))
 	if data.IsServer {
 		token.Claims["svr"] = "yes"
 	} else {
@@ -86,7 +87,7 @@ func CreateSessionToken(data *TokenData, config TokenConfig) (*SessionToken, err
 	}
 	token.Claims["iat"] = createdAt
 
-	tokenString, err := token.SignedString([]byte(config.Secret))
+	tokenString, err := token.SignedString([]byte(config.EncodeKey))
 	if err != nil {
 		log.Print("failed to sign")
 		return nil, err
@@ -123,15 +124,15 @@ func CreateSessionTokenAndSave(data *TokenData, config TokenConfig, store Storag
 	return sessionToken, nil
 }
 
-func UnpackSessionTokenAndVerify(id string, secrets ...string) (*TokenData, error) {
+func UnpackSessionTokenAndVerify(id string, tokenConfigs ...TokenConfig) (*TokenData, error) {
 	if id == "" {
 		return nil, SessionToken_error_no_userid
 	}
 
 	var jwtToken *jwt.Token
 	var err error
-	for _, secret := range secrets {
-		jwtToken, err = jwt.Parse(id, func(t *jwt.Token) ([]byte, error) { return []byte(secret), nil })
+	for _, tokenConfig := range tokenConfigs {
+		jwtToken, err = jwt.Parse(id, func(t *jwt.Token) ([]byte, error) { return []byte(tokenConfig.DecodeKey), nil })
 		if err == nil {
 			break
 		}
@@ -171,8 +172,8 @@ func extractTokenDuration(r *http.Request) int64 {
 	return 0
 }
 
-func hasServerToken(tokenString, secret string) bool {
-	td, err := UnpackSessionTokenAndVerify(tokenString, secret)
+func hasServerToken(tokenString string, tokenConfig TokenConfig) bool {
+	td, err := UnpackSessionTokenAndVerify(tokenString, tokenConfig)
 	if err != nil {
 		return false
 	}

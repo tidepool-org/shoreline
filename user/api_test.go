@@ -48,7 +48,8 @@ var (
 	TOKEN_DURATION = int64(3600)
 	FAKE_CONFIG    = ApiConfig{
 		ServerSecret: "shhh! don't tell",
-		Secret: `-----BEGIN RSA PRIVATE KEY-----
+		TokenConfigs: []TokenConfig{{
+			EncodeKey: `-----BEGIN RSA PRIVATE KEY-----
 MIIEpAIBAAKCAQEAzg3MHpXfMuH4AJ4URtaG4QvZenpfuSz2FmIwdnPEtkrKFmL2
 6b89U1tw5WsYAE158znAzPptDA25hAsIcTAqULNsoY3WV2zmsLrUX8pUaCTfExXN
 dMFDruR676G3pJWcsI1GuePK5/v3dBHjjTYdtVJiogbCtP+XYT/k1qHZztwRY4oH
@@ -75,7 +76,7 @@ Z2wK2QKBgQC7SZ47YM45pz23yjyrKx6dUAfw5imb6ylZPft24A+W2tFanfRDQITX
 wGHgJHaV+gd52zrP6s8AKzMjMcRtB0g0CGf5Qe1BHMh89fJsUKToT8L+040kWl/P
 upYmRYNT7J2Met0WVB6u6ZDFSMl+CIFLXHGtU47DjGUmQxqmhW8LOg==
 -----END RSA PRIVATE KEY-----`,
-		PublicKey: `-----BEGIN PUBLIC KEY-----
+			DecodeKey: `-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAzg3MHpXfMuH4AJ4URtaG
 4QvZenpfuSz2FmIwdnPEtkrKFmL26b89U1tw5WsYAE158znAzPptDA25hAsIcTAq
 ULNsoY3WV2zmsLrUX8pUaCTfExXNdMFDruR676G3pJWcsI1GuePK5/v3dBHjjTYd
@@ -84,7 +85,11 @@ AIIfByMnPmnIHOHnsYtkiZQBms2xo1UfpYnqZX2CoN+wPoMoSAlRbnOmmHYbbMFV
 PNTj7NINwVb8K8iDU7lFR+JfN3UGlErVo7XCDQcbwTpiZbdj9zWSWbYtIBNBqkNx
 xwIDAQAB
 -----END PUBLIC KEY-----`,
-		TokenDurationSecs:  TOKEN_DURATION,
+			DurationSecs: TOKEN_DURATION,
+			Audience:     "localhost",
+			Issuer:       "localhost",
+		}},
+
 		LongTermKey:        "thelongtermkey",
 		Salt:               "a mineral substance composed primarily of sodium chloride",
 		VerificationSecret: "",
@@ -101,10 +106,9 @@ xwIDAQAB
 	/*
 	 * users and tokens
 	 */
-	TOKEN_CONFIG  = TokenConfig{DurationSecs: FAKE_CONFIG.TokenDurationSecs, Secret: FAKE_CONFIG.Secret, PublicKey: FAKE_CONFIG.PublicKey}
 	USR           = &User{Id: "123-99-100", Username: "test@new.bar", Emails: []string{"test@new.bar"}}
-	USR_TOKEN, _  = CreateSessionToken(&TokenData{UserId: USR.Id, IsServer: false, DurationSecs: TOKEN_DURATION}, TOKEN_CONFIG)
-	SRVR_TOKEN, _ = CreateSessionToken(&TokenData{UserId: "shoreline", IsServer: true, DurationSecs: TOKEN_DURATION}, TOKEN_CONFIG)
+	USR_TOKEN, _  = CreateSessionToken(&TokenData{UserId: USR.Id, IsServer: false, DurationSecs: TOKEN_DURATION}, FAKE_CONFIG.TokenConfigs[0])
+	SRVR_TOKEN, _ = CreateSessionToken(&TokenData{UserId: "shoreline", IsServer: true, DurationSecs: TOKEN_DURATION}, FAKE_CONFIG.TokenConfigs[0])
 	/*
 	 * basics setup
 	 */
@@ -162,7 +166,7 @@ func T_CreateAuthorization(t *testing.T, email string, password string) string {
 }
 
 func T_CreateSessionToken(t *testing.T, userId string, isServer bool, duration int64) *SessionToken {
-	sessionToken, err := CreateSessionToken(&TokenData{UserId: userId, IsServer: isServer, DurationSecs: duration}, TOKEN_CONFIG)
+	sessionToken, err := CreateSessionToken(&TokenData{UserId: userId, IsServer: isServer, DurationSecs: duration}, FAKE_CONFIG.TokenConfigs[0])
 	if err != nil {
 		t.Fatalf("Error creating session token: %#v", err)
 	}
@@ -1888,7 +1892,7 @@ func TestHasServerToken_True(t *testing.T) {
 		t.Fatal("The session token should have been set")
 	}
 
-	if hasServerToken(response.Header().Get(TP_SESSION_TOKEN), shoreline.ApiConfig.PublicKey) == false {
+	if hasServerToken(response.Header().Get(TP_SESSION_TOKEN), shoreline.ApiConfig.TokenConfigs[0]) == false {
 		t.Fatal("The token should have been a valid server token")
 	}
 }

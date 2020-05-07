@@ -257,8 +257,9 @@ func TestMongoStore_FindUsersById(t *testing.T) {
 func TestMongoStoreTokenOperations(t *testing.T) {
 
 	testing_token_data := &TokenData{UserId: "2341", IsServer: true, DurationSecs: 3600}
-	testing_token_config := TokenConfig{DurationSecs: 1200,
-		Secret: `-----BEGIN RSA PRIVATE KEY-----
+	testing_token_config := TokenConfig{
+		DurationSecs: 1200,
+		EncodeKey: `-----BEGIN RSA PRIVATE KEY-----
 MIIEpAIBAAKCAQEAzg3MHpXfMuH4AJ4URtaG4QvZenpfuSz2FmIwdnPEtkrKFmL2
 6b89U1tw5WsYAE158znAzPptDA25hAsIcTAqULNsoY3WV2zmsLrUX8pUaCTfExXN
 dMFDruR676G3pJWcsI1GuePK5/v3dBHjjTYdtVJiogbCtP+XYT/k1qHZztwRY4oH
@@ -285,7 +286,7 @@ Z2wK2QKBgQC7SZ47YM45pz23yjyrKx6dUAfw5imb6ylZPft24A+W2tFanfRDQITX
 wGHgJHaV+gd52zrP6s8AKzMjMcRtB0g0CGf5Qe1BHMh89fJsUKToT8L+040kWl/P
 upYmRYNT7J2Met0WVB6u6ZDFSMl+CIFLXHGtU47DjGUmQxqmhW8LOg==
 -----END RSA PRIVATE KEY-----`,
-		PublicKey: `-----BEGIN PUBLIC KEY-----
+		DecodeKey: `-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAzg3MHpXfMuH4AJ4URtaG
 4QvZenpfuSz2FmIwdnPEtkrKFmL26b89U1tw5WsYAE158znAzPptDA25hAsIcTAq
 ULNsoY3WV2zmsLrUX8pUaCTfExXNdMFDruR676G3pJWcsI1GuePK5/v3dBHjjTYd
@@ -293,7 +294,11 @@ tVJiogbCtP+XYT/k1qHZztwRY4oHMa8LorxUZco0Mf6qOq5tmRUJhxvCESaqUTpT
 AIIfByMnPmnIHOHnsYtkiZQBms2xo1UfpYnqZX2CoN+wPoMoSAlRbnOmmHYbbMFV
 PNTj7NINwVb8K8iDU7lFR+JfN3UGlErVo7XCDQcbwTpiZbdj9zWSWbYtIBNBqkNx
 xwIDAQAB
------END PUBLIC KEY-----`}
+-----END PUBLIC KEY-----`,
+		Algorithm: "RS256",
+		Audience:  "localhost",
+		Issuer:    "localhost",
+	}
 
 	mc, err := mgoTestSetup()
 	if err != nil {

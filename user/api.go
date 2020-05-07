@@ -151,18 +151,14 @@ type (
 		marketoManager marketo.Manager
 	}
 	ApiConfig struct {
-		ServerSecret         string         `json:"serverSecret"`
+		ServerSecret         string         `json:"serverSercret"`
+		TokenConfigs         []TokenConfig  `json:"tokenConfigs"` // the first token config is used for encoding new tokens
 		LongTermKey          string         `json:"longTermKey"`
 		LongTermDaysDuration int            `json:"longTermDaysDuration"`
-		TokenDurationSecs    int64          `json:"tokenDurationSecs"`
 		Salt                 string         `json:"salt"`
-		OldSecret            string         `json:"oldSecret"`
-		Secret               string         `json:"apiSecret"`
-		PublicKey            string         `json:"publicKey"`
 		VerificationSecret   string         `json:"verificationSecret"`
 		ClinicDemoUserID     string         `json:"clinicDemoUserId"`
 		Marketo              marketo.Config `json:"marketo"`
-		APIHost              string         `json:"apiHost"`
 	}
 	varsHandler func(http.ResponseWriter, *http.Request, map[string]string)
 )
@@ -344,8 +340,7 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 		}
 
 		tokenData := TokenData{DurationSecs: extractTokenDuration(req), UserId: newUser.Id, IsServer: false}
-		tokenConfig := TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: a.ApiConfig.Secret,
-			Issuer: a.ApiConfig.APIHost, Audience: a.ApiConfig.APIHost}
+		tokenConfig := a.ApiConfig.TokenConfigs[0]
 		if sessionToken, err := CreateSessionTokenAndSave(&tokenData, tokenConfig, a.Store); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN, err)
 		} else {
@@ -625,8 +620,7 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 
 	} else {
 		tokenData := &TokenData{DurationSecs: extractTokenDuration(req), UserId: result.Id}
-		tokenConfig := TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: a.ApiConfig.Secret,
-			Issuer: a.ApiConfig.APIHost, Audience: a.ApiConfig.APIHost}
+		tokenConfig := a.ApiConfig.TokenConfigs[0]
 		if sessionToken, err := CreateSessionTokenAndSave(tokenData, tokenConfig, a.Store); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_TOKEN, err)
 
@@ -655,8 +649,7 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 		//generate new token
 		if sessionToken, err := CreateSessionTokenAndSave(
 			&TokenData{DurationSecs: extractTokenDuration(req), UserId: server, IsServer: true},
-			TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: a.ApiConfig.Secret,
-				Issuer: a.ApiConfig.APIHost, Audience: a.ApiConfig.APIHost},
+			a.ApiConfig.TokenConfigs[0],
 			a.Store,
 		); err != nil {
 			a.logger.Println(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN, err.Error())
@@ -709,8 +702,7 @@ func (a *Api) oauth2Login(w http.ResponseWriter, r *http.Request) {
 				//generate token and send the response
 				if sessionToken, err := CreateSessionTokenAndSave(
 					&TokenData{DurationSecs: 0, UserId: result["userId"].(string), IsServer: false},
-					TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: a.ApiConfig.Secret,
-						Issuer: a.ApiConfig.APIHost, Audience: a.ApiConfig.APIHost},
+					a.ApiConfig.TokenConfigs[0],
 					a.Store,
 				); err != nil {
 					a.logger.Println(http.StatusUnauthorized, "oauth2Login error creating session token", err.Error())
@@ -755,8 +747,7 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 	//refresh
 	if sessionToken, err := CreateSessionTokenAndSave(
 		td,
-		TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: a.ApiConfig.Secret,
-			Issuer: a.ApiConfig.APIHost, Audience: a.ApiConfig.APIHost},
+		a.ApiConfig.TokenConfigs[0],
 		a.Store,
 	); err != nil {
 		a.logger.Println(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN, err.Error())
@@ -796,8 +787,8 @@ func (a *Api) LongtermLogin(res http.ResponseWriter, req *http.Request, vars map
 // status: 404 STATUS_NO_TOKEN_MATCH
 func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 
-	if hasServerToken(req.Header.Get(TP_SESSION_TOKEN), a.ApiConfig.Secret) ||
-		hasServerToken(req.Header.Get(TP_SESSION_TOKEN), a.ApiConfig.PublicKey) {
+	if hasServerToken(req.Header.Get(TP_SESSION_TOKEN), a.ApiConfig.TokenConfigs[0]) ||
+		hasServerToken(req.Header.Get(TP_SESSION_TOKEN), a.ApiConfig.TokenConfigs[1]) {
 		td, err := a.authenticateSessionToken(vars["token"])
 		if err != nil {
 			a.logger.Printf("failed request: %v", req)
@@ -940,7 +931,7 @@ func (a *Api) sendError(res http.ResponseWriter, statusCode int, reason string, 
 func (a *Api) authenticateSessionToken(sessionToken string) (*TokenData, error) {
 	if sessionToken == "" {
 		return nil, errors.New("Session token is empty")
-	} else if tokenData, err := UnpackSessionTokenAndVerify(sessionToken, a.ApiConfig.OldSecret, a.ApiConfig.PublicKey); err != nil {
+	} else if tokenData, err := UnpackSessionTokenAndVerify(sessionToken, a.ApiConfig.TokenConfigs...); err != nil {
 		return nil, err
 	} else if _, err := a.Store.FindTokenByID(sessionToken); err != nil {
 		return nil, err

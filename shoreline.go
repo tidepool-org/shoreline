@@ -55,31 +55,38 @@ func main() {
 		config.User.ServerSecret = serverSecret
 	}
 
-	userSecret, found := os.LookupEnv("API_SECRET")
-	if found {
-		config.User.OldSecret = userSecret
+	privateKey, _ := os.LookupEnv("PRIVATE_KEY")
+	publicKey, _ := os.LookupEnv("PUBLIC_KEY")
+	apiHost, _ := os.LookupEnv("API_HOST")
+	userSecret, _ := os.LookupEnv("API_SECRET")
+
+	config.User.TokenConfigs = make([]user.TokenConfig, 2)
+
+	var private *user.TokenConfig
+	var public *user.TokenConfig
+	if publicKey != "" && privateKey != "" && apiHost != "" {
+		// use public key for new token encryption
+		public = &config.User.TokenConfigs[0]
+		private = &config.User.TokenConfigs[1]
+	} else {
+		// use symmetric key for new token encryption
+		public = &config.User.TokenConfigs[1]
+		private = &config.User.TokenConfigs[0]
 	}
+
+	public.EncodeKey = privateKey
+	public.DecodeKey = publicKey
+	public.Algorithm = "RS256"
+	public.Audience = apiHost
+	public.Issuer = apiHost
+
+	private.EncodeKey = userSecret
+	private.DecodeKey = userSecret
+	private.Algorithm = "HS256"
 
 	longTermKey, found := os.LookupEnv("LONG_TERM_KEY")
 	if found {
 		config.User.LongTermKey = longTermKey
-	}
-
-	apiHost, found := os.LookupEnv("API_HOST")
-	if found {
-		config.User.APIHost = apiHost
-	} else {
-		config.User.APIHost = "localhost"
-	}
-
-	privateKey, found := os.LookupEnv("PRIVATE_KEY")
-	if found {
-		config.User.Secret = privateKey
-	}
-
-	publicKey, found := os.LookupEnv("PUBLIC_KEY")
-	if found {
-		config.User.PublicKey = publicKey
 	}
 
 	verificationSecret, found := os.LookupEnv("VERIFICATION_SECRET")
@@ -91,13 +98,9 @@ func main() {
 		config.User.ClinicDemoUserID = clinicDemoUserID
 	}
 	config.User.Marketo.ID, _ = os.LookupEnv("MARKETO_ID")
-
 	config.User.Marketo.URL, _ = os.LookupEnv("MARKETO_URL")
-
 	config.User.Marketo.Secret, _ = os.LookupEnv("MARKETO_SECRET")
-
 	config.User.Marketo.ClinicRole, _ = os.LookupEnv("MARKETO_CLINIC_ROLE")
-
 	config.User.Marketo.PatientRole, _ = os.LookupEnv("MARKETO_PATIENT_ROLE")
 
 	unParsedTimeout, found := os.LookupEnv("MARKETO_TIMEOUT")
