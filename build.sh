@@ -2,6 +2,7 @@
 
 rm -rf dist
 mkdir dist
+export GO111MODULE=on
 
 # generate version number
 if [ -n "${TRAVIS_TAG:-}" ]; then

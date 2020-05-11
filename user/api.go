@@ -8,7 +8,6 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
-	"os"
 	"reflect"
 	"runtime"
 	"strconv"
@@ -23,6 +22,126 @@ import (
 	"github.com/tidepool-org/shoreline/common"
 	"github.com/tidepool-org/shoreline/oauth2"
 	"github.com/tidepool-org/shoreline/user/mailchimp"
+	"github.com/tidepool-org/shoreline/user/marketo"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+)
+
+var (
+	failedMarketoUploadCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "failedMarketoUploadCounter",
+		Help: "The total number of failures to connect to marketo due to errors",
+	})
+	statusNoUsrDetailsCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusNoUsrDetailsCounter",
+		Help: "The total number of STATUS_NO_USR_DETAILS errors",
+	})
+	statusInvalidUserDetailsCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusInvalidUserDetailsCounter",
+		Help: "The total number of STATUS_INVALID_USER_DETAILS errors",
+	})
+	statusUserNotFoundCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusUserNotFoundCounter",
+		Help: "The total number of STATUS_USER_NOT_FOUND errors",
+	})
+	statusErrFindingUsrCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusErrFindingUsrCounter",
+		Help: "The total number of STATUS_ERR_FINDING_USR errors",
+	})
+	statusErrCreatingUsrCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusErrCreatingUsrCounter",
+		Help: "The total number of STATUS_ERR_CREATING_USR errors",
+	})
+	statusErrUpdatingUsrCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusErrUpdatingUsrCounter",
+		Help: "The total number of STATUS_ERR_UPDATING_USR errors",
+	})
+	statusUsrAlreadyExistsCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusUsrAlreadyExistsCounter",
+		Help: "The total number of STATUS_USR_ALREADY_EXISTS errors",
+	})
+	statusErrGeneratingTokenCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusErrGeneratingTokenCounter",
+		Help: "The total number of STATUS_ERR_GENERATING_TOKEN errors",
+	})
+	statusErrUpdatingTokenCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusErrUpdatingTokenCounter",
+		Help: "The total number of STATUS_ERR_UPDATING_TOKEN errors",
+	})
+	statusMissingUsrDetailsCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusMissingUsrDetailsCounter",
+		Help: "The total number of STATUS_MISSING_USR_DETAILS errors",
+	})
+	statusErrorUpdatingPwCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusErrorUpdatingPwCounter",
+		Help: "The total number of STATUS_ERROR_UPDATING_PW errors",
+	})
+	statusMissingIdPwCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusMissingIdPwCounter",
+		Help: "The total number of STATUS_MISSING_ID_PW errors",
+	})
+	statusNoMatchCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusNoMatchCounter",
+		Help: "The total number of STATUS_NO_MATCH errors",
+	})
+	statusNotVerifiedCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusNotVerifiedCounter",
+		Help: "The total number of STATUS_NOT_VERIFIED errors",
+	})
+	statusNoTokenMatchCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusNoTokenMatchCounter",
+		Help: "The total number of STATUS_NO_TOKEN_MATCH errors",
+	})
+	statusPwWrongCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusPwWrongCounter",
+		Help: "The total number of STATUS_PW_WRONG errors",
+	})
+	statusErrSendingEmailCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusErrSendingEmailCounter",
+		Help: "The total number of STATUS_ERR_SENDING_EMAIL errors",
+	})
+	statusNoTokenCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusNoTokenCounter",
+		Help: "The total number of STATUS_NO_TOKEN errors",
+	})
+	statusServerTokenRequiredCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusServerTokenRequiredCounter",
+		Help: "The total number of STATUS_SERVER_TOKEN_REQUIRED errors",
+	})
+	statusAuthHeaderRequiredCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusAuthHeaderRequiredCounter",
+		Help: "The total number of STATUS_AUTH_HEADER_REQUIRED errors",
+	})
+	statusAuthHeaderInvlaidCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusAuthHeaderInvlaidCounter",
+		Help: "The total number of STATUS_AUTH_HEADER_INVLAID errors",
+	})
+	statusGetstatusErrCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusGetstatusErrCounter",
+		Help: "The total number of STATUS_GETSTATUS_ERR errors",
+	})
+	statusUnauthorizedCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusUnauthorizedCounter",
+		Help: "The total number of STATUS_UNAUTHORIZED errors",
+	})
+	statusNoQueryCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusNoQueryCounter",
+		Help: "The total number of STATUS_NO_QUERY errors",
+	})
+	statusParameterUnknownCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusParameterUnknownCounter",
+		Help: "The total number of STATUS_PARAMETER_UNKNOWN errors",
+	})
+	statusOneQueryParamCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusOneQueryParamCounter",
+		Help: "The total number of STATUS_ONE_QUERY_PARAM errors",
+	})
+	statusInvalidRoleCounter = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "statusInvalidRoleCounter",
+		Help: "The total number of STATUS_INVALID_ROLE errors",
+	})
 )
 
 type (
@@ -35,6 +154,7 @@ type (
 		auditLogger      *log.Logger
 		mailchimpManager mailchimp.Manager
 		loginLimiter     LoginLimiter
+		marketoManager marketo.Manager
 	}
 	Secret struct {
 		Secret string `json:"secret"`
@@ -63,9 +183,11 @@ type (
 		// Block users to do multiple parallel logins (for load tests we desactivate this)
 		BlockParallelLogin bool `json:blockParallelLogin`
 		//allows for the skipping of verification for testing
-		VerificationSecret string           `json:"verificationSecret"`
-		ClinicDemoUserID   string           `json:"clinicDemoUserId"`
+		VerificationSecret string `json:"verificationSecret"`
+		ClinicDemoUserID   string `json:"clinicDemoUserId"`
 		Mailchimp          mailchimp.Config `json:"mailchimp"`
+		// to create type/file
+		Marketo marketo.Config `json:"marketo"`
 	}
 	// LoginLimiter var needed to limit the max login attempt on an account
 	LoginLimiter struct {
@@ -96,6 +218,7 @@ const (
 	STATUS_ERR_GENERATING_TOKEN  = "Error generating the token"
 	STATUS_ERR_UPDATING_TOKEN    = "Error updating token"
 	STATUS_MISSING_USR_DETAILS   = "Not all required details were given"
+	STATUS_ERROR_UPDATING_PW     = "Error updating password"
 	STATUS_MISSING_ID_PW         = "Missing id and/or password"
 	STATUS_NO_MATCH              = "No user matched the given details"
 	STATUS_NOT_VERIFIED          = "The user hasn't verified this account yet"
@@ -116,9 +239,7 @@ const (
 	STATUS_NO_EXPECTED_PWD       = "No expected password is found"
 )
 
-func InitApi(cfg ApiConfig, store Storage) *Api {
-	logger := log.New(os.Stdout, USER_API_PREFIX, log.LstdFlags|log.Lshortfile)
-	auditLogger := log.New(os.Stdout, USER_API_PREFIX, log.LstdFlags)
+func InitApi(cfg ApiConfig, logger *log.Logger, store Storage, auditLogger *log.Logger,manager marketo.Manager) *Api {
 
 	mailchimpManager, err := mailchimp.NewManager(logger, &http.Client{Timeout: 15 * time.Second}, &cfg.Mailchimp)
 	if err != nil {
@@ -138,6 +259,7 @@ func InitApi(cfg ApiConfig, store Storage) *Api {
 		logger:           logger,
 		auditLogger:      auditLogger,
 		mailchimpManager: mailchimpManager,
+		marketoManager: manager,
 	}
 
 	api.loginLimiter.usersInProgress = list.New()
@@ -154,6 +276,8 @@ func (a *Api) AttachOauth(client oauth2.Client) {
 }
 
 func (a *Api) SetHandlers(prefix string, rtr *mux.Router) {
+	rtr.Handle("/metrics", promhttp.Handler())
+
 	rtr.HandleFunc("/status", a.GetStatus).Methods("GET")
 
 	rtr.HandleFunc("/users", a.GetUsers).Methods("GET")
@@ -282,13 +406,10 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 
 	if newUserDetails, err := ParseNewUserDetails(req.Body); err != nil {
 		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, err)
-
 	} else if err := newUserDetails.Validate(); err != nil { // TODO: Fix this duplicate work!
 		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, err)
-
 	} else if newUser, err := NewUser(newUserDetails, a.ApiConfig.Salt); err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
-
 	} else if existingUser, err := a.Store.FindUsers(newUser); err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
 
@@ -335,11 +456,13 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 // @Failure 400 {object} status.Status "message returned:\"Invalid user details were given\" "
 // @Router /user/{userid}/user [post]
 func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
+
 	sessionToken := req.Header.Get(TP_SESSION_TOKEN)
+
 	if tokenData, err := a.authenticateSessionToken(sessionToken); err != nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
 
-	} else if custodianUserId := vars["userid"]; !tokenData.IsServer && custodianUserId != tokenData.UserId {
+	} else if custodianUserID := vars["userid"]; !tokenData.IsServer && custodianUserID != tokenData.UserId {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, "Token user id must match custodian user id or server")
 
 	} else if newCustodialUserDetails, err := ParseNewCustodialUserDetails(req.Body); err != nil {
@@ -359,7 +482,7 @@ func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, va
 
 	} else {
 		permissions := clients.Permissions{"custodian": clients.Allowed, "view": clients.Allowed, "upload": clients.Allowed}
-		if _, err := a.perms.SetPermissions(custodianUserId, newCustodialUser.Id, permissions); err != nil {
+		if _, err := a.perms.SetPermissions(custodianUserID, newCustodialUser.Id, permissions); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
 		} else {
 			a.logAudit(req, tokenData, "CreateCustodialUser isClinic{%t}", newCustodialUser.IsClinic())
@@ -383,6 +506,7 @@ func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, va
 // @Failure 400 {object} status.Status "message returned:\"Invalid user details were given\" "
 // @Router /user/{userid} [put]
 func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
+	a.logger.Printf("UpdateUser %v", req)
 	sessionToken := req.Header.Get(TP_SESSION_TOKEN)
 	if tokenData, err := a.authenticateSessionToken(sessionToken); err != nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
@@ -476,6 +600,15 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 						a.mailchimpManager.UpdateListMembershipForUser(originalUser, updatedUser)
 					}
 				}
+				if a.marketoManager != nil && a.marketoManager.IsAvailable() {
+					if updateUserDetails.EmailVerified != nil || updateUserDetails.TermsAccepted != nil {
+						a.marketoManager.CreateListMembershipForUser(updatedUser)
+					} else {
+						a.marketoManager.UpdateListMembershipForUser(originalUser, updatedUser)
+					}
+				} else if a.marketoManager != nil {
+					failedMarketoUploadCounter.Inc()
+				}
 			}
 			a.logAudit(req, tokenData, "UpdateUser isClinic{%t}", updatedUser.IsClinic())
 			a.sendUser(res, updatedUser, tokenData.IsServer)
@@ -501,8 +634,8 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
 	} else {
 		var user *User
-		if userId := vars["userid"]; userId != "" {
-			user = &User{Id: userId, Username: userId, Emails: []string{userId}}
+		if userID := vars["userid"]; userID != "" {
+			user = &User{Id: userID, Username: userID, Emails: []string{userID}}
 		} else {
 			user = &User{Id: tokenData.UserId}
 		}
@@ -824,12 +957,6 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	const two_hours_in_secs = 60 * 60 * 2
-
-	if td.IsServer == false && td.DurationSecs > two_hours_in_secs {
-		//long-duration let us know detail and keep it rolling
-		a.logger.Println("long-duration token set for ", fmt.Sprint(time.Duration(td.DurationSecs)*time.Second))
-	}
 	//refresh
 	if sessionToken, err := CreateSessionTokenAndSave(
 		td,
@@ -897,6 +1024,7 @@ func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars 
 	if hasServerToken(req.Header.Get(TP_SESSION_TOKEN), a.ApiConfig.Secret) {
 		td, err := a.authenticateSessionToken(vars["token"])
 		if err != nil {
+			a.logger.Printf("failed request: %v", req)
 			a.logger.Println(http.StatusUnauthorized, STATUS_NO_TOKEN, err.Error())
 			sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_TOKEN), http.StatusUnauthorized)
 			return
@@ -906,6 +1034,7 @@ func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars 
 		return
 	}
 	a.logger.Println(http.StatusUnauthorized, STATUS_NO_TOKEN)
+	a.logger.Printf("header session token: %v", req.Header.Get(TP_SESSION_TOKEN))
 	sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_TOKEN), http.StatusUnauthorized)
 	return
 }
@@ -921,7 +1050,7 @@ func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars 
 func (a *Api) Logout(res http.ResponseWriter, req *http.Request) {
 	if id := req.Header.Get(TP_SESSION_TOKEN); id != "" {
 		if err := a.Store.RemoveTokenByID(id); err != nil {
-			// silently fail but still log it
+			//silently fail but still log it
 			a.logger.Println("Logout was unable to delete token", err.Error())
 		}
 	}
@@ -959,6 +1088,89 @@ func (a *Api) sendError(res http.ResponseWriter, statusCode int, reason string, 
 		messages[index] = fmt.Sprintf("%v", extra)
 	}
 
+	switch reason {
+	case STATUS_NO_USR_DETAILS:
+		statusNoUsrDetailsCounter.Inc()
+
+	case STATUS_INVALID_USER_DETAILS:
+		statusInvalidUserDetailsCounter.Inc()
+
+	case STATUS_USER_NOT_FOUND:
+		statusUserNotFoundCounter.Inc()
+
+	case STATUS_ERR_FINDING_USR:
+		statusErrFindingUsrCounter.Inc()
+
+	case STATUS_ERR_CREATING_USR:
+		statusErrCreatingUsrCounter.Inc()
+
+	case STATUS_ERR_UPDATING_USR:
+		statusErrUpdatingUsrCounter.Inc()
+
+	case STATUS_USR_ALREADY_EXISTS:
+		statusUsrAlreadyExistsCounter.Inc()
+
+	case STATUS_ERR_GENERATING_TOKEN:
+		statusErrGeneratingTokenCounter.Inc()
+
+	case STATUS_ERR_UPDATING_TOKEN:
+		statusErrUpdatingTokenCounter.Inc()
+
+	case STATUS_MISSING_USR_DETAILS:
+		statusMissingUsrDetailsCounter.Inc()
+
+	case STATUS_ERROR_UPDATING_PW:
+		statusErrorUpdatingPwCounter.Inc()
+
+	case STATUS_MISSING_ID_PW:
+		statusMissingIdPwCounter.Inc()
+
+	case STATUS_NO_MATCH:
+		statusNoMatchCounter.Inc()
+
+	case STATUS_NOT_VERIFIED:
+		statusNotVerifiedCounter.Inc()
+
+	case STATUS_NO_TOKEN_MATCH:
+		statusNoTokenMatchCounter.Inc()
+
+	case STATUS_PW_WRONG:
+		statusPwWrongCounter.Inc()
+
+	case STATUS_ERR_SENDING_EMAIL:
+		statusErrSendingEmailCounter.Inc()
+
+	case STATUS_NO_TOKEN:
+		statusNoTokenCounter.Inc()
+
+	case STATUS_SERVER_TOKEN_REQUIRED:
+		statusServerTokenRequiredCounter.Inc()
+
+	case STATUS_AUTH_HEADER_REQUIRED:
+		statusAuthHeaderRequiredCounter.Inc()
+
+	case STATUS_AUTH_HEADER_INVLAID:
+		statusAuthHeaderInvlaidCounter.Inc()
+
+	case STATUS_GETSTATUS_ERR:
+		statusGetstatusErrCounter.Inc()
+
+	case STATUS_UNAUTHORIZED:
+		statusUnauthorizedCounter.Inc()
+
+	case STATUS_NO_QUERY:
+		statusNoQueryCounter.Inc()
+
+	case STATUS_PARAMETER_UNKNOWN:
+		statusParameterUnknownCounter.Inc()
+
+	case STATUS_ONE_QUERY_PARAM:
+		statusOneQueryParamCounter.Inc()
+
+	case STATUS_INVALID_ROLE:
+		statusInvalidRoleCounter.Inc()
+	}
+
 	a.logger.Printf("%s:%d RESPONSE ERROR: [%d %s] %s", file, line, statusCode, reason, strings.Join(messages, "; "))
 	sendModelAsResWithStatus(res, status.NewStatus(statusCode, reason), statusCode)
 }
@@ -984,7 +1196,7 @@ func (a *Api) tokenUserHasRequestedPermissions(tokenData *TokenData, groupId str
 		return clients.Permissions{}, err
 	} else {
 		finalPermissions := make(clients.Permissions, 0)
-		for permission, _ := range requestedPermissions {
+		for permission := range requestedPermissions {
 			if reflect.DeepEqual(requestedPermissions[permission], actualPermissions[permission]) {
 				finalPermissions[permission] = requestedPermissions[permission]
 			}
@@ -994,24 +1206,24 @@ func (a *Api) tokenUserHasRequestedPermissions(tokenData *TokenData, groupId str
 }
 
 func (a *Api) removeUserPermissions(groupId string, removePermissions clients.Permissions) error {
-	if originalUserPermissions, err := a.perms.UsersInGroup(groupId); err != nil {
+	originalUserPermissions, err := a.perms.UsersInGroup(groupId)
+	if err != nil {
 		return err
-	} else {
-		for userId, originalPermissions := range originalUserPermissions {
-			finalPermissions := make(clients.Permissions)
-			for name, value := range originalPermissions {
-				if _, ok := removePermissions[name]; !ok {
-					finalPermissions[name] = value
-				}
-			}
-			if len(finalPermissions) != len(originalPermissions) {
-				if _, err := a.perms.SetPermissions(userId, groupId, finalPermissions); err != nil {
-					return err
-				}
+	}
+	for userID, originalPermissions := range originalUserPermissions {
+		finalPermissions := make(clients.Permissions)
+		for name, value := range originalPermissions {
+			if _, ok := removePermissions[name]; !ok {
+				finalPermissions[name] = value
 			}
 		}
-		return nil
+		if len(finalPermissions) != len(originalPermissions) {
+			if _, err := a.perms.SetPermissions(userID, groupId, finalPermissions); err != nil {
+				return err
+			}
+		}
 	}
+	return nil
 }
 
 // UpdateUserAfterFailedLogin update the user failed login infos in database

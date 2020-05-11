@@ -26,6 +26,7 @@ export TIDEPOOL_SHORELINE_SERVICE='{
         "maxConcurrentLogin": 100,
         "verificationSecret": "+skip",
         "clinicDemoUserId": ""
+
     },
     "oauth2": {
         "expireDays": 14
