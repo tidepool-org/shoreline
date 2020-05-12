@@ -172,8 +172,8 @@ func extractTokenDuration(r *http.Request) int64 {
 	return 0
 }
 
-func hasServerToken(tokenString string, tokenConfig TokenConfig) bool {
-	td, err := UnpackSessionTokenAndVerify(tokenString, tokenConfig)
+func hasServerToken(tokenString string, tokenConfigs ...TokenConfig) bool {
+	td, err := UnpackSessionTokenAndVerify(tokenString, tokenConfigs...)
 	if err != nil {
 		return false
 	}

@@ -787,11 +787,7 @@ func (a *Api) LongtermLogin(res http.ResponseWriter, req *http.Request, vars map
 // status: 404 STATUS_NO_TOKEN_MATCH
 func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 
-	var good bool
-	for _, tc := range a.ApiConfig.TokenConfigs {
-		good = good || hasServerToken(req.Header.Get(TP_SESSION_TOKEN), tc)
-	}
-	if good {
+	if hasServerToken(req.Header.Get(TP_SESSION_TOKEN), a.ApiConfig.TokenConfigs...) {
 		td, err := a.authenticateSessionToken(vars["token"])
 		if err != nil {
 			a.logger.Printf("failed request: %v", req)
