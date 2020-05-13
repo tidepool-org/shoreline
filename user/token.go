@@ -139,6 +139,7 @@ func UnpackSessionTokenAndVerify(id string, tokenConfigs ...TokenConfig) (*Token
 	var jwtToken *jwt.Token
 	var err error
 	for _, tokenConfig := range tokenConfigs {
+		log.Printf("using %v", tokenConfig)
 		jwtToken, err = jwt.Parse(id, func(t *jwt.Token) ([]byte, error) { return []byte(tokenConfig.DecodeKey), nil })
 		if err == nil {
 			break
