@@ -116,6 +116,11 @@ func CreateSessionTokenAndSave(data *TokenData, config TokenConfig, store Storag
 		return nil, err
 	}
 
+	_, err = UnpackSessionTokenAndVerify(sessionToken.ID, config)
+	if err != nil {
+		return nil, err
+	}
+
 	err = store.AddToken(sessionToken)
 	if err != nil {
 		return nil, err
