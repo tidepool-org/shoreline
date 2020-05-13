@@ -118,6 +118,8 @@ func CreateSessionTokenAndSave(data *TokenData, config TokenConfig, store Storag
 
 	_, err = UnpackSessionTokenAndVerify(sessionToken.ID, config)
 	if err != nil {
+		log.Printf("failed to verify new session token %v", sessionToken.ID)
+		log.Printf("config %v", config)
 		return nil, err
 	}
 
