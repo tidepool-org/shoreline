@@ -256,6 +256,38 @@ func (a *Api) SetHandlers(prefix string, rtr *mux.Router) {
 	rtr.HandleFunc("/logout", a.Logout).Methods("POST")
 
 	rtr.HandleFunc("/private", a.AnonymousIdHashPair).Methods("GET")
+
+
+	///  prefixed version
+	rtr.Handle("/auth/metrics", promhttp.Handler())
+
+        rtr.HandleFunc("/auth/status", a.GetStatus).Methods("GET")
+
+        rtr.HandleFunc("/auth/users", a.GetUsers).Methods("GET")
+
+        rtr.Handle("/auth/user", varsHandler(a.GetUserInfo)).Methods("GET")
+        rtr.Handle("/auth/user/{userid}", varsHandler(a.GetUserInfo)).Methods("GET")
+
+        rtr.HandleFunc("/auth/user", a.CreateUser).Methods("POST")
+        rtr.Handle("/auth/user", varsHandler(a.UpdateUser)).Methods("PUT")
+        rtr.Handle("/auth/user/{userid}", varsHandler(a.UpdateUser)).Methods("PUT")
+        rtr.Handle("/auth/user/{userid}", varsHandler(a.DeleteUser)).Methods("DELETE")
+
+        rtr.Handle("/auth/user/{userid}/user", varsHandler(a.CreateCustodialUser)).Methods("POST")
+
+        rtr.HandleFunc("/auth/login", a.Login).Methods("POST")
+        rtr.HandleFunc("/auth/login", a.RefreshSession).Methods("GET")
+        rtr.Handle("/auth/login/{longtermkey}", varsHandler(a.LongtermLogin)).Methods("POST")
+
+        rtr.HandleFunc("/auth/oauthlogin", a.oauth2Login).Methods("POST")
+
+        rtr.HandleFunc("/auth/serverlogin", a.ServerLogin).Methods("POST")
+
+        rtr.Handle("/auth/token/{token}", varsHandler(a.ServerCheckToken)).Methods("GET")
+
+        rtr.HandleFunc("/auth/logout", a.Logout).Methods("POST")
+
+        rtr.HandleFunc("/auth/private", a.AnonymousIdHashPair).Methods("GET")
 }
 
 func (h varsHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
