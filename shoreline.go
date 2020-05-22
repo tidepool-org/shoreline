@@ -79,12 +79,12 @@ func main() {
 	public.Algorithm = "RS256"
 	public.Audience = apiHost
 	public.Issuer = apiHost
-	public.DurationSecs = 1000
+	public.DurationSecs = 60 * 60 * 24 * 30
 
 	private.EncodeKey = userSecret
 	private.DecodeKey = userSecret
 	private.Algorithm = "HS256"
-	private.DurationSecs = 1000
+	private.DurationSecs = 60 * 60 * 24 * 30
 
 	longTermKey, found := os.LookupEnv("LONG_TERM_KEY")
 	if found {
