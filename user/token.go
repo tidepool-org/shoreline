@@ -2,6 +2,7 @@ package user
 
 import (
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -28,8 +29,12 @@ type (
 	}
 
 	TokenConfig struct {
-		Secret       string
+		EncodeKey    string
 		DurationSecs int64
+		DecodeKey    string
+		Audience     string
+		Issuer       string
+		Algorithm    string
 	}
 )
 
@@ -60,7 +65,7 @@ func CreateSessionToken(data *TokenData, config TokenConfig) (*SessionToken, err
 	createdAt := now.Unix()
 	expiresAt := now.Add(time.Duration(data.DurationSecs) * time.Second).Unix()
 
-	token := jwt.New(jwt.GetSigningMethod("HS256"))
+	token := jwt.New(jwt.GetSigningMethod(config.Algorithm))
 	if data.IsServer {
 		token.Claims["svr"] = "yes"
 	} else {
@@ -69,9 +74,22 @@ func CreateSessionToken(data *TokenData, config TokenConfig) (*SessionToken, err
 	token.Claims["usr"] = data.UserId
 	token.Claims["dur"] = data.DurationSecs
 	token.Claims["exp"] = expiresAt
+	if config.Issuer == "" {
+		token.Claims["iss"] = "localhost"
+	} else {
+		token.Claims["iss"] = config.Issuer
+	}
+	token.Claims["sub"] = data.UserId
+	if config.Audience == "" {
+		token.Claims["aud"] = "localhost"
+	} else {
+		token.Claims["aud"] = config.Audience
+	}
+	token.Claims["iat"] = createdAt
 
-	tokenString, err := token.SignedString([]byte(config.Secret))
+	tokenString, err := token.SignedString([]byte(config.EncodeKey))
 	if err != nil {
+		log.Print("failed to sign")
 		return nil, err
 	}
 
@@ -98,6 +116,13 @@ func CreateSessionTokenAndSave(data *TokenData, config TokenConfig, store Storag
 		return nil, err
 	}
 
+	_, err = UnpackSessionTokenAndVerify(sessionToken.ID, config)
+	if err != nil {
+		log.Printf("failed to verify new session token %v", sessionToken.ID)
+		log.Printf("config %v", config)
+		return nil, err
+	}
+
 	err = store.AddToken(sessionToken)
 	if err != nil {
 		return nil, err
@@ -106,12 +131,19 @@ func CreateSessionTokenAndSave(data *TokenData, config TokenConfig, store Storag
 	return sessionToken, nil
 }
 
-func UnpackSessionTokenAndVerify(id string, secret string) (*TokenData, error) {
+func UnpackSessionTokenAndVerify(id string, tokenConfigs ...TokenConfig) (*TokenData, error) {
 	if id == "" {
 		return nil, SessionToken_error_no_userid
 	}
 
-	jwtToken, err := jwt.Parse(id, func(t *jwt.Token) ([]byte, error) { return []byte(secret), nil })
+	var jwtToken *jwt.Token
+	var err error
+	for _, tokenConfig := range tokenConfigs {
+		jwtToken, err = jwt.Parse(id, func(t *jwt.Token) ([]byte, error) { return []byte(tokenConfig.DecodeKey), nil })
+		if err == nil {
+			break
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -147,8 +179,8 @@ func extractTokenDuration(r *http.Request) int64 {
 	return 0
 }
 
-func hasServerToken(tokenString, secret string) bool {
-	td, err := UnpackSessionTokenAndVerify(tokenString, secret)
+func hasServerToken(tokenString string, tokenConfigs ...TokenConfig) bool {
+	td, err := UnpackSessionTokenAndVerify(tokenString, tokenConfigs...)
 	if err != nil {
 		return false
 	}
