@@ -86,7 +86,7 @@ func CreateSessionToken(data *TokenData, config TokenConfig) (*SessionToken, err
 		audienceClaim = config.Audience
 	}
 
-	token := jwt.New(jwt.GetSigningMethod(config.Algorithm))
+	token := jwt.NewWithClaims(jwt.GetSigningMethod(config.Algorithm), jwt.MapClaims{
 		"svr": svrClaim,
 		"usr": data.UserId,
 		"dur": data.DurationSecs,

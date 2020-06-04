@@ -721,7 +721,6 @@ func (a *Api) LongtermLogin(res http.ResponseWriter, req *http.Request, vars map
 func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 
 	if hasServerToken(req.Header.Get(TP_SESSION_TOKEN), a.ApiConfig.TokenConfigs...) {
-		td, err := a.authenticateSessionToken(vars["token"])
 		td, err := a.authenticateSessionToken(req.Context(), vars["token"])
 		if err != nil {
 			a.logger.Printf("failed request: %v", req)

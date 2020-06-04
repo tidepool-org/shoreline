@@ -81,7 +81,7 @@ AIIfByMnPmnIHOHnsYtkiZQBms2xo1UfpYnqZX2CoN+wPoMoSAlRbnOmmHYbbMFV
 PNTj7NINwVb8K8iDU7lFR+JfN3UGlErVo7XCDQcbwTpiZbdj9zWSWbYtIBNBqkNx
 xwIDAQAB
 -----END PUBLIC KEY-----`,
-			DurationSecs: TOKEN_DURATION,
+			DurationSecs: tokenDuration,
 			Audience:     "localhost",
 			Issuer:       "localhost",
 			Algorithm:    "RS256",
@@ -104,8 +104,8 @@ xwIDAQAB
 	 * users and tokens
 	 */
 	user           = &User{Id: "123-99-100", Username: "test@new.bar", Emails: []string{"test@new.bar"}}
-	userToken, _   = CreateSessionToken(&TokenData{UserId: USR.Id, IsServer: false, DurationSecs: TOKEN_DURATION}, FAKE_CONFIG.TokenConfigs[0])
-	serverToken, _ = CreateSessionToken(&TokenData{UserId: "shoreline", IsServer: true, DurationSecs: TOKEN_DURATION}, FAKE_CONFIG.TokenConfigs[0])
+	userToken, _   = CreateSessionToken(&TokenData{UserId: user.Id, IsServer: false, DurationSecs: tokenDuration}, fakeConfig.TokenConfigs[0])
+	serverToken, _ = CreateSessionToken(&TokenData{UserId: "shoreline", IsServer: true, DurationSecs: tokenDuration}, fakeConfig.TokenConfigs[0])
 	/*
 	 * basics setup
 	 */
@@ -163,7 +163,7 @@ func createAuthorization(t *testing.T, email string, password string) string {
 }
 
 func createSessionToken(t *testing.T, userId string, isServer bool, duration int64) *SessionToken {
-	sessionToken, err := CreateSessionToken(&TokenData{UserId: userId, IsServer: isServer, DurationSecs: duration}, FAKE_CONFIG.TokenConfigs[0])
+	sessionToken, err := CreateSessionToken(&TokenData{UserId: userId, IsServer: isServer, DurationSecs: duration}, fakeConfig.TokenConfigs[0])
 	if err != nil {
 		t.Fatalf("Error creating session token: %#v", err)
 	}
