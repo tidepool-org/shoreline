@@ -1,6 +1,7 @@
 package user
 
 import (
+	"crypto/rsa"
 	"errors"
 	"log"
 	"net/http"
@@ -156,9 +157,10 @@ func UnpackSessionTokenAndVerify(id string, tokenConfigs ...TokenConfig) (*Token
 	}
 
 	var jwtToken *jwt.Token
+	var publicKey *rsa.PublicKey
 	var err error
 	for _, tokenConfig := range tokenConfigs {
-		publicKey, err := jwt.ParseRSAPublicKeyFromPEM([]byte(tokenConfig.DecodeKey))
+		publicKey, err = jwt.ParseRSAPublicKeyFromPEM([]byte(tokenConfig.DecodeKey))
 		if err != nil {
 			log.Print("failed to parse RSA key")
 			log.Printf("config %+#v", tokenConfig)
@@ -171,7 +173,7 @@ func UnpackSessionTokenAndVerify(id string, tokenConfigs ...TokenConfig) (*Token
 			break
 		}
 	}
-	if err != nil {
+	if jwtToken == nil || err != nil {
 		log.Printf("failed to Parse JWT: %v", err)
 		return nil, err
 	}

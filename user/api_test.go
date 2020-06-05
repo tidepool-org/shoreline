@@ -162,8 +162,8 @@ func createAuthorization(t *testing.T, email string, password string) string {
 	return fmt.Sprintf("Basic %s", base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", email, password))))
 }
 
-func createSessionToken(t *testing.T, userId string, isServer bool, duration int64) *SessionToken {
-	sessionToken, err := CreateSessionToken(&TokenData{UserId: userId, IsServer: isServer, DurationSecs: duration}, fakeConfig.TokenConfigs[0])
+func createSessionToken(t *testing.T, userID string, isServer bool, duration int64) *SessionToken {
+	sessionToken, err := CreateSessionToken(&TokenData{UserId: userID, IsServer: isServer, DurationSecs: duration}, fakeConfig.TokenConfigs[0])
 	if err != nil {
 		t.Fatalf("Error creating session token: %#v", err)
 	}
