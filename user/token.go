@@ -97,9 +97,18 @@ func CreateSessionToken(data *TokenData, config TokenConfig) (*SessionToken, err
 		"iat": createdAt,
 	})
 
-	tokenString, err := token.SignedString([]byte(config.EncodeKey))
+	// TODO: Don't parse every time. Init earlier on.
+	privateKey, err := jwt.ParseRSAPrivateKeyFromPEM([]byte(config.EncodeKey))
+	if err != nil {
+		log.Print("failed to parse RSA key")
+		log.Printf("config %+#v", config)
+		return nil, err
+	}
+
+	tokenString, err := token.SignedString(privateKey)
 	if err != nil {
 		log.Print("failed to sign")
+		log.Printf("config %+#v", config)
 		return nil, err
 	}
 
@@ -149,12 +158,21 @@ func UnpackSessionTokenAndVerify(id string, tokenConfigs ...TokenConfig) (*Token
 	var jwtToken *jwt.Token
 	var err error
 	for _, tokenConfig := range tokenConfigs {
-		jwtToken, err = jwt.Parse(id, func(t *jwt.Token) (interface{}, error) { return []byte(tokenConfig.DecodeKey), nil })
+		publicKey, err := jwt.ParseRSAPublicKeyFromPEM([]byte(tokenConfig.DecodeKey))
+		if err != nil {
+			log.Print("failed to parse RSA key")
+			log.Printf("config %+#v", tokenConfig)
+			return nil, err
+		}
+		jwtToken, err = jwt.Parse(id, func(token *jwt.Token) (interface{}, error) {
+			return publicKey, nil
+		})
 		if err == nil {
 			break
 		}
 	}
 	if err != nil {
+		log.Printf("failed to Parse JWT: %v", err)
 		return nil, err
 	}
 	if !jwtToken.Valid {
