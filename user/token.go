@@ -87,7 +87,13 @@ func CreateSessionToken(data *TokenData, config TokenConfig) (*SessionToken, err
 		audienceClaim = config.Audience
 	}
 
-	token := jwt.NewWithClaims(jwt.GetSigningMethod(config.Algorithm), jwt.MapClaims{
+	signingMethod := jwt.GetSigningMethod(config.Algorithm)
+	if signingMethod == nil {
+		log.Print("Invalid signing method")
+		return nil, errors.New("Invalid signing method")
+	}
+
+	token := jwt.NewWithClaims(signingMethod, jwt.MapClaims{
 		"svr": svrClaim,
 		"usr": data.UserId,
 		"dur": data.DurationSecs,
@@ -98,12 +104,17 @@ func CreateSessionToken(data *TokenData, config TokenConfig) (*SessionToken, err
 		"iat": createdAt,
 	})
 
-	// TODO: Don't parse every time. Init earlier on.
-	privateKey, err := jwt.ParseRSAPrivateKeyFromPEM([]byte(config.EncodeKey))
-	if err != nil {
-		log.Print("failed to parse RSA key")
-		log.Printf("config %+#v", config)
-		return nil, err
+	var privateKey interface{}
+	if _, ok := token.Method.(*jwt.SigningMethodRSA); ok {
+		var err error
+		privateKey, err = jwt.ParseRSAPrivateKeyFromPEM([]byte(config.EncodeKey))
+		if err != nil {
+			log.Print("failed to parse RSA key")
+			log.Printf("config %+#v", config)
+			return nil, err
+		}
+	} else {
+		privateKey = []byte(config.EncodeKey)
 	}
 
 	tokenString, err := token.SignedString(privateKey)
@@ -160,15 +171,28 @@ func UnpackSessionTokenAndVerify(id string, tokenConfigs ...TokenConfig) (*Token
 	var publicKey *rsa.PublicKey
 	var err error
 	for _, tokenConfig := range tokenConfigs {
-		publicKey, err = jwt.ParseRSAPublicKeyFromPEM([]byte(tokenConfig.DecodeKey))
-		if err != nil {
-			log.Print("failed to parse RSA key")
-			log.Printf("config %+#v", tokenConfig)
-			return nil, err
+		signingMethod := jwt.GetSigningMethod(tokenConfig.Algorithm)
+		if signingMethod == nil {
+			log.Print("Invalid signing method")
+			return nil, errors.New("Invalid signing method")
 		}
-		jwtToken, err = jwt.Parse(id, func(token *jwt.Token) (interface{}, error) {
-			return publicKey, nil
-		})
+
+		if _, ok := signingMethod.(*jwt.SigningMethodRSA); ok {
+			publicKey, err = jwt.ParseRSAPublicKeyFromPEM([]byte(tokenConfig.DecodeKey))
+			if err != nil {
+				log.Print("failed to parse RSA key")
+				log.Printf("config %+#v", tokenConfig)
+				return nil, err
+			}
+			jwtToken, err = jwt.Parse(id, func(token *jwt.Token) (interface{}, error) {
+				return publicKey, nil
+			})
+		} else {
+			jwtToken, err = jwt.Parse(id, func(token *jwt.Token) (interface{}, error) {
+				return []byte(tokenConfig.DecodeKey), nil
+			})
+		}
+
 		if err == nil {
 			break
 		}
