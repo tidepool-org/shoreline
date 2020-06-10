@@ -26,7 +26,7 @@ import (
 
 var (
 	failedMarketoUploadCount = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "tidepool_shore_failed_marketo_upload_count",
+		Name: "tidepool_shoreline_failed_marketo_upload_count",
 		Help: "The total number of failures to connect to marketo due to errors",
 	})
 	statusCount = promauto.NewCounterVec(prometheus.CounterOpts{
