@@ -1,6 +1,7 @@
 package user
 
 import (
+	"crypto/rsa"
 	"errors"
 	"log"
 	"net/http"
@@ -12,14 +13,14 @@ import (
 
 type (
 	SessionToken struct {
-		ID        string `json:"-" bson:"_id"`
-		IsServer  bool   `json:"isServer" bson:"isServer"`
-		ServerID  string `json:"-" bson:"serverId,omitempty"`
-		UserID    string `json:"userId,omitempty" bson:"userId,omitempty"`
-		Duration  int64  `json:"-" bson:"duration"`
-		ExpiresAt int64  `json:"-" bson:"expiresAt"`
-		CreatedAt int64  `json:"-" bson:"createdAt"`
-		Time      int64  `json:"-" bson:"time"`
+		ID        string    `json:"-" bson:"_id"`
+		IsServer  bool      `json:"isServer" bson:"isServer"`
+		ServerID  string    `json:"-" bson:"serverId,omitempty"`
+		UserID    string    `json:"userId,omitempty" bson:"userId,omitempty"`
+		Duration  int64     `json:"-" bson:"duration"`
+		ExpiresAt time.Time `json:"-" bson:"expiresAt"`
+		CreatedAt time.Time `json:"-" bson:"createdAt"`
+		Time      time.Time `json:"-" bson:"time"`
 	}
 
 	TokenData struct {
@@ -65,31 +66,61 @@ func CreateSessionToken(data *TokenData, config TokenConfig) (*SessionToken, err
 	createdAt := now.Unix()
 	expiresAt := now.Add(time.Duration(data.DurationSecs) * time.Second).Unix()
 
-	token := jwt.New(jwt.GetSigningMethod(config.Algorithm))
+	var svrClaim string
 	if data.IsServer {
-		token.Claims["svr"] = "yes"
+		svrClaim = "yes"
 	} else {
-		token.Claims["svr"] = "no"
+		svrClaim = "no"
 	}
-	token.Claims["usr"] = data.UserId
-	token.Claims["dur"] = data.DurationSecs
-	token.Claims["exp"] = expiresAt
-	if config.Issuer == "" {
-		token.Claims["iss"] = "localhost"
-	} else {
-		token.Claims["iss"] = config.Issuer
-	}
-	token.Claims["sub"] = data.UserId
-	if config.Audience == "" {
-		token.Claims["aud"] = "localhost"
-	} else {
-		token.Claims["aud"] = config.Audience
-	}
-	token.Claims["iat"] = createdAt
 
-	tokenString, err := token.SignedString([]byte(config.EncodeKey))
+	var issuerClaim string
+	if config.Issuer == "" {
+		issuerClaim = "localhost"
+	} else {
+		issuerClaim = config.Issuer
+	}
+
+	var audienceClaim string
+	if config.Audience == "" {
+		audienceClaim = "localhost"
+	} else {
+		audienceClaim = config.Audience
+	}
+
+	signingMethod := jwt.GetSigningMethod(config.Algorithm)
+	if signingMethod == nil {
+		log.Print("Invalid signing method")
+		return nil, errors.New("Invalid signing method")
+	}
+
+	token := jwt.NewWithClaims(signingMethod, jwt.MapClaims{
+		"svr": svrClaim,
+		"usr": data.UserId,
+		"dur": data.DurationSecs,
+		"exp": expiresAt,
+		"iss": issuerClaim,
+		"sub": data.UserId,
+		"aud": audienceClaim,
+		"iat": createdAt,
+	})
+
+	var privateKey interface{}
+	if _, ok := token.Method.(*jwt.SigningMethodRSA); ok {
+		var err error
+		privateKey, err = jwt.ParseRSAPrivateKeyFromPEM([]byte(config.EncodeKey))
+		if err != nil {
+			log.Print("failed to parse RSA key")
+			log.Printf("config %+#v", config)
+			return nil, err
+		}
+	} else {
+		privateKey = []byte(config.EncodeKey)
+	}
+
+	tokenString, err := token.SignedString(privateKey)
 	if err != nil {
 		log.Print("failed to sign")
+		log.Printf("config %+#v", config)
 		return nil, err
 	}
 
@@ -97,9 +128,9 @@ func CreateSessionToken(data *TokenData, config TokenConfig) (*SessionToken, err
 		ID:        tokenString,
 		IsServer:  data.IsServer,
 		Duration:  data.DurationSecs,
-		ExpiresAt: expiresAt,
-		CreatedAt: createdAt,
-		Time:      createdAt,
+		ExpiresAt: time.Unix(expiresAt, 0),
+		CreatedAt: time.Unix(createdAt, 0),
+		Time:      time.Unix(createdAt, 0),
 	}
 	if data.IsServer {
 		sessionToken.ServerID = data.UserId
@@ -137,26 +168,51 @@ func UnpackSessionTokenAndVerify(id string, tokenConfigs ...TokenConfig) (*Token
 	}
 
 	var jwtToken *jwt.Token
+	var publicKey *rsa.PublicKey
 	var err error
 	for _, tokenConfig := range tokenConfigs {
-		jwtToken, err = jwt.Parse(id, func(t *jwt.Token) ([]byte, error) { return []byte(tokenConfig.DecodeKey), nil })
+		signingMethod := jwt.GetSigningMethod(tokenConfig.Algorithm)
+		if signingMethod == nil {
+			log.Print("Invalid signing method")
+			return nil, errors.New("Invalid signing method")
+		}
+
+		if _, ok := signingMethod.(*jwt.SigningMethodRSA); ok {
+			publicKey, err = jwt.ParseRSAPublicKeyFromPEM([]byte(tokenConfig.DecodeKey))
+			if err != nil {
+				log.Print("failed to parse RSA key")
+				log.Printf("config %+#v", tokenConfig)
+				return nil, err
+			}
+			jwtToken, err = jwt.Parse(id, func(token *jwt.Token) (interface{}, error) {
+				return publicKey, nil
+			})
+		} else {
+			jwtToken, err = jwt.Parse(id, func(token *jwt.Token) (interface{}, error) {
+				return []byte(tokenConfig.DecodeKey), nil
+			})
+		}
+
 		if err == nil {
 			break
 		}
 	}
-	if err != nil {
+	if jwtToken == nil || err != nil {
+		log.Printf("failed to Parse JWT: %v", err)
 		return nil, err
 	}
 	if !jwtToken.Valid {
 		return nil, SessionToken_invalid
 	}
 
-	isServer := jwtToken.Claims["svr"] == "yes"
-	durationSecs, ok := jwtToken.Claims["dur"].(int64)
+	claims := jwtToken.Claims.(jwt.MapClaims)
+
+	isServer := claims["svr"] == "yes"
+	durationSecs, ok := claims["dur"].(int64)
 	if !ok {
-		durationSecs = int64(jwtToken.Claims["dur"].(float64))
+		durationSecs = int64(claims["dur"].(float64))
 	}
-	userId := jwtToken.Claims["usr"].(string)
+	userId := claims["usr"].(string)
 
 	return &TokenData{
 		IsServer:     isServer,
