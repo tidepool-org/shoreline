@@ -397,7 +397,7 @@ func TestGetMetrics_StatusCount(t *testing.T) {
 	if p, err := ioutil.ReadAll(response.Body); err != nil {
 		t.Fail()
 	} else {
-		metric := fmt.Sprintf("tidepool_shoreline_status_count{status_code=\"%d\",status_reason=\"%s\"}", 401, STATUS_UNAUTHORIZED)
+		metric := fmt.Sprintf("tidepool_shoreline_failed_status_count{status_code=\"%d\",status_reason=\"%s\"}", 401, STATUS_UNAUTHORIZED)
 		if !strings.Contains(string(p), metric) {
 			t.Errorf("Expected %s in response: \n%s", metric, p)
 		}
