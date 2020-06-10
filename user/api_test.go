@@ -385,6 +385,25 @@ func TestGetStatus_StatusInternalServerError(t *testing.T) {
 
 }
 
+func TestGetMetrics_StatusCount(t *testing.T) {
+
+	performRequest(t, "GET", "/users?role=clinic")
+
+	response := performRequest(t, "GET", "/metrics")
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("Resp given [%d] expected [%d] ", response.Code, http.StatusOK)
+	}
+	if p, err := ioutil.ReadAll(response.Body); err != nil {
+		t.Fail()
+	} else {
+		metric := fmt.Sprintf("tidepool_shoreline_status_count{status_code=\"%d\",status_reason=\"%s\"}", 401, STATUS_UNAUTHORIZED)
+		if !strings.Contains(string(p), metric) {
+			t.Errorf("Expected %s in response: \n%s", metric, p)
+		}
+	}
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 func Test_GetUsers_Error_MissingSessionToken(t *testing.T) {
