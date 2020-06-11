@@ -25,7 +25,7 @@ import (
 
 var (
 	failedMarketoKeyConfigurationCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "failedMarketoKeyConfigurationCounter",
+		Name: "tidepool_shoreline_failed_marketo_key_configuration_counter",
 		Help: "The total number of failures to connect to marketo due to key configuration issues. Can not be resolved via retry",
 	})
 )
