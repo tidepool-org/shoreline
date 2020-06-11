@@ -24,9 +24,9 @@ import (
 )
 
 var (
-	failedMarketoKeyConfigurationCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "tidepool_shoreline_failed_marketo_key_configuration_counter",
-		Help: "The total number of failures to connect to marketo due to key configuration issues. Can not be resolved via retry",
+	marketoConfig = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "tidepool_shoreline_marketo_config_valid",
+		Help: "Indicates if the latest shoreline marketo configuration is valid.",
 	})
 )
 
@@ -163,13 +163,13 @@ func main() {
 	var marketoManager marketo.Manager
 	if err := config.User.Marketo.Validate(); err != nil {
 		logger.Println("WARNING: Marketo config is invalid", err)
-		failedMarketoKeyConfigurationCounter.Inc()
 	} else {
 		logger.Print("initializing marketo manager")
 		marketoManager, err = marketo.NewManager(logger, config.User.Marketo)
 		if err != nil {
 			logger.Println("WARNING: Marketo Manager not configured;", err)
 		}
+		marketoConfig.Set(1)
 	}
 
 	clientStore := user.NewMongoStoreClient(&config.Mongo)
