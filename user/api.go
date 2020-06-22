@@ -25,118 +25,14 @@ import (
 )
 
 var (
-	failedMarketoUploadCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "failedMarketoUploadCounter",
+	failedMarketoUploadCount = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "tidepool_shoreline_failed_marketo_upload_total",
 		Help: "The total number of failures to connect to marketo due to errors",
 	})
-	statusNoUsrDetailsCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "statusNoUsrDetailsCounter",
-		Help: "The total number of STATUS_NO_USR_DETAILS errors",
-	})
-	statusInvalidUserDetailsCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "statusInvalidUserDetailsCounter",
-		Help: "The total number of STATUS_INVALID_USER_DETAILS errors",
-	})
-	statusUserNotFoundCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "statusUserNotFoundCounter",
-		Help: "The total number of STATUS_USER_NOT_FOUND errors",
-	})
-	statusErrFindingUsrCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "statusErrFindingUsrCounter",
-		Help: "The total number of STATUS_ERR_FINDING_USR errors",
-	})
-	statusErrCreatingUsrCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "statusErrCreatingUsrCounter",
-		Help: "The total number of STATUS_ERR_CREATING_USR errors",
-	})
-	statusErrUpdatingUsrCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "statusErrUpdatingUsrCounter",
-		Help: "The total number of STATUS_ERR_UPDATING_USR errors",
-	})
-	statusUsrAlreadyExistsCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "statusUsrAlreadyExistsCounter",
-		Help: "The total number of STATUS_USR_ALREADY_EXISTS errors",
-	})
-	statusErrGeneratingTokenCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "statusErrGeneratingTokenCounter",
-		Help: "The total number of STATUS_ERR_GENERATING_TOKEN errors",
-	})
-	statusErrUpdatingTokenCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "statusErrUpdatingTokenCounter",
-		Help: "The total number of STATUS_ERR_UPDATING_TOKEN errors",
-	})
-	statusMissingUsrDetailsCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "statusMissingUsrDetailsCounter",
-		Help: "The total number of STATUS_MISSING_USR_DETAILS errors",
-	})
-	statusErrorUpdatingPwCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "statusErrorUpdatingPwCounter",
-		Help: "The total number of STATUS_ERROR_UPDATING_PW errors",
-	})
-	statusMissingIdPwCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "statusMissingIdPwCounter",
-		Help: "The total number of STATUS_MISSING_ID_PW errors",
-	})
-	statusNoMatchCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "statusNoMatchCounter",
-		Help: "The total number of STATUS_NO_MATCH errors",
-	})
-	statusNotVerifiedCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "statusNotVerifiedCounter",
-		Help: "The total number of STATUS_NOT_VERIFIED errors",
-	})
-	statusNoTokenMatchCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "statusNoTokenMatchCounter",
-		Help: "The total number of STATUS_NO_TOKEN_MATCH errors",
-	})
-	statusPwWrongCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "statusPwWrongCounter",
-		Help: "The total number of STATUS_PW_WRONG errors",
-	})
-	statusErrSendingEmailCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "statusErrSendingEmailCounter",
-		Help: "The total number of STATUS_ERR_SENDING_EMAIL errors",
-	})
-	statusNoTokenCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "statusNoTokenCounter",
-		Help: "The total number of STATUS_NO_TOKEN errors",
-	})
-	statusServerTokenRequiredCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "statusServerTokenRequiredCounter",
-		Help: "The total number of STATUS_SERVER_TOKEN_REQUIRED errors",
-	})
-	statusAuthHeaderRequiredCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "statusAuthHeaderRequiredCounter",
-		Help: "The total number of STATUS_AUTH_HEADER_REQUIRED errors",
-	})
-	statusAuthHeaderInvlaidCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "statusAuthHeaderInvlaidCounter",
-		Help: "The total number of STATUS_AUTH_HEADER_INVLAID errors",
-	})
-	statusGetstatusErrCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "statusGetstatusErrCounter",
-		Help: "The total number of STATUS_GETSTATUS_ERR errors",
-	})
-	statusUnauthorizedCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "statusUnauthorizedCounter",
-		Help: "The total number of STATUS_UNAUTHORIZED errors",
-	})
-	statusNoQueryCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "statusNoQueryCounter",
-		Help: "The total number of STATUS_NO_QUERY errors",
-	})
-	statusParameterUnknownCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "statusParameterUnknownCounter",
-		Help: "The total number of STATUS_PARAMETER_UNKNOWN errors",
-	})
-	statusOneQueryParamCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "statusOneQueryParamCounter",
-		Help: "The total number of STATUS_ONE_QUERY_PARAM errors",
-	})
-	statusInvalidRoleCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "statusInvalidRoleCounter",
-		Help: "The total number of STATUS_INVALID_ROLE errors",
-	})
+	statusCount = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "tidepool_shoreline_failed_status_count",
+		Help: "The number of errors for each status code and status reason.",
+	}, []string{"status_reason", "status_code"})
 )
 
 type (
@@ -189,7 +85,7 @@ const (
 	STATUS_NO_TOKEN              = "No x-tidepool-session-token was found"
 	STATUS_SERVER_TOKEN_REQUIRED = "A server token is required"
 	STATUS_AUTH_HEADER_REQUIRED  = "Authorization header is required"
-	STATUS_AUTH_HEADER_INVLAID   = "Authorization header is invalid"
+	STATUS_AUTH_HEADER_INVALID   = "Authorization header is invalid"
 	STATUS_GETSTATUS_ERR         = "Error checking service status"
 	STATUS_UNAUTHORIZED          = "Not authorized for requested operation"
 	STATUS_NO_QUERY              = "A query must be specified"
@@ -482,7 +378,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 						a.marketoManager.UpdateListMembershipForUser(originalUser, updatedUser)
 					}
 				} else {
-					failedMarketoUploadCounter.Inc()
+					failedMarketoUploadCount.Inc()
 				}
 			}
 			a.logMetricForUser(updatedUser.Id, "userupdated", sessionToken, map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
@@ -773,88 +669,7 @@ func (a *Api) sendError(res http.ResponseWriter, statusCode int, reason string, 
 		messages[index] = fmt.Sprintf("%v", extra)
 	}
 
-	switch reason {
-	case STATUS_NO_USR_DETAILS:
-		statusNoUsrDetailsCounter.Inc()
-
-	case STATUS_INVALID_USER_DETAILS:
-		statusInvalidUserDetailsCounter.Inc()
-
-	case STATUS_USER_NOT_FOUND:
-		statusUserNotFoundCounter.Inc()
-
-	case STATUS_ERR_FINDING_USR:
-		statusErrFindingUsrCounter.Inc()
-
-	case STATUS_ERR_CREATING_USR:
-		statusErrCreatingUsrCounter.Inc()
-
-	case STATUS_ERR_UPDATING_USR:
-		statusErrUpdatingUsrCounter.Inc()
-
-	case STATUS_USR_ALREADY_EXISTS:
-		statusUsrAlreadyExistsCounter.Inc()
-
-	case STATUS_ERR_GENERATING_TOKEN:
-		statusErrGeneratingTokenCounter.Inc()
-
-	case STATUS_ERR_UPDATING_TOKEN:
-		statusErrUpdatingTokenCounter.Inc()
-
-	case STATUS_MISSING_USR_DETAILS:
-		statusMissingUsrDetailsCounter.Inc()
-
-	case STATUS_ERROR_UPDATING_PW:
-		statusErrorUpdatingPwCounter.Inc()
-
-	case STATUS_MISSING_ID_PW:
-		statusMissingIdPwCounter.Inc()
-
-	case STATUS_NO_MATCH:
-		statusNoMatchCounter.Inc()
-
-	case STATUS_NOT_VERIFIED:
-		statusNotVerifiedCounter.Inc()
-
-	case STATUS_NO_TOKEN_MATCH:
-		statusNoTokenMatchCounter.Inc()
-
-	case STATUS_PW_WRONG:
-		statusPwWrongCounter.Inc()
-
-	case STATUS_ERR_SENDING_EMAIL:
-		statusErrSendingEmailCounter.Inc()
-
-	case STATUS_NO_TOKEN:
-		statusNoTokenCounter.Inc()
-
-	case STATUS_SERVER_TOKEN_REQUIRED:
-		statusServerTokenRequiredCounter.Inc()
-
-	case STATUS_AUTH_HEADER_REQUIRED:
-		statusAuthHeaderRequiredCounter.Inc()
-
-	case STATUS_AUTH_HEADER_INVLAID:
-		statusAuthHeaderInvlaidCounter.Inc()
-
-	case STATUS_GETSTATUS_ERR:
-		statusGetstatusErrCounter.Inc()
-
-	case STATUS_UNAUTHORIZED:
-		statusUnauthorizedCounter.Inc()
-
-	case STATUS_NO_QUERY:
-		statusNoQueryCounter.Inc()
-
-	case STATUS_PARAMETER_UNKNOWN:
-		statusParameterUnknownCounter.Inc()
-
-	case STATUS_ONE_QUERY_PARAM:
-		statusOneQueryParamCounter.Inc()
-
-	case STATUS_INVALID_ROLE:
-		statusInvalidRoleCounter.Inc()
-	}
+	statusCount.WithLabelValues(reason, strconv.Itoa(statusCode)).Inc()
 
 	a.logger.Printf("%s:%d RESPONSE ERROR: [%d %s] %s", file, line, statusCode, reason, strings.Join(messages, "; "))
 	sendModelAsResWithStatus(res, status.NewStatus(statusCode, reason), statusCode)
