@@ -165,12 +165,8 @@ func main() {
 		logger.Println("WARNING: Marketo config is invalid", err)
 	} else {
 		logger.Print("initializing marketo manager")
-		marketoManager, err = marketo.NewManager(logger, config.User.Marketo)
-		if err != nil {
-			logger.Println("WARNING: Marketo Manager not configured;", err)
-		} else {
-			marketoConfig.Set(1)
-		}
+		marketoManager, _ = marketo.NewManager(logger, config.User.Marketo)
+		marketoConfig.Set(1)
 	}
 
 	clientStore := user.NewMongoStoreClient(&config.Mongo)
