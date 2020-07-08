@@ -19,15 +19,14 @@ import (
 	"github.com/tidepool-org/go-common/clients/hakken"
 	"github.com/tidepool-org/go-common/clients/highwater"
 	"github.com/tidepool-org/go-common/clients/mongo"
-	"github.com/tidepool-org/shoreline/oauth2"
 	"github.com/tidepool-org/shoreline/user"
 	"github.com/tidepool-org/shoreline/user/marketo"
 )
 
 var (
-	failedMarketoKeyConfigurationCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "failedMarketoKeyConfigurationCounter",
-		Help: "The total number of failures to connect to marketo due to key configuration issues. Can not be resolved via retry",
+	marketoConfig = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "tidepool_shoreline_marketo_config_valid",
+		Help: "Indicates if the latest shoreline marketo configuration is valid.",
 	})
 )
 
@@ -37,13 +36,14 @@ type (
 		Service disc.ServiceListing `json:"service"`
 		Mongo   mongo.Config        `json:"mongo"`
 		User    user.ApiConfig      `json:"user"`
-		Oauth2  oauth2.ApiConfig    `json:"oauth2"`
 	}
 )
 
 func main() {
 	var config Config
 	logger := log.New(os.Stdout, user.USER_API_PREFIX, log.LstdFlags|log.Lshortfile)
+	log.SetPrefix(user.USER_API_PREFIX)
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
 	if err := common.LoadEnvironmentConfig([]string{"TIDEPOOL_SHORELINE_ENV", "TIDEPOOL_SHORELINE_SERVICE"}, &config); err != nil {
 		logger.Panic("Problem loading Shoreline config", err)
@@ -55,10 +55,36 @@ func main() {
 		config.User.ServerSecret = serverSecret
 	}
 
-	userSecret, found := os.LookupEnv("API_SECRET")
-	if found {
-		config.User.Secret = userSecret
+	privateKey, _ := os.LookupEnv("PRIVATE_KEY")
+	publicKey, _ := os.LookupEnv("PUBLIC_KEY")
+	apiHost, _ := os.LookupEnv("API_HOST")
+	userSecret, _ := os.LookupEnv("API_SECRET")
+
+	config.User.TokenConfigs = make([]user.TokenConfig, 2)
+
+	var private *user.TokenConfig
+	var public *user.TokenConfig
+	if publicKey != "" && privateKey != "" && apiHost != "" {
+		// use public key for new token encryption
+		public = &config.User.TokenConfigs[0]
+		private = &config.User.TokenConfigs[1]
+	} else {
+		// use symmetric key for new token encryption
+		public = &config.User.TokenConfigs[1]
+		private = &config.User.TokenConfigs[0]
 	}
+
+	public.EncodeKey = privateKey
+	public.DecodeKey = publicKey
+	public.Algorithm = "RS256"
+	public.Audience = apiHost
+	public.Issuer = apiHost
+	public.DurationSecs = 60 * 60 * 24 * 30
+
+	private.EncodeKey = userSecret
+	private.DecodeKey = userSecret
+	private.Algorithm = "HS256"
+	private.DurationSecs = 60 * 60 * 24 * 30
 
 	longTermKey, found := os.LookupEnv("LONG_TERM_KEY")
 	if found {
@@ -74,13 +100,9 @@ func main() {
 		config.User.ClinicDemoUserID = clinicDemoUserID
 	}
 	config.User.Marketo.ID, _ = os.LookupEnv("MARKETO_ID")
-
 	config.User.Marketo.URL, _ = os.LookupEnv("MARKETO_URL")
-
 	config.User.Marketo.Secret, _ = os.LookupEnv("MARKETO_SECRET")
-
 	config.User.Marketo.ClinicRole, _ = os.LookupEnv("MARKETO_CLINIC_ROLE")
-
 	config.User.Marketo.PatientRole, _ = os.LookupEnv("MARKETO_PATIENT_ROLE")
 
 	unParsedTimeout, found := os.LookupEnv("MARKETO_TIMEOUT")
@@ -141,16 +163,16 @@ func main() {
 	var marketoManager marketo.Manager
 	if err := config.User.Marketo.Validate(); err != nil {
 		logger.Println("WARNING: Marketo config is invalid", err)
-		failedMarketoKeyConfigurationCounter.Inc()
 	} else {
 		logger.Print("initializing marketo manager")
-		marketoManager, err = marketo.NewManager(logger, config.User.Marketo)
-		if err != nil {
-			logger.Println("WARNING: Marketo Manager not configured;", err)
-		}
+		marketoManager, _ = marketo.NewManager(logger, config.User.Marketo)
+		marketoConfig.Set(1)
 	}
 
 	clientStore := user.NewMongoStoreClient(&config.Mongo)
+	defer clientStore.Disconnect()
+	clientStore.EnsureIndexes()
+
 	userapi := user.InitApi(config.User, logger, clientStore, highwater, marketoManager)
 	logger.Print("installing handlers")
 	userapi.SetHandlers("", rtr)
@@ -165,17 +187,6 @@ func main() {
 		Build()
 
 	userapi.AttachPerms(permsClient)
-
-	/*
-	 * Oauth setup
-	 */
-
-	oauthapi := oauth2.InitApi(config.Oauth2, oauth2.NewOAuthStorage(&config.Mongo), userClient, permsClient)
-	oauthapi.SetHandlers("", rtr)
-
-	oauthClient := oauth2.NewOAuth2Client(oauthapi)
-
-	userapi.AttachOauth(oauthClient)
 
 	/*
 	 * Serve it up and publish

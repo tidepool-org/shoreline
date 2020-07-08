@@ -129,7 +129,7 @@ func Client(miniconfig minimarketo.ClientConfig) (minimarketo.Client, error) {
 	return client, nil
 }
 
-// repairManager recreat
+// repairManager recreates a manager
 func (m *Connector) repairManager() {
 	miniconfig := Miniconfig(m.config)
 	client, _ := Client(miniconfig)
