@@ -221,7 +221,7 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 		}
 		if err := a.Store.WithContext(req.Context()).UpsertUser(newUser); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
-	
+			return
 		}
 		if newUser.IsClinic() {
 			if a.ApiConfig.ClinicDemoUserID != "" {
