@@ -2,10 +2,10 @@
 
 Shoreline is the module that manages logins and user accounts.
 
-## Unreleased
+## 1.0.0 - 2020-07-28
 ### Changed
 - PT-1284 Integrate Tidepool master for shoreline
-- Generate Soup document from go modules
+- PT-1389 Generate Soup document from go modules
 
 ## 0.6.0 - 2020-04-09
 ### Changed
