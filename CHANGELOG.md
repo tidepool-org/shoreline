@@ -2,6 +2,9 @@
 
 Shoreline is the module that manages logins and user accounts.
 
+## 1.0.1 - 2020-07-29
+- Fix Soup document name: remove dblp from tag
+
 ## 1.0.0 - 2020-07-28
 ### Changed
 - PT-1284 Integrate Tidepool master for shoreline
