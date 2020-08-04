@@ -2,6 +2,7 @@ package user
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -43,6 +44,7 @@ type (
 		perms          clients.Gatekeeper
 		logger         *log.Logger
 		marketoManager marketo.Manager
+		KeycloakClient *KeycloakClient
 	}
 	ApiConfig struct {
 		ServerSecret         string         `json:"serverSercret"`
@@ -136,6 +138,9 @@ func (a *Api) SetHandlers(prefix string, rtr *mux.Router) {
 	rtr.HandleFunc("/logout", a.Logout).Methods("POST")
 
 	rtr.HandleFunc("/private", a.AnonymousIdHashPair).Methods("GET")
+
+	rtr.Handle("/migrate/{username}", varsHandler(a.GetUserForMigration)).Methods("GET")
+	rtr.Handle("/migrate/{username}", varsHandler(a.CheckUserPassword)).Methods("POST")
 }
 
 func (h varsHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
@@ -487,6 +492,9 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 	if user, password := unpackAuth(req.Header.Get("Authorization")); user == nil {
 		a.sendError(res, http.StatusBadRequest, STATUS_MISSING_ID_PW)
+	} else if token, err := a.KeycloakClient.Login(req.Context(), user, password); err != nil {
+
+	} else if err == nil {
 
 	} else if results, err := a.Store.WithContext(req.Context()).FindUsers(user); err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err)
@@ -637,7 +645,11 @@ func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars 
 // status: 200
 func (a *Api) Logout(res http.ResponseWriter, req *http.Request) {
 	if id := req.Header.Get(TP_SESSION_TOKEN); id != "" {
-		if err := a.Store.WithContext(req.Context()).RemoveTokenByID(id); err != nil {
+		if a.KeycloakClient.IsKeycloakToken(id) {
+			if err := a.KeycloakClient.Logout(req.Context(), id); err != nil {
+				a.logger.Println("Unable to logout from keycloak", err.Error())
+			}
+		} else if err := a.Store.WithContext(req.Context()).RemoveTokenByID(id); err != nil {
 			//silently fail but still log it
 			a.logger.Println("Logout was unable to delete token", err.Error())
 		}
@@ -652,6 +664,77 @@ func (a *Api) AnonymousIdHashPair(res http.ResponseWriter, req *http.Request) {
 	idHashPair := NewAnonIdHashPair([]string{a.ApiConfig.Salt}, req.URL.Query())
 	sendModelAsRes(res, idHashPair)
 	return
+}
+
+// Returns the user profile in the expected format for migration
+func (a *Api) GetUserForMigration(res http.ResponseWriter, req *http.Request, vars map[string]string) {
+	sessionToken := req.Header.Get(TP_SESSION_TOKEN)
+	if tokenData, err := a.authenticateSessionToken(req.Context(), sessionToken); err != nil {
+		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
+	} else if !tokenData.IsServer {
+		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED)
+	}
+
+	username, ok := vars["username"]
+	if !ok {
+		res.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	users, err := a.Store.WithContext(req.Context()).FindUsers(&User{
+		Username: username,
+	})
+	if err != nil {
+		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err.Error())
+		return
+	} else if len(users) != 1 || users[0].IsDeleted() {
+		a.sendError(res, http.StatusNotFound, STATUS_USER_NOT_FOUND)
+		return
+	}
+
+	user := users[0]
+	keycloakUser := &KeycloakUser{
+		Username:      user.Username,
+		Email:         user.Email(),
+		Enabled:       true,
+		EmailVerified: users[0].EmailVerified,
+		Roles:         users[0].Roles,
+		Attributes: KeycloakUserAttributes{
+			TermsAccepted: []string{fmt.Sprintf("%v", users[0].TermsAccepted)},
+		},
+	}
+
+	sendModelAsRes(res, keycloakUser)
+	return
+}
+
+// status: 200 if a user with the required password exists
+func (a *Api) CheckUserPassword(res http.ResponseWriter, req *http.Request, vars map[string]string) {
+	username, ok := vars["username"]
+	request := CheckPasswordRequest{}
+	err := json.NewDecoder(req.Body).Decode(&request)
+	if err != nil {
+		res.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	if !ok || !a.userWithPasswordExists(req.Context(), username, request.Password) {
+		a.sendError(res, http.StatusNotFound, STATUS_USER_NOT_FOUND)
+		return
+	}
+
+	res.WriteHeader(http.StatusOK)
+}
+
+func (a *Api) userWithPasswordExists(ctx context.Context, username, password string) bool {
+	users, err := a.Store.WithContext(ctx).FindUsers(&User{
+		Username: username,
+	})
+
+	return err == nil &&
+		len(users) == 1 &&
+		!users[0].IsDeleted() &&
+		users[0].PasswordsMatch(password, a.ApiConfig.Salt)
 }
 
 func (a *Api) sendError(res http.ResponseWriter, statusCode int, reason string, extras ...interface{}) {
