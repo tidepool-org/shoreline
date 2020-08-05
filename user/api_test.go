@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/tidepool-org/shoreline/keycloak"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -29,13 +30,14 @@ const (
 	makeItFail = true
 )
 
-func InitAPITest(cfg ApiConfig, logger *log.Logger, store Storage, metrics highwater.Client, marketoManager marketo.Manager) *Api {
+func InitAPITest(cfg ApiConfig, logger *log.Logger, store Storage, metrics highwater.Client, marketoManager marketo.Manager, keycloakClient keycloak.Client) *Api {
 	return &Api{
 		Store:          store,
 		ApiConfig:      cfg,
 		metrics:        metrics,
 		logger:         logger,
 		marketoManager: marketoManager,
+		keycloakClient: keycloakClient,
 	}
 }
 
@@ -117,17 +119,18 @@ xwIDAQAB
 	mockStore          = NewMockStoreClient(fakeConfig.Salt, false, false)
 	mockMetrics        = highwater.NewMock()
 	mockMarketoManager = NewTestManager()
-	shoreline          = InitAPITest(fakeConfig, logger, mockStore, mockMetrics, mockMarketoManager)
+	mockKeycloakClient = &keycloak.MockClient{}
+	shoreline          = InitAPITest(fakeConfig, logger, mockStore, mockMetrics, mockMarketoManager, mockKeycloakClient)
 	/*
 	 *
 	 */
 	mockNoDupsStore = NewMockStoreClient(fakeConfig.Salt, true, false)
-	shorelineNoDups = InitAPITest(fakeConfig, logger, mockNoDupsStore, mockMetrics, mockMarketoManager)
+	shorelineNoDups = InitAPITest(fakeConfig, logger, mockNoDupsStore, mockMetrics, mockMarketoManager, mockKeycloakClient)
 	/*
 	 * failure path
 	 */
 	mockStoreFails = NewMockStoreClient(fakeConfig.Salt, false, makeItFail)
-	shorelineFails = InitAPITest(fakeConfig, logger, mockStoreFails, mockMetrics, mockMarketoManager)
+	shorelineFails = InitAPITest(fakeConfig, logger, mockStoreFails, mockMetrics, mockMarketoManager, mockKeycloakClient)
 
 	responsableStore      = NewResponsableMockStoreClient()
 	responsableGatekeeper = NewResponsableMockGatekeeper()
@@ -135,7 +138,7 @@ xwIDAQAB
 )
 
 func InitShoreline(config ApiConfig, store Storage, metrics highwater.Client, perms clients.Gatekeeper) *Api {
-	api := InitAPITest(config, logger, store, metrics, mockMarketoManager)
+	api := InitAPITest(config, logger, store, metrics, mockMarketoManager, mockKeycloakClient)
 	api.AttachPerms(perms)
 	return api
 }

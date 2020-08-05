@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/tidepool-org/shoreline/keycloak"
 	"log"
 	"net/http"
 	"reflect"
@@ -44,9 +45,12 @@ type (
 		perms          clients.Gatekeeper
 		logger         *log.Logger
 		marketoManager marketo.Manager
-		KeycloakClient *KeycloakClient
+		keycloakClient keycloak.Client
 	}
 	ApiConfig struct {
+		ClientID             string         `json:"clientId"`
+		ClientSecret         string         `json:"clientSecret"`
+		KeycloakBaseUrl      string         `json:"keycloakBaseUrl"`
 		ServerSecret         string         `json:"serverSercret"`
 		TokenConfigs         []TokenConfig  `json:"tokenConfigs"` // the first token config is used for encoding new tokens
 		LongTermKey          string         `json:"longTermKey"`
@@ -96,13 +100,14 @@ const (
 	STATUS_INVALID_ROLE          = "The role specified is invalid"
 )
 
-func InitApi(cfg ApiConfig, logger *log.Logger, store Storage, metrics highwater.Client, manager marketo.Manager) *Api {
+func InitApi(cfg ApiConfig, logger *log.Logger, store Storage, metrics highwater.Client, manager marketo.Manager, keycloakClient keycloak.Client) *Api {
 	return &Api{
 		Store:          store,
 		ApiConfig:      cfg,
 		metrics:        metrics,
 		logger:         logger,
 		marketoManager: manager,
+		keycloakClient: keycloakClient,
 	}
 }
 
@@ -492,39 +497,13 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 	if user, password := unpackAuth(req.Header.Get("Authorization")); user == nil {
 		a.sendError(res, http.StatusBadRequest, STATUS_MISSING_ID_PW)
-	} else if token, err := a.KeycloakClient.Login(req.Context(), user, password); err != nil {
-
-	} else if err == nil {
-
-	} else if results, err := a.Store.WithContext(req.Context()).FindUsers(user); err != nil {
+	} else if token, err := a.keycloakClient.Login(req.Context(), user.Username, password); err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err)
-
-	} else if len(results) != 1 {
-		a.sendError(res, http.StatusUnauthorized, STATUS_NO_MATCH, fmt.Sprintf("Found %d users matching %#v", len(results), user))
-
-	} else if result := results[0]; result == nil {
-		a.sendError(res, http.StatusUnauthorized, STATUS_NO_MATCH, "Found user is nil")
-
-	} else if result.IsDeleted() {
-		a.sendError(res, http.StatusUnauthorized, STATUS_NO_MATCH, "User is marked deleted")
-
-	} else if !result.PasswordsMatch(password, a.ApiConfig.Salt) {
-		a.sendError(res, http.StatusUnauthorized, STATUS_NO_MATCH, "Passwords do not match")
-
-	} else if !result.IsEmailVerified(a.ApiConfig.VerificationSecret) {
-		a.sendError(res, http.StatusForbidden, STATUS_NOT_VERIFIED)
-
+	} else if tidepoolSessionToken, err := keycloak.CreateBackwardCompatibleToken(token); err != nil {
+		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err)
 	} else {
-		tokenData := &TokenData{DurationSecs: extractTokenDuration(req), UserId: result.Id}
-		tokenConfig := a.ApiConfig.TokenConfigs[0]
-		if sessionToken, err := CreateSessionTokenAndSave(tokenData, tokenConfig, a.Store.WithContext(req.Context())); err != nil {
-			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_TOKEN, err)
-
-		} else {
-			a.logMetric("userlogin", sessionToken.ID, nil)
-			res.Header().Set(TP_SESSION_TOKEN, sessionToken.ID)
-			a.sendUser(res, result, false)
-		}
+		res.Header().Set(TP_SESSION_TOKEN, tidepoolSessionToken)
+		a.sendUser(res, user, false)
 	}
 }
 
@@ -645,8 +624,10 @@ func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars 
 // status: 200
 func (a *Api) Logout(res http.ResponseWriter, req *http.Request) {
 	if id := req.Header.Get(TP_SESSION_TOKEN); id != "" {
-		if a.KeycloakClient.IsKeycloakToken(id) {
-			if err := a.KeycloakClient.Logout(req.Context(), id); err != nil {
+		if keycloak.IsKeycloakToken(id) {
+			if token, err := keycloak.UnpackBackwardCompatibleToken(id); err != nil {
+				a.logger.Println("Unable to unpack token", err.Error())
+			} else if err := a.keycloakClient.RevokeToken(req.Context(), token); err != nil {
 				a.logger.Println("Unable to logout from keycloak", err.Error())
 			}
 		} else if err := a.Store.WithContext(req.Context()).RemoveTokenByID(id); err != nil {
@@ -693,13 +674,13 @@ func (a *Api) GetUserForMigration(res http.ResponseWriter, req *http.Request, va
 	}
 
 	user := users[0]
-	keycloakUser := &KeycloakUser{
+	keycloakUser := &keycloak.User{
 		Username:      user.Username,
 		Email:         user.Email(),
 		Enabled:       true,
 		EmailVerified: users[0].EmailVerified,
 		Roles:         users[0].Roles,
-		Attributes: KeycloakUserAttributes{
+		Attributes: keycloak.UserAttributes{
 			TermsAccepted: []string{fmt.Sprintf("%v", users[0].TermsAccepted)},
 		},
 	}
@@ -711,7 +692,7 @@ func (a *Api) GetUserForMigration(res http.ResponseWriter, req *http.Request, va
 // status: 200 if a user with the required password exists
 func (a *Api) CheckUserPassword(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 	username, ok := vars["username"]
-	request := CheckPasswordRequest{}
+	request := keycloak.CheckPasswordRequest{}
 	err := json.NewDecoder(req.Body).Decode(&request)
 	if err != nil {
 		res.WriteHeader(http.StatusBadRequest)

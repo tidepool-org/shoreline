@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/tls"
+	"github.com/tidepool-org/shoreline/keycloak"
 	"log"
 	"net/http"
 	"os"
@@ -33,9 +34,10 @@ var (
 type (
 	Config struct {
 		clients.Config
-		Service disc.ServiceListing `json:"service"`
-		Mongo   mongo.Config        `json:"mongo"`
-		User    user.ApiConfig      `json:"user"`
+		Service  disc.ServiceListing `json:"service"`
+		Mongo    mongo.Config        `json:"mongo"`
+		User     user.ApiConfig      `json:"user"`
+		Keycloak keycloak.Config     `json:"keycloak"`
 	}
 )
 
@@ -115,6 +117,10 @@ func main() {
 		config.User.Marketo.Timeout = parsedTimeout
 	}
 
+	config.Keycloak.ClientID, _ = os.LookupEnv("KEYCLOAK_CLIENT_ID")
+	config.Keycloak.ClientSecret, _ = os.LookupEnv("KEYCLOAK_CLIENT_SECRET")
+	config.Keycloak.RealmUrl, _ = os.LookupEnv("KEYCLOAK_CLIENT_REALM_URL")
+
 	salt, found := os.LookupEnv("SALT")
 	if found {
 		config.User.Salt = salt
@@ -173,7 +179,8 @@ func main() {
 	defer clientStore.Disconnect()
 	clientStore.EnsureIndexes()
 
-	userapi := user.InitApi(config.User, logger, clientStore, highwater, marketoManager)
+	keycloakClient := keycloak.NewClient(&config.Keycloak)
+	userapi := user.InitApi(config.User, logger, clientStore, highwater, marketoManager, keycloakClient)
 	logger.Print("installing handlers")
 	userapi.SetHandlers("", rtr)
 
