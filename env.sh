@@ -1,3 +1,7 @@
+export KEYCLOAK_CLIENT_ID=shoreline
+export KEYCLOAK_CLIENT_SECRET=721457c8-3693-402a-a9d4-d2bc137ada95
+export KEYCLOAK_REALM_URL=http://localhost:8024/auth/realms/todd
+
 export TIDEPOOL_SHORELINE_ENV='{
     "hakken": { "host": "localhost:8000" },
     "highwater": {
@@ -18,7 +22,7 @@ export TIDEPOOL_SHORELINE_SERVICE='{
         "certFile": "config/cert.pem"
     },
     "mongo": {
-        "connectionString": "mongodb://localhost/user"
+        "connectionString": "mongodb://localhost:27017/user"
     },
     "user": {
         "serverSecret": "This needs to be the same secret everywhere. YaHut75NsK1f9UKUXuWqxNN0RUwHFBCy",
@@ -28,10 +32,15 @@ export TIDEPOOL_SHORELINE_SERVICE='{
         "tokenDurationSecs": 2592000,
         "salt": "ADihSEI7tOQQP9xfXMO9HfRpXKu1NpIJ",
         "verificationSecret": "+skip",
-        "clinicDemoUserId": ""
-
+        "clinicDemoUserId": "",
+        "migrationSecret": "test"
     },
     "oauth2": {
         "expireDays": 14
+    },
+    "keycloak": {
+        "clientId": "shoreline",
+        "clientSecret": "721457c8-3693-402a-a9d4-d2bc137ada95",
+        "realmUrl": "http://localhost:8024/auth/realms/todd"
     }
 }'

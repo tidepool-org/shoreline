@@ -117,10 +117,6 @@ func main() {
 		config.User.Marketo.Timeout = parsedTimeout
 	}
 
-	config.Keycloak.ClientID, _ = os.LookupEnv("KEYCLOAK_CLIENT_ID")
-	config.Keycloak.ClientSecret, _ = os.LookupEnv("KEYCLOAK_CLIENT_SECRET")
-	config.Keycloak.RealmUrl, _ = os.LookupEnv("KEYCLOAK_CLIENT_REALM_URL")
-
 	salt, found := os.LookupEnv("SALT")
 	if found {
 		config.User.Salt = salt

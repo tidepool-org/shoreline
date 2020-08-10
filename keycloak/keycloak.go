@@ -2,9 +2,11 @@ package keycloak
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"golang.org/x/oauth2"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -16,6 +18,7 @@ const (
 )
 
 type User struct {
+	ID            string         `json:"id"`
 	Username      string         `json:"username"`
 	Email         string         `json:"email"`
 	FirstName     string         `json:"firstName"`
@@ -35,13 +38,15 @@ type CheckPasswordRequest struct {
 }
 
 type Config struct {
-	ClientID     string
-	ClientSecret string
-	RealmUrl     string
+	ClientID     string `json:"clientId"`
+	ClientSecret string `json:"clientSecret"`
+	RealmUrl     string `json:"realmUrl"`
 }
 
 type Client interface {
 	Login(ctx context.Context, username, password string) (*oauth2.Token, error)
+	IntrospectToken(ctx context.Context, token *oauth2.Token) (*TokenIntrospectionResult, error)
+	RefreshToken(ctx context.Context, token *oauth2.Token) (*oauth2.Token, error)
 	RevokeToken(ctx context.Context, token *oauth2.Token) error
 }
 
@@ -59,27 +64,32 @@ func NewClient(config *Config) Client {
 			TokenURL: fmt.Sprintf("%v/protocol/openid-connect/token", config.RealmUrl),
 		},
 	}
-	return &client{oauth2Config: cfg}
+	return &client{
+		keycloakConfig: config,
+		oauth2Config:   cfg,
+	}
 }
 
 func (c *client) Login(ctx context.Context, username, password string) (*oauth2.Token, error) {
+	log.Println(c.oauth2Config.Endpoint.AuthURL)
 	return c.oauth2Config.PasswordCredentialsToken(ctx, username, password)
 }
 
 func (c *client) RevokeToken(ctx context.Context, token *oauth2.Token) error {
-	client := http.Client{}
 	endpoint := fmt.Sprintf("%v/protocol/openid-connect/revoke", c.keycloakConfig.RealmUrl)
 	data := url.Values{
 		"token":           []string{token.RefreshToken},
-		"token_type_hint": []string{"refresh"},
+		"token_type_hint": []string{"refresh_token"},
 	}
 
 	req, err := http.NewRequest("POST", endpoint, strings.NewReader(data.Encode()))
 	if err != nil {
 		return err
 	}
-
+	req.Header.Set("content-type", "application/x-www-form-urlencoded")
 	req.SetBasicAuth(c.oauth2Config.ClientID, c.oauth2Config.ClientSecret)
+
+	client := http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
@@ -90,7 +100,48 @@ func (c *client) RevokeToken(ctx context.Context, token *oauth2.Token) error {
 	return nil
 }
 
-func IsKeycloakToken(token string) bool {
+func (c *client) RefreshToken(ctx context.Context, token *oauth2.Token) (*oauth2.Token, error) {
+	return c.oauth2Config.TokenSource(ctx, token).Token()
+}
+
+type TokenIntrospectionResult struct {
+	Active        bool   `json:"active"`
+	Subject       string `json:"sub"`
+	EmailVerified bool   `json:"emailVerified"`
+	ExpiresAt     int64  `json:"eat"`
+}
+
+func (c *client) IntrospectToken(ctx context.Context, token *oauth2.Token) (*TokenIntrospectionResult, error) {
+	endpoint := fmt.Sprintf("%v/protocol/openid-connect/token/introspect", c.keycloakConfig.RealmUrl)
+	data := url.Values{
+		"token": []string{token.AccessToken},
+	}
+
+	req, err := http.NewRequest("POST", endpoint, strings.NewReader(data.Encode()))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("content-type", "application/x-www-form-urlencoded")
+	req.SetBasicAuth(c.oauth2Config.ClientID, c.oauth2Config.ClientSecret)
+
+	client := http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, errors.New(fmt.Sprintf("received unexpected status %v from token introspection endpoint", resp.Status))
+	}
+
+	result := &TokenIntrospectionResult{}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func IsKeycloakBackwardCompatibleToken(token string) bool {
 	_, err := UnpackBackwardCompatibleToken(token)
 	return err == nil
 }
@@ -124,4 +175,9 @@ func UnpackBackwardCompatibleToken(token string) (*oauth2.Token, error) {
 		RefreshToken: parts[2],
 	}
 	return t, nil
+}
+
+func IsServiceToken(token *oauth2.Token) bool {
+	// For the time being we're not using keycloak for service-to-service authentication
+	return false
 }

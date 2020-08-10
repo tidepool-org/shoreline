@@ -48,9 +48,6 @@ type (
 		keycloakClient keycloak.Client
 	}
 	ApiConfig struct {
-		ClientID             string         `json:"clientId"`
-		ClientSecret         string         `json:"clientSecret"`
-		KeycloakBaseUrl      string         `json:"keycloakBaseUrl"`
 		ServerSecret         string         `json:"serverSercret"`
 		TokenConfigs         []TokenConfig  `json:"tokenConfigs"` // the first token config is used for encoding new tokens
 		LongTermKey          string         `json:"longTermKey"`
@@ -59,6 +56,7 @@ type (
 		VerificationSecret   string         `json:"verificationSecret"`
 		ClinicDemoUserID     string         `json:"clinicDemoUserId"`
 		Marketo              marketo.Config `json:"marketo"`
+		MigrationSecret      string         `json:"migrationSecret"`
 	}
 	varsHandler func(http.ResponseWriter, *http.Request, map[string]string)
 )
@@ -498,10 +496,14 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 	if user, password := unpackAuth(req.Header.Get("Authorization")); user == nil {
 		a.sendError(res, http.StatusBadRequest, STATUS_MISSING_ID_PW)
 	} else if token, err := a.keycloakClient.Login(req.Context(), user.Username, password); err != nil {
-		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err)
+		a.sendError(res, http.StatusUnauthorized, STATUS_ERR_FINDING_USR, err)
 	} else if tidepoolSessionToken, err := keycloak.CreateBackwardCompatibleToken(token); err != nil {
-		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err)
+		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_TOKEN, err)
+	} else if introspectionResult, err := a.keycloakClient.IntrospectToken(req.Context(), token); err != nil {
+		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_TOKEN, err)
 	} else {
+		user.Id = introspectionResult.Subject
+		user.EmailVerified = introspectionResult.EmailVerified
 		res.Header().Set(TP_SESSION_TOKEN, tidepoolSessionToken)
 		a.sendUser(res, user, false)
 	}
@@ -545,6 +547,45 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 // status: 401 STATUS_NO_TOKEN
 // status: 500 STATUS_ERR_GENERATING_TOKEN
 func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
+	token := req.Header.Get(TP_SESSION_TOKEN)
+	if keycloak.IsKeycloakBackwardCompatibleToken(token) {
+		a.RefreshKeycloakSession(res, req)
+		return
+	} else {
+		a.RefreshLegacySession(res, req)
+		return
+	}
+}
+
+func (a *Api) RefreshKeycloakSession(res http.ResponseWriter, req *http.Request) {
+	tokenData := &TokenData{}
+	token := req.Header.Get(TP_SESSION_TOKEN)
+	oauthToken, err := keycloak.UnpackBackwardCompatibleToken(token)
+	if err == nil {
+		// Force token refresh if the token is not yet expired
+		oauthToken.Expiry = time.Now()
+		oauthToken, err = a.keycloakClient.RefreshToken(req.Context(), oauthToken)
+		if err == nil {
+			token, err = keycloak.CreateBackwardCompatibleToken(oauthToken)
+			tokenData.DurationSecs = time.Now().Unix() - oauthToken.Expiry.Unix()
+			tokenData.IsServer = keycloak.IsKeycloakBackwardCompatibleToken(token)
+		}
+	}
+	if err != nil {
+		a.logger.Println(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN, err.Error())
+		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN), http.StatusInternalServerError)
+		return
+	}
+
+	res.Header().Set(TP_SESSION_TOKEN, token)
+	sendModelAsRes(res, tokenData)
+	return
+}
+
+// status: 200 TP_SESSION_TOKEN, TokenData
+// status: 401 STATUS_NO_TOKEN
+// status: 500 STATUS_ERR_GENERATING_TOKEN
+func (a *Api) RefreshLegacySession(res http.ResponseWriter, req *http.Request) {
 
 	td, err := a.authenticateSessionToken(req.Context(), req.Header.Get(TP_SESSION_TOKEN))
 
@@ -602,8 +643,32 @@ func (a *Api) LongtermLogin(res http.ResponseWriter, req *http.Request, vars map
 // status: 401 STATUS_NO_TOKEN
 // status: 404 STATUS_NO_TOKEN_MATCH
 func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars map[string]string) {
+	ctx := req.Context()
+	sessionToken := req.Header.Get(TP_SESSION_TOKEN)
+	if keycloak.IsKeycloakBackwardCompatibleToken(sessionToken) {
+		oauthToken, err := keycloak.UnpackBackwardCompatibleToken(sessionToken)
+		if err != nil {
+			a.logger.Println(err.Error())
+			sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_TOKEN), http.StatusUnauthorized)
+			return
+		}
+		result, err := a.keycloakClient.IntrospectToken(ctx, oauthToken)
+		if err != nil {
+			a.logger.Println(err.Error())
+		}
+		if err != nil || result.Active == false {
+			sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_TOKEN), http.StatusUnauthorized)
+			return
+		}
 
-	if hasServerToken(req.Header.Get(TP_SESSION_TOKEN), a.ApiConfig.TokenConfigs...) {
+		td := &TokenData{
+			IsServer:     keycloak.IsServiceToken(oauthToken),
+			UserId:       result.Subject,
+			DurationSecs: time.Now().Unix() - result.ExpiresAt,
+		}
+		sendModelAsRes(res, td)
+		return
+	} else if hasServerToken(sessionToken, a.ApiConfig.TokenConfigs...) {
 		td, err := a.authenticateSessionToken(req.Context(), vars["token"])
 		if err != nil {
 			a.logger.Printf("failed request: %v", req)
@@ -624,7 +689,7 @@ func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars 
 // status: 200
 func (a *Api) Logout(res http.ResponseWriter, req *http.Request) {
 	if id := req.Header.Get(TP_SESSION_TOKEN); id != "" {
-		if keycloak.IsKeycloakToken(id) {
+		if keycloak.IsKeycloakBackwardCompatibleToken(id) {
 			if token, err := keycloak.UnpackBackwardCompatibleToken(id); err != nil {
 				a.logger.Println("Unable to unpack token", err.Error())
 			} else if err := a.keycloakClient.RevokeToken(req.Context(), token); err != nil {
@@ -649,11 +714,9 @@ func (a *Api) AnonymousIdHashPair(res http.ResponseWriter, req *http.Request) {
 
 // Returns the user profile in the expected format for migration
 func (a *Api) GetUserForMigration(res http.ResponseWriter, req *http.Request, vars map[string]string) {
-	sessionToken := req.Header.Get(TP_SESSION_TOKEN)
-	if tokenData, err := a.authenticateSessionToken(req.Context(), sessionToken); err != nil {
-		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
-	} else if !tokenData.IsServer {
-		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED)
+	if a.ApiConfig.MigrationSecret == "" || req.Header.Get("authorization") != fmt.Sprintf("Bearer %v", a.ApiConfig.MigrationSecret) {
+		res.WriteHeader(http.StatusUnauthorized)
+		return
 	}
 
 	username, ok := vars["username"]
@@ -675,13 +738,14 @@ func (a *Api) GetUserForMigration(res http.ResponseWriter, req *http.Request, va
 
 	user := users[0]
 	keycloakUser := &keycloak.User{
+		ID:            user.Id,
 		Username:      user.Username,
 		Email:         user.Email(),
-		Enabled:       true,
-		EmailVerified: users[0].EmailVerified,
-		Roles:         users[0].Roles,
+		Enabled:       !user.IsDeleted(),
+		EmailVerified: user.EmailVerified,
+		Roles:         user.Roles,
 		Attributes: keycloak.UserAttributes{
-			TermsAccepted: []string{fmt.Sprintf("%v", users[0].TermsAccepted)},
+			TermsAccepted: []string{fmt.Sprintf("%v", user.TermsAccepted != "")},
 		},
 	}
 
