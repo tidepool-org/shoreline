@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 )
 
@@ -41,6 +42,18 @@ type Config struct {
 	ClientID     string `json:"clientId"`
 	ClientSecret string `json:"clientSecret"`
 	RealmUrl     string `json:"realmUrl"`
+}
+
+func (c *Config) FromEnv() {
+	if clientId, ok := os.LookupEnv("TIDEPOOL_KEYCLOAK_CLIENT_ID"); ok {
+		c.ClientID = clientId
+	}
+	if clientSecret, ok := os.LookupEnv("TIDEPOOL_KEYCLOAK_CLIENT_SECRET"); ok {
+		c.ClientSecret = clientSecret
+	}
+	if realmUrl, ok := os.LookupEnv("TIDEPOOL_KEYCLOAK_CLIENT_REALM_URL"); ok {
+		c.RealmUrl = realmUrl
+	}
 }
 
 type Client interface {

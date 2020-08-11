@@ -124,6 +124,11 @@ func main() {
 
 	config.Mongo.FromEnv()
 
+	config.Keycloak.FromEnv()
+	if secret, found := os.LookupEnv("TIDEPOOL_KEYCLOAK_MIGRATION_SECRET"); found {
+		config.User.MigrationSecret = secret
+	}
+
 	/*
 	 * Hakken setup
 	 */
