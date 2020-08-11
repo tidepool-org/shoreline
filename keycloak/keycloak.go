@@ -51,7 +51,7 @@ func (c *Config) FromEnv() {
 	if clientSecret, ok := os.LookupEnv("TIDEPOOL_KEYCLOAK_CLIENT_SECRET"); ok {
 		c.ClientSecret = clientSecret
 	}
-	if realmUrl, ok := os.LookupEnv("TIDEPOOL_KEYCLOAK_CLIENT_REALM_URL"); ok {
+	if realmUrl, ok := os.LookupEnv("TIDEPOOL_KEYCLOAK_REALM_URL"); ok {
 		c.RealmUrl = realmUrl
 	}
 }
