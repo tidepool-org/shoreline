@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"golang.org/x/oauth2"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -17,6 +16,8 @@ const (
 	tokenPrefix         = "kc"
 	tokenPartsSeparator = ":"
 )
+
+var ErrUserNotFound = errors.New("user not found")
 
 type User struct {
 	ID            string         `json:"id"`
@@ -31,7 +32,8 @@ type User struct {
 }
 
 type UserAttributes struct {
-	TermsAccepted []string `json:"termsAccepted"`
+	TermsAccepted     []string `json:"termsAccepted"`
+	TermsAcceptedDate []string `json:"termsAcceptedDate"`
 }
 
 type CheckPasswordRequest struct {
@@ -61,6 +63,7 @@ type Client interface {
 	IntrospectToken(ctx context.Context, token *oauth2.Token) (*TokenIntrospectionResult, error)
 	RefreshToken(ctx context.Context, token *oauth2.Token) (*oauth2.Token, error)
 	RevokeToken(ctx context.Context, token *oauth2.Token) error
+	GetUserById(ctx context.Context, id string) (*User, error)
 }
 
 type client struct {
@@ -84,7 +87,6 @@ func NewClient(config *Config) Client {
 }
 
 func (c *client) Login(ctx context.Context, username, password string) (*oauth2.Token, error) {
-	log.Println(c.oauth2Config.Endpoint.AuthURL)
 	return c.oauth2Config.PasswordCredentialsToken(ctx, username, password)
 }
 
@@ -117,11 +119,19 @@ func (c *client) RefreshToken(ctx context.Context, token *oauth2.Token) (*oauth2
 	return c.oauth2Config.TokenSource(ctx, token).Token()
 }
 
+func (c *client) GetUserById(ctx context.Context, id string) (*User, error) {
+	return nil, ErrUserNotFound
+}
+
 type TokenIntrospectionResult struct {
 	Active        bool   `json:"active"`
 	Subject       string `json:"sub"`
 	EmailVerified bool   `json:"emailVerified"`
 	ExpiresAt     int64  `json:"eat"`
+}
+
+func (t *TokenIntrospectionResult) HasServerScope() bool {
+	return false
 }
 
 func (c *client) IntrospectToken(ctx context.Context, token *oauth2.Token) (*TokenIntrospectionResult, error) {

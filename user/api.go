@@ -136,7 +136,7 @@ func (a *Api) SetHandlers(prefix string, rtr *mux.Router) {
 
 	rtr.HandleFunc("/serverlogin", a.ServerLogin).Methods("POST")
 
-	rtr.Handle("/token/{token}", varsHandler(a.ServerCheckToken)).Methods("GET")
+	rtr.HandleFunc("/token/{token}", a.ServerCheckToken).Methods("GET")
 
 	rtr.HandleFunc("/logout", a.Logout).Methods("POST")
 
@@ -400,39 +400,29 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 // status: 401 STATUS_UNAUTHORIZED
 // status: 500 STATUS_ERR_FINDING_USR
 func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[string]string) {
-	sessionToken := req.Header.Get(TP_SESSION_TOKEN)
-	if tokenData, err := a.authenticateSessionToken(req.Context(), sessionToken); err != nil {
+	token := req.Header.Get(TP_SESSION_TOKEN)
+	tokenData, err := a.authenticateToken(req.Context(), token)
+	if err != nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
+		return
+	}
+
+	userID := vars["userid"]
+	if userID == "" {
+		userID = tokenData.UserId
+	}
+
+	if user, err := a.findUserById(req.Context(), userID); err != nil || user == nil {
+		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err)
+
+	} else if permissions, err := a.tokenUserHasRequestedPermissions(tokenData, user.Id, clients.Permissions{"root": clients.Allowed, "custodian": clients.Allowed}); err != nil {
+		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err)
+
+	} else if permissions["root"] == nil && permissions["custodian"] == nil {
+		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED)
+
 	} else {
-		var user *User
-		if userID := vars["userid"]; userID != "" {
-			user = &User{Id: userID, Username: userID, Emails: []string{userID}}
-		} else {
-			user = &User{Id: tokenData.UserId}
-		}
-
-		if results, err := a.Store.WithContext(req.Context()).FindUsers(user); err != nil {
-			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err)
-
-		} else if len(results) == 0 {
-			a.sendError(res, http.StatusNotFound, STATUS_USER_NOT_FOUND)
-
-		} else if len(results) != 1 {
-			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, fmt.Sprintf("Found %d users matching %#v", len(results), user))
-
-		} else if result := results[0]; result == nil {
-			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, "Found user is nil")
-
-		} else if permissions, err := a.tokenUserHasRequestedPermissions(tokenData, result.Id, clients.Permissions{"root": clients.Allowed, "custodian": clients.Allowed}); err != nil {
-			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err)
-
-		} else if permissions["root"] == nil && permissions["custodian"] == nil {
-			a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED)
-
-		} else {
-			a.logMetricForUser(user.Id, "getuserinfo", sessionToken, map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
-			a.sendUser(res, result, tokenData.IsServer)
-		}
+		a.sendUser(res, user, tokenData.IsServer)
 	}
 }
 
@@ -642,47 +632,18 @@ func (a *Api) LongtermLogin(res http.ResponseWriter, req *http.Request, vars map
 // status: 200 TP_SESSION_TOKEN, TokenData
 // status: 401 STATUS_NO_TOKEN
 // status: 404 STATUS_NO_TOKEN_MATCH
-func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars map[string]string) {
+func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
-	sessionToken := req.Header.Get(TP_SESSION_TOKEN)
-	if keycloak.IsKeycloakBackwardCompatibleToken(sessionToken) {
-		oauthToken, err := keycloak.UnpackBackwardCompatibleToken(sessionToken)
-		if err != nil {
-			a.logger.Println(err.Error())
-			sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_TOKEN), http.StatusUnauthorized)
-			return
-		}
-		result, err := a.keycloakClient.IntrospectToken(ctx, oauthToken)
-		if err != nil {
-			a.logger.Println(err.Error())
-		}
-		if err != nil || result.Active == false {
-			sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_TOKEN), http.StatusUnauthorized)
-			return
-		}
-
-		td := &TokenData{
-			IsServer:     keycloak.IsServiceToken(oauthToken),
-			UserId:       result.Subject,
-			DurationSecs: time.Now().Unix() - result.ExpiresAt,
-		}
-		sendModelAsRes(res, td)
-		return
-	} else if hasServerToken(sessionToken, a.ApiConfig.TokenConfigs...) {
-		td, err := a.authenticateSessionToken(req.Context(), vars["token"])
-		if err != nil {
-			a.logger.Printf("failed request: %v", req)
-			a.logger.Println(http.StatusUnauthorized, STATUS_NO_TOKEN, err.Error())
-			sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_TOKEN), http.StatusUnauthorized)
-			return
-		}
-
-		sendModelAsRes(res, td)
+	token := req.Header.Get(TP_SESSION_TOKEN)
+	tokenData, err := a.authenticateToken(ctx, token)
+	if err != nil {
+		a.logger.Println(http.StatusUnauthorized, STATUS_NO_TOKEN)
+		a.logger.Printf("header session token: %v", token)
+		sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_TOKEN), http.StatusUnauthorized)
 		return
 	}
-	a.logger.Println(http.StatusUnauthorized, STATUS_NO_TOKEN)
-	a.logger.Printf("header session token: %v", req.Header.Get(TP_SESSION_TOKEN))
-	sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_TOKEN), http.StatusUnauthorized)
+
+	sendModelAsRes(res, tokenData)
 	return
 }
 
@@ -731,7 +692,7 @@ func (a *Api) GetUserForMigration(res http.ResponseWriter, req *http.Request, va
 	if err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err.Error())
 		return
-	} else if len(users) != 1 || users[0].IsDeleted() {
+	} else if len(users) != 1 || users[0].IsDeleted() || !users[0].EmailVerified {
 		a.sendError(res, http.StatusNotFound, STATUS_USER_NOT_FOUND)
 		return
 	}
@@ -779,7 +740,29 @@ func (a *Api) userWithPasswordExists(ctx context.Context, username, password str
 	return err == nil &&
 		len(users) == 1 &&
 		!users[0].IsDeleted() &&
+		users[0].EmailVerified == true &&
 		users[0].PasswordsMatch(password, a.ApiConfig.Salt)
+}
+
+func (a *Api) findUserById(ctx context.Context, id string) (*User, error) {
+	keycloakUser, err := a.keycloakClient.GetUserById(ctx, id)
+	if err != nil && err != keycloak.ErrUserNotFound {
+		return nil, err
+	} else if err == nil && keycloakUser != nil {
+		return NewUserFromKeycloakUser(keycloakUser), nil
+	}
+
+	// User was not found in keycloak, because it's not yet migrated
+	users, err := a.Store.WithContext(ctx).FindUsers(&User{Id: id});
+	if err != nil {
+		return nil, err
+	} else if count := len(users); count > 1 {
+		return nil, errors.New(fmt.Sprintf("found %v users matching %v", len(users), id))
+	} else if count == 0 || users[0] == nil {
+		return nil, nil
+	}
+
+	return users[0], nil
 }
 
 func (a *Api) sendError(res http.ResponseWriter, statusCode int, reason string, extras ...interface{}) {
@@ -803,6 +786,14 @@ func (a *Api) sendError(res http.ResponseWriter, statusCode int, reason string, 
 	sendModelAsResWithStatus(res, status.NewStatus(statusCode, reason), statusCode)
 }
 
+func (a *Api) authenticateToken(ctx context.Context, token string) (*TokenData, error) {
+	authenticate := a.authenticateSessionToken
+	if keycloak.IsKeycloakBackwardCompatibleToken(token) {
+		authenticate = a.authenticateKeycloakToken
+	}
+	return authenticate(ctx, token)
+}
+
 func (a *Api) authenticateSessionToken(ctx context.Context, sessionToken string) (*TokenData, error) {
 	if sessionToken == "" {
 		return nil, errors.New("Session token is empty")
@@ -813,6 +804,19 @@ func (a *Api) authenticateSessionToken(ctx context.Context, sessionToken string)
 	} else {
 		return tokenData, nil
 	}
+}
+
+func (a *Api) authenticateKeycloakToken(ctx context.Context, token string) (*TokenData, error) {
+	oauthToken, err := keycloak.UnpackBackwardCompatibleToken(token)
+	if err != nil {
+		return nil, err
+	}
+	result, err := a.keycloakClient.IntrospectToken(ctx, oauthToken)
+	if err != nil {
+		return nil, err
+	}
+
+	return TokenDataFromIntrospectionResult(result)
 }
 
 func (a *Api) tokenUserHasRequestedPermissions(tokenData *TokenData, groupId string, requestedPermissions clients.Permissions) (clients.Permissions, error) {

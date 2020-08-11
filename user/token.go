@@ -3,6 +3,7 @@ package user
 import (
 	"crypto/rsa"
 	"errors"
+	"github.com/tidepool-org/shoreline/keycloak"
 	"log"
 	"net/http"
 	"strconv"
@@ -218,6 +219,18 @@ func UnpackSessionTokenAndVerify(id string, tokenConfigs ...TokenConfig) (*Token
 		IsServer:     isServer,
 		DurationSecs: durationSecs,
 		UserId:       userId,
+	}, nil
+}
+
+func TokenDataFromIntrospectionResult(introspectionResult *keycloak.TokenIntrospectionResult) (*TokenData, error) {
+	if !introspectionResult.Active {
+		return nil, errors.New("introspected token is inactive")
+	}
+
+	return &TokenData{
+		IsServer:     introspectionResult.HasServerScope(),
+		UserId:       introspectionResult.Subject,
+		DurationSecs: time.Now().Unix() - introspectionResult.ExpiresAt,
 	}, nil
 }
 

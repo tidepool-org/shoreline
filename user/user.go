@@ -3,6 +3,8 @@ package user
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"github.com/tidepool-org/shoreline/keycloak"
 	"io"
 	"regexp"
 	"strings"
@@ -516,4 +518,47 @@ func (u *User) DeepClone() *User {
 		}
 	}
 	return clonedUser
+}
+
+func (u *User) ToKeycloakUser() *keycloak.User {
+	keycloakUser := &keycloak.User{
+		ID:            u.Id,
+		Username:      u.Username,
+		Email:         u.Email(),
+		Enabled:       !u.IsDeleted(),
+		EmailVerified: u.EmailVerified,
+		Roles:         u.Roles,
+		Attributes: keycloak.UserAttributes{
+			TermsAccepted: []string{fmt.Sprintf("%v", u.TermsAccepted != "")},
+		},
+	}
+	if u.TermsAccepted != "" {
+		keycloakUser.Attributes.TermsAcceptedDate = []string{u.TermsAccepted}
+	}
+
+	return keycloakUser
+}
+
+func NewUserFromKeycloakUser(keycloakUser *keycloak.User) *User {
+	termsAcceptedDate := ""
+	if len(keycloakUser.Attributes.TermsAcceptedDate) > 0 {
+		termsAcceptedDate = keycloakUser.Attributes.TermsAcceptedDate[0]
+	}
+	var roles []string
+	for _, role := range keycloakUser.Roles {
+		// keycloak maps tidepool "clinic" role to "clinician",
+		// so we need to apply the reverse transformation
+		if role == "clinician" {
+			roles = []string{"clinic"}
+			break
+		}
+	}
+	return &User{
+		Id:             keycloakUser.ID,
+		Username:       keycloakUser.Username,
+		Emails:         []string{keycloakUser.Email},
+		Roles:          roles,
+		TermsAccepted:  termsAcceptedDate,
+		EmailVerified:  keycloakUser.EmailVerified,
+	}
 }
