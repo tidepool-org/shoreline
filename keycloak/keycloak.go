@@ -260,7 +260,7 @@ func (c *client) getRolesForUser(ctx context.Context, id string) ([]string, erro
 type TokenIntrospectionResult struct {
 	Active        bool        `json:"active"`
 	Subject       string      `json:"sub"`
-	EmailVerified bool        `json:"emailVerified"`
+	EmailVerified bool        `json:"email_verified"`
 	ExpiresAt     int64       `json:"eat"`
 	RealmAccess   RealmAccess `json:"realm_access"`
 }
