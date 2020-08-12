@@ -13,8 +13,13 @@ import (
 )
 
 const (
-	tokenPrefix         = "kc"
-	tokenPartsSeparator = ":"
+	tokenPrefix            = "kc"
+	tokenPartsSeparator    = ":"
+	masterRealm            = "master"
+	authzEndpointPath      = "/protocol/openid-connect/auth"
+	tokenEndpointPath      = "/protocol/openid-connect/token"
+	introspectEndpointPath = "/protocol/openid-connect/token/introspect"
+	revocationEndpointPath = "/protocol/openid-connect/token/revoke"
 )
 
 var ErrUserNotFound = errors.New("user not found")
@@ -28,6 +33,7 @@ type User struct {
 	Enabled       bool           `json:"enabled"`
 	EmailVerified bool           `json:"emailVerified"`
 	Roles         []string       `json:"roles"`
+	RealmRoles    []string       `json:"realmRoles,omitempty"`
 	Attributes    UserAttributes `json:"attributes"`
 }
 
@@ -41,9 +47,12 @@ type CheckPasswordRequest struct {
 }
 
 type Config struct {
-	ClientID     string `json:"clientId"`
-	ClientSecret string `json:"clientSecret"`
-	RealmUrl     string `json:"realmUrl"`
+	ClientID      string `json:"clientId"`
+	ClientSecret  string `json:"clientSecret"`
+	BaseUrl       string `json:"baseUrl"`
+	Realm         string `json:"realm"`
+	AdminUsername string `json:"adminUsername"`
+	AdminPassword string `json:"adminPassword"`
 }
 
 func (c *Config) FromEnv() {
@@ -53,9 +62,53 @@ func (c *Config) FromEnv() {
 	if clientSecret, ok := os.LookupEnv("TIDEPOOL_KEYCLOAK_CLIENT_SECRET"); ok {
 		c.ClientSecret = clientSecret
 	}
-	if realmUrl, ok := os.LookupEnv("TIDEPOOL_KEYCLOAK_REALM_URL"); ok {
-		c.RealmUrl = realmUrl
+	if baseUrl, ok := os.LookupEnv("TIDEPOOL_KEYCLOAK_BASE_URL"); ok {
+		c.BaseUrl = baseUrl
 	}
+	if realm, ok := os.LookupEnv("TIDEPOOL_KEYCLOAK_REALM"); ok {
+		c.Realm = realm
+	}
+	if username, ok := os.LookupEnv("TIDEPOOL_KEYCLOAK_ADMIN_USERNAME"); ok {
+		c.AdminUsername = username
+	}
+	if password, ok := os.LookupEnv("TIDEPOOL_KEYCLOAK_ADMIN_PASSWORD"); ok {
+		c.AdminPassword = password
+	}
+}
+
+func (c *Config) OAuth2Config(realm string) *oauth2.Config {
+	return &oauth2.Config{
+		ClientID:     c.ClientID,
+		ClientSecret: c.ClientSecret,
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  c.realmUrl(realm, c.AuthorizationEndpoint(realm)),
+			TokenURL: c.realmUrl(realm, c.TokenEndpoint(realm)),
+		},
+	}
+}
+
+func (c *Config) AuthorizationEndpoint(realm string) string {
+	return c.realmUrl(realm, authzEndpointPath)
+}
+
+func (c *Config) TokenEndpoint(realm string) string {
+	return c.realmUrl(realm, tokenEndpointPath)
+}
+
+func (c *Config) TokenRevocationEndpoint(realm string) string {
+	return c.realmUrl(realm, revocationEndpointPath)
+}
+
+func (c *Config) TokenIntrospectionEndpoint(realm string) string {
+	return c.realmUrl(realm, introspectEndpointPath)
+}
+
+func (c *Config) realmUrl(realm, endpoint string) string {
+	realmUrl := strings.Join([]string{c.BaseUrl, "auth", "realms", realm}, "/")
+	if endpoint == "" {
+		return realmUrl
+	}
+	return strings.Join([]string{realmUrl, endpoint}, "")
 }
 
 type Client interface {
@@ -68,41 +121,36 @@ type Client interface {
 
 type client struct {
 	keycloakConfig *Config
-	oauth2Config   oauth2.Config
+	userOauth      *oauth2.Config
+	adminOauth     *oauth2.Config
+	adminToken     *oauth2.Token
 }
 
 func NewClient(config *Config) Client {
-	cfg := oauth2.Config{
-		ClientID:     config.ClientID,
-		ClientSecret: config.ClientSecret,
-		Endpoint: oauth2.Endpoint{
-			AuthURL:  fmt.Sprintf("%v/protocol/openid-connect/auth", config.RealmUrl),
-			TokenURL: fmt.Sprintf("%v/protocol/openid-connect/token", config.RealmUrl),
-		},
-	}
 	return &client{
 		keycloakConfig: config,
-		oauth2Config:   cfg,
+		userOauth:      config.OAuth2Config(config.Realm),
+		adminOauth:     config.OAuth2Config(masterRealm),
 	}
 }
 
 func (c *client) Login(ctx context.Context, username, password string) (*oauth2.Token, error) {
-	return c.oauth2Config.PasswordCredentialsToken(ctx, username, password)
+	return c.userOauth.PasswordCredentialsToken(ctx, username, password)
 }
 
 func (c *client) RevokeToken(ctx context.Context, token *oauth2.Token) error {
-	endpoint := fmt.Sprintf("%v/protocol/openid-connect/revoke", c.keycloakConfig.RealmUrl)
+	endpoint := c.keycloakConfig.TokenRevocationEndpoint(c.keycloakConfig.Realm)
 	data := url.Values{
 		"token":           []string{token.RefreshToken},
 		"token_type_hint": []string{"refresh_token"},
 	}
 
-	req, err := http.NewRequest("POST", endpoint, strings.NewReader(data.Encode()))
+	req, err := http.NewRequest(http.MethodPost, endpoint, strings.NewReader(data.Encode()))
 	if err != nil {
 		return err
 	}
 	req.Header.Set("content-type", "application/x-www-form-urlencoded")
-	req.SetBasicAuth(c.oauth2Config.ClientID, c.oauth2Config.ClientSecret)
+	req.SetBasicAuth(c.userOauth.ClientID, c.userOauth.ClientSecret)
 
 	client := http.Client{}
 	resp, err := client.Do(req)
@@ -116,11 +164,42 @@ func (c *client) RevokeToken(ctx context.Context, token *oauth2.Token) error {
 }
 
 func (c *client) RefreshToken(ctx context.Context, token *oauth2.Token) (*oauth2.Token, error) {
-	return c.oauth2Config.TokenSource(ctx, token).Token()
+	return c.userOauth.TokenSource(ctx, token).Token()
 }
 
 func (c *client) GetUserById(ctx context.Context, id string) (*User, error) {
-	return nil, ErrUserNotFound
+	if id == "" {
+		return nil, nil
+	}
+	if c.adminToken == nil {
+		token, err := c.adminOauth.PasswordCredentialsToken(ctx, c.keycloakConfig.AdminUsername, c.keycloakConfig.AdminPassword)
+		if err != nil {
+			return nil, err
+		}
+		c.adminToken = token
+	}
+
+	client := c.adminOauth.Client(ctx, c.adminToken)
+	endpoint := strings.Join([]string{c.keycloakConfig.BaseUrl, "auth", c.keycloakConfig.Realm, "users", id}, "/")
+	req, err := http.NewRequest(http.MethodGet, endpoint, http.NoBody)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, ErrUserNotFound
+	}
+	user := &User{}
+	if err := json.NewDecoder(resp.Body).Decode(user); err != nil {
+		return nil, err
+	}
+	user.Roles = user.RealmRoles
+	user.RealmRoles = nil
+	
+	return user, nil
 }
 
 type TokenIntrospectionResult struct {
@@ -135,17 +214,17 @@ func (t *TokenIntrospectionResult) HasServerScope() bool {
 }
 
 func (c *client) IntrospectToken(ctx context.Context, token *oauth2.Token) (*TokenIntrospectionResult, error) {
-	endpoint := fmt.Sprintf("%v/protocol/openid-connect/token/introspect", c.keycloakConfig.RealmUrl)
+	endpoint := c.keycloakConfig.TokenIntrospectionEndpoint(c.keycloakConfig.Realm)
 	data := url.Values{
 		"token": []string{token.AccessToken},
 	}
 
-	req, err := http.NewRequest("POST", endpoint, strings.NewReader(data.Encode()))
+	req, err := http.NewRequest(http.MethodPost, endpoint, strings.NewReader(data.Encode()))
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("content-type", "application/x-www-form-urlencoded")
-	req.SetBasicAuth(c.oauth2Config.ClientID, c.oauth2Config.ClientSecret)
+	req.SetBasicAuth(c.userOauth.ClientID, c.userOauth.ClientSecret)
 
 	client := http.Client{}
 	resp, err := client.Do(req)
@@ -198,9 +277,4 @@ func UnpackBackwardCompatibleToken(token string) (*oauth2.Token, error) {
 		RefreshToken: parts[2],
 	}
 	return t, nil
-}
-
-func IsServiceToken(token *oauth2.Token) bool {
-	// For the time being we're not using keycloak for service-to-service authentication
-	return false
 }

@@ -34,3 +34,7 @@ func (m *MockClient) IntrospectToken(ctx context.Context, token *oauth2.Token) (
 func (m *MockClient) RefreshToken(ctx context.Context, token *oauth2.Token) (*oauth2.Token, error) {
 	return token, nil
 }
+
+func (m *MockClient) GetUserById(ctx context.Context, id string) (*User, error) {
+	return nil, ErrUserNotFound
+}

@@ -92,7 +92,7 @@ func (client *UserClient) CheckToken(token string) *commonUserApi.TokenData {
 	request, _ := http.NewRequest("GET", "", nil)
 	request.Header.Add("x-tidepool-session-token", serverToken)
 	res := httptest.NewRecorder()
-	client.userapi.ServerCheckToken(res, request, map[string]string{"token": token})
+	client.userapi.ServerCheckToken(res, request)
 
 	body, _ := ioutil.ReadAll(res.Body)
 
