@@ -81,8 +81,8 @@ func (c *Config) OAuth2Config(realm string) *oauth2.Config {
 		ClientID:     c.ClientID,
 		ClientSecret: c.ClientSecret,
 		Endpoint: oauth2.Endpoint{
-			AuthURL:  c.realmUrl(realm, c.AuthorizationEndpoint(realm)),
-			TokenURL: c.realmUrl(realm, c.TokenEndpoint(realm)),
+			AuthURL:  c.AuthorizationEndpoint(realm),
+			TokenURL: c.TokenEndpoint(realm),
 		},
 	}
 }
@@ -104,11 +104,11 @@ func (c *Config) TokenIntrospectionEndpoint(realm string) string {
 }
 
 func (c *Config) realmUrl(realm, endpoint string) string {
-	realmUrl := strings.Join([]string{c.BaseUrl, "auth", "realms", realm}, "/")
+	r := strings.Join([]string{c.BaseUrl, "auth", "realms", realm}, "/")
 	if endpoint == "" {
-		return realmUrl
+		return r
 	}
-	return strings.Join([]string{realmUrl, endpoint}, "")
+	return strings.Join([]string{r, endpoint}, "")
 }
 
 type Client interface {
@@ -198,7 +198,7 @@ func (c *client) GetUserById(ctx context.Context, id string) (*User, error) {
 	}
 	user.Roles = user.RealmRoles
 	user.RealmRoles = nil
-	
+
 	return user, nil
 }
 
