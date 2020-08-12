@@ -19,7 +19,7 @@ const (
 	authzEndpointPath      = "/protocol/openid-connect/auth"
 	tokenEndpointPath      = "/protocol/openid-connect/token"
 	introspectEndpointPath = "/protocol/openid-connect/token/introspect"
-	revocationEndpointPath = "/protocol/openid-connect/token/revoke"
+	revocationEndpointPath = "/protocol/openid-connect/revoke"
 )
 
 var ErrUserNotFound = errors.New("user not found")
@@ -33,7 +33,6 @@ type User struct {
 	Enabled       bool           `json:"enabled"`
 	EmailVerified bool           `json:"emailVerified"`
 	Roles         []string       `json:"roles"`
-	RealmRoles    []string       `json:"realmRoles,omitempty"`
 	Attributes    UserAttributes `json:"attributes"`
 }
 
@@ -51,6 +50,7 @@ type Config struct {
 	ClientSecret  string `json:"clientSecret"`
 	BaseUrl       string `json:"baseUrl"`
 	Realm         string `json:"realm"`
+	AdminClientId string `json:"admin-cli"`
 	AdminUsername string `json:"adminUsername"`
 	AdminPassword string `json:"adminPassword"`
 }
@@ -83,6 +83,16 @@ func (c *Config) OAuth2Config(realm string) *oauth2.Config {
 		Endpoint: oauth2.Endpoint{
 			AuthURL:  c.AuthorizationEndpoint(realm),
 			TokenURL: c.TokenEndpoint(realm),
+		},
+	}
+}
+
+func (c *Config) AdminOauthConfig() *oauth2.Config {
+	return &oauth2.Config{
+		ClientID: "admin-cli",
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  c.AuthorizationEndpoint(masterRealm),
+			TokenURL: c.TokenEndpoint(masterRealm),
 		},
 	}
 }
@@ -130,7 +140,7 @@ func NewClient(config *Config) Client {
 	return &client{
 		keycloakConfig: config,
 		userOauth:      config.OAuth2Config(config.Realm),
-		adminOauth:     config.OAuth2Config(masterRealm),
+		adminOauth:     config.AdminOauthConfig(),
 	}
 }
 
@@ -180,7 +190,7 @@ func (c *client) GetUserById(ctx context.Context, id string) (*User, error) {
 	}
 
 	client := c.adminOauth.Client(ctx, c.adminToken)
-	endpoint := strings.Join([]string{c.keycloakConfig.BaseUrl, "auth", c.keycloakConfig.Realm, "users", id}, "/")
+	endpoint := strings.Join([]string{c.keycloakConfig.BaseUrl, "auth", "admin", "realms", c.keycloakConfig.Realm, "users", id}, "/")
 	req, err := http.NewRequest(http.MethodGet, endpoint, http.NoBody)
 	if err != nil {
 		return nil, err
@@ -191,22 +201,72 @@ func (c *client) GetUserById(ctx context.Context, id string) (*User, error) {
 	}
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, ErrUserNotFound
+	} else if resp.StatusCode != 200 {
+		return nil, errors.New(fmt.Sprintf("unexpected status code %v when retrieveing user", resp.StatusCode))
 	}
+
 	user := &User{}
 	if err := json.NewDecoder(resp.Body).Decode(user); err != nil {
 		return nil, err
 	}
-	user.Roles = user.RealmRoles
-	user.RealmRoles = nil
+
+	roles, err := c.getRolesForUser(ctx, user.ID)
+	if err != nil {
+		return nil, err
+	}
+	user.Roles = roles
 
 	return user, nil
 }
 
+type role struct {
+	Name string
+}
+
+func (c *client) getRolesForUser(ctx context.Context, id string) ([]string, error) {
+	client := c.adminOauth.Client(ctx, c.adminToken)
+	endpoint := strings.Join([]string{
+		c.keycloakConfig.BaseUrl,
+		"auth", "admin", "realms",
+		c.keycloakConfig.Realm,
+		"users", id,
+		"role-mappings", "realm"},
+		"/")
+	req, err := http.NewRequest(http.MethodGet, endpoint, http.NoBody)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != 200 {
+		return nil, errors.New(fmt.Sprintf("unexpected status code %v when retrieveing user roles", resp.StatusCode))
+	}
+
+	var roles []role
+	if err := json.NewDecoder(resp.Body).Decode(&roles); err != nil {
+		return nil, err
+	}
+
+	roleNames := make([]string, len(roles))
+	for i, r := range roles {
+		roleNames[i] = r.Name
+	}
+
+	return roleNames, nil
+}
+
 type TokenIntrospectionResult struct {
-	Active        bool   `json:"active"`
-	Subject       string `json:"sub"`
-	EmailVerified bool   `json:"emailVerified"`
-	ExpiresAt     int64  `json:"eat"`
+	Active        bool        `json:"active"`
+	Subject       string      `json:"sub"`
+	EmailVerified bool        `json:"emailVerified"`
+	ExpiresAt     int64       `json:"eat"`
+	RealmAccess   RealmAccess `json:"realm_access"`
+}
+
+type RealmAccess struct {
+	Roles []string `json:"roles"`
 }
 
 func (t *TokenIntrospectionResult) HasServerScope() bool {

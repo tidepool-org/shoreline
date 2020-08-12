@@ -494,6 +494,7 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 	} else {
 		user.Id = introspectionResult.Subject
 		user.EmailVerified = introspectionResult.EmailVerified
+		user.Roles = MapKeycloakRoles(introspectionResult.RealmAccess.Roles)
 		res.Header().Set(TP_SESSION_TOKEN, tidepoolSessionToken)
 		a.sendUser(res, user, false)
 	}
