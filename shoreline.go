@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"log"
 	"net/http"
@@ -11,6 +12,8 @@ import (
 
 	"github.com/gorilla/mux"
 
+	"github.com/Shopify/sarama"
+	"github.com/cloudevents/sdk-go/protocol/kafka_sarama/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	common "github.com/tidepool-org/go-common"
@@ -39,6 +42,19 @@ type (
 	}
 )
 
+func kafkaSender() *kafka_sarama.Sender {
+	topics, _ := os.LookupEnv("KAFKA_TOPIC")
+	broker, _ := os.LookupEnv("KAFKA_BROKERS")
+
+	saramaConfig := sarama.NewConfig()
+	saramaConfig.Version = sarama.V2_0_0_0
+
+	sender, err := kafka_sarama.NewSender([]string{broker}, saramaConfig, topics)
+	if err != nil {
+		log.Printf("failed to create protocol: %s", err.Error())
+	}
+	return sender
+}
 func main() {
 	var config Config
 	logger := log.New(os.Stdout, user.USER_API_PREFIX, log.LstdFlags|log.Lshortfile)
@@ -54,7 +70,6 @@ func main() {
 	if found {
 		config.User.ServerSecret = serverSecret
 	}
-
 
 	config.User.TokenConfigs = make([]user.TokenConfig, 2)
 
@@ -167,7 +182,8 @@ func main() {
 	defer clientStore.Disconnect()
 	clientStore.EnsureIndexes()
 
-	userapi := user.InitApi(config.User, logger, clientStore, highwater, marketoManager)
+	userapi := user.InitApi(config.User, logger, clientStore, highwater, marketoManager, kafkaSender())
+	defer userapi.Sender.Close(context.Background())
 	logger.Print("installing handlers")
 	userapi.SetHandlers("", rtr)
 
