@@ -112,7 +112,6 @@ func (client *seagullClient) GetCollection(userID, collectionName, token string,
 	req, _ := http.NewRequest("GET", host.String(), nil)
 	req.Header.Add("x-tidepool-session-token", token)
 
-	log.Println(req)
 	res, err := client.httpClient.Do(req)
 	if err != nil {
 		log.Printf("Problem when looking up collection for userID[%s]. %s", userID, err)

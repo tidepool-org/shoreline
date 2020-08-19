@@ -169,7 +169,6 @@ func (b *ShorelineClientBuilder) Build() *ShorelineClient {
 func (client *ShorelineClient) Start() error {
 	if err := client.serverLogin(); err != nil {
 		log.Printf("Problem with initial server token acquisition, [%v]", err)
-		panic(err)
 	}
 
 	go func() {
@@ -182,7 +181,6 @@ func (client *ShorelineClient) Start() error {
 			case <-timer:
 				if err := client.serverLogin(); err != nil {
 					log.Print("Error when refreshing server login", err)
-					panic(err)
 				}
 			}
 		}
