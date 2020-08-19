@@ -208,6 +208,8 @@ github.com/stretchr/testify v1.4.0/go.mod h1:j7eGeouHqKxXV5pUuKE4zz7dFj8WfuZ+81P
 github.com/stretchr/testify v1.5.1/go.mod h1:5W2xD1RspED5o8YsWQXVCued0rvSQ+mT+I5cxcmMvtA=
 github.com/stretchr/testify v1.6.0 h1:jlIyCplCJFULU/01vCkhKuTyc3OorI3bJFuw6obfgho=
 github.com/stretchr/testify v1.6.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
+github.com/tidepool-org/go-common v0.5.0 h1:Atycq5m1l0P8YBRTz0NZGs8PKAx7cr8iRQzzdyRXFCo=
+github.com/tidepool-org/go-common v0.5.0/go.mod h1:tZr3DhGKfB4CbgwaeItEW7sulUXZTBUJ1vi4SVgdYxE=
 github.com/tidepool-org/go-common v0.6.0 h1:CGEoIByEKXYYVbCkKLFHhWWgZ2euAQQPDSVGYZBbkQE=
 github.com/tidepool-org/go-common v0.6.0/go.mod h1:tZr3DhGKfB4CbgwaeItEW7sulUXZTBUJ1vi4SVgdYxE=
 github.com/tidwall/pretty v1.0.0 h1:HsD+QiTn7sK6flMKIvNmpqz1qrpP3Ps6jOKIKMooyg4=
