@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Shopify/sarama"
+	"github.com/google/uuid/"
 	"github.com/gorilla/mux"
 
 	"github.com/tidepool-org/go-common/clients"
@@ -19,6 +21,8 @@ import (
 	"github.com/tidepool-org/go-common/clients/status"
 	"github.com/tidepool-org/shoreline/user/marketo"
 
+	"github.com/cloudevents/sdk-go/protocol/kafka_sarama/v2"
+	cloudevents "github.com/cloudevents/sdk-go/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -43,6 +47,7 @@ type (
 		perms          clients.Gatekeeper
 		logger         *log.Logger
 		marketoManager marketo.Manager
+		Sender         *kafka_sarama.Sender
 	}
 	ApiConfig struct {
 		ServerSecret         string         `json:"serverSercret"`
@@ -94,13 +99,14 @@ const (
 	STATUS_INVALID_ROLE          = "The role specified is invalid"
 )
 
-func InitApi(cfg ApiConfig, logger *log.Logger, store Storage, metrics highwater.Client, manager marketo.Manager) *Api {
+func InitApi(cfg ApiConfig, logger *log.Logger, store Storage, metrics highwater.Client, manager marketo.Manager, sender *kafka_sarama.Sender) *Api {
 	return &Api{
 		Store:          store,
 		ApiConfig:      cfg,
 		metrics:        metrics,
 		logger:         logger,
 		marketoManager: manager,
+		Sender:         sender,
 	}
 }
 
@@ -286,6 +292,31 @@ func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, va
 	}
 }
 
+func (a *Api) KafkaProducer(event string, newUser string) {
+
+	c, err := cloudevents.NewClient(a.Sender, cloudevents.WithTimeNow(), cloudevents.WithUUIDs())
+	if err != nil {
+		log.Printf("failed to create client, %v", err)
+	}
+	e := cloudevents.NewEvent()
+	e.SetID(uuid.New().String())
+	e.SetType(event)
+	e.SetSource("github.com/tidepool-org/shoreline/user/marketo")
+	_ = e.SetData(cloudevents.ApplicationJSON, map[string]interface{}{
+		"message": newUser,
+	})
+
+	if result := c.Send(
+		// Set the producer message key
+		kafka_sarama.WithMessageKey(context.Background(), sarama.StringEncoder(e.ID())),
+		e,
+	); cloudevents.IsUndelivered(result) {
+		log.Printf("failed to send: %v", err)
+	} else {
+		log.Printf("sent: %s, accepted: %t", event, cloudevents.IsACK(result))
+	}
+}
+
 // UpdateUser updates a user
 // status: 200
 // status: 400 STATUS_INVALID_USER_DETAILS
@@ -366,6 +397,8 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 			updatedUser.EmailVerified = *updateUserDetails.EmailVerified
 		}
 
+		a.KafkaProducer("update-user", updatedUser.Id)
+
 		if err := a.Store.WithContext(req.Context()).UpsertUser(updatedUser); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_USR, err)
 		} else {
@@ -376,6 +409,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 			}
 
 			if updatedUser.EmailVerified && updatedUser.TermsAccepted != "" {
+				a.KafkaProducer("update-user", updatedUser.Id)
 				if a.marketoManager != nil && a.marketoManager.IsAvailable() {
 					if updateUserDetails.EmailVerified != nil || updateUserDetails.TermsAccepted != nil {
 						a.marketoManager.CreateListMembershipForUser(updatedUser)
