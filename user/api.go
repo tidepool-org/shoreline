@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
-	"github.com/google/uuid/"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 
 	"github.com/tidepool-org/go-common/clients"
