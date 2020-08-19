@@ -412,8 +412,10 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 		userID = tokenData.UserId
 	}
 
-	if user, err := a.findUserById(req.Context(), userID); err != nil || user == nil {
+	if user, err := a.findUser(req.Context(), userID); err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err)
+	} else if user == nil {
+		a.sendError(res, http.StatusNotFound, STATUS_ERR_FINDING_USR, err)
 
 	} else if permissions, err := a.tokenUserHasRequestedPermissions(tokenData, user.Id, clients.Permissions{"root": clients.Allowed, "custodian": clients.Allowed}); err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err)
@@ -745,8 +747,15 @@ func (a *Api) userWithPasswordExists(ctx context.Context, username, password str
 		users[0].PasswordsMatch(password, a.ApiConfig.Salt)
 }
 
-func (a *Api) findUserById(ctx context.Context, id string) (*User, error) {
-	keycloakUser, err := a.keycloakClient.GetUserById(ctx, id)
+func (a *Api) findUser(ctx context.Context, id string) (*User, error) {
+	var keycloakUser *keycloak.User
+	var err error
+	if IsValidUserID(id) {
+		keycloakUser, err = a.keycloakClient.GetUserById(ctx, id)
+	} else {
+		keycloakUser, err = a.keycloakClient.GetUserByUsername(ctx, id)
+	}
+
 	if err != nil && err != keycloak.ErrUserNotFound {
 		return nil, err
 	} else if err == nil && keycloakUser != nil {
@@ -754,7 +763,7 @@ func (a *Api) findUserById(ctx context.Context, id string) (*User, error) {
 	}
 
 	// User was not found in keycloak, because it's not yet migrated
-	users, err := a.Store.WithContext(ctx).FindUsers(&User{Id: id});
+	users, err := a.Store.WithContext(ctx).FindUsers(&User{Id: id, Username: id, Emails: []string{id}})
 	if err != nil {
 		return nil, err
 	} else if count := len(users); count > 1 {

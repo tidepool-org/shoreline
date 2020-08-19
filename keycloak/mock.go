@@ -9,6 +9,7 @@ import (
 type MockClient struct {
 }
 
+
 var _ Client = &MockClient{}
 
 func (m *MockClient) Login(ctx context.Context, username, password string) (*oauth2.Token, error) {
@@ -36,5 +37,9 @@ func (m *MockClient) RefreshToken(ctx context.Context, token *oauth2.Token) (*oa
 }
 
 func (m *MockClient) GetUserById(ctx context.Context, id string) (*User, error) {
+	return nil, ErrUserNotFound
+}
+
+func (m *MockClient) GetUserByUsername(ctx context.Context, username string) (*User, error) {
 	return nil, ErrUserNotFound
 }

@@ -157,6 +157,11 @@ func IsValidTimestamp(timestamp string) bool {
 	return err == nil
 }
 
+func IsValidUserID(id string) bool {
+	ok, _ := regexp.MatchString(`([a-fA-F0-9]{10})|([a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12})`, id)
+	return ok
+}
+
 func (details *NewUserDetails) ExtractFromJSON(reader io.Reader) error {
 	if reader == nil {
 		return User_error_details_missing

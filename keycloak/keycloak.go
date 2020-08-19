@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 )
 
 const (
@@ -127,13 +128,15 @@ type Client interface {
 	RefreshToken(ctx context.Context, token *oauth2.Token) (*oauth2.Token, error)
 	RevokeToken(ctx context.Context, token *oauth2.Token) error
 	GetUserById(ctx context.Context, id string) (*User, error)
+	GetUserByUsername(ctx context.Context, email string) (*User, error)
 }
 
 type client struct {
-	keycloakConfig *Config
-	userOauth      *oauth2.Config
-	adminOauth     *oauth2.Config
-	adminToken     *oauth2.Token
+	keycloakConfig           *Config
+	userOauth                *oauth2.Config
+	adminOauth               *oauth2.Config
+	adminToken               *oauth2.Token
+	adminTokenRefreshExpires time.Time
 }
 
 func NewClient(config *Config) Client {
@@ -181,15 +184,11 @@ func (c *client) GetUserById(ctx context.Context, id string) (*User, error) {
 	if id == "" {
 		return nil, nil
 	}
-	if c.adminToken == nil {
-		token, err := c.adminOauth.PasswordCredentialsToken(ctx, c.keycloakConfig.AdminUsername, c.keycloakConfig.AdminPassword)
-		if err != nil {
-			return nil, err
-		}
-		c.adminToken = token
+	token, err := c.getAdminToken(ctx)
+	if err != nil {
+		return nil, err
 	}
-
-	client := c.adminOauth.Client(ctx, c.adminToken)
+	client := c.adminOauth.Client(ctx, token)
 	endpoint := strings.Join([]string{c.keycloakConfig.BaseUrl, "auth", "admin", "realms", c.keycloakConfig.Realm, "users", id}, "/")
 	req, err := http.NewRequest(http.MethodGet, endpoint, http.NoBody)
 	if err != nil {
@@ -217,6 +216,89 @@ func (c *client) GetUserById(ctx context.Context, id string) (*User, error) {
 	user.Roles = roles
 
 	return user, nil
+}
+
+func (c *client) GetUserByUsername(ctx context.Context, username string) (*User, error) {
+	if username == "" {
+		return nil, nil
+	}
+	token, err := c.getAdminToken(ctx)
+	if err != nil {
+		return nil, err
+	}
+	client := c.adminOauth.Client(ctx, token)
+	endpoint := strings.Join([]string{c.keycloakConfig.BaseUrl, "auth", "admin", "realms", c.keycloakConfig.Realm, "users"}, "/")
+	query := fmt.Sprintf("username=%s&exact=true", url.QueryEscape(username))
+	requestUrl := fmt.Sprintf("%s?%s", endpoint, query)
+	req, err := http.NewRequest(http.MethodGet, requestUrl, http.NoBody)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != 200 {
+		return nil, errors.New(fmt.Sprintf("unexpected status code %v when retrieveing users", resp.StatusCode))
+	}
+
+	var users []User
+	if err := json.NewDecoder(resp.Body).Decode(&users); err != nil {
+		return nil, err
+	}
+	if len(users) != 1 {
+		return nil, ErrUserNotFound
+	}
+
+	user := users[0]
+	roles, err := c.getRolesForUser(ctx, user.ID)
+	if err != nil {
+		return nil, err
+	}
+	user.Roles = roles
+
+	return &user, nil
+}
+
+func (c *client) getAdminToken(ctx context.Context) (*oauth2.Token, error) {
+	if c.canRefreshAdminToken() {
+		if err := c.refreshAdminToken(ctx); err != nil {
+			return nil, err
+		}
+	} else {
+		c.adminToken = nil
+	}
+
+	if c.adminToken == nil {
+		var err error
+		if c.adminToken, err = c.adminOauth.PasswordCredentialsToken(ctx, c.keycloakConfig.AdminUsername, c.keycloakConfig.AdminPassword); err != nil {
+			return nil, err
+		}
+	}
+
+	return c.adminToken, nil
+}
+
+func (c *client) refreshAdminToken(ctx context.Context) error {
+	tokenSource := c.adminOauth.TokenSource(ctx, c.adminToken)
+	newToken, err := tokenSource.Token()
+	if err != nil {
+		return err
+	}
+	if c.adminToken == nil || newToken.AccessToken != c.adminToken.AccessToken {
+		c.adminToken = newToken
+		expires := newToken.Extra("refresh_expires_in")
+		if expires != nil {
+			if val, ok := expires.(int); ok {
+				c.adminTokenRefreshExpires = time.Now().Add(time.Duration(int64(val) * int64(time.Second)))
+			}
+		}
+	}
+	return nil
+}
+
+func (c *client) canRefreshAdminToken() bool {
+	return c.adminToken != nil && c.adminTokenRefreshExpires.After(time.Now())
 }
 
 type role struct {
