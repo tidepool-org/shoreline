@@ -18,6 +18,8 @@ import (
 	"sync"
 	"testing"
 
+	// "github.com/cloudevents/sdk-go/protocol/kafka_sarama/v2"
+	"github.com/cloudevents/sdk-go/v2/binding"
 	"github.com/gorilla/mux"
 	"github.com/tidepool-org/go-common/clients"
 	"github.com/tidepool-org/go-common/clients/highwater"
@@ -29,13 +31,14 @@ const (
 	makeItFail = true
 )
 
-func InitAPITest(cfg ApiConfig, logger *log.Logger, store Storage, metrics highwater.Client, marketoManager marketo.Manager) *Api {
+func InitAPITest(cfg ApiConfig, logger *log.Logger, store Storage, metrics highwater.Client, marketoManager marketo.Manager, sender BasicSender) *Api {
 	return &Api{
 		Store:          store,
 		ApiConfig:      cfg,
 		metrics:        metrics,
 		logger:         logger,
 		marketoManager: marketoManager,
+		Sender:         sender,
 	}
 }
 
@@ -117,17 +120,18 @@ xwIDAQAB
 	mockStore          = NewMockStoreClient(fakeConfig.Salt, false, false)
 	mockMetrics        = highwater.NewMock()
 	mockMarketoManager = NewTestManager()
-	shoreline          = InitAPITest(fakeConfig, logger, mockStore, mockMetrics, mockMarketoManager)
+	newMockSender      = NewMockSender()
+	shoreline          = InitAPITest(fakeConfig, logger, mockStore, mockMetrics, mockMarketoManager, newMockSender)
 	/*
 	 *
 	 */
 	mockNoDupsStore = NewMockStoreClient(fakeConfig.Salt, true, false)
-	shorelineNoDups = InitAPITest(fakeConfig, logger, mockNoDupsStore, mockMetrics, mockMarketoManager)
+	shorelineNoDups = InitAPITest(fakeConfig, logger, mockNoDupsStore, mockMetrics, mockMarketoManager, newMockSender)
 	/*
 	 * failure path
 	 */
 	mockStoreFails = NewMockStoreClient(fakeConfig.Salt, false, makeItFail)
-	shorelineFails = InitAPITest(fakeConfig, logger, mockStoreFails, mockMetrics, mockMarketoManager)
+	shorelineFails = InitAPITest(fakeConfig, logger, mockStoreFails, mockMetrics, mockMarketoManager, newMockSender)
 
 	responsableStore      = NewResponsableMockStoreClient()
 	responsableGatekeeper = NewResponsableMockGatekeeper()
@@ -135,7 +139,7 @@ xwIDAQAB
 )
 
 func InitShoreline(config ApiConfig, store Storage, metrics highwater.Client, perms clients.Gatekeeper) *Api {
-	api := InitAPITest(config, logger, store, metrics, mockMarketoManager)
+	api := InitAPITest(config, logger, store, metrics, mockMarketoManager, newMockSender)
 	api.AttachPerms(perms)
 	return api
 }
@@ -156,6 +160,20 @@ func (U *MockManager) IsAvailable() bool {
 }
 func NewTestManager() marketo.Manager {
 	return &MockManager{}
+}
+
+type MockSender struct {
+}
+
+func (l *MockSender) Send(ctx context.Context, m binding.Message, transformers ...binding.Transformer) error {
+	return nil
+}
+
+func (l *MockSender) Close(ctx context.Context) error {
+	return nil
+}
+func NewMockSender() *MockSender {
+	return &MockSender{}
 }
 
 func createAuthorization(t *testing.T, email string, password string) string {

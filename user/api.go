@@ -23,6 +23,7 @@ import (
 
 	"github.com/cloudevents/sdk-go/protocol/kafka_sarama/v2"
 	cloudevents "github.com/cloudevents/sdk-go/v2"
+	"github.com/cloudevents/sdk-go/v2/binding"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -40,6 +41,10 @@ var (
 )
 
 type (
+	BasicSender interface {
+		Close(context.Context) error
+		Send(ctx context.Context, m binding.Message, transformers ...binding.Transformer) error
+	}
 	Api struct {
 		Store          Storage
 		ApiConfig      ApiConfig
@@ -47,7 +52,7 @@ type (
 		perms          clients.Gatekeeper
 		logger         *log.Logger
 		marketoManager marketo.Manager
-		Sender         *kafka_sarama.Sender
+		Sender         BasicSender
 	}
 	ApiConfig struct {
 		ServerSecret         string         `json:"serverSercret"`
@@ -99,7 +104,7 @@ const (
 	STATUS_INVALID_ROLE          = "The role specified is invalid"
 )
 
-func InitApi(cfg ApiConfig, logger *log.Logger, store Storage, metrics highwater.Client, manager marketo.Manager, sender *kafka_sarama.Sender) *Api {
+func InitApi(cfg ApiConfig, logger *log.Logger, store Storage, metrics highwater.Client, manager marketo.Manager, sender BasicSender) *Api {
 	return &Api{
 		Store:          store,
 		ApiConfig:      cfg,
