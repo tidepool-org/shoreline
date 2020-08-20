@@ -32,6 +32,8 @@ services:
 script:
   - ./build.sh
   - ./test.sh
+  - snyk ignore --id=snyk:lic:golang:github.com:hashicorp:golang-lru:MPL-2.0
+  - snyk ignore --id=snyk:lic:golang:github.com:hashicorp:go-uuid:MPL-2.0
   - snyk test --dev --org=tidepool
   - snyk monitor --org=tidepool
   - ./artifact.sh
