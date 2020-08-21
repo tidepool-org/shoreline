@@ -136,7 +136,7 @@ func (a *Api) SetHandlers(prefix string, rtr *mux.Router) {
 
 	rtr.HandleFunc("/serverlogin", a.ServerLogin).Methods("POST")
 
-	rtr.HandleFunc("/token/{token}", a.ServerCheckToken).Methods("GET")
+	rtr.Handle("/token/{token}", varsHandler(a.ServerCheckToken)).Methods("GET")
 
 	rtr.HandleFunc("/logout", a.Logout).Methods("POST")
 
@@ -613,13 +613,24 @@ func (a *Api) LongtermLogin(res http.ResponseWriter, req *http.Request, vars map
 // status: 200 TP_SESSION_TOKEN, TokenData
 // status: 401 STATUS_NO_TOKEN
 // status: 404 STATUS_NO_TOKEN_MATCH
-func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request) {
+func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 	ctx := req.Context()
-	token := req.Header.Get(TP_SESSION_TOKEN)
-	tokenData, err := a.authenticateToken(ctx, token)
+	// Check whether the request is made by a server authorized for using this endpoint
+	serverToken := req.Header.Get(TP_SESSION_TOKEN)
+	if tokenData, err := a.authenticateToken(ctx, serverToken); err != nil {
+		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN), http.StatusInternalServerError)
+		return
+	} else if !tokenData.IsServer {
+		sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_TOKEN), http.StatusUnauthorized)
+		return
+	}
+
+	// Return the token data
+	userToken := vars["token"]
+	tokenData, err := a.authenticateToken(ctx, userToken)
 	if err != nil {
 		a.logger.Println(http.StatusUnauthorized, STATUS_NO_TOKEN)
-		a.logger.Printf("header session token: %v", token)
+		a.logger.Printf("header session token: %v", userToken)
 		sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_TOKEN), http.StatusUnauthorized)
 		return
 	}
