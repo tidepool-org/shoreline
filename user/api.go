@@ -525,8 +525,13 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 }
 
 func (a *Api) RefreshKeycloakSession(res http.ResponseWriter, req *http.Request) {
-	tokenData := &TokenData{}
 	token := req.Header.Get(TP_SESSION_TOKEN)
+	tokenData, err := a.authenticateKeycloakToken(req.Context(), token)
+	if err != nil {
+		a.logger.Println(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN, err.Error())
+		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN), http.StatusInternalServerError)
+		return
+	}
 	oauthToken, err := keycloak.UnpackBackwardCompatibleToken(token)
 	if err == nil {
 		// Force token refresh if the token is not yet expired
@@ -535,7 +540,6 @@ func (a *Api) RefreshKeycloakSession(res http.ResponseWriter, req *http.Request)
 		if err == nil {
 			token, err = keycloak.CreateBackwardCompatibleToken(oauthToken)
 			tokenData.DurationSecs = time.Now().Unix() - oauthToken.Expiry.Unix()
-			tokenData.IsServer = keycloak.IsKeycloakBackwardCompatibleToken(token)
 		}
 	}
 	if err != nil {
