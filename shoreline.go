@@ -181,7 +181,9 @@ func main() {
 	clientStore.EnsureIndexes()
 
 	keycloakClient := keycloak.NewClient(&config.Keycloak)
-	userapi := user.InitApi(config.User, logger, clientStore, highwater, marketoManager, keycloakClient)
+	migrationStore := user.NewMigrationStore(clientStore, keycloakClient)
+	
+	userapi := user.InitApi(config.User, logger, migrationStore, highwater, marketoManager, keycloakClient)
 	logger.Print("installing handlers")
 	userapi.SetHandlers("", rtr)
 

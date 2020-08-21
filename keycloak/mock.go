@@ -40,6 +40,14 @@ func (m *MockClient) GetUserById(ctx context.Context, id string) (*User, error) 
 	return nil, ErrUserNotFound
 }
 
-func (m *MockClient) GetUserByUsername(ctx context.Context, username string) (*User, error) {
+func (m *MockClient) GetUserByEmail(ctx context.Context, username string) (*User, error) {
 	return nil, ErrUserNotFound
+}
+
+func (m *MockClient) UpdateUser(ctx context.Context, user *User) error {
+	return nil
+}
+
+func (m *MockClient) UpdateUserPassword(ctx context.Context, id, password string) error {
+	return nil
 }

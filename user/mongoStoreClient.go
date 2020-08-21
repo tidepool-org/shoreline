@@ -2,6 +2,7 @@ package user
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"sort"
@@ -128,6 +129,49 @@ func (msc *MongoStoreClient) Ping() error {
 // Disconnect from the MongoDB database
 func (msc *MongoStoreClient) Disconnect() error {
 	return msc.client.Disconnect(msc.context)
+}
+
+func (msc *MongoStoreClient) UpdateUser(originalUser *User, updateUserDetails *UpdateUserDetails) (*User, error) {
+	updatedUser := originalUser.DeepClone()
+	if updateUserDetails.Username != nil || updateUserDetails.Emails != nil {
+		dupCheck := &User{}
+		if updateUserDetails.Username != nil {
+			updatedUser.Username = *updateUserDetails.Username
+			dupCheck.Username = updatedUser.Username
+		}
+		if updateUserDetails.Emails != nil {
+			updatedUser.Emails = updateUserDetails.Emails
+			dupCheck.Emails = updatedUser.Emails
+		}
+
+		if results, err := msc.FindUsers(dupCheck); err != nil {
+			return nil, err
+		} else if len(results) > 0 {
+			return nil, errors.New(STATUS_USR_ALREADY_EXISTS)
+		}
+	}
+
+	if updateUserDetails.HashedPassword != nil {
+		updatedUser.PwHash = *updateUserDetails.HashedPassword
+	}
+
+	if updateUserDetails.Roles != nil {
+		updatedUser.Roles = updateUserDetails.Roles
+	}
+
+	if updateUserDetails.TermsAccepted != nil {
+		updatedUser.TermsAccepted = *updateUserDetails.TermsAccepted
+	}
+
+	if updateUserDetails.EmailVerified != nil {
+		updatedUser.EmailVerified = *updateUserDetails.EmailVerified
+	}
+
+	if err := msc.UpsertUser(updatedUser); err != nil {
+		return nil, err
+	}
+
+	return updatedUser, nil
 }
 
 // UpsertUser - Update an existing user's details, or insert a new user if the user doesn't already exist.

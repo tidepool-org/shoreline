@@ -21,6 +21,8 @@ type User struct {
 	PwHash         string                 `json:"-" bson:"pwhash,omitempty"`
 	Hash           string                 `json:"-" bson:"userhash,omitempty"`
 	Private        map[string]*IdHashPair `json:"-" bson:"private"`
+	IsMigrated     bool                   `json:"-" bson:"-"`
+	Enabled        bool                   `json:"-" bson:"-"`
 	CreatedTime    string                 `json:"createdTime,omitempty" bson:"createdTime,omitempty"`
 	CreatedUserID  string                 `json:"createdUserId,omitempty" bson:"createdUserId,omitempty"`
 	ModifiedTime   string                 `json:"modifiedTime,omitempty" bson:"modifiedTime,omitempty"`
@@ -45,12 +47,13 @@ type NewCustodialUserDetails struct {
 }
 
 type UpdateUserDetails struct {
-	Username      *string
-	Emails        []string
-	Password      *string
-	Roles         []string
-	TermsAccepted *string
-	EmailVerified *bool
+	Username       *string
+	Emails         []string
+	Password       *string
+	HashedPassword *string
+	Roles          []string
+	TermsAccepted  *string
+	EmailVerified  *bool
 }
 
 var (
@@ -507,6 +510,7 @@ func (u *User) DeepClone() *User {
 		EmailVerified: u.EmailVerified,
 		PwHash:        u.PwHash,
 		Hash:          u.Hash,
+		IsMigrated:    u.IsMigrated,
 	}
 	if u.Emails != nil {
 		clonedUser.Emails = make([]string, len(u.Emails))
@@ -544,6 +548,14 @@ func (u *User) ToKeycloakUser() *keycloak.User {
 	return keycloakUser
 }
 
+func (u *User) IsEnabled() bool {
+	if u.IsMigrated {
+		return u.Enabled
+	} else {
+		return u.PwHash != ""
+	}
+}
+
 func NewUserFromKeycloakUser(keycloakUser *keycloak.User) *User {
 	termsAcceptedDate := ""
 	if len(keycloakUser.Attributes.TermsAcceptedDate) > 0 {
@@ -551,12 +563,14 @@ func NewUserFromKeycloakUser(keycloakUser *keycloak.User) *User {
 	}
 
 	return &User{
-		Id:             keycloakUser.ID,
-		Username:       keycloakUser.Username,
-		Emails:         []string{keycloakUser.Email},
-		Roles:          MapKeycloakRoles(keycloakUser.Roles),
-		TermsAccepted:  termsAcceptedDate,
-		EmailVerified:  keycloakUser.EmailVerified,
+		Id:            keycloakUser.ID,
+		Username:      keycloakUser.Username,
+		Emails:        []string{keycloakUser.Email},
+		Roles:         MapKeycloakRoles(keycloakUser.Roles),
+		TermsAccepted: termsAcceptedDate,
+		EmailVerified: keycloakUser.EmailVerified,
+		IsMigrated:    true,
+		Enabled:       keycloakUser.Enabled,
 	}
 }
 

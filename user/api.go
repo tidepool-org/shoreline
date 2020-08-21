@@ -326,53 +326,18 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, "User does not have permissions")
 
 	} else {
-		updatedUser := originalUser.DeepClone()
-
-		// TODO: This all needs to be refactored so it can be more thoroughly tested
-
-		if updateUserDetails.Username != nil || updateUserDetails.Emails != nil {
-			dupCheck := &User{}
-			if updateUserDetails.Username != nil {
-				updatedUser.Username = *updateUserDetails.Username
-				dupCheck.Username = updatedUser.Username
-			}
-			if updateUserDetails.Emails != nil {
-				updatedUser.Emails = updateUserDetails.Emails
-				dupCheck.Emails = updatedUser.Emails
-			}
-
-			if results, err := a.Store.WithContext(req.Context()).FindUsers(dupCheck); err != nil {
-				a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err)
-				return
-			} else if len(results) > 0 {
-				a.sendError(res, http.StatusConflict, STATUS_USR_ALREADY_EXISTS)
-				return
-			}
-		}
-
 		if updateUserDetails.Password != nil {
-			if err := updatedUser.HashPassword(*updateUserDetails.Password, a.ApiConfig.Salt); err != nil {
+			hash, err := GeneratePasswordHash(originalUser.Id, *updateUserDetails.Password, a.ApiConfig.Salt)
+			if err != nil {
 				a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_USR, err)
 				return
 			}
+			updateUserDetails.HashedPassword = &hash
 		}
-
-		if updateUserDetails.Roles != nil {
-			updatedUser.Roles = updateUserDetails.Roles
-		}
-
-		if updateUserDetails.TermsAccepted != nil {
-			updatedUser.TermsAccepted = *updateUserDetails.TermsAccepted
-		}
-
-		if updateUserDetails.EmailVerified != nil {
-			updatedUser.EmailVerified = *updateUserDetails.EmailVerified
-		}
-
-		if err := a.Store.WithContext(req.Context()).UpsertUser(updatedUser); err != nil {
+		if updatedUser, err := a.Store.WithContext(req.Context()).UpdateUser(originalUser, updateUserDetails); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_USR, err)
 		} else {
-			if len(originalUser.PwHash) == 0 && len(updatedUser.PwHash) != 0 {
+			if !originalUser.IsEnabled() && updatedUser.IsEnabled() {
 				if err := a.removeUserPermissions(updatedUser.Id, clients.Permissions{"custodian": clients.Allowed}); err != nil {
 					a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_USR, err)
 				}
@@ -407,13 +372,22 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 		return
 	}
 
-	userID := vars["userid"]
-	if userID == "" {
-		userID = tokenData.UserId
+	userId := vars["userid"]
+	if userId == "" {
+		userId = tokenData.UserId
 	}
 
-	if user, err := a.findUser(req.Context(), userID); err != nil {
+	userFilter := &User{}
+	if IsValidUserID(userId) {
+		userFilter.Id = userId
+	} else {
+		userFilter.Emails = []string{userId}
+	}
+
+
+	if user, err := a.Store.WithContext(req.Context()).FindUser(userFilter); err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err)
+
 	} else if user == nil {
 		a.sendError(res, http.StatusNotFound, STATUS_ERR_FINDING_USR, err)
 
@@ -753,7 +727,7 @@ func (a *Api) findUser(ctx context.Context, id string) (*User, error) {
 	if IsValidUserID(id) {
 		keycloakUser, err = a.keycloakClient.GetUserById(ctx, id)
 	} else {
-		keycloakUser, err = a.keycloakClient.GetUserByUsername(ctx, id)
+		keycloakUser, err = a.keycloakClient.GetUserByEmail(ctx, id)
 	}
 
 	if err != nil && err != keycloak.ErrUserNotFound {

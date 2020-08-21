@@ -1,6 +1,8 @@
 package user
 
-import "context"
+import (
+	"context"
+)
 
 // Storage interface
 type Storage interface {
@@ -8,6 +10,7 @@ type Storage interface {
 	WithContext(ctx context.Context) Storage
 	EnsureIndexes() error
 	UpsertUser(user *User) error
+	UpdateUser(user *User, details *UpdateUserDetails) (*User, error)
 	FindUser(user *User) (*User, error)
 	FindUsers(user *User) ([]*User, error)
 	FindUsersByRole(role string) ([]*User, error)

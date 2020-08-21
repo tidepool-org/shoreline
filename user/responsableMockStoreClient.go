@@ -86,6 +86,10 @@ func (r *ResponsableMockStoreClient) Ping() (err error) {
 	panic("PingResponses unavailable")
 }
 
+func (r *ResponsableMockStoreClient) UpdateUser(user *User, details *UpdateUserDetails) (*User, error) {
+	panic("implement me")
+}
+
 func (r *ResponsableMockStoreClient) UpsertUser(user *User) (err error) {
 	if len(r.UpsertUserResponses) > 0 {
 		err, r.UpsertUserResponses = r.UpsertUserResponses[0], r.UpsertUserResponses[1:]

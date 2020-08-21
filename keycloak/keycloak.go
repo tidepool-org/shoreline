@@ -1,6 +1,7 @@
 package keycloak
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -27,13 +28,13 @@ var ErrUserNotFound = errors.New("user not found")
 
 type User struct {
 	ID            string         `json:"id"`
-	Username      string         `json:"username"`
-	Email         string         `json:"email"`
-	FirstName     string         `json:"firstName"`
-	LastName      string         `json:"lastName"`
-	Enabled       bool           `json:"enabled"`
-	EmailVerified bool           `json:"emailVerified"`
-	Roles         []string       `json:"roles"`
+	Username      string         `json:"username,omitempty"`
+	Email         string         `json:"email,omitempty"`
+	FirstName     string         `json:"firstName,omitempty"`
+	LastName      string         `json:"lastName,omitempty"`
+	Enabled       bool           `json:"enabled,omitempty"`
+	EmailVerified bool           `json:"emailVerified,omitempty"`
+	Roles         []string       `json:"roles,omitempty"`
 	Attributes    UserAttributes `json:"attributes"`
 }
 
@@ -128,7 +129,9 @@ type Client interface {
 	RefreshToken(ctx context.Context, token *oauth2.Token) (*oauth2.Token, error)
 	RevokeToken(ctx context.Context, token *oauth2.Token) error
 	GetUserById(ctx context.Context, id string) (*User, error)
-	GetUserByUsername(ctx context.Context, email string) (*User, error)
+	GetUserByEmail(ctx context.Context, email string) (*User, error)
+	UpdateUser(ctx context.Context, user *User) error
+	UpdateUserPassword(ctx context.Context, id, password string) error
 }
 
 type client struct {
@@ -218,7 +221,7 @@ func (c *client) GetUserById(ctx context.Context, id string) (*User, error) {
 	return user, nil
 }
 
-func (c *client) GetUserByUsername(ctx context.Context, username string) (*User, error) {
+func (c *client) GetUserByEmail(ctx context.Context, username string) (*User, error) {
 	if username == "" {
 		return nil, nil
 	}
@@ -258,6 +261,75 @@ func (c *client) GetUserByUsername(ctx context.Context, username string) (*User,
 	user.Roles = roles
 
 	return &user, nil
+}
+
+func (c *client) UpdateUser(ctx context.Context, user *User) error {
+	token, err := c.getAdminToken(ctx)
+	if err != nil {
+		return err
+	}
+	client := c.adminOauth.Client(ctx, token)
+	endpoint := strings.Join([]string{c.keycloakConfig.BaseUrl, "auth", "admin", "realms", c.keycloakConfig.Realm, "users", user.ID}, "/")
+
+
+	body, err := json.Marshal(user)
+	if err != nil {
+		return err
+	}
+	fmt.Printf(string(body))
+	req, err := http.NewRequest(http.MethodPut, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Add("content-type", "application/json")
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != 204 {
+		return errors.New(fmt.Sprintf("unexpected status code %v when updating user", resp.StatusCode))
+	}
+
+	return nil
+}
+
+type resetPasswordBody struct {
+	Typ string `json:"type"`
+	Temporary bool `json:"temporary"`
+	Value string `json:"value"`
+}
+
+func (c *client) UpdateUserPassword(ctx context.Context, id, password string) error {
+	token, err := c.getAdminToken(ctx)
+	if err != nil {
+		return err
+	}
+	client := c.adminOauth.Client(ctx, token)
+	endpoint := strings.Join([]string{c.keycloakConfig.BaseUrl, "auth", "admin", "realms", c.keycloakConfig.Realm, "users", id, "reset-password"}, "/")
+
+
+	body, err := json.Marshal(resetPasswordBody{
+		Typ:       "password",
+		Temporary: false,
+		Value:     password,
+	})
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequest(http.MethodPut, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Add("content-type", "application/json")
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != 204 {
+		return errors.New(fmt.Sprintf("unexpected status code %v when updating user password", resp.StatusCode))
+	}
+
+	return nil
 }
 
 func (c *client) getAdminToken(ctx context.Context) (*oauth2.Token, error) {
