@@ -227,10 +227,15 @@ func TokenDataFromIntrospectionResult(introspectionResult *keycloak.TokenIntrosp
 		return nil, errors.New("introspected token is inactive")
 	}
 
+	duration := introspectionResult.ExpiresAt - time.Now().Unix()
+	if duration <= 0 {
+		return nil, errors.New("token is expired")
+	}
+
 	return &TokenData{
 		IsServer:     introspectionResult.HasServerScope(),
 		UserId:       introspectionResult.Subject,
-		DurationSecs: time.Now().Unix() - introspectionResult.ExpiresAt,
+		DurationSecs: duration,
 	}, nil
 }
 

@@ -70,7 +70,6 @@ func (m *MigrationStore) updateKeycloakUser(user *User, details *UpdateUserDetai
 		keycloakUser.EmailVerified = true
 	}
 	if details.TermsAccepted != nil {
-		keycloakUser.Attributes.TermsAccepted = []string{"true"}
 		keycloakUser.Attributes.TermsAcceptedDate = []string{*details.TermsAccepted}
 	}
 	if details.Username != nil {

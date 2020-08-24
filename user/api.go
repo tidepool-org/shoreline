@@ -696,10 +696,14 @@ func (a *Api) GetUserForMigration(res http.ResponseWriter, req *http.Request, va
 	return
 }
 
+type CheckPassword struct {
+	Password string `json:"password"`
+}
+
 // status: 200 if a user with the required password exists
 func (a *Api) CheckUserPassword(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 	username, ok := vars["username"]
-	request := keycloak.CheckPasswordRequest{}
+	request := CheckPassword{}
 	err := json.NewDecoder(req.Body).Decode(&request)
 	if err != nil {
 		res.WriteHeader(http.StatusBadRequest)
