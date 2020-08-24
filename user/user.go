@@ -7,8 +7,13 @@ import (
 	"github.com/tidepool-org/shoreline/keycloak"
 	"io"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
+)
+
+const (
+	TimestampFormat = "2006-01-02T15:04:05-07:00"
 )
 
 type User struct {
@@ -156,8 +161,31 @@ func IsValidDate(date string) bool {
 }
 
 func IsValidTimestamp(timestamp string) bool {
-	_, err := time.Parse("2006-01-02T15:04:05-07:00", timestamp)
+	_, err := ParseTimestamp(timestamp)
 	return err == nil
+}
+
+func ParseTimestamp(timestamp string) (time.Time, error) {
+	return time.Parse(TimestampFormat, timestamp)
+}
+
+func TimestampToUnixString(timestamp string) (unix string, err error) {
+	parsed, err := ParseTimestamp(timestamp)
+	if err != nil {
+		return
+	}
+	unix = fmt.Sprintf("%v", parsed.Unix())
+	return
+}
+
+func UnixStringToTimestamp(unixString string) (timestamp string, err error) {
+	i, err := strconv.ParseInt(unixString, 10, 64)
+	if err != nil {
+		return
+	}
+	t := time.Unix(i, 0)
+	timestamp = t.Format(TimestampFormat)
+	return
 }
 
 func IsValidUserID(id string) bool {
@@ -537,12 +565,10 @@ func (u *User) ToKeycloakUser() *keycloak.User {
 		Enabled:       !u.IsDeleted(),
 		EmailVerified: u.EmailVerified,
 		Roles:         u.Roles,
-		Attributes: keycloak.UserAttributes{
-			TermsAccepted: []string{fmt.Sprintf("%v", u.TermsAccepted != "")},
-		},
+		Attributes:    keycloak.UserAttributes{},
 	}
-	if u.TermsAccepted != "" {
-		keycloakUser.Attributes.TermsAcceptedDate = []string{u.TermsAccepted}
+	if termsAccepted, err := TimestampToUnixString(u.TermsAccepted); err == nil {
+		keycloakUser.Attributes.TermsAcceptedDate = []string{termsAccepted}
 	}
 
 	return keycloakUser
@@ -559,7 +585,9 @@ func (u *User) IsEnabled() bool {
 func NewUserFromKeycloakUser(keycloakUser *keycloak.User) *User {
 	termsAcceptedDate := ""
 	if len(keycloakUser.Attributes.TermsAcceptedDate) > 0 {
-		termsAcceptedDate = keycloakUser.Attributes.TermsAcceptedDate[0]
+		if ts, err := UnixStringToTimestamp(keycloakUser.Attributes.TermsAcceptedDate[0]); err == nil {
+			termsAcceptedDate = ts
+		}
 	}
 
 	return &User{

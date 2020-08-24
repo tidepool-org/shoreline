@@ -39,8 +39,7 @@ type User struct {
 }
 
 type UserAttributes struct {
-	TermsAccepted     []string `json:"termsAccepted"`
-	TermsAcceptedDate []string `json:"termsAcceptedDate,omitempty"`
+	TermsAcceptedDate []string `json:"terms_and_conditions,omitempty"`
 }
 
 type CheckPasswordRequest struct {

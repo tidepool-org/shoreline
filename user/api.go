@@ -690,17 +690,7 @@ func (a *Api) GetUserForMigration(res http.ResponseWriter, req *http.Request, va
 	}
 
 	user := users[0]
-	keycloakUser := &keycloak.User{
-		ID:            user.Id,
-		Username:      user.Username,
-		Email:         user.Email(),
-		Enabled:       !user.IsDeleted(),
-		EmailVerified: user.EmailVerified,
-		Roles:         user.Roles,
-		Attributes: keycloak.UserAttributes{
-			TermsAccepted: []string{fmt.Sprintf("%v", user.TermsAccepted != "")},
-		},
-	}
+	keycloakUser := user.ToKeycloakUser()
 
 	sendModelAsRes(res, keycloakUser)
 	return
