@@ -623,8 +623,7 @@ func mapRoles(roles []string, m map[string]string) []string {
 	for _, role := range roles {
 		if val, ok := m[role]; ok {
 			mapped = append(mapped, val)
-			break
 		}
 	}
-	return roles
+	return mapped
 }
