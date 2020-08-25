@@ -18,7 +18,6 @@ const (
 	tokenPrefix         = "kc"
 	tokenPartsSeparator = ":"
 	masterRealm         = "master"
-	adminClient         = "admin-cli"
 )
 
 var ErrUserNotFound = errors.New("user not found")

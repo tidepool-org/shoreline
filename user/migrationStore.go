@@ -166,7 +166,7 @@ func (m *MigrationStore) FindTokenByID(id string) (*SessionToken, error) {
 }
 
 func (m *MigrationStore) RemoveTokenByID(id string) error {
-	return m.RemoveTokenByID(id)
+	return m.fallback.RemoveTokenByID(id)
 }
 
 var _ Storage = &MigrationStore{}
