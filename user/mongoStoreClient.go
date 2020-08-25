@@ -131,6 +131,10 @@ func (msc *MongoStoreClient) Disconnect() error {
 	return msc.client.Disconnect(msc.context)
 }
 
+func (msc *MongoStoreClient) CreateUser(newUserDetails *NewUserDetails) (*User, error) {
+	return nil, errors.New("not implemented")
+}
+
 func (msc *MongoStoreClient) UpdateUser(originalUser *User, updateUserDetails *UpdateUserDetails) (*User, error) {
 	updatedUser := originalUser.DeepClone()
 	if updateUserDetails.Username != nil || updateUserDetails.Emails != nil {

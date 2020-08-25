@@ -594,7 +594,7 @@ func NewUserFromKeycloakUser(keycloakUser *keycloak.User) *User {
 		Id:            keycloakUser.ID,
 		Username:      keycloakUser.Username,
 		Emails:        []string{keycloakUser.Email},
-		Roles:         MapKeycloakRoles(keycloakUser.Roles),
+		Roles:         KeycloakRolesToTidepoolRoles(keycloakUser.Roles),
 		TermsAccepted: termsAcceptedDate,
 		EmailVerified: keycloakUser.EmailVerified,
 		IsMigrated:    true,
@@ -602,13 +602,27 @@ func NewUserFromKeycloakUser(keycloakUser *keycloak.User) *User {
 	}
 }
 
-func MapKeycloakRoles(keycloakRoles []string) []string {
-	var roles []string
-	for _, role := range keycloakRoles {
-		// keycloak maps tidepool "clinic" role to "clinician",
-		// so we need to apply the reverse transformation
-		if role == "clinician" {
-			roles = []string{"clinic"}
+var keycloakToTidepoolRolesMap = map[string]string{
+	"clinician": "clinic",
+}
+
+var tidepoolToKeycloakRolesMap = map[string]string{
+	"clinic": "clinician",
+}
+
+func KeycloakRolesToTidepoolRoles(keycloakRoles []string) []string {
+	return mapRoles(keycloakRoles, keycloakToTidepoolRolesMap)
+}
+
+func TidepoolRolesToKeycloakRoles(tidepoolRoles []string) []string {
+	return mapRoles(tidepoolRoles, tidepoolToKeycloakRolesMap)
+}
+
+func mapRoles(roles []string, m map[string]string) []string {
+	var mapped []string
+	for _, role := range roles {
+		if val, ok := m[role]; ok {
+			mapped = append(mapped, val)
 			break
 		}
 	}

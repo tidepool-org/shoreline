@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"golang.org/x/oauth2"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -21,6 +22,7 @@ const (
 )
 
 var ErrUserNotFound = errors.New("user not found")
+var ErrUserConflict = errors.New("user already exists")
 
 type Client interface {
 	Login(ctx context.Context, username, password string) (*oauth2.Token, error)
@@ -31,6 +33,7 @@ type Client interface {
 	GetUserByEmail(ctx context.Context, email string) (*User, error)
 	UpdateUser(ctx context.Context, user *User) error
 	UpdateUserPassword(ctx context.Context, id, password string) error
+	CreateUser(ctx context.Context, user *User) (*User, error)
 }
 
 type User struct {
@@ -239,7 +242,7 @@ func (c *client) UpdateUser(ctx context.Context, user *User) error {
 		Username:      &user.Username,
 		Enabled:       &user.Enabled,
 		EmailVerified: &user.EmailVerified,
-		FirstName:     &user.Email,
+		FirstName:     &user.FirstName,
 		LastName:      &user.LastName,
 		Email:         &user.Email,
 		Attributes:    &attributes,
@@ -260,6 +263,48 @@ func (c *client) UpdateUserPassword(ctx context.Context, id, password string) er
 		password,
 		false,
 	)
+}
+
+func (c *client) CreateUser(ctx context.Context, user *User) (*User, error) {
+	token, err := c.getAdminToken(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	id, err := c.keycloak.CreateUser(ctx, token.AccessToken, c.cfg.Realm, gocloak.User{
+		Username:   &user.Username,
+		Email:      &user.Email,
+		Enabled:    &user.Enabled,
+		RealmRoles: &user.Roles,
+	})
+	if err != nil {
+		if e, ok := err.(*gocloak.APIError); ok && e.Code == http.StatusConflict {
+			err = ErrUserConflict
+		}
+		return nil, err
+	}
+
+	if user.Roles != nil && len(user.Roles) > 0 {
+		roles, err := c.keycloak.GetRealmRoles(ctx, token.AccessToken, c.cfg.Realm)
+		if err != nil {
+			return nil, err
+		}
+		var rolesForUser []gocloak.Role
+		for _, userRole := range user.Roles {
+			for _, realmRole := range roles {
+				if realmRole.Name != nil && *realmRole.Name == userRole {
+					rolesForUser = append(rolesForUser, *realmRole)
+				}
+			}
+		}
+		if len(rolesForUser) > 0 {
+			if err = c.keycloak.AddRealmRoleToUser(ctx, token.AccessToken, c.cfg.Realm, id, rolesForUser); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return c.GetUserById(ctx, id)
 }
 
 func (c *client) getAdminToken(ctx context.Context) (*oauth2.Token, error) {

@@ -86,6 +86,10 @@ func (r *ResponsableMockStoreClient) Ping() (err error) {
 	panic("PingResponses unavailable")
 }
 
+func (r *ResponsableMockStoreClient) CreateUser(details *NewUserDetails) (*User, error) {
+	panic("implement me")
+}
+
 func (r *ResponsableMockStoreClient) UpdateUser(user *User, details *UpdateUserDetails) (*User, error) {
 	panic("implement me")
 }

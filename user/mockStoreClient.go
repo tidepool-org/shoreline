@@ -30,7 +30,11 @@ func (d MockStoreClient) Ping() error {
 	return nil
 }
 
-func (d *MockStoreClient) UpdateUser(user *User, details *UpdateUserDetails) (*User, error) {
+func (d MockStoreClient) CreateUser(details *NewUserDetails) (*User, error) {
+	return nil, nil
+}
+
+func (d MockStoreClient) UpdateUser(user *User, details *UpdateUserDetails) (*User, error) {
 	return user, nil
 }
 

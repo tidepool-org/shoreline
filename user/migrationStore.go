@@ -7,6 +7,8 @@ import (
 	"github.com/tidepool-org/shoreline/keycloak"
 )
 
+var ErrUserConflict = errors.New("user already exists")
+
 type MigrationStore struct {
 	ctx            context.Context
 	fallback       Storage
@@ -38,6 +40,27 @@ func (m *MigrationStore) WithContext(ctx context.Context) Storage {
 
 func (m *MigrationStore) EnsureIndexes() error {
 	return m.fallback.EnsureIndexes()
+}
+
+func (m *MigrationStore) CreateUser(details *NewUserDetails) (*User, error) {
+	user := &keycloak.User{
+		Email:         *details.Username,
+		Enabled:       true,
+		EmailVerified: false,
+		Roles:         TidepoolRolesToKeycloakRoles(details.Roles),
+	}
+	user, err := m.keycloakClient.CreateUser(m.ctx, user)
+	if err == keycloak.ErrUserConflict {
+		return nil, ErrUserConflict
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err = m.keycloakClient.UpdateUserPassword(m.ctx, user.ID, *details.Password); err != nil {
+		return nil, err
+	}
+
+	return NewUserFromKeycloakUser(user), nil
 }
 
 func (m *MigrationStore) UpsertUser(user *User) error {

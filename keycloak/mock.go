@@ -2,13 +2,13 @@ package keycloak
 
 import (
 	"context"
+	"errors"
 	"golang.org/x/oauth2"
 	"time"
 )
 
 type MockClient struct {
 }
-
 
 var _ Client = &MockClient{}
 
@@ -50,4 +50,8 @@ func (m *MockClient) UpdateUser(ctx context.Context, user *User) error {
 
 func (m *MockClient) UpdateUserPassword(ctx context.Context, id, password string) error {
 	return nil
+}
+
+func (m *MockClient) CreateUser(ctx context.Context, user *User) (*User, error) {
+	return nil, errors.New("not implemented")
 }
