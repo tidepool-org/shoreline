@@ -3,7 +3,6 @@ package keycloak
 import (
 	"context"
 	"errors"
-	"fmt"
 	"golang.org/x/oauth2"
 	"net/http"
 	"os"
@@ -51,7 +50,7 @@ func NewKeycloakUser(gocloakUser *gocloak.User) *User {
 	if gocloakUser == nil {
 		return nil
 	}
-	return &User{
+	user := &User{
 		ID:            safePStr(gocloakUser.ID),
 		Username:      safePStr(gocloakUser.Username),
 		FirstName:     safePStr(gocloakUser.FirstName),
@@ -60,6 +59,12 @@ func NewKeycloakUser(gocloakUser *gocloak.User) *User {
 		EmailVerified: safePBool(gocloakUser.EmailVerified),
 		Enabled:       safePBool(gocloakUser.Enabled),
 	}
+	if gocloakUser.Attributes != nil {
+		if ts, ok := (*gocloakUser.Attributes)["terms_and_conditions"]; ok {
+			user.Attributes.TermsAcceptedDate = ts
+		}
+	}
+	return user
 }
 
 type UserAttributes struct {
@@ -366,7 +371,6 @@ func (c *client) getRolesForUser(ctx context.Context, id string) ([]string, erro
 }
 
 func (c *client) IntrospectToken(ctx context.Context, token *oauth2.Token) (*TokenIntrospectionResult, error) {
-	fmt.Println(token.AccessToken)
 	rtr, err := c.keycloak.RetrospectToken(
 		ctx,
 		token.AccessToken,
