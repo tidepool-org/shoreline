@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/tidepool-org/shoreline/keycloak"
 	"io"
+	"math/rand"
 	"regexp"
 	"strconv"
 	"strings"
@@ -377,15 +378,24 @@ func NewCustodialUser(details *NewCustodialUserDetails, salt string) (user *User
 }
 
 func NewUserDetailsFromCustodialUserDetails(details *NewCustodialUserDetails) (*NewUserDetails, error) {
-	if details == nil {
-		return nil, errors.New("New custodial user details is nil")
-	} else if err := details.Validate(); err != nil {
-		return nil, err
+	var email string
+	if len(details.Emails) > 0 {
+		email = details.Emails[0]
+	} else if details.Username != nil {
+		email = *details.Username
+	} else {
+		email = NewCustodialUserTemporaryEmail()
 	}
+
 	return &NewUserDetails{
-		Username: details.Username,
-		Emails:   details.Emails,
+		Username: &email,
+		Emails:   []string{email},
 	}, nil
+}
+
+func NewCustodialUserTemporaryEmail() string {
+	random := rand.Uint64()
+	return fmt.Sprintf("noreply+custodial-%020d@tidepool.org", random)
 }
 
 func (details *UpdateUserDetails) ExtractFromJSON(reader io.Reader) error {
