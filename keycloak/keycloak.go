@@ -232,11 +232,7 @@ func (c *client) UpdateUser(ctx context.Context, user *User) error {
 		return err
 	}
 
-	attributes := map[string][]string{
-		"terms_and_conditions": user.Attributes.TermsAcceptedDate,
-	}
-
-	return c.keycloak.UpdateUser(ctx, token.AccessToken, c.cfg.Realm, gocloak.User{
+	gocloakUser := gocloak.User{
 		ID:            &user.ID,
 		Username:      &user.Username,
 		Enabled:       &user.Enabled,
@@ -244,8 +240,16 @@ func (c *client) UpdateUser(ctx context.Context, user *User) error {
 		FirstName:     &user.FirstName,
 		LastName:      &user.LastName,
 		Email:         &user.Email,
-		Attributes:    &attributes,
-	})
+	}
+
+	if len(user.Attributes.TermsAcceptedDate) > 0 {
+		gocloakUser.Attributes = &map[string][]string{
+			"terms_and_conditions": user.Attributes.TermsAcceptedDate,
+		}
+	}
+
+
+	return c.keycloak.UpdateUser(ctx, token.AccessToken, c.cfg.Realm, gocloakUser)
 }
 
 func (c *client) UpdateUserPassword(ctx context.Context, id, password string) error {
