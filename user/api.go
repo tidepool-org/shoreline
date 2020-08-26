@@ -216,9 +216,9 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, err)
 	} else if newUser, err := NewUser(newUserDetails, a.ApiConfig.Salt); err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
-	} else if existingUser, err := a.Store.WithContext(req.Context()).FindUsers(newUser); err != nil {
+	} else if existingUser, err := a.Store.WithContext(req.Context()).FindUser(&User{Emails: newUser.Emails}); err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
-	} else if len(existingUser) != 0 {
+	} else if existingUser != nil {
 		// This check is necessary because we want to prevent duplicates in both mongo and keycloak
 		a.sendError(res, http.StatusConflict, STATUS_USR_ALREADY_EXISTS)
 	} else if newUser, err := a.Store.WithContext(req.Context()).CreateUser(newUserDetails); err != nil {
@@ -256,10 +256,8 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 // status: 409 STATUS_USR_ALREADY_EXISTS
 // status: 500 STATUS_ERR_GENERATING_TOKEN
 func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
-
-	sessionToken := req.Header.Get(TP_SESSION_TOKEN)
-
-	if tokenData, err := a.authenticateSessionToken(req.Context(), sessionToken); err != nil {
+	token := req.Header.Get(TP_SESSION_TOKEN)
+	if tokenData, err := a.authenticateToken(req.Context(), token); err != nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
 
 	} else if custodianUserID := vars["userid"]; !tokenData.IsServer && custodianUserID != tokenData.UserId {
@@ -268,25 +266,25 @@ func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, va
 	} else if newCustodialUserDetails, err := ParseNewCustodialUserDetails(req.Body); err != nil {
 		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, err)
 
-	} else if newCustodialUser, err := NewCustodialUser(newCustodialUserDetails, a.ApiConfig.Salt); err != nil {
+	} else if newUserDetails, err := NewUserDetailsFromCustodialUserDetails(newCustodialUserDetails); err != nil {
 		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, err)
 
-	} else if existingCustodialUser, err := a.Store.WithContext(req.Context()).FindUsers(newCustodialUser); err != nil {
+	} else if existingCustodialUser, err := a.Store.WithContext(req.Context()).FindUser(&User{Emails: newUserDetails.Emails}); err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
 
-	} else if len(existingCustodialUser) != 0 {
+	} else if existingCustodialUser != nil {
 		a.sendError(res, http.StatusConflict, STATUS_USR_ALREADY_EXISTS)
 
-	} else if err := a.Store.WithContext(req.Context()).UpsertUser(newCustodialUser); err != nil {
+	} else if user, err := a.Store.WithContext(req.Context()).CreateUser(newUserDetails); err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
 
 	} else {
 		permissions := clients.Permissions{"custodian": clients.Allowed, "view": clients.Allowed, "upload": clients.Allowed}
-		if _, err := a.perms.SetPermissions(custodianUserID, newCustodialUser.Id, permissions); err != nil {
+		if _, err := a.perms.SetPermissions(custodianUserID, user.Id, permissions); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
 		} else {
-			a.logMetricForUser(newCustodialUser.Id, "custodialusercreated", sessionToken, map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
-			a.sendUserWithStatus(res, newCustodialUser, http.StatusCreated, tokenData.IsServer)
+			a.logMetricForUser(user.Id, "custodialusercreated", token, map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
+			a.sendUserWithStatus(res, user, http.StatusCreated, tokenData.IsServer)
 		}
 	}
 }

@@ -376,6 +376,18 @@ func NewCustodialUser(details *NewCustodialUserDetails, salt string) (user *User
 	return user, nil
 }
 
+func NewUserDetailsFromCustodialUserDetails(details *NewCustodialUserDetails) (*NewUserDetails, error) {
+	if details == nil {
+		return nil, errors.New("New custodial user details is nil")
+	} else if err := details.Validate(); err != nil {
+		return nil, err
+	}
+	return &NewUserDetails{
+		Username: details.Username,
+		Emails:   details.Emails,
+	}, nil
+}
+
 func (details *UpdateUserDetails) ExtractFromJSON(reader io.Reader) error {
 	if reader == nil {
 		return User_error_details_missing

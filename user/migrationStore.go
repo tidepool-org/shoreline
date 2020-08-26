@@ -56,8 +56,10 @@ func (m *MigrationStore) CreateUser(details *NewUserDetails) (*User, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = m.keycloakClient.UpdateUserPassword(m.ctx, user.ID, *details.Password); err != nil {
-		return nil, err
+	if details.Password != nil {
+		if err = m.keycloakClient.UpdateUserPassword(m.ctx, user.ID, *details.Password); err != nil {
+			return nil, err
+		}
 	}
 
 	return NewUserFromKeycloakUser(user), nil
