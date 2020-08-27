@@ -236,19 +236,6 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 				}
 			}
 		}
-
-		token, err := a.keycloakClient.Login(req.Context(), newUser.Username, *newUserDetails.Password)
-		if err != nil {
-			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN, err)
-			return
-		}
-		tidepoolSessionToken, err := keycloak.CreateBackwardCompatibleToken(token)
-		if err != nil {
-			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN, err)
-			return
-		}
-
-		res.Header().Set(TP_SESSION_TOKEN, tidepoolSessionToken)
 		a.sendUserWithStatus(res, newUser, http.StatusCreated, false)
 	}
 }
