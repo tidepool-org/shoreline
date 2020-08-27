@@ -18,33 +18,35 @@ const (
 )
 
 type User struct {
-	Id             string                 `json:"userid,omitempty" bson:"userid,omitempty"` // map userid to id
-	Username       string                 `json:"username,omitempty" bson:"username,omitempty"`
-	Emails         []string               `json:"emails,omitempty" bson:"emails,omitempty"`
-	Roles          []string               `json:"roles,omitempty" bson:"roles,omitempty"`
-	TermsAccepted  string                 `json:"termsAccepted,omitempty" bson:"termsAccepted,omitempty"`
-	EmailVerified  bool                   `json:"emailVerified" bson:"authenticated"` //tag is name `authenticated` for historical reasons
-	PwHash         string                 `json:"-" bson:"pwhash,omitempty"`
-	Hash           string                 `json:"-" bson:"userhash,omitempty"`
-	Private        map[string]*IdHashPair `json:"-" bson:"private"`
-	IsMigrated     bool                   `json:"-" bson:"-"`
-	Enabled        bool                   `json:"-" bson:"-"`
-	CreatedTime    string                 `json:"createdTime,omitempty" bson:"createdTime,omitempty"`
-	CreatedUserID  string                 `json:"createdUserId,omitempty" bson:"createdUserId,omitempty"`
-	ModifiedTime   string                 `json:"modifiedTime,omitempty" bson:"modifiedTime,omitempty"`
-	ModifiedUserID string                 `json:"modifiedUserId,omitempty" bson:"modifiedUserId,omitempty"`
-	DeletedTime    string                 `json:"deletedTime,omitempty" bson:"deletedTime,omitempty"`
-	DeletedUserID  string                 `json:"deletedUserId,omitempty" bson:"deletedUserId,omitempty"`
+	Id                   string                 `json:"userid,omitempty" bson:"userid,omitempty"` // map userid to id
+	Username             string                 `json:"username,omitempty" bson:"username,omitempty"`
+	Emails               []string               `json:"emails,omitempty" bson:"emails,omitempty"`
+	Roles                []string               `json:"roles,omitempty" bson:"roles,omitempty"`
+	TermsAccepted        string                 `json:"termsAccepted,omitempty" bson:"termsAccepted,omitempty"`
+	EmailVerified        bool                   `json:"emailVerified" bson:"authenticated"` //tag is name `authenticated` for historical reasons
+	PwHash               string                 `json:"-" bson:"pwhash,omitempty"`
+	Hash                 string                 `json:"-" bson:"userhash,omitempty"`
+	Private              map[string]*IdHashPair `json:"-" bson:"private"`
+	IsMigrated           bool                   `json:"-" bson:"-"`
+	IsUnclaimedCustodial bool                   `json:"-" bson:"-"`
+	Enabled              bool                   `json:"-" bson:"-"`
+	CreatedTime          string                 `json:"createdTime,omitempty" bson:"createdTime,omitempty"`
+	CreatedUserID        string                 `json:"createdUserId,omitempty" bson:"createdUserId,omitempty"`
+	ModifiedTime         string                 `json:"modifiedTime,omitempty" bson:"modifiedTime,omitempty"`
+	ModifiedUserID       string                 `json:"modifiedUserId,omitempty" bson:"modifiedUserId,omitempty"`
+	DeletedTime          string                 `json:"deletedTime,omitempty" bson:"deletedTime,omitempty"`
+	DeletedUserID        string                 `json:"deletedUserId,omitempty" bson:"deletedUserId,omitempty"`
 }
 
 /*
  * Incoming user details used to create or update a `User`
  */
 type NewUserDetails struct {
-	Username *string
-	Emails   []string
-	Password *string
-	Roles    []string
+	Username    *string
+	Emails      []string
+	Password    *string
+	Roles       []string
+	IsCustodial bool
 }
 
 type NewCustodialUserDetails struct {
@@ -384,16 +386,17 @@ func NewUserDetailsFromCustodialUserDetails(details *NewCustodialUserDetails) (*
 	} else if details.Username != nil {
 		email = *details.Username
 	} else {
-		email = NewCustodialUserTemporaryEmail()
+		email = GenerateTemporaryEmail()
 	}
 
 	return &NewUserDetails{
-		Username: &email,
-		Emails:   []string{email},
+		Username:    &email,
+		Emails:      []string{email},
+		IsCustodial: true,
 	}, nil
 }
 
-func NewCustodialUserTemporaryEmail() string {
+func GenerateTemporaryEmail() string {
 	random := rand.Uint64()
 	return fmt.Sprintf("noreply+custodial-%020d@tidepool.org", random)
 }
@@ -592,6 +595,9 @@ func (u *User) ToKeycloakUser() *keycloak.User {
 	if termsAccepted, err := TimestampToUnixString(u.TermsAccepted); err == nil {
 		keycloakUser.Attributes.TermsAcceptedDate = []string{termsAccepted}
 	}
+	if u.IsUnclaimedCustodial == true {
+		keycloakUser.Attributes.IsUnclaimedCustodial = []string{"true"}
+	}
 
 	return keycloakUser
 }
@@ -613,14 +619,15 @@ func NewUserFromKeycloakUser(keycloakUser *keycloak.User) *User {
 	}
 
 	return &User{
-		Id:            keycloakUser.ID,
-		Username:      keycloakUser.Username,
-		Emails:        []string{keycloakUser.Email},
-		Roles:         KeycloakRolesToTidepoolRoles(keycloakUser.Roles),
-		TermsAccepted: termsAcceptedDate,
-		EmailVerified: keycloakUser.EmailVerified,
-		IsMigrated:    true,
-		Enabled:       keycloakUser.Enabled,
+		Id:                   keycloakUser.ID,
+		Username:             keycloakUser.Username,
+		Emails:               []string{keycloakUser.Email},
+		Roles:                KeycloakRolesToTidepoolRoles(keycloakUser.Roles),
+		TermsAccepted:        termsAcceptedDate,
+		EmailVerified:        keycloakUser.EmailVerified,
+		IsMigrated:           true,
+		IsUnclaimedCustodial: keycloakUser.IsUnclaimedCustodial(),
+		Enabled:              keycloakUser.Enabled,
 	}
 }
 

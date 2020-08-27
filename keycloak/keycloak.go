@@ -46,6 +46,11 @@ type User struct {
 	Attributes    UserAttributes `json:"attributes"`
 }
 
+type UserAttributes struct {
+	TermsAcceptedDate    []string `json:"terms_and_conditions,omitempty"`
+	IsUnclaimedCustodial []string `json:"is_unclaimed_custodial,omitempty"`
+}
+
 func NewKeycloakUser(gocloakUser *gocloak.User) *User {
 	if gocloakUser == nil {
 		return nil
@@ -63,12 +68,18 @@ func NewKeycloakUser(gocloakUser *gocloak.User) *User {
 		if ts, ok := (*gocloakUser.Attributes)["terms_and_conditions"]; ok {
 			user.Attributes.TermsAcceptedDate = ts
 		}
+		if val, ok := (*gocloakUser.Attributes)["is_unclaimed_custodial"]; ok {
+			user.Attributes.IsUnclaimedCustodial = val
+		}
 	}
 	return user
 }
 
-type UserAttributes struct {
-	TermsAcceptedDate []string `json:"terms_and_conditions,omitempty"`
+func (u *User) IsUnclaimedCustodial() bool {
+	if len(u.Attributes.IsUnclaimedCustodial) == 0 || u.Attributes.IsUnclaimedCustodial[0] != "true" {
+		return false
+	}
+	return true
 }
 
 type TokenIntrospectionResult struct {
@@ -252,7 +263,6 @@ func (c *client) UpdateUser(ctx context.Context, user *User) error {
 			"terms_and_conditions": user.Attributes.TermsAcceptedDate,
 		}
 	}
-
 
 	return c.keycloak.UpdateUser(ctx, token.AccessToken, c.cfg.Realm, gocloakUser)
 }

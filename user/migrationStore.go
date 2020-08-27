@@ -44,11 +44,19 @@ func (m *MigrationStore) EnsureIndexes() error {
 
 func (m *MigrationStore) CreateUser(details *NewUserDetails) (*User, error) {
 	user := &keycloak.User{
-		Email:         *details.Username,
 		Enabled:       true,
 		EmailVerified: false,
-		Roles:         TidepoolRolesToKeycloakRoles(details.Roles),
 	}
+	if details.Username != nil {
+		user.Username = *details.Username
+	}
+	if len(details.Emails) > 0 {
+		user.Email = details.Emails[0]
+	}
+	if !details.IsCustodial {
+		user.Roles = TidepoolRolesToKeycloakRoles(details.Roles)
+	}
+
 	user, err := m.keycloakClient.CreateUser(m.ctx, user)
 	if err == keycloak.ErrUserConflict {
 		return nil, ErrUserConflict
@@ -56,7 +64,9 @@ func (m *MigrationStore) CreateUser(details *NewUserDetails) (*User, error) {
 	if err != nil {
 		return nil, err
 	}
-	if details.Password != nil {
+
+	// Unclaimed custodial account should not be allowed to have a password
+	if !details.IsCustodial && details.Password != nil {
 		if err = m.keycloakClient.UpdateUserPassword(m.ctx, user.ID, *details.Password); err != nil {
 			return nil, err
 		}
@@ -83,10 +93,13 @@ func (m *MigrationStore) updateKeycloakUser(user *User, details *UpdateUserDetai
 		if err := m.keycloakClient.UpdateUserPassword(m.ctx, user.Id, *details.Password); err != nil {
 			return nil, err
 		}
-		// A custodial user who's claiming their account
-		if !IsValidEmail(user.Username) && !user.IsEnabled() {
-			keycloakUser.Enabled = true
+		// Custodial accounts are claimed when a user sets their password
+		if keycloakUser.IsUnclaimedCustodial() {
+			keycloakUser.Attributes.IsUnclaimedCustodial = nil
 		}
+	}
+	if details.Username != nil {
+		keycloakUser.Username = *details.Username
 	}
 	if details.Emails != nil && len(details.Emails) > 0 {
 		keycloakUser.Email = details.Emails[0]
@@ -94,13 +107,10 @@ func (m *MigrationStore) updateKeycloakUser(user *User, details *UpdateUserDetai
 	if details.EmailVerified != nil {
 		keycloakUser.EmailVerified = true
 	}
-	if details.TermsAccepted != nil && IsValidTimestamp(*details.TermsAccepted){
+	if details.TermsAccepted != nil && IsValidTimestamp(*details.TermsAccepted) {
 		if ts, err := TimestampToUnixString(*details.TermsAccepted); err != nil {
 			keycloakUser.Attributes.TermsAcceptedDate = []string{ts}
 		}
-	}
-	if details.Username != nil {
-		keycloakUser.Username = *details.Username
 	}
 
 	err := m.keycloakClient.UpdateUser(m.ctx, keycloakUser)
