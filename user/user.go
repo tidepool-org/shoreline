@@ -618,7 +618,7 @@ func NewUserFromKeycloakUser(keycloakUser *keycloak.User) *User {
 		}
 	}
 
-	return &User{
+	user := &User{
 		Id:                   keycloakUser.ID,
 		Username:             keycloakUser.Username,
 		Emails:               []string{keycloakUser.Email},
@@ -629,6 +629,16 @@ func NewUserFromKeycloakUser(keycloakUser *keycloak.User) *User {
 		IsUnclaimedCustodial: keycloakUser.IsUnclaimedCustodial(),
 		Enabled:              keycloakUser.Enabled,
 	}
+
+	// All non-custodial users have a password and it's important to set the hash to a non-empty value.
+	// When users are serialized by this service, the payload contains a flag `passwordExists` that
+	// is computed based on the presence of a password hash in the user struct. This flag is used by
+	// other services to determine whether the user is custodial or not.
+	if !keycloakUser.IsUnclaimedCustodial() {
+		user.PwHash = "true"
+	}
+
+	return user
 }
 
 var keycloakToTidepoolRolesMap = map[string]string{

@@ -93,7 +93,7 @@ func (m *MigrationStore) updateKeycloakUser(user *User, details *UpdateUserDetai
 		if err := m.keycloakClient.UpdateUserPassword(m.ctx, user.Id, *details.Password); err != nil {
 			return nil, err
 		}
-		// Custodial accounts are claimed when a user sets their password
+		// Custodial accounts are claimed when a user set a password
 		if keycloakUser.IsUnclaimedCustodial() {
 			keycloakUser.Attributes.IsUnclaimedCustodial = nil
 		}
