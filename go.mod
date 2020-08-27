@@ -11,8 +11,11 @@ require (
 	github.com/google/gops v0.3.11 // indirect
 	github.com/gorilla/mux v1.7.4
 	github.com/klauspost/compress v1.10.5 // indirect
+	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
+	github.com/modern-go/reflect2 v1.0.1 // indirect
 	github.com/prometheus/client_golang v1.6.0
 	github.com/shirou/gopsutil v2.20.7+incompatible // indirect
+	github.com/spf13/pflag v1.0.3 // indirect
 	github.com/tidepool-org/go-common v0.5.0
 	github.com/urfave/cli v1.22.4
 	github.com/xdg/stringprep v1.0.0 // indirect

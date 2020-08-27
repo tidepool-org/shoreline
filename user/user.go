@@ -595,9 +595,6 @@ func (u *User) ToKeycloakUser() *keycloak.User {
 	if termsAccepted, err := TimestampToUnixString(u.TermsAccepted); err == nil {
 		keycloakUser.Attributes.TermsAcceptedDate = []string{termsAccepted}
 	}
-	if u.IsUnclaimedCustodial == true {
-		keycloakUser.Attributes.IsUnclaimedCustodial = []string{"true"}
-	}
 
 	return keycloakUser
 }
@@ -626,15 +623,14 @@ func NewUserFromKeycloakUser(keycloakUser *keycloak.User) *User {
 		TermsAccepted:        termsAcceptedDate,
 		EmailVerified:        keycloakUser.EmailVerified,
 		IsMigrated:           true,
-		IsUnclaimedCustodial: keycloakUser.IsUnclaimedCustodial(),
 		Enabled:              keycloakUser.Enabled,
 	}
 
 	// All non-custodial users have a password and it's important to set the hash to a non-empty value.
 	// When users are serialized by this service, the payload contains a flag `passwordExists` that
 	// is computed based on the presence of a password hash in the user struct. This flag is used by
-	// other services to determine whether the user is custodial or not.
-	if !keycloakUser.IsUnclaimedCustodial() {
+	// other services (e.g. hydrophone) to determine whether the user is custodial or not.
+	if keycloakUser.IsCustodial != nil && *keycloakUser.IsCustodial == false {
 		user.PwHash = "true"
 	}
 

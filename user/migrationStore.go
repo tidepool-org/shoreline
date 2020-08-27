@@ -70,6 +70,11 @@ func (m *MigrationStore) CreateUser(details *NewUserDetails) (*User, error) {
 		if err = m.keycloakClient.UpdateUserPassword(m.ctx, user.ID, *details.Password); err != nil {
 			return nil, err
 		}
+		// Setting the pass sets the custodial flag so we need to fetch the user again
+		user, err = m.keycloakClient.GetUserById(m.ctx, user.ID)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return NewUserFromKeycloakUser(user), nil
@@ -93,10 +98,8 @@ func (m *MigrationStore) updateKeycloakUser(user *User, details *UpdateUserDetai
 		if err := m.keycloakClient.UpdateUserPassword(m.ctx, user.Id, *details.Password); err != nil {
 			return nil, err
 		}
-		// Custodial accounts are claimed when a user set a password
-		if keycloakUser.IsUnclaimedCustodial() {
-			keycloakUser.Attributes.IsUnclaimedCustodial = nil
-		}
+		isCustodial := true
+		keycloakUser.IsCustodial = &isCustodial
 	}
 	if details.Username != nil {
 		keycloakUser.Username = *details.Username
