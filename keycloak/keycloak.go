@@ -205,11 +205,11 @@ func (c *client) GetUserById(ctx context.Context, id string) (*User, error) {
 	}
 	user.Roles = roles
 
-	custodial := false
+	custodial := true
 	credentials, err := c.keycloak.GetCredentials(ctx, token.AccessToken, c.cfg.Realm, id)
 	for _, cred := range credentials {
 		if cred.Type != nil && *cred.Type == "password" {
-			custodial = true
+			custodial = false
 			break
 		}
 	}

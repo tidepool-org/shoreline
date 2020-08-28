@@ -10,6 +10,8 @@ export TIDEPOOL_STORE_SCHEME="mongodb"
 export TIDEPOOL_STORE_ADDRESSES="localhost:27017"
 export TIDEPOOL_STORE_DATABASE="user"
 
+export SERVER_SECRET="This needs to be the same secret everywhere. YaHut75NsK1f9UKUXuWqxNN0RUwHFBCy"
+
 export TIDEPOOL_SHORELINE_ENV='{
     "hakken": { "host": "localhost:8000" },
     "highwater": {
