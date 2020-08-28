@@ -236,7 +236,15 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 				}
 			}
 		}
-		a.sendUserWithStatus(res, newUser, http.StatusCreated, false)
+		tokenData := TokenData{DurationSecs: extractTokenDuration(req), UserId: newUser.Id, IsServer: false}
+		tokenConfig := a.ApiConfig.TokenConfigs[0]
+		if sessionToken, err := CreateSessionTokenAndSave(&tokenData, tokenConfig, a.Store.WithContext(req.Context())); err != nil {
+			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN, err)
+		} else {
+			a.logMetricForUser(newUser.Id, "usercreated", sessionToken.ID, map[string]string{"server": "false"})
+			res.Header().Set(TP_SESSION_TOKEN, sessionToken.ID)
+			a.sendUserWithStatus(res, newUser, http.StatusCreated, false)
+		}
 	}
 }
 
