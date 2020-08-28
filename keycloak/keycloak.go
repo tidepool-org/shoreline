@@ -260,7 +260,6 @@ func (c *client) UpdateUser(ctx context.Context, user *User) error {
 
 	gocloakUser.Attributes = &map[string][]string{
 		"terms_and_conditions": user.Attributes.TermsAcceptedDate,
-		"is_custodial":         user.Attributes.TermsAcceptedDate,
 	}
 
 	return c.keycloak.UpdateUser(ctx, token.AccessToken, c.cfg.Realm, gocloakUser)

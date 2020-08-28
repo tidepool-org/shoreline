@@ -111,7 +111,7 @@ func (m *MigrationStore) updateKeycloakUser(user *User, details *UpdateUserDetai
 		keycloakUser.EmailVerified = true
 	}
 	if details.TermsAccepted != nil && IsValidTimestamp(*details.TermsAccepted) {
-		if ts, err := TimestampToUnixString(*details.TermsAccepted); err != nil {
+		if ts, err := TimestampToUnixString(*details.TermsAccepted); err == nil {
 			keycloakUser.Attributes.TermsAcceptedDate = []string{ts}
 		}
 	}
