@@ -466,6 +466,8 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_TOKEN, err)
 	} else if introspectionResult, err := a.keycloakClient.IntrospectToken(req.Context(), token); err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_TOKEN, err)
+	} else if !user.EmailVerified {
+		a.sendError(res, http.StatusForbidden, STATUS_NOT_VERIFIED)
 	} else {
 		user.Id = introspectionResult.Subject
 		user.EmailVerified = introspectionResult.EmailVerified
