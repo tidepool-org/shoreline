@@ -308,7 +308,8 @@ func (a *Api) KafkaProducer(event string, newUser string) {
 	e.SetType(event)
 	e.SetSource("github.com/tidepool-org/shoreline/user/marketo")
 	_ = e.SetData(cloudevents.ApplicationJSON, map[string]interface{}{
-		"message": newUser,
+		"user": newUser,
+		"event": event,
 	})
 
 	if result := c.Send(
@@ -333,7 +334,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 	sessionToken := req.Header.Get(TP_SESSION_TOKEN)
 	if tokenData, err := a.authenticateSessionToken(req.Context(), sessionToken); err != nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
-
+		
 	} else if updateUserDetails, err := ParseUpdateUserDetails(req.Body); err != nil {
 		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, err)
 
@@ -402,7 +403,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 			updatedUser.EmailVerified = *updateUserDetails.EmailVerified
 		}
 
-		a.KafkaProducer("update-user", updatedUser.Id)
+		a.KafkaProducer("user-event", updatedUser.Id)
 
 		if err := a.Store.WithContext(req.Context()).UpsertUser(updatedUser); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_USR, err)
@@ -414,11 +415,12 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 			}
 
 			if updatedUser.EmailVerified && updatedUser.TermsAccepted != "" {
-				a.KafkaProducer("update-user", updatedUser.Id)
 				if a.marketoManager != nil && a.marketoManager.IsAvailable() {
 					if updateUserDetails.EmailVerified != nil || updateUserDetails.TermsAccepted != nil {
+						a.KafkaProducer("create-user", updatedUser.Id)
 						a.marketoManager.CreateListMembershipForUser(updatedUser)
 					} else {
+						a.KafkaProducer("update-user", updatedUser.Id)
 						a.marketoManager.UpdateListMembershipForUser(originalUser, updatedUser)
 					}
 				} else {
