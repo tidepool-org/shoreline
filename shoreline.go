@@ -242,7 +242,11 @@ func main() {
 			sig := <-signals
 			// Ignore SIGURG, because Go 1.14 uses it internally to implement
 			// non-cooperative preemption (https://go.googlesource.com/proposal/+/master/design/24543-non-cooperative-preemption.md)
-			if sig == syscall.SIGINT || sig == syscall.SIGTERM || sig == syscall.SIGURG {
+			if sig == syscall.SIGURG {
+
+			}
+			logger.Printf("Got signal [%s]", sig)
+			if sig == syscall.SIGINT || sig == syscall.SIGTERM {
 				logger.Printf("Got signal [%s]", sig)
 				server.Close()
 				done <- true
