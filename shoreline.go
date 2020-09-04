@@ -191,8 +191,8 @@ func main() {
 	clientStore := user.NewMongoStoreClient(&config.Mongo)
 	defer clientStore.Disconnect()
 	clientStore.EnsureIndexes()
-
-	userapi := user.InitApi(config.User, logger, clientStore, highwater, marketoManager, kafkaSender(), kafkaClient(kafkaSender()))
+	kafkaSender := kafkaSender()
+	userapi := user.InitApi(config.User, logger, clientStore, highwater, marketoManager, kafkaSender, kafkaClient(kafkaSender))
 	defer userapi.Sender.Close(context.Background())
 	logger.Print("installing handlers")
 	userapi.SetHandlers("", rtr)
