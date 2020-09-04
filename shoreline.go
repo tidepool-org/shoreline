@@ -14,6 +14,7 @@ import (
 
 	"github.com/Shopify/sarama"
 	"github.com/cloudevents/sdk-go/protocol/kafka_sarama/v2"
+	cloudevents "github.com/cloudevents/sdk-go/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	common "github.com/tidepool-org/go-common"
@@ -56,6 +57,13 @@ func kafkaSender() *kafka_sarama.Sender {
 		log.Printf("failed to create protocol: %s", err.Error())
 	}
 	return sender
+}
+func kafkaClient(Sender *kafka_sarama.Sender) (cloudevents.Client) {
+	c, err := cloudevents.NewClient(Sender, cloudevents.WithTimeNow(), cloudevents.WithUUIDs())
+	if err != nil {
+		log.Printf("failed to create client, %v", err)
+	}
+	return c
 }
 func main() {
 	var config Config
@@ -184,7 +192,7 @@ func main() {
 	defer clientStore.Disconnect()
 	clientStore.EnsureIndexes()
 
-	userapi := user.InitApi(config.User, logger, clientStore, highwater, marketoManager, kafkaSender())
+	userapi := user.InitApi(config.User, logger, clientStore, highwater, marketoManager, kafkaSender(), kafkaClient(kafkaSender()))
 	defer userapi.Sender.Close(context.Background())
 	logger.Print("installing handlers")
 	userapi.SetHandlers("", rtr)
@@ -232,9 +240,10 @@ func main() {
 	go func() {
 		for {
 			sig := <-signals
-			logger.Printf("Got signal [%s]", sig)
-
-			if sig == syscall.SIGINT || sig == syscall.SIGTERM {
+			// Ignore SIGURG, because Go 1.14 uses it internally to implement
+			// non-cooperative preemption (https://go.googlesource.com/proposal/+/master/design/24543-non-cooperative-preemption.md)
+			if sig == syscall.SIGINT || sig == syscall.SIGTERM || sig == syscall.SIGURG {
+				logger.Printf("Got signal [%s]", sig)
 				server.Close()
 				done <- true
 			}

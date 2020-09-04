@@ -45,6 +45,11 @@ type (
 		Close(context.Context) error
 		Send(ctx context.Context, m binding.Message, transformers ...binding.Transformer) error
 	}
+	CloudEventsClient interface {
+		Send(ctx context.Context, event cloudevents.Event)  cloudevents.Result
+		Request(ctx context.Context, event cloudevents.Event) (*cloudevents.Event, cloudevents.Result)
+		StartReceiver(ctx context.Context, fn interface{}) error
+	}
 	Api struct {
 		Store          Storage
 		ApiConfig      ApiConfig
@@ -53,6 +58,7 @@ type (
 		logger         *log.Logger
 		marketoManager marketo.Manager
 		Sender         BasicSender
+		Cloudevents    CloudEventsClient
 	}
 	ApiConfig struct {
 		ServerSecret         string         `json:"serverSercret"`
@@ -104,7 +110,7 @@ const (
 	STATUS_INVALID_ROLE          = "The role specified is invalid"
 )
 
-func InitApi(cfg ApiConfig, logger *log.Logger, store Storage, metrics highwater.Client, manager marketo.Manager, sender BasicSender) *Api {
+func InitApi(cfg ApiConfig, logger *log.Logger, store Storage, metrics highwater.Client, manager marketo.Manager, sender BasicSender, cloudevents CloudEventsClient) *Api {
 	return &Api{
 		Store:          store,
 		ApiConfig:      cfg,
@@ -112,6 +118,7 @@ func InitApi(cfg ApiConfig, logger *log.Logger, store Storage, metrics highwater
 		logger:         logger,
 		marketoManager: manager,
 		Sender:         sender,
+		Cloudevents:    cloudevents,
 	}
 }
 
@@ -298,26 +305,21 @@ func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, va
 }
 
 func (a *Api) KafkaProducer(event string, newUser string) {
-
-	c, err := cloudevents.NewClient(a.Sender, cloudevents.WithTimeNow(), cloudevents.WithUUIDs())
-	if err != nil {
-		log.Printf("failed to create client, %v", err)
-	}
 	e := cloudevents.NewEvent()
 	e.SetID(uuid.New().String())
 	e.SetType(event)
 	e.SetSource("github.com/tidepool-org/shoreline/user/marketo")
 	_ = e.SetData(cloudevents.ApplicationJSON, map[string]interface{}{
-		"user": newUser,
+		"user":  newUser,
 		"event": event,
 	})
 
-	if result := c.Send(
+	if result := a.Cloudevents.Send(
 		// Set the producer message key
 		kafka_sarama.WithMessageKey(context.Background(), sarama.StringEncoder(e.ID())),
 		e,
 	); cloudevents.IsUndelivered(result) {
-		log.Printf("failed to send: %v", err)
+		log.Println("failed to send message",)
 	} else {
 		log.Printf("sent: %s, accepted: %t", event, cloudevents.IsACK(result))
 	}
@@ -334,7 +336,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 	sessionToken := req.Header.Get(TP_SESSION_TOKEN)
 	if tokenData, err := a.authenticateSessionToken(req.Context(), sessionToken); err != nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
-		
+
 	} else if updateUserDetails, err := ParseUpdateUserDetails(req.Body); err != nil {
 		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, err)
 
