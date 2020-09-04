@@ -321,7 +321,7 @@ func (a *Api) KafkaProducer(event string, newUser string) {
 	); cloudevents.IsUndelivered(result) {
 		log.Println("failed to send message",)
 	} else {
-		log.Printf("sent: %s, accepted: %t", event, cloudevents.IsACK(result))
+		log.Printf("sent: %s %s, accepted: %t", event, newUser, cloudevents.IsACK(result))
 	}
 }
 
@@ -419,9 +419,11 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 			if updatedUser.EmailVerified && updatedUser.TermsAccepted != "" {
 				if a.marketoManager != nil && a.marketoManager.IsAvailable() {
 					if updateUserDetails.EmailVerified != nil || updateUserDetails.TermsAccepted != nil {
+						a.logger.Printf("Sending create Kafka message for: %v", updatedUser.Id)
 						a.KafkaProducer("create-user", updatedUser.Id)
 						// a.marketoManager.CreateListMembershipForUser(updatedUser)
 					} else {
+						a.logger.Printf("Sending update Kafka message for: %v", updatedUser.Id)
 						a.KafkaProducer("update-user", updatedUser.Id)
 						// a.marketoManager.UpdateListMembershipForUser(originalUser, updatedUser)
 					}
