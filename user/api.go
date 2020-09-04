@@ -340,7 +340,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 		if updatedUser, err := a.Store.WithContext(req.Context()).UpdateUser(originalUser, updateUserDetails); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_USR, err)
 		} else {
-			if !originalUser.IsEnabled() && updatedUser.IsEnabled() {
+			if len(originalUser.PwHash) == 0 && len(updatedUser.PwHash) != 0 {
 				if err := a.removeUserPermissions(updatedUser.Id, clients.Permissions{"custodian": clients.Allowed}); err != nil {
 					a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_USR, err)
 				}

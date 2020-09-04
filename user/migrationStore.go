@@ -98,8 +98,6 @@ func (m *MigrationStore) updateKeycloakUser(user *User, details *UpdateUserDetai
 		if err := m.keycloakClient.UpdateUserPassword(m.ctx, user.Id, *details.Password); err != nil {
 			return nil, err
 		}
-		isCustodial := true
-		keycloakUser.IsCustodial = &isCustodial
 	}
 	if details.Username != nil {
 		keycloakUser.Username = *details.Username
@@ -108,7 +106,7 @@ func (m *MigrationStore) updateKeycloakUser(user *User, details *UpdateUserDetai
 		keycloakUser.Email = details.Emails[0]
 	}
 	if details.EmailVerified != nil {
-		keycloakUser.EmailVerified = true
+		keycloakUser.EmailVerified = *details.EmailVerified
 	}
 	if details.TermsAccepted != nil && IsValidTimestamp(*details.TermsAccepted) {
 		if ts, err := TimestampToUnixString(*details.TermsAccepted); err == nil {
@@ -121,7 +119,12 @@ func (m *MigrationStore) updateKeycloakUser(user *User, details *UpdateUserDetai
 		return nil, err
 	}
 
-	return NewUserFromKeycloakUser(keycloakUser), nil
+	updated, err := m.keycloakClient.GetUserById(m.ctx, keycloakUser.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewUserFromKeycloakUser(updated), nil
 }
 
 func (m *MigrationStore) FindUser(user *User) (*User, error) {
