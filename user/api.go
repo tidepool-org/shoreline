@@ -472,10 +472,9 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_TOKEN, err)
 	} else if !introspectionResult.EmailVerified {
 		a.sendError(res, http.StatusForbidden, STATUS_NOT_VERIFIED)
+	} else if user, err := a.findUser(req.Context(), introspectionResult.Subject); err != nil {
+		a.sendError(res, http.StatusUnauthorized, STATUS_ERR_FINDING_USR, err)
 	} else {
-		user.Id = introspectionResult.Subject
-		user.EmailVerified = introspectionResult.EmailVerified
-		user.Roles = KeycloakRolesToTidepoolRoles(introspectionResult.RealmAccess.Roles)
 		res.Header().Set(TP_SESSION_TOKEN, tidepoolSessionToken)
 		a.sendUser(res, user, false)
 	}
