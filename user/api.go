@@ -417,8 +417,8 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 			}
 
 			if updatedUser.EmailVerified && updatedUser.TermsAccepted != "" {
-				if a.marketoManager != nil && a.marketoManager.IsAvailable() {
-					if updateUserDetails.EmailVerified != nil || updateUserDetails.TermsAccepted != nil {
+				if a.marketoManager != nil && a.marketoManager.IsAvailable() && !strings.HasSuffix(updatedUser.Username, "@tidepool.io") || !strings.HasSuffix(updatedUser.Username, "@tidepool.org") {
+					if  updateUserDetails.EmailVerified != nil || updateUserDetails.TermsAccepted != nil {
 						a.logger.Printf("Sending create Kafka message for: %v", updatedUser.Id)
 						a.KafkaProducer("create-user", updatedUser.Id)
 						// a.marketoManager.CreateListMembershipForUser(updatedUser)
