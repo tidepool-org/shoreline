@@ -244,8 +244,9 @@ func main() {
 			// non-cooperative preemption (https://go.googlesource.com/proposal/+/master/design/24543-non-cooperative-preemption.md)
 			if sig == syscall.SIGURG {
 
+			} else {
+				logger.Printf("Got signal [%s]", sig)
 			}
-			logger.Printf("Got signal [%s]", sig)
 			if sig == syscall.SIGINT || sig == syscall.SIGTERM {
 				logger.Printf("Got signal [%s]", sig)
 				server.Close()
