@@ -405,7 +405,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 			updatedUser.EmailVerified = *updateUserDetails.EmailVerified
 		}
 
-		a.KafkaProducer("user-event", updatedUser.Id)
+		// a.KafkaProducer("user-event", updatedUser.Id)
 
 		if err := a.Store.WithContext(req.Context()).UpsertUser(updatedUser); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_USR, err)
@@ -420,10 +420,10 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 				if a.marketoManager != nil && a.marketoManager.IsAvailable() {
 					if updateUserDetails.EmailVerified != nil || updateUserDetails.TermsAccepted != nil {
 						a.KafkaProducer("create-user", updatedUser.Id)
-						a.marketoManager.CreateListMembershipForUser(updatedUser)
+						// a.marketoManager.CreateListMembershipForUser(updatedUser)
 					} else {
 						a.KafkaProducer("update-user", updatedUser.Id)
-						a.marketoManager.UpdateListMembershipForUser(originalUser, updatedUser)
+						// a.marketoManager.UpdateListMembershipForUser(originalUser, updatedUser)
 					}
 				} else {
 					failedMarketoUploadCount.Inc()
