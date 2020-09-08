@@ -168,8 +168,37 @@ func (m *MigrationStore) FindUsersByRole(role string) ([]*User, error) {
 	return m.fallback.FindUsersByRole(role)
 }
 
-func (m *MigrationStore) FindUsersWithIds(ids []string) ([]*User, error) {
-	return m.fallback.FindUsersWithIds(ids)
+func (m *MigrationStore) FindUsersWithIds(ids []string) (users []*User, err error) {
+	keycloakUsers, err := m.keycloakClient.FindUsersWithIds(m.ctx, ids)
+	if err != nil {
+		return users, err
+	}
+
+	notInKeycloak := make([]string, 0)
+	for _, id := range ids {
+		found := false
+		for _, u := range keycloakUsers {
+			if u.ID == id {
+				found = true
+				break
+			}
+		}
+		if !found {
+			notInKeycloak = append(notInKeycloak, id)
+		}
+	}
+
+	legacyUsers, err := m.fallback.FindUsersWithIds(ids)
+	if err != nil {
+		return
+	}
+	for _, u := range keycloakUsers {
+		users = append(users, NewUserFromKeycloakUser(u))
+	}
+	for _, u := range legacyUsers {
+		users = append(users, u)
+	}
+	return
 }
 
 // Not used - deletions are handled by the user service

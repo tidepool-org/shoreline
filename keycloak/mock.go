@@ -55,3 +55,7 @@ func (m *MockClient) UpdateUserPassword(ctx context.Context, id, password string
 func (m *MockClient) CreateUser(ctx context.Context, user *User) (*User, error) {
 	return nil, errors.New("not implemented")
 }
+
+func (m *MockClient) FindUsersWithIds(ctx context.Context, ids []string) ([]*User, error) {
+	return nil, errors.New("not implemented")
+}

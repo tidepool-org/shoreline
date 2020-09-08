@@ -2,7 +2,6 @@ package keycloak
 
 import (
 	"context"
-	"errors"
 	"golang.org/x/oauth2"
 	"net/http"
 	"os"
@@ -11,6 +10,7 @@ import (
 
 	"github.com/Nerzal/gocloak/v7"
 	"github.com/Nerzal/gocloak/v7/pkg/jwx"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -32,6 +32,7 @@ type Client interface {
 	UpdateUser(ctx context.Context, user *User) error
 	UpdateUserPassword(ctx context.Context, id, password string) error
 	CreateUser(ctx context.Context, user *User) (*User, error)
+	FindUsersWithIds(ctx context.Context, ids []string) ([]*User, error)
 }
 
 type User struct {
@@ -321,6 +322,42 @@ func (c *client) CreateUser(ctx context.Context, user *User) (*User, error) {
 	}
 
 	return c.GetUserById(ctx, id)
+}
+
+func (c *client) FindUsersWithIds(ctx context.Context, ids []string) (users []*User, err error){
+	const errMessage = "could not retrieve users by ids"
+
+	token, err := c.getAdminToken(ctx)
+	if err != nil {
+		return
+	}
+
+	var res []*gocloak.User
+	var errorResponse gocloak.HTTPErrorResponse
+	response, err := c.keycloak.RestyClient().R().
+		SetContext(ctx).
+		SetError(&errorResponse).
+		SetAuthToken(token.AccessToken).
+		SetResult(&res).
+		SetQueryParam("ids", strings.Join(ids, ",")).
+		Get(c.getRealmURL(c.cfg.Realm, "tidepool-admin", "users"))
+
+	err = checkForError(response, err, errMessage)
+	if err != nil {
+		return
+	}
+
+	users = make([]*User, len(res))
+	for i, u := range res {
+		users[i] = NewKeycloakUser(u)
+	}
+
+	return
+}
+
+func (c *client) getRealmURL(realm string, path ...string) string {
+	path = append([]string{c.cfg.BaseUrl, "auth", "realms", realm}, path...)
+	return strings.Join(path, "/")
 }
 
 func (c *client) getAdminToken(ctx context.Context) (*oauth2.Token, error) {
