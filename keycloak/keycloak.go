@@ -221,7 +221,7 @@ func (c *client) GetUserByEmail(ctx context.Context, email string) (*User, error
 
 	users, err := c.keycloak.GetUsers(ctx, token.AccessToken, c.cfg.Realm, gocloak.GetUsersParams{
 		Email: &email,
-		Exact: gocloak.BoolP(true),
+		//Exact: gocloak.BoolP(true),
 	})
 	if err != nil || len(users) == 0 {
 		return nil, err
