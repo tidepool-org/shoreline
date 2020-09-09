@@ -64,12 +64,23 @@ func NewKeycloakUser(gocloakUser *gocloak.User) *User {
 		Email:         safePStr(gocloakUser.Email),
 		EmailVerified: safePBool(gocloakUser.EmailVerified),
 		Enabled:       safePBool(gocloakUser.Enabled),
+		IsCustodial:   gocloak.BoolP(true),
 	}
 	if gocloakUser.Attributes != nil {
 		if ts, ok := (*gocloakUser.Attributes)["terms_and_conditions"]; ok {
 			user.Attributes.TermsAcceptedDate = ts
 		}
 	}
+
+	if gocloakUser.Credentials != nil {
+		for _, c := range *gocloakUser.Credentials {
+			if c.Type != nil && *c.Type == "password" {
+				user.IsCustodial = gocloak.BoolP(false)
+				break
+			}
+		}
+	}
+
 	return user
 }
 
@@ -191,32 +202,12 @@ func (c *client) GetUserById(ctx context.Context, id string) (*User, error) {
 		return nil, nil
 	}
 
-	token, err := c.getAdminToken(ctx)
+	users, err := c.FindUsersWithIds(ctx, []string{id})
 	if err != nil {
 		return nil, err
 	}
-	u, err := c.keycloak.GetUserByID(ctx, token.AccessToken, c.cfg.Realm, id)
-	if err != nil {
-		return nil, err
-	}
-	user := NewKeycloakUser(u)
-	roles, err := c.getRolesForUser(ctx, user.ID)
-	if err != nil {
-		return nil, err
-	}
-	user.Roles = roles
 
-	custodial := true
-	credentials, err := c.keycloak.GetCredentials(ctx, token.AccessToken, c.cfg.Realm, id)
-	for _, cred := range credentials {
-		if cred.Type != nil && *cred.Type == "password" {
-			custodial = false
-			break
-		}
-	}
-	user.IsCustodial = &custodial
-
-	return user, nil
+	return users[0], nil
 }
 
 func (c *client) GetUserByEmail(ctx context.Context, email string) (*User, error) {
@@ -236,7 +227,7 @@ func (c *client) GetUserByEmail(ctx context.Context, email string) (*User, error
 		return nil, err
 	}
 
-	return NewKeycloakUser(users[0]), nil
+	return c.GetUserById(ctx, *users[0].ID)
 }
 
 func (c *client) UpdateUser(ctx context.Context, user *User) error {
@@ -320,7 +311,7 @@ func (c *client) CreateUser(ctx context.Context, user *User) (*User, error) {
 	return c.GetUserById(ctx, id)
 }
 
-func (c *client) FindUsersWithIds(ctx context.Context, ids []string) (users []*User, err error){
+func (c *client) FindUsersWithIds(ctx context.Context, ids []string) (users []*User, err error) {
 	const errMessage = "could not retrieve users by ids"
 
 	token, err := c.getAdminToken(ctx)
@@ -349,66 +340,6 @@ func (c *client) FindUsersWithIds(ctx context.Context, ids []string) (users []*U
 	}
 
 	return
-}
-
-func (c *client) getRealmURL(realm string, path ...string) string {
-	path = append([]string{c.cfg.BaseUrl, "auth", "realms", realm}, path...)
-	return strings.Join(path, "/")
-}
-
-func (c *client) getAdminToken(ctx context.Context) (*oauth2.Token, error) {
-	var err error
-	if c.adminTokenIsExpired() {
-		err = c.loginAsAdmin(ctx)
-	}
-
-	return c.adminToken, err
-}
-
-func (c *client) loginAsAdmin(ctx context.Context) error {
-	jwt, err := c.keycloak.LoginAdmin(
-		ctx,
-		c.cfg.AdminUsername,
-		c.cfg.AdminPassword,
-		masterRealm,
-	)
-	if err != nil {
-		return err
-	}
-
-	c.adminToken = c.jwtToAccessToken(jwt)
-	c.adminTokenRefreshExpires = time.Now().Add(time.Duration(jwt.ExpiresIn) * time.Second)
-	return nil
-}
-
-func (c *client) adminTokenIsExpired() bool {
-	return c.adminToken == nil || time.Now().After(c.adminTokenRefreshExpires)
-}
-
-func (c *client) getRolesForUser(ctx context.Context, id string) ([]string, error) {
-	token, err := c.getAdminToken(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	roles, err := c.keycloak.GetRealmRolesByUserID(
-		ctx,
-		token.AccessToken,
-		c.cfg.Realm,
-		id,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	var stringified []string
-	for _, role := range roles {
-		if role.Name != nil && *role.Name != "" {
-			stringified = append(stringified, *role.Name)
-		}
-	}
-
-	return stringified, nil
 }
 
 func (c *client) IntrospectToken(ctx context.Context, token *oauth2.Token) (*TokenIntrospectionResult, error) {
@@ -449,38 +380,36 @@ func (c *client) IntrospectToken(ctx context.Context, token *oauth2.Token) (*Tok
 	return result, nil
 }
 
-func IsKeycloakBackwardCompatibleToken(token string) bool {
-	_, err := UnpackBackwardCompatibleToken(token)
-	return err == nil
+func (c *client) getRealmURL(realm string, path ...string) string {
+	path = append([]string{c.cfg.BaseUrl, "auth", "realms", realm}, path...)
+	return strings.Join(path, "/")
 }
 
-func CreateBackwardCompatibleToken(token *oauth2.Token) (backwardCompatibleToken string, err error) {
-	if token.AccessToken == "" {
-		err = errors.New("access token can't be empty")
-		return
-	}
-	if token.RefreshToken == "" {
-		err = errors.New("refresh token can't be empty")
-		return
+func (c *client) getAdminToken(ctx context.Context) (*oauth2.Token, error) {
+	var err error
+	if c.adminTokenIsExpired() {
+		err = c.loginAsAdmin(ctx)
 	}
 
-	// Legacy tokens were used for refreshing session, thus we also need to encode the oauth2 refresh token
-	// for providing a backward-compatible refresh token endpoint.
-	backwardCompatibleToken = strings.Join(
-		[]string{tokenPrefix, token.AccessToken, token.RefreshToken},
-		tokenPartsSeparator,
+	return c.adminToken, err
+}
+
+func (c *client) loginAsAdmin(ctx context.Context) error {
+	jwt, err := c.keycloak.LoginAdmin(
+		ctx,
+		c.cfg.AdminUsername,
+		c.cfg.AdminPassword,
+		masterRealm,
 	)
-	return
+	if err != nil {
+		return err
+	}
+
+	c.adminToken = c.jwtToAccessToken(jwt)
+	c.adminTokenRefreshExpires = time.Now().Add(time.Duration(jwt.ExpiresIn) * time.Second)
+	return nil
 }
 
-func UnpackBackwardCompatibleToken(token string) (*oauth2.Token, error) {
-	parts := strings.Split(token, tokenPartsSeparator)
-	if len(parts) != 3 || parts[0] != tokenPrefix || parts[1] == "" || parts[2] == "" {
-		return nil, errors.New("invalid keycloak token")
-	}
-	t := &oauth2.Token{
-		AccessToken:  parts[1],
-		RefreshToken: parts[2],
-	}
-	return t, nil
+func (c *client) adminTokenIsExpired() bool {
+	return c.adminToken == nil || time.Now().After(c.adminTokenRefreshExpires)
 }
