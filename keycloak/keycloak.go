@@ -203,7 +203,7 @@ func (c *client) GetUserById(ctx context.Context, id string) (*User, error) {
 	}
 
 	users, err := c.FindUsersWithIds(ctx, []string{id})
-	if err != nil {
+	if err != nil || len(users) == 0 {
 		return nil, err
 	}
 
