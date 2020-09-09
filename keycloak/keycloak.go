@@ -230,17 +230,13 @@ func (c *client) GetUserByEmail(ctx context.Context, email string) (*User, error
 
 	users, err := c.keycloak.GetUsers(ctx, token.AccessToken, c.cfg.Realm, gocloak.GetUsersParams{
 		Email: &email,
+		Exact: gocloak.BoolP(true),
 	})
-	if err != nil {
+	if err != nil || len(users) == 0 {
 		return nil, err
 	}
 
-	for _, user := range users {
-		if email == *user.Email {
-			return NewKeycloakUser(user), nil
-		}
-	}
-	return nil, nil
+	return NewKeycloakUser(users[0]), nil
 }
 
 func (c *client) UpdateUser(ctx context.Context, user *User) error {
