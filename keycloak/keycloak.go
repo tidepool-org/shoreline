@@ -81,6 +81,10 @@ func NewKeycloakUser(gocloakUser *gocloak.User) *User {
 		}
 	}
 
+	if gocloakUser.RealmRoles != nil {
+		user.Roles = *gocloakUser.RealmRoles
+	}
+
 	return user
 }
 
