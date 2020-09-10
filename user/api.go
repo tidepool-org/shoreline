@@ -320,6 +320,7 @@ func (a *Api) KafkaProducer(event string, newUser string) {
 		e,
 	); cloudevents.IsUndelivered(result) {
 		log.Println("failed to send message",)
+		a.Cloudevents.Send(kafka_sarama.WithMessageKey(context.Background(), sarama.StringEncoder(e.ID())), e,)
 	} else {
 		log.Printf("sent: %s %s, accepted: %t", event, newUser, cloudevents.IsACK(result))
 	}
@@ -405,7 +406,6 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 			updatedUser.EmailVerified = *updateUserDetails.EmailVerified
 		}
 
-		// a.KafkaProducer("user-event", updatedUser.Id)
 
 		if err := a.Store.WithContext(req.Context()).UpsertUser(updatedUser); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_USR, err)
@@ -421,11 +421,9 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 					if  updateUserDetails.EmailVerified != nil || updateUserDetails.TermsAccepted != nil {
 						a.logger.Printf("Sending create Kafka message for: %v", updatedUser.Id)
 						a.KafkaProducer("create-user", updatedUser.Id)
-						// a.marketoManager.CreateListMembershipForUser(updatedUser)
 					} else {
 						a.logger.Printf("Sending update Kafka message for: %v", updatedUser.Id)
 						a.KafkaProducer("update-user", updatedUser.Id)
-						// a.marketoManager.UpdateListMembershipForUser(originalUser, updatedUser)
 					}
 				} else {
 					failedMarketoUploadCount.Inc()
