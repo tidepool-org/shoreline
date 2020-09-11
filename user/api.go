@@ -132,6 +132,7 @@ func (a *Api) SetHandlers(prefix string, rtr *mux.Router) {
 	rtr.HandleFunc("/serverlogin", a.ServerLogin).Methods("POST")
 
 	rtr.Handle("/token/{token}", varsHandler(a.ServerCheckToken)).Methods("GET")
+	rtr.HandleFunc("/token", a.CheckToken).Methods("GET")
 
 	rtr.HandleFunc("/logout", a.Logout).Methods("POST")
 
@@ -636,6 +637,22 @@ func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars 
 	a.logger.Println(http.StatusUnauthorized, STATUS_NO_TOKEN)
 	a.logger.Printf("header session token: %v", req.Header.Get(TP_SESSION_TOKEN))
 	sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_TOKEN), http.StatusUnauthorized)
+	return
+}
+
+// status: 200 TP_SESSION_TOKEN, TokenData
+// status: 401 STATUS_NO_TOKEN
+func (a *Api) CheckToken(res http.ResponseWriter, req *http.Request) {
+	token := req.Header.Get(TP_SESSION_TOKEN)
+	td, err := a.authenticateSessionToken(req.Context(), token)
+	if err != nil {
+		a.logger.Printf("failed request: %v", req)
+		a.logger.Println(http.StatusUnauthorized, STATUS_NO_TOKEN, err.Error())
+		sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_TOKEN), http.StatusUnauthorized)
+		return
+	}
+
+	sendModelAsRes(res, td)
 	return
 }
 
