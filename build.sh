@@ -1,5 +1,6 @@
 #!/bin/sh -eu
 
+echo $DOCKER_USERNAME
 rm -rf dist
 mkdir dist
 export GO111MODULE=on
