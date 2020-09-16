@@ -1917,6 +1917,75 @@ func TestServerCheckToken_StatusUnauthorized_WhenNoSvrToken(t *testing.T) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+func TestCheckToken_StatusOK(t *testing.T) {
+
+	//the api
+
+	shoreline.SetHandlers("", rtr)
+
+	//step 1 - login as server
+	request, _ := http.NewRequest("POST", "/serverlogin", nil)
+	request.Header.Set(TP_SERVER_NAME, "shoreline")
+	request.Header.Set(TP_SERVER_SECRET, theSecret)
+	response := httptest.NewRecorder()
+
+	shoreline.ServerLogin(response, request)
+
+	svrTokenToUse := response.Header().Get(TP_SESSION_TOKEN)
+
+	if svrTokenToUse == "" {
+		t.Fatalf("we expected to get a token back from login")
+	}
+
+	//step 2 - do the check
+	checkTokenRequest, _ := http.NewRequest("GET", "/", nil)
+	checkTokenRequest.Header.Set(TP_SESSION_TOKEN, svrTokenToUse)
+	checkTokenResponse := httptest.NewRecorder()
+
+	shoreline.CheckToken(checkTokenResponse, checkTokenRequest)
+
+	if checkTokenResponse.Code != http.StatusOK {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, checkTokenResponse.Code)
+	}
+
+	if checkTokenResponse.Header().Get("content-type") != "application/json" {
+		t.Fatal("the resp should be json")
+	}
+
+	body, _ := ioutil.ReadAll(checkTokenResponse.Body)
+
+	var tokenData TokenData
+	_ = json.Unmarshal(body, &tokenData)
+
+	t.Log("token data returned ", tokenData)
+
+	if tokenData.UserId != "shoreline" {
+		t.Fatalf("should have had a server id of `shoreline` but was %v", tokenData.UserId)
+	}
+
+	if tokenData.IsServer != true {
+		t.Fatalf("should have been a server token but was %v", tokenData.IsServer)
+	}
+}
+
+func TestCheckToken_StatusUnauthorized_WhenNoToken(t *testing.T) {
+
+	//the api
+
+	shoreline.SetHandlers("", rtr)
+
+	request, _ := http.NewRequest("GET", "/", nil)
+	response := httptest.NewRecorder()
+
+	shoreline.CheckToken(response, request)
+
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusUnauthorized, response.Code)
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 func TestLogout_StatusOK_WhenNoToken(t *testing.T) {
 	request, _ := http.NewRequest("POST", "/", nil)
 	response := httptest.NewRecorder()
