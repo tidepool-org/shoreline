@@ -1,18 +1,13 @@
 # github.com/Shopify/sarama v1.27.0
 ## explicit
 github.com/Shopify/sarama
-# github.com/SpeakData/minimarketo v0.0.0-20170821092521-29339e452f44
-## explicit
-github.com/SpeakData/minimarketo
 # github.com/beorn7/perks v1.0.1
 github.com/beorn7/perks/quantile
 # github.com/cespare/xxhash/v2 v2.1.1
 github.com/cespare/xxhash/v2
 # github.com/cloudevents/sdk-go/protocol/kafka_sarama/v2 v2.2.0
-## explicit
 github.com/cloudevents/sdk-go/protocol/kafka_sarama/v2
 # github.com/cloudevents/sdk-go/v2 v2.2.0
-## explicit
 github.com/cloudevents/sdk-go/v2
 github.com/cloudevents/sdk-go/v2/binding
 github.com/cloudevents/sdk-go/v2/binding/format
@@ -60,7 +55,6 @@ github.com/golang/protobuf/ptypes/timestamp
 # github.com/golang/snappy v0.0.1
 github.com/golang/snappy
 # github.com/google/uuid v1.1.1
-## explicit
 github.com/google/uuid
 # github.com/gorilla/mux v1.7.4
 ## explicit
@@ -72,6 +66,8 @@ github.com/hashicorp/golang-lru/simplelru
 # github.com/jcmturner/gofork v1.0.0
 github.com/jcmturner/gofork/encoding/asn1
 github.com/jcmturner/gofork/x/crypto/pbkdf2
+# github.com/kelseyhightower/envconfig v1.4.0
+github.com/kelseyhightower/envconfig
 # github.com/klauspost/compress v1.10.10
 github.com/klauspost/compress/fse
 github.com/klauspost/compress/huff0
@@ -110,7 +106,7 @@ github.com/rcrowley/go-metrics
 github.com/russross/blackfriday/v2
 # github.com/shurcooL/sanitized_anchor_name v1.0.0
 github.com/shurcooL/sanitized_anchor_name
-# github.com/tidepool-org/go-common v0.5.0
+# github.com/tidepool-org/go-common v0.6.3-0.20201014125142-0883b62ba70a
 ## explicit
 github.com/tidepool-org/go-common
 github.com/tidepool-org/go-common/clients
@@ -121,6 +117,7 @@ github.com/tidepool-org/go-common/clients/mongo
 github.com/tidepool-org/go-common/clients/shoreline
 github.com/tidepool-org/go-common/clients/status
 github.com/tidepool-org/go-common/errors
+github.com/tidepool-org/go-common/events
 github.com/tidepool-org/go-common/jepson
 # github.com/urfave/cli v1.22.4
 ## explicit
