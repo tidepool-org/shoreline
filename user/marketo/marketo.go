@@ -215,7 +215,7 @@ func (m *Connector) UpsertListMembership(oldUser User, newUser User) error {
 func (m *Connector) UpsertListMember(role string, listEmail string, newEmail string) error {
 	id, exists, err := m.FindLead(listEmail)
 	if err != nil {
-		return fmt.Errorf("marketo: could not find a lead %v", err)
+		return fmt.Errorf("marketo: could not find a lead: %v", err)
 	}
 	data := CreateData{
 		"updateOnly",
