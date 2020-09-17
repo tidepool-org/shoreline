@@ -44,15 +44,17 @@ type (
 )
 
 func kafkaSender() *kafka_sarama.Sender {
-	topics, _ := os.LookupEnv("KAFKA_TOPIC")
+	prefix, _ := os.LookupEnv("KAFKA_PREFIX")
+	topic, _ := os.LookupEnv("KAFKA_TOPIC")
+	topicWithPrefix := prefix + topic
 	broker, _ := os.LookupEnv("KAFKA_BROKERS")
 	log.Println(broker)
-	log.Println(topics)
+	log.Println(topicWithPrefix)
 
 	saramaConfig := sarama.NewConfig()
 	saramaConfig.Version = sarama.V2_0_0_0
 
-	sender, err := kafka_sarama.NewSender([]string{"kafka-kafka-bootstrap.kafka.svc.cluster.local:9092"}, saramaConfig, "marketo")
+	sender, err := kafka_sarama.NewSender([]string{broker}, saramaConfig, topicWithPrefix)
 	if err != nil {
 		log.Printf("failed to create protocol: %s", err.Error())
 	}
