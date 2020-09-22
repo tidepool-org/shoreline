@@ -57,36 +57,30 @@ func main() {
 		config.User.ServerSecret = serverSecret
 	}
 
-	privateKey, _ := os.LookupEnv("PRIVATE_KEY")
-	publicKey, _ := os.LookupEnv("PUBLIC_KEY")
-	apiHost, _ := os.LookupEnv("API_HOST")
-	userSecret, _ := os.LookupEnv("API_SECRET")
 
 	config.User.TokenConfigs = make([]user.TokenConfig, 2)
 
-	var private *user.TokenConfig
-	var public *user.TokenConfig
-	if publicKey != "" && privateKey != "" && apiHost != "" {
-		// use public key for new token encryption
-		public = &config.User.TokenConfigs[0]
-		private = &config.User.TokenConfigs[1]
-	} else {
-		// use symmetric key for new token encryption
-		public = &config.User.TokenConfigs[1]
-		private = &config.User.TokenConfigs[0]
-	}
+	current := &config.User.TokenConfigs[0]
+	privateKey, _ := os.LookupEnv("PRIVATE_KEY")
+	publicKey, _ := os.LookupEnv("PUBLIC_KEY")
+	apiHost, _ := os.LookupEnv("API_HOST")
+	current.EncodeKey = privateKey
+	current.DecodeKey = publicKey
+	current.Algorithm = "RS256"
+	current.Audience = apiHost
+	current.Issuer = apiHost
+	current.DurationSecs = 60 * 60 * 24 * 30
 
-	public.EncodeKey = privateKey
-	public.DecodeKey = publicKey
-	public.Algorithm = "RS256"
-	public.Audience = apiHost
-	public.Issuer = apiHost
-	public.DurationSecs = 60 * 60 * 24 * 30
-
-	private.EncodeKey = userSecret
-	private.DecodeKey = userSecret
-	private.Algorithm = "HS256"
-	private.DurationSecs = 60 * 60 * 24 * 30
+	previous := &config.User.TokenConfigs[1]
+	previousPrivateKey, _ := os.LookupEnv("PREVIOUS_PRIVATE_KEY")
+	previousPublicKey, _ := os.LookupEnv("PREVIOUS_PUBLIC_KEY")
+	previousApiHost, _ := os.LookupEnv("PREVIOUS_API_HOST")
+	previous.EncodeKey = previousPrivateKey
+	previous.DecodeKey = previousPublicKey
+	previous.Algorithm = "RS256"
+	previous.Audience = previousApiHost
+	previous.Issuer = previousApiHost
+	previous.DurationSecs = 60 * 60 * 24 * 30
 
 	longTermKey, found := os.LookupEnv("LONG_TERM_KEY")
 	if found {

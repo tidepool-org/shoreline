@@ -221,13 +221,19 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 	} else if existingUser != nil {
 		// This check is necessary because we want to prevent duplicates in both mongo and keycloak
 		a.sendError(res, http.StatusConflict, STATUS_USR_ALREADY_EXISTS)
-	} else if newUser, err := a.Store.WithContext(req.Context()).CreateUser(newUserDetails); err != nil {
-		if err == ErrUserConflict {
-			a.sendError(res, http.StatusConflict, STATUS_USR_ALREADY_EXISTS)
-		} else {
-			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
-		}
 	} else {
+		if newUser.IsEmailVerified(a.ApiConfig.VerificationSecret) {
+			newUser.EmailVerified = true
+			a.logger.Printf("User email %s contains %v, setting email verified to %v", newUser.Username, a.ApiConfig.VerificationSecret, newUser.EmailVerified)
+		}
+		if err := a.Store.WithContext(req.Context()).UpsertUser(newUser); err != nil {
+			if err == ErrUserConflict {
+				a.sendError(res, http.StatusConflict, STATUS_USR_ALREADY_EXISTS)
+			} else {
+				a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
+			}
+			return
+		}
 		if newUser.IsClinic() {
 			if a.ApiConfig.ClinicDemoUserID != "" {
 				if _, err := a.perms.SetPermissions(newUser.Id, a.ApiConfig.ClinicDemoUserID, clients.Permissions{"view": clients.Allowed}); err != nil {
