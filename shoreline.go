@@ -205,6 +205,9 @@ func main() {
 		log.Printf("failed to create Sender: %s", err.Error())
 	}
 	kafkaClient, err := kafkaClient(kafkaSender)
+	if err != nil {
+		log.Printf("failed to create kakfaclient: %s", err)
+	}
 	userapi := user.InitApi(config.User, logger, clientStore, highwater, marketoManager, kafkaSender, kafkaClient)
 	defer userapi.Sender.Close(context.Background())
 	logger.Print("installing handlers")
