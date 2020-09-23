@@ -72,6 +72,9 @@ github.com/hashicorp/golang-lru/simplelru
 # github.com/jcmturner/gofork v1.0.0
 github.com/jcmturner/gofork/encoding/asn1
 github.com/jcmturner/gofork/x/crypto/pbkdf2
+# github.com/kelseyhightower/envconfig v1.4.0
+## explicit
+github.com/kelseyhightower/envconfig
 # github.com/klauspost/compress v1.10.10
 github.com/klauspost/compress/fse
 github.com/klauspost/compress/huff0

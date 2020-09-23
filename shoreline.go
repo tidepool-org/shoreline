@@ -15,6 +15,7 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/cloudevents/sdk-go/protocol/kafka_sarama/v2"
 	cloudevents "github.com/cloudevents/sdk-go/v2"
+	"github.com/kelseyhightower/envconfig"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	common "github.com/tidepool-org/go-common"
@@ -43,29 +44,31 @@ type (
 	}
 )
 
-func kafkaSender() *kafka_sarama.Sender {
-	prefix, _ := os.LookupEnv("KAFKA_PREFIX")
-	topic, _ := os.LookupEnv("KAFKA_TOPIC")
-	topicWithPrefix := prefix + topic
-	broker, _ := os.LookupEnv("KAFKA_BROKERS")
-	log.Println(broker)
-	log.Println(topicWithPrefix)
+type Kafka struct {
+	prefix     string `envconfig:"KAFKA_PREFIX" required:"false"`
+	baseTopic  string `envconfig:"KAFKA_TOPIC" default:"marketo"`
+	finalTopic string
+	broker     string `envconfig:"KAFKA_BROKERS" required:"false"`
+}
 
+func NewServiceConfigFromEnv() (*Kafka, error) {
+	var config Kafka
+	err := envconfig.Process("", &config)
+	config.finalTopic = config.prefix + config.baseTopic
+	return &config, err
+}
+
+func kafkaSender() (*kafka_sarama.Sender, error) {
+	kafkaConfig, err := NewServiceConfigFromEnv()
 	saramaConfig := sarama.NewConfig()
 	saramaConfig.Version = sarama.V2_0_0_0
 
-	sender, err := kafka_sarama.NewSender([]string{broker}, saramaConfig, topicWithPrefix)
-	if err != nil {
-		log.Printf("failed to create protocol: %s", err.Error())
-	}
-	return sender
+	sender, err := kafka_sarama.NewSender([]string{kafkaConfig.broker}, saramaConfig, kafkaConfig.finalTopic)
+	return sender, err
 }
-func kafkaClient(Sender *kafka_sarama.Sender) (cloudevents.Client) {
+func kafkaClient(Sender *kafka_sarama.Sender) (cloudevents.Client, error) {
 	c, err := cloudevents.NewClient(Sender, cloudevents.WithTimeNow(), cloudevents.WithUUIDs())
-	if err != nil {
-		log.Printf("failed to create client, %v", err)
-	}
-	return c
+	return c, err
 }
 func main() {
 	var config Config
@@ -193,8 +196,12 @@ func main() {
 	clientStore := user.NewMongoStoreClient(&config.Mongo)
 	defer clientStore.Disconnect()
 	clientStore.EnsureIndexes()
-	kafkaSender := kafkaSender()
-	userapi := user.InitApi(config.User, logger, clientStore, highwater, marketoManager, kafkaSender, kafkaClient(kafkaSender))
+	kafkaSender, err := kafkaSender()
+	if err != nil {
+		log.Printf("failed to create protocol: %s", err.Error())
+	}
+	kafkaClient, err := kafkaClient(kafkaSender)
+	userapi := user.InitApi(config.User, logger, clientStore, highwater, marketoManager, kafkaSender, kafkaClient)
 	defer userapi.Sender.Close(context.Background())
 	logger.Print("installing handlers")
 	userapi.SetHandlers("", rtr)

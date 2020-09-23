@@ -24,7 +24,6 @@ type LeadResult struct {
 	FirstName string `json:"firstName"`
 	LastName  string `json:"lastName"`
 	Email     string `json:"email"`
-	UserType  string `json:"userType"`
 	Created   string `json:"createdAt"`
 	Updated   string `json:"updatedAt"`
 }
@@ -117,7 +116,6 @@ func (rt *restRoundTripper) RoundTrip(req *http.Request) (*http.Response, error)
 	if rt.delegate == nil {
 		rt.delegate = http.DefaultTransport
 	}
-	log.Printf("[MINIMARKETO AUTH TOKEN: %v", rt.token)
 	req.Header.Add("Authorization", "Bearer "+rt.token)
 	return rt.delegate.RoundTrip(req)
 }
@@ -182,7 +180,6 @@ func (c *client) RefreshToken() (auth AuthToken, err error) {
 	}
 	// Make request for token
 	resp, err := c.authClient.Get(c.identityEndpoint)
-	log.Printf("Mini Marketo 185 AUTH TOKEN %v %v", resp, err)
 	if err != nil {
 		return auth, err
 	}
@@ -218,7 +215,6 @@ func (c *client) do(req *http.Request) (response *Response, err error) {
 		}()
 	}
 	resp, err := c.restClient.Do(req)
-	log.Printf("RESP %v %v", resp, req)
 	if err != nil {
 		return nil, err
 	}
@@ -252,7 +248,6 @@ func (c *client) doWithRetry(req *http.Request) (response *Response, err error) 
 	}
 
 	response, err = c.do(req)
-	log.Printf("doWithRETRY RESPONSE MINI MARKETO %v %v", req, response)
 	if err != nil {
 		return nil, err
 	}
@@ -289,7 +284,6 @@ func (c *client) Get(resource string) (response *Response, err error) {
 		}()
 	}
 	req, err := http.NewRequest("GET", c.endpoint+resource, nil)
-	log.Printf("MINI MARKETO GET: %v", req)
 	if err != nil {
 		return nil, err
 	}
