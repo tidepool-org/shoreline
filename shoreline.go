@@ -45,16 +45,16 @@ type (
 )
 
 type Kafka struct {
-	prefix     string `envconfig:"KAFKA_PREFIX" required:"false"`
-	baseTopic  string `envconfig:"KAFKA_TOPIC" default:"marketo"`
-	finalTopic string
-	broker     string `envconfig:"KAFKA_BROKERS" required:"false"`
+	Prefix     string `envconfig:"KAFKA_PREFIX" required:"false"`
+	BaseTopic  string `envconfig:"KAFKA_TOPIC" default:"marketo"`
+	FinalTopic string
+	Broker     string `envconfig:"KAFKA_BROKERS" required:"false"`
 }
 
 func NewServiceConfigFromEnv() (*Kafka, error) {
 	var config Kafka
 	err := envconfig.Process("", &config)
-	config.finalTopic = config.prefix + config.baseTopic
+	config.FinalTopic = config.Prefix + config.BaseTopic
 	return &config, err
 }
 
@@ -63,11 +63,11 @@ func kafkaSender() (*kafka_sarama.Sender, error) {
 	if err != nil {
 		log.Printf("failed to retrieve config: %s", err.Error())
 	}
-	log.Printf("Config: %v, Broker: %s, Topic: %s", kafkaConfig, kafkaConfig.broker, kafkaConfig.finalTopic)
+	log.Printf("Config: %v, Broker: %s, Topic: %s", kafkaConfig, kafkaConfig.Broker, kafkaConfig.FinalTopic)
 	saramaConfig := sarama.NewConfig()
 	saramaConfig.Version = sarama.V2_0_0_0
 
-	sender, err := kafka_sarama.NewSender([]string{kafkaConfig.broker}, saramaConfig, kafkaConfig.finalTopic)
+	sender, err := kafka_sarama.NewSender([]string{kafkaConfig.Broker}, saramaConfig, kafkaConfig.FinalTopic)
 	return sender, err
 }
 func kafkaClient(Sender *kafka_sarama.Sender) (cloudevents.Client, error) {
