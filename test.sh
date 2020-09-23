@@ -1,3 +1,5 @@
 #!/bin/sh -eu
 
-go test ./...
+for D in $(find . -name '*_test.go' ! -path './vendor/*' | cut -f2 -d'/' | uniq); do
+    (cd ${D}; go test -race -v)
+done

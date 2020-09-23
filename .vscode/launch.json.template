@@ -11,8 +11,21 @@
            "mode": "debug",
            "program": "${workspaceRoot}",
            "env": {
-               "TIDEPOOL_SHORELINE_ENV":"{\"gatekeeper\": {\"serviceSpec\": {\"type\": \"static\", \"hosts\": [\"http://localhost:9123\"]}},\"hakken\": {\"host\": \"localhost:8000\"}}",
-               "TIDEPOOL_SHORELINE_SERVICE":"{\"mongo\": {\"connectionString\": \"mongodb://${PERSONAL_ACCOUNT}:${PERSONAL_PWD}@localhost/user?authSource=admin&ssl=false\"},\"oauth2\": {\"expireDays\": 14},\"service\": {\"certFile\": \"config/cert.pem\",\"host\": \"localhost:9107\",\"keyFile\": \"config/key.pem\", \"protocol\": \"http\", \"service\": \"shoreline\"},\"user\": {\"apiSecret\": \"${SHORELINE_API_SECRET}\",\"clinicDemoUserId\": \"\",\"longTermDaysDuration\": 30,\"longTermKey\": \"${SHORELINE_LONG_TERM_KEY}\",\"salt\": \"${SHORELINE_SALT}\",\"secrets\": [{\"secret\": \"default\", \"pass\": \"${SERVER_SECRET}\"}, {\"secret\": \"authent_api\", \"pass\": \"${AUTHENT_API_SECRET}\"}],\"tokenDurationSecs\": 2592000, \"verificationSecret\": \"${SHORELINE_VERIFICATION_SECRET}\", \"blockParallelLogin\": true }}"
+                "TIDEPOOL_SHORELINE_ENV":"{\"gatekeeper\": {\"serviceSpec\": {\"type\": \"static\",\"hosts\": [\"http://localhost:9123\"]}},\"hakken\": {\"host\": \"fake-hakken\",\"skipHakken\": true}}",
+                "TIDEPOOL_SHORELINE_SERVICE":"{\"service\": {\"certFile\": \"config/cert.pem\",\"host\": \"localhost:9107\",\"keyFile\": \"config/key.pem\",\"protocol\": \"http\",\"service\": \"shoreline\"},\"user\": {\"longTermDaysDuration\": 30,\"tokenDurationSecs\": 2592000, \"secrets\": [{\"secret\": \"default\", \"pass\": \"${SERVER_SECRET}\"},{\"secret\": \"authent_api\", \"pass\": \"${AUTHENT_API_SECRET}\"}],\"maxFailedLogin\":5,\"delayBeforeNextLoginAttempt\":10,\"maxConcurrentLogin\":100,\"blockParallelLogin\": true,\"mailchimp\": {\"url\": \"${MAILCHIMP_URL}\",\"apiKey\": \"${MAILCHIMP_API_KEY}\",\"personalLists\": [],\"clinicLists\" : []}}}",
+                "API_SECRET":"${SHORELINE_API_SECRET}"
+                "VERIFICATION_SECRET": "${SHORELINE_VERIFICATION_SECRET}",
+                "SALT":"${SHORELINE_SALT}",
+                "LONG_TERM_KEY":"${SHORELINE_LONG_TERM_KEY}"
+                "DEMO_CLINIC_USER_ID":""
+                "TIDEPOOL_STORE_DATABASE":"user",
+                "TIDEPOOL_STORE_USERNAME":"${PERSONAL_ACCOUNT}",
+                "TIDEPOOL_STORE_PASSWORD":"${PERSONAL_PWD}",
+                "TIDEPOOL_STORE_ADDRESSES":"localhost",
+                "TIDEPOOL_STORE_OPT_PARAMS":"authSource=admin",
+                "TIDEPOOL_STORE_DEFAULT_TIMEOUT":"2",
+                "TIDEPOOL_STORE_WAIT_CONNECTION_INTERVAL":"5",
+                "TIDEPOOL_STORE_MAX_CONNECTION_ATTEMPTS":"0"
            },
            "args": []
        }

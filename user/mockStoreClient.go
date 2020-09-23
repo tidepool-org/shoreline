@@ -1,6 +1,10 @@
 package user
 
-import "errors"
+import (
+	"errors"
+
+	"go.mongodb.org/mongo-driver/mongo"
+)
 
 type MockStoreClient struct {
 	salt            string
@@ -12,14 +16,23 @@ func NewMockStoreClient(salt string, returnDifferent, doBad bool) *MockStoreClie
 	return &MockStoreClient{salt: salt, doBad: doBad, returnDifferent: returnDifferent}
 }
 
-func (d MockStoreClient) Close() {}
-
+func (d *MockStoreClient) Close() error {
+	return nil
+}
 func (d MockStoreClient) Ping() error {
 	if d.doBad {
 		return errors.New("Session failure")
 	}
 	return nil
 }
+func (d *MockStoreClient) PingOK() bool {
+	return !d.doBad
+}
+func (d *MockStoreClient) Collection(collectionName string, databaseName ...string) *mongo.Collection {
+	return nil
+}
+func (d *MockStoreClient) WaitUntilStarted() {}
+func (d *MockStoreClient) Start()            {}
 
 func (d MockStoreClient) UpsertUser(user *User) error {
 	if d.doBad {

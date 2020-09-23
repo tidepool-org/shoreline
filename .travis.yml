@@ -1,9 +1,10 @@
-sudo: false
+os: linux
+
+dist: focal
 
 language: go
 
-dist: bionic
-
+sudo: false
 go:
   - 1.12.7
 
@@ -16,6 +17,10 @@ env:
     - GO111MODULE=on
     - BUILD_OPENAPI_DOC=true
     - BUILD_SOUP=true
+
+before_install:
+  # MongoDb 4.2 docker container
+  - docker container run -d -p 27017:27017 mongo:4.2 
 
 deploy:
   # Control deployment by setting a value for `on`. Setting the `branch`
@@ -67,7 +72,6 @@ deploy:
 
 services:
   - docker
-  - mongodb
 
 script:
   - ./build.sh

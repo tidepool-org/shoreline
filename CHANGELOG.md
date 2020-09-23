@@ -2,7 +2,14 @@
 
 Shoreline is the module that manages logins and user accounts.
 
+## 1.1.0 - 2020-07-29
+### Changed
+- PT-1439 Shoreline should be able to start without MongoDb
+### Engineering Use
+- Removing unused oAuth2 Routes
+
 ## 1.0.1 - 2020-07-29
+### Engineering Use
 - Fix Soup document name: remove dblp from tag
 
 ## 1.0.0 - 2020-07-28

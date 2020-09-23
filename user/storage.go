@@ -1,8 +1,9 @@
 package user
 
+import goComMgo "github.com/tidepool-org/go-common/clients/mongo"
+
 type Storage interface {
-	Close()
-	Ping() error
+	goComMgo.Storage
 	UpsertUser(user *User) error
 	FindUser(user *User) (*User, error)
 	FindUsers(user *User) ([]*User, error)

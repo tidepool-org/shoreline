@@ -129,12 +129,10 @@ func (client *UserClient) TokenProvide() string {
 	return response.Header().Get(TP_SESSION_TOKEN)
 }
 
-// FIXME: Not required for OAUTH API, but still...
 func (client *UserClient) GetUser(userID, token string) (*commonUserApi.UserData, error) {
 	return nil, nil
 }
 
-// FIXME: Not required for OAUTH API, but still...
 func (client *UserClient) UpdateUser(userID string, userUpdate commonUserApi.UserUpdate, token string) error {
 	return nil
 }

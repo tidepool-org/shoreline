@@ -1,5 +1,7 @@
 package user
 
+import "go.mongodb.org/mongo-driver/mongo"
+
 type FindUsersResponse struct {
 	Users []*User
 	Error error
@@ -68,7 +70,8 @@ func (r *ResponsableMockStoreClient) Reset() {
 	r.RemoveTokenByIDResponses = nil
 }
 
-func (r *ResponsableMockStoreClient) Close() {
+func (r *ResponsableMockStoreClient) Close() error {
+	return nil
 }
 
 func (r *ResponsableMockStoreClient) Ping() (err error) {
@@ -78,6 +81,23 @@ func (r *ResponsableMockStoreClient) Ping() (err error) {
 	}
 	panic("PingResponses unavailable")
 }
+
+func (r *ResponsableMockStoreClient) PingOK() bool {
+	if len(r.PingResponses) > 0 {
+		var err error
+		err, r.PingResponses = r.PingResponses[0], r.PingResponses[1:]
+		return err != nil
+	}
+	return false
+}
+
+func (r *ResponsableMockStoreClient) Collection(collectionName string, databaseName ...string) *mongo.Collection {
+	return nil
+}
+
+func (r *ResponsableMockStoreClient) WaitUntilStarted() {}
+
+func (r *ResponsableMockStoreClient) Start() {}
 
 func (r *ResponsableMockStoreClient) UpsertUser(user *User) (err error) {
 	if len(r.UpsertUserResponses) > 0 {

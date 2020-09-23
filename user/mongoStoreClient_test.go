@@ -1,29 +1,33 @@
 package user
 
 import (
+	"context"
+	"log"
+	"os"
 	"strings"
 	"testing"
-
-	"github.com/globalsign/mgo"
+	"time"
 
 	"github.com/tidepool-org/go-common/clients/mongo"
 )
 
-func mgoTestSetup() (*MongoStoreClient, error) {
-	mc := NewMongoStoreClient(&mongo.Config{ConnectionString: "mongodb://127.0.0.1/user_test"})
+func mgoTestSetup() (*Client, error) {
+	// testing against mongodb://127.0.0.1/user_test
+	var testingConfig = &mongo.Config{
+		Database:               "user_test",
+		Timeout:                2 * time.Second,
+		WaitConnectionInterval: 5 * time.Second,
+		MaxConnectionAttempts:  0,
+	}
+	var logger = log.New(os.Stdout, "mongo-test ", log.LstdFlags|log.LUTC|log.Lshortfile)
 
-	/*
-	 * INIT THE TEST - we use a clean copy of the collection before we start
-	 */
-	cpy := mc.session.Copy()
-	defer cpy.Close()
+	mc, _ := NewStore(testingConfig, logger)
+	mc.Start()
+	mc.WaitUntilStarted()
 
 	//just drop and don't worry about any errors
-	mgoUsersCollection(cpy).DropCollection()
+	mgoUsersCollection(mc).Drop(context.TODO())
 
-	if err := mgoUsersCollection(cpy).Create(&mgo.CollectionInfo{}); err != nil {
-		return nil, err
-	}
 	return mc, nil
 }
 
