@@ -60,6 +60,10 @@ func NewServiceConfigFromEnv() (*Kafka, error) {
 
 func kafkaSender() (*kafka_sarama.Sender, error) {
 	kafkaConfig, err := NewServiceConfigFromEnv()
+	if err != nil {
+		log.Printf("failed to retrieve config: %s", err.Error())
+	}
+	log.Printf("Config: %v, Broker: %s, Topic: %s", kafkaConfig, kafkaConfig.broker, kafkaConfig.finalTopic)
 	saramaConfig := sarama.NewConfig()
 	saramaConfig.Version = sarama.V2_0_0_0
 
@@ -198,7 +202,7 @@ func main() {
 	clientStore.EnsureIndexes()
 	kafkaSender, err := kafkaSender()
 	if err != nil {
-		log.Printf("failed to create protocol: %s", err.Error())
+		log.Printf("failed to create Sender: %s", err.Error())
 	}
 	kafkaClient, err := kafkaClient(kafkaSender)
 	userapi := user.InitApi(config.User, logger, clientStore, highwater, marketoManager, kafkaSender, kafkaClient)
