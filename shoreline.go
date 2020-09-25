@@ -167,7 +167,12 @@ func main() {
 	defer clientStore.Disconnect()
 	clientStore.EnsureIndexes()
 
-	userapi := user.InitApi(config.User, logger, clientStore, highwater, marketoManager)
+	notifier, err := user.NewUserEventsNotifier()
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	userapi := user.InitApi(config.User, logger, clientStore, highwater, marketoManager, notifier)
 	logger.Print("installing handlers")
 	userapi.SetHandlers("", rtr)
 
@@ -214,7 +219,7 @@ func main() {
 	go func() {
 		for {
 			sig := <-signals
-			logger.Printf("Got signal [%s]", sig)
+			//logger.Printf("Got signal [%s]", sig)
 
 			if sig == syscall.SIGINT || sig == syscall.SIGTERM {
 				server.Close()

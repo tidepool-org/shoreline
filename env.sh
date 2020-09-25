@@ -1,3 +1,20 @@
+export TIDEPOOL_KEYCLOAK_CLIENT_ID=shoreline
+export TIDEPOOL_KEYCLOAK_CLIENT_SECRET=c43e3b70-8bc6-496a-94e4-ed9a18f5c3c0
+export TIDEPOOL_KEYCLOAK_BASE_URL=http://localhost:8024
+export TIDEPOOL_KEYCLOAK_REALM=todd
+export TIDEPOOL_KEYCLOAK_ADMIN_USERNAME=admin
+export TIDEPOOL_KEYCLOAK_ADMIN_PASSWORD=admin
+export TIDEPOOL_KEYCLOAK_MIGRATION_SECRET=test
+
+export TIDEPOOL_STORE_SCHEME="mongodb"
+export TIDEPOOL_STORE_ADDRESSES="localhost:27017"
+export TIDEPOOL_STORE_DATABASE="user"
+
+export SERVER_SECRET="This needs to be the same secret everywhere. YaHut75NsK1f9UKUXuWqxNN0RUwHFBCy"
+export KAFKA_TOPIC="events"
+export KAFKA_PREFIX="todd-"
+export KAFKA_BROKERS="kafka-kafka-0.kafka-kafka-brokers.kafka.svc:9092"
+
 export TIDEPOOL_SHORELINE_ENV='{
     "hakken": { "host": "localhost:8000" },
     "highwater": {

@@ -37,12 +37,13 @@ var (
 
 type (
 	Api struct {
-		Store          Storage
-		ApiConfig      ApiConfig
-		metrics        highwater.Client
-		perms          clients.Gatekeeper
-		logger         *log.Logger
-		marketoManager marketo.Manager
+		Store              Storage
+		ApiConfig          ApiConfig
+		metrics            highwater.Client
+		perms              clients.Gatekeeper
+		logger             *log.Logger
+		marketoManager     marketo.Manager
+		userEventsNotifier EventsNotifier
 	}
 	ApiConfig struct {
 		ServerSecret         string         `json:"serverSercret"`
@@ -94,13 +95,14 @@ const (
 	STATUS_INVALID_ROLE          = "The role specified is invalid"
 )
 
-func InitApi(cfg ApiConfig, logger *log.Logger, store Storage, metrics highwater.Client, manager marketo.Manager) *Api {
+func InitApi(cfg ApiConfig, logger *log.Logger, store Storage, metrics highwater.Client, manager marketo.Manager, userEventsNotifier EventsNotifier) *Api {
 	return &Api{
-		Store:          store,
-		ApiConfig:      cfg,
-		metrics:        metrics,
-		logger:         logger,
-		marketoManager: manager,
+		Store:              store,
+		ApiConfig:          cfg,
+		metrics:            metrics,
+		logger:             logger,
+		marketoManager:     manager,
+		userEventsNotifier: userEventsNotifier,
 	}
 }
 
@@ -435,6 +437,14 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 }
 
 func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
+	idd := vars["userid"]
+	toDelete := &User{Id: idd}
+
+	if user, e := a.Store.WithContext(req.Context()).FindUser(toDelete); e == nil && user != nil {
+		if e := a.userEventsNotifier.NotifyUserDeleted(req.Context(), *user); e != nil {
+			a.logger.Println(e)
+		}
+	}
 
 	td, err := a.authenticateSessionToken(req.Context(), req.Header.Get(TP_SESSION_TOKEN))
 
@@ -458,6 +468,12 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 
 		var err error
 		toDelete := &User{Id: id}
+
+		if user, e := a.Store.WithContext(req.Context()).FindUser(toDelete); e == nil && user != nil {
+			if e := a.userEventsNotifier.NotifyUserDeleted(req.Context(), *user); e != nil {
+				a.logger.Println(e)
+			}
+		}
 
 		if err = toDelete.HashPassword(pw, a.ApiConfig.Salt); err == nil {
 			if err = a.Store.WithContext(req.Context()).RemoveUser(toDelete); err == nil {
