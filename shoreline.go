@@ -1,7 +1,10 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
+	"github.com/Shopify/sarama"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -13,12 +16,12 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	common "github.com/tidepool-org/go-common"
+	"github.com/tidepool-org/go-common"
 	"github.com/tidepool-org/go-common/clients"
 	"github.com/tidepool-org/go-common/clients/disc"
 	"github.com/tidepool-org/go-common/clients/hakken"
-	"github.com/tidepool-org/go-common/clients/highwater"
 	"github.com/tidepool-org/go-common/clients/mongo"
+	"github.com/tidepool-org/go-common/events"
 	"github.com/tidepool-org/shoreline/user"
 	"github.com/tidepool-org/shoreline/user/marketo"
 )
@@ -54,7 +57,6 @@ func main() {
 	if found {
 		config.User.ServerSecret = serverSecret
 	}
-
 
 	config.User.TokenConfigs = make([]user.TokenConfig, 2)
 
@@ -142,12 +144,6 @@ func main() {
 
 	httpClient := &http.Client{Transport: tr}
 
-	highwater := highwater.NewHighwaterClientBuilder().
-		WithHostGetter(config.HighwaterConfig.ToHostGetter(hakkenClient)).
-		WithHttpClient(httpClient).
-		WithConfig(&config.HighwaterConfig.HighwaterClientConfig).
-		Build()
-
 	rtr := mux.NewRouter()
 
 	/*
@@ -167,7 +163,37 @@ func main() {
 	defer clientStore.Disconnect()
 	clientStore.EnsureIndexes()
 
-	userapi := user.InitApi(config.User, logger, clientStore, highwater, marketoManager)
+	// Start logging kafka connection debug info
+	sarama.Logger = logger
+
+	kafkaConfig := events.NewConfig()
+	if err := kafkaConfig.LoadFromEnv(); err != nil {
+		log.Fatalln(err)
+	}
+	notifier, err := user.NewUserEventsNotifier(kafkaConfig)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	handler, err := user.NewUserEventsHandler(clientStore)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	consumer, err := events.NewSaramaCloudEventsConsumer(kafkaConfig)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	consumer.RegisterHandler(events.NewUserEventsHandler(handler))
+
+	// Stop logging kafka connection debug info
+	sarama.Logger = log.New(ioutil.Discard, "[Sarama] ", log.LstdFlags)
+
+	logger.Print("creating seagull client")
+	seagull := clients.NewSeagullClientBuilder().
+		WithHostGetter(disc.NewStaticHostGetterFromString("http://seagull:9120")).
+		WithHttpClient(httpClient).
+		Build()
+
+	userapi := user.InitApi(config.User, logger, clientStore, marketoManager, notifier, seagull)
 	logger.Print("installing handlers")
 	userapi.SetHandlers("", rtr)
 
@@ -183,46 +209,37 @@ func main() {
 	userapi.AttachPerms(permsClient)
 
 	/*
-	 * Serve it up and publish
+	 * Serve it up
 	 */
-	done := make(chan bool)
 	logger.Print("creating http server")
 	server := common.NewServer(&http.Server{
 		Addr:    config.Service.GetPort(),
 		Handler: rtr,
 	})
 
-	var start func() error
-	if config.Service.Scheme == "https" {
-		sslSpec := config.Service.GetSSLSpec()
-		start = func() error { return server.ListenAndServeTLS(sslSpec.CertFile, sslSpec.KeyFile) }
-	} else {
-		start = func() error { return server.ListenAndServe() }
-	}
-
 	logger.Print("starting http server")
-	if err := start(); err != nil {
+	if err := server.ListenAndServe(); err != nil {
 		logger.Fatal(err)
 	}
 
-	hakkenClient.Publish(&config.Service)
+	ctx, cancel := context.WithCancel(context.Background())
 
-	logger.Print("listenting for signals")
-
-	signals := make(chan os.Signal, 40)
-	signal.Notify(signals)
+	logger.Print("listening for signals")
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		for {
 			sig := <-signals
-			logger.Printf("Got signal [%s]", sig)
-
-			if sig == syscall.SIGINT || sig == syscall.SIGTERM {
-				server.Close()
-				done <- true
+			logger.Printf("Got signal [%s], terminating ...", sig)
+			if err := server.Close(); err != nil {
+				log.Printf("Error while stopping http server: %v", err)
 			}
+			cancel()
 		}
 	}()
 
-	<-done
-
+	// blocks until context is canceled right after server.Close()
+	if err := consumer.Start(ctx); err != nil {
+		log.Printf("Error while starting events consumer: %v", err)
+	}
 }

@@ -1,3 +1,18 @@
+export TIDEPOOL_STORE_SCHEME="mongodb"
+export TIDEPOOL_STORE_ADDRESSES="localhost:27017"
+export TIDEPOOL_STORE_DATABASE="user"
+
+export KAFKA_TOPIC="events"
+export KAFKA_DEAD_LETTERS_TOPIC="events-shoreline-dl"
+export KAFKA_TOPIC_PREFIX="local-"
+export KAFKA_VERSION="2.5.1"
+export KAFKA_REQUIRE_SSL=false
+export KAFKA_BROKERS="localhost:9092"
+export CLOUD_EVENTS_SOURCE="shoreline"
+export KAFKA_CONSUMER_GROUP="shoreline" 
+
+export SERVER_SECRET="This needs to be the same secret everywhere. YaHut75NsK1f9UKUXuWqxNN0RUwHFBCy"
+
 export TIDEPOOL_SHORELINE_ENV='{
     "hakken": { "host": "localhost:8000" },
     "highwater": {

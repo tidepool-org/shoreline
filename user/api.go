@@ -15,7 +15,6 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/tidepool-org/go-common/clients"
-	"github.com/tidepool-org/go-common/clients/highwater"
 	"github.com/tidepool-org/go-common/clients/status"
 	"github.com/tidepool-org/shoreline/user/marketo"
 
@@ -37,12 +36,14 @@ var (
 
 type (
 	Api struct {
-		Store          Storage
-		ApiConfig      ApiConfig
-		metrics        highwater.Client
-		perms          clients.Gatekeeper
-		logger         *log.Logger
-		marketoManager marketo.Manager
+		Store              Storage
+		ApiConfig          ApiConfig
+		perms              clients.Gatekeeper
+		seagull            clients.Seagull
+		logger             *log.Logger
+		marketoManager     marketo.Manager
+		userEventsNotifier EventsNotifier
+		sessionToken       *SessionToken
 	}
 	ApiConfig struct {
 		ServerSecret         string         `json:"serverSercret"`
@@ -94,13 +95,14 @@ const (
 	STATUS_INVALID_ROLE          = "The role specified is invalid"
 )
 
-func InitApi(cfg ApiConfig, logger *log.Logger, store Storage, metrics highwater.Client, manager marketo.Manager) *Api {
+func InitApi(cfg ApiConfig, logger *log.Logger, store Storage, manager marketo.Manager, userEventsNotifier EventsNotifier, seagull clients.Seagull) *Api {
 	return &Api{
-		Store:          store,
-		ApiConfig:      cfg,
-		metrics:        metrics,
-		logger:         logger,
-		marketoManager: manager,
+		Store:              store,
+		ApiConfig:          cfg,
+		logger:             logger,
+		marketoManager:     manager,
+		userEventsNotifier: userEventsNotifier,
+		seagull:            seagull,
 	}
 }
 
@@ -435,54 +437,86 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 }
 
 func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
+	ctx := req.Context()
+	userID := vars["userid"]
 
-	td, err := a.authenticateSessionToken(req.Context(), req.Header.Get(TP_SESSION_TOKEN))
-
+	tokenData, err := a.authenticateSessionToken(ctx, req.Header.Get(TP_SESSION_TOKEN))
 	if err != nil {
 		a.logger.Println(http.StatusUnauthorized, err.Error())
 		res.WriteHeader(http.StatusUnauthorized)
 		return
 	}
 
-	var id string
-	if td.IsServer == true {
-		id = vars["userid"]
-		a.logger.Println("operating as server")
-	} else {
-		id = td.UserId
+	var requiresPassword bool
+	if !tokenData.IsServer {
+		ownerOrCustodian := clients.Permissions{"root": clients.Allowed, "custodian": clients.Allowed}
+		if permissions, err := a.tokenUserHasRequestedPermissions(tokenData, userID, ownerOrCustodian); err != nil {
+			a.logger.Println(http.StatusInternalServerError, err.Error())
+			res.WriteHeader(http.StatusInternalServerError)
+			return
+		} else if permissions["root"] != nil {
+			requiresPassword = true
+		} else if permissions["custodian"] != nil {
+			requiresPassword = false
+		} else {
+			res.WriteHeader(http.StatusUnauthorized)
+			return
+		}
 	}
 
-	pw := getGivenDetail(req)["password"]
-
-	if id != "" && pw != "" {
-
-		var err error
-		toDelete := &User{Id: id}
-
-		if err = toDelete.HashPassword(pw, a.ApiConfig.Salt); err == nil {
-			if err = a.Store.WithContext(req.Context()).RemoveUser(toDelete); err == nil {
-
-				if td.IsServer {
-					a.logMetricForUser(id, "deleteuser", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "true"})
-				} else {
-					a.logMetric("deleteuser", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "false"})
-				}
-				//cleanup if any
-				if td.IsServer == false {
-					a.Store.WithContext(req.Context()).RemoveTokenByID(req.Header.Get(TP_SESSION_TOKEN))
-				}
-				//all good
-				res.WriteHeader(http.StatusAccepted)
-				return
-			}
-		}
+	user, err := a.Store.WithContext(ctx).FindUser(&User{Id: userID})
+	if err != nil {
 		a.logger.Println(http.StatusInternalServerError, err.Error())
 		res.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	a.logger.Println(http.StatusForbidden, STATUS_MISSING_ID_PW)
-	sendModelAsResWithStatus(res, status.NewStatus(http.StatusForbidden, STATUS_MISSING_ID_PW), http.StatusForbidden)
+
+	if user.IsClinic() {
+		res.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	if requiresPassword {
+		password := getGivenDetail(req)["password"]
+		if !user.PasswordsMatch(password, a.ApiConfig.Salt) {
+			sendModelAsResWithStatus(res, status.NewStatus(http.StatusForbidden, STATUS_MISSING_ID_PW), http.StatusForbidden)
+			return
+		}
+	}
+
+	profile, err := a.getUserProfile(ctx, userID)
+	if err != nil {
+		a.logger.Println(http.StatusInternalServerError, err.Error())
+		res.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	if err := a.userEventsNotifier.NotifyUserDeleted(ctx, *user, *profile); err != nil {
+		a.logger.Println(http.StatusInternalServerError, err.Error())
+		res.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	res.WriteHeader(http.StatusAccepted)
 	return
+}
+
+func (a *Api) getUserProfile(ctx context.Context, userID string) (*Profile, error) {
+	if a.sessionToken == nil || a.sessionToken.ExpiresAt.Before(time.Now()) {
+		var err error
+		duration := int64(60 * 60 * 30)
+		tokenData := &TokenData{DurationSecs: duration, UserId: "shoreline", IsServer: true}
+		a.sessionToken, err = CreateSessionTokenAndSave(tokenData, a.ApiConfig.TokenConfigs[0], a.Store.WithContext(ctx))
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	profile := &Profile{}
+	if err := a.seagull.GetCollection(userID, "profile", a.sessionToken.ID, profile); err != nil {
+		return nil, err
+	}
+	return profile, nil
 }
 
 // status: 200 TP_SESSION_TOKEN,
@@ -625,6 +659,7 @@ func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars 
 	if hasServerToken(req.Header.Get(TP_SESSION_TOKEN), a.ApiConfig.TokenConfigs...) {
 		td, err := a.authenticateSessionToken(req.Context(), vars["token"])
 		if err != nil {
+			a.logger.Println(req)
 			a.logger.Printf("failed request: %v", req)
 			a.logger.Println(http.StatusUnauthorized, STATUS_NO_TOKEN, err.Error())
 			sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_TOKEN), http.StatusUnauthorized)
