@@ -2,6 +2,10 @@
 
 Shoreline is the module that manages logins and user accounts.
 
+## 1.1.1 - 2020-09-25
+### Fixed
+- Fix S3 deployment
+
 ## 1.1.0 - 2020-07-29
 ### Changed
 - PT-1439 Shoreline should be able to start without MongoDb
