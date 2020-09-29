@@ -2,7 +2,6 @@ package events
 
 import (
 	"context"
-	"github.com/Shopify/sarama"
 	"github.com/cloudevents/sdk-go/protocol/kafka_sarama/v2"
 	cloudevents "github.com/cloudevents/sdk-go/v2"
 )
@@ -18,27 +17,31 @@ type EventConsumer interface {
 }
 
 var _ EventConsumer = &KafkaCloudEventsConsumer{}
+
 type KafkaCloudEventsConsumer struct {
-	client cloudevents.Client
+	client   cloudevents.Client
+	consumer *kafka_sarama.Consumer
 	handlers []EventHandler
 }
 
-func NewKafkaCloudEventsConsumer(config *KafkaConfig) (*KafkaCloudEventsConsumer, error) {
-	saramaConfig := sarama.NewConfig()
-	saramaConfig.Version = sarama.V2_0_0_0
+func NewKafkaCloudEventsConsumer(config *CloudEventsConfig) (*KafkaCloudEventsConsumer, error) {
+	if err := validateConsumerConfig(config); err != nil {
+		return nil, err
+	}
 
-	consumer, err := kafka_sarama.NewConsumer([]string{config.Broker}, saramaConfig, config.ConsumerGroup, config.GetTopic())
+	consumer, err := kafka_sarama.NewConsumer(config.KafkaBrokers, config.SaramaConfig, config.KafkaConsumerGroup, config.GetPrefixedTopic())
 	if err != nil {
 		return nil, err
 	}
 
-	c, err := cloudevents.NewClient(consumer, cloudevents.WithTimeNow(), cloudevents.WithUUIDs())
+	client, err := cloudevents.NewClient(consumer, cloudevents.WithTimeNow(), cloudevents.WithUUIDs())
 	if err != nil {
 		return nil, err
 	}
 
 	return &KafkaCloudEventsConsumer{
-		client: c,
+		client:   client,
+		consumer: consumer,
 		handlers: make([]EventHandler, 0),
 	}, nil
 }
@@ -48,6 +51,7 @@ func (k *KafkaCloudEventsConsumer) RegisterHandler(handler EventHandler) {
 }
 
 func (k *KafkaCloudEventsConsumer) Start(ctx context.Context) error {
+	defer k.consumer.Close(context.Background())
 	return k.client.StartReceiver(ctx, k.receive)
 }
 

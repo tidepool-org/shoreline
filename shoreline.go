@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/tls"
+	"github.com/Shopify/sarama"
 	"log"
 	"net/http"
 	"os"
@@ -167,6 +168,7 @@ func main() {
 	defer clientStore.Disconnect()
 	clientStore.EnsureIndexes()
 
+	sarama.Logger = logger
 	notifier, err := user.NewUserEventsNotifier()
 	if err != nil {
 		log.Fatalln(err)

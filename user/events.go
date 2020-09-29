@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/tidepool-org/go-common/clients/shoreline"
 	"github.com/tidepool-org/go-common/events"
+	"log"
 )
 
 type EventsNotifier interface {
@@ -18,15 +19,17 @@ type userEventsNotifier struct {
 }
 
 func NewUserEventsNotifier() (EventsNotifier, error) {
-	config := &events.KafkaConfig{}
+	config := events.NewConfig()
 	if err := config.LoadFromEnv(); err != nil {
 		return nil, err
 	}
+	config.SaramaConfig.Net.TLS.Config.InsecureSkipVerify = true
+	log.Println(config)
+
 	producer, err := events.NewKafkaCloudEventsProducer(config)
 	if err != nil {
 		return nil, err
 	}
-	producer.SetSource("shoreline")
 
 	return &userEventsNotifier{
 		EventProducer: producer,
@@ -34,19 +37,19 @@ func NewUserEventsNotifier() (EventsNotifier, error) {
 }
 
 func (u *userEventsNotifier) NotifyUserDeleted(ctx context.Context, user User) error {
-	return u.Send(ctx, &events.DeleteUserEventPayload{
+	return u.Send(ctx, &events.DeleteUserEvent{
 		UserData: toUserData(user),
 	})
 }
 
 func (u *userEventsNotifier) NotifyUserCreated(ctx context.Context, user User) error {
-	return u.Send(ctx, &events.CreateUserEventPayload{
+	return u.Send(ctx, &events.CreateUserEvent{
 		UserData: toUserData(user),
 	})
 }
 
 func (u *userEventsNotifier) NotifyUserUpdated(ctx context.Context, before User, after User) error {
-	return u.Send(ctx, &events.UpdateUserEventPayload{
+	return u.Send(ctx, &events.UpdateUserEvent{
 		Original: toUserData(before),
 		Updated: toUserData(after),
 	})

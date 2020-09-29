@@ -3,6 +3,7 @@ package events
 import (
 	cloudevents "github.com/cloudevents/sdk-go/v2"
 	"github.com/tidepool-org/go-common/clients/shoreline"
+	"log"
 )
 
 const (
@@ -15,46 +16,53 @@ type Event interface {
 	GetEventType() string
 }
 
-var _ Event = DeleteUserEventPayload{}
-type DeleteUserEventPayload struct {
+var _ Event = DeleteUserEvent{}
+
+type DeleteUserEvent struct {
 	shoreline.UserData `json:",inline"`
 }
 
-func (d DeleteUserEventPayload) GetEventType() string {
+func (d DeleteUserEvent) GetEventType() string {
 	return DeleteUserEventType
 }
 
-var _ Event = CreateUserEventPayload{}
-type CreateUserEventPayload struct {
+var _ Event = CreateUserEvent{}
+
+type CreateUserEvent struct {
 	shoreline.UserData `json:",inline"`
 }
 
-func (d CreateUserEventPayload) GetEventType() string {
+func (d CreateUserEvent) GetEventType() string {
 	return CreateUserEventType
 }
 
-var _ Event = UpdateUserEventPayload{}
-type UpdateUserEventPayload struct {
+var _ Event = UpdateUserEvent{}
+
+type UpdateUserEvent struct {
 	Original shoreline.UserData `json:"original"`
-	Updated shoreline.UserData `json:"updated"`
+	Updated  shoreline.UserData `json:"updated"`
 }
 
-func (d UpdateUserEventPayload) GetEventType() string {
+func (d UpdateUserEvent) GetEventType() string {
 	return UpdateUserEventType
 }
 
 type UserEventsHandler interface {
-	HandleUpdateUserEvent(payload UpdateUserEventPayload)
-	HandleCreateUserEvent(payload CreateUserEventPayload)
-	HandleDeleteUserEvent(payload DeleteUserEventPayload)
+	HandleUpdateUserEvent(payload UpdateUserEvent)
+	HandleCreateUserEvent(payload CreateUserEvent)
+	HandleDeleteUserEvent(payload DeleteUserEvent)
 }
 
-var _ EventHandler = &DelegatingUserEventsHandler{}
-type DelegatingUserEventsHandler struct {
+func NewUserEventsHandler(delegate UserEventsHandler) EventHandler {
+	return &delegatingUserEventsHandler{delegate: delegate}
+}
+
+var _ EventHandler = &delegatingUserEventsHandler{}
+type delegatingUserEventsHandler struct {
 	delegate UserEventsHandler
 }
 
-func (d *DelegatingUserEventsHandler) CanHandle(ce cloudevents.Event) bool {
+func (d *delegatingUserEventsHandler) CanHandle(ce cloudevents.Event) bool {
 	switch ce.Type() {
 	case CreateUserEventType, UpdateUserEventType, DeleteUserEventType:
 		return true
@@ -63,22 +71,22 @@ func (d *DelegatingUserEventsHandler) CanHandle(ce cloudevents.Event) bool {
 	}
 }
 
-func (d *DelegatingUserEventsHandler) Handle(ce cloudevents.Event) error {
+func (d *delegatingUserEventsHandler) Handle(ce cloudevents.Event) error {
 	switch ce.Type() {
 	case CreateUserEventType:
-		payload := CreateUserEventPayload{}
+		payload := CreateUserEvent{}
 		if err := ce.DataAs(&payload); err != nil {
 			return err
 		}
 		d.delegate.HandleCreateUserEvent(payload)
 	case UpdateUserEventType:
-		payload := UpdateUserEventPayload{}
+		payload := UpdateUserEvent{}
 		if err := ce.DataAs(&payload); err != nil {
 			return err
 		}
 		d.delegate.HandleUpdateUserEvent(payload)
 	case DeleteUserEventType:
-		payload := DeleteUserEventPayload{}
+		payload := DeleteUserEvent{}
 		if err := ce.DataAs(&payload); err != nil {
 			return err
 		}
@@ -87,8 +95,21 @@ func (d *DelegatingUserEventsHandler) Handle(ce cloudevents.Event) error {
 	return nil
 }
 
-type NoopUserEventsHandler struct {}
+type DebugEventHandler struct {}
+var _ EventHandler = &DebugEventHandler{}
+
+func (d *DebugEventHandler) CanHandle(ce cloudevents.Event) bool {
+	return true
+}
+
+func (d *DebugEventHandler) Handle(ce cloudevents.Event) error {
+	log.Printf("Received event %v\n", ce)
+	return nil
+}
+
+type NoopUserEventsHandler struct{}
 var _ UserEventsHandler = &NoopUserEventsHandler{}
-func (d *NoopUserEventsHandler) HandleUpdateUserEvent(payload UpdateUserEventPayload) {}
-func (d *NoopUserEventsHandler) HandleCreateUserEvent(payload CreateUserEventPayload) {}
-func (d *NoopUserEventsHandler) HandleDeleteUserEvent(payload DeleteUserEventPayload) {}
+
+func (d *NoopUserEventsHandler) HandleUpdateUserEvent(payload UpdateUserEvent) {}
+func (d *NoopUserEventsHandler) HandleCreateUserEvent(payload CreateUserEvent) {}
+func (d *NoopUserEventsHandler) HandleDeleteUserEvent(payload DeleteUserEvent) {}

@@ -2,7 +2,6 @@ package events
 
 import (
 	"context"
-	"github.com/Shopify/sarama"
 	"github.com/cloudevents/sdk-go/protocol/kafka_sarama/v2"
 	cloudevents "github.com/cloudevents/sdk-go/v2"
 )
@@ -17,25 +16,25 @@ type KafkaCloudEventsProducer struct {
 	source string
 }
 
-func NewKafkaCloudEventsProducer(config *KafkaConfig) (*KafkaCloudEventsProducer, error) {
-	saramaConfig := sarama.NewConfig()
-	saramaConfig.Version = sarama.V2_0_0_0
+func NewKafkaCloudEventsProducer(config *CloudEventsConfig) (*KafkaCloudEventsProducer, error) {
+	if err := validateProducerConfig(config); err != nil {
+		return nil, err
+	}
 
-	sender, err := kafka_sarama.NewSender([]string{config.Broker}, saramaConfig, config.GetTopic())
+	sender, err := kafka_sarama.NewSender(config.KafkaBrokers, config.SaramaConfig, config.GetPrefixedTopic())
 	if err != nil {
 		return nil, err
 	}
 
-	c, err := cloudevents.NewClient(sender, cloudevents.WithTimeNow(), cloudevents.WithUUIDs())
+	client, err := cloudevents.NewClient(sender, cloudevents.WithTimeNow(), cloudevents.WithUUIDs())
 	if err != nil {
 		return nil, err
 	}
 
-	return &KafkaCloudEventsProducer{client: c}, nil
-}
-
-func (c *KafkaCloudEventsProducer) SetSource(source string) {
-	c.source = source
+	return &KafkaCloudEventsProducer{
+		client: client,
+		source: config.EventSource,
+	}, nil
 }
 
 func (c *KafkaCloudEventsProducer) Send(ctx context.Context, event Event) error {
@@ -50,11 +49,9 @@ func (c *KafkaCloudEventsProducer) Send(ctx context.Context, event Event) error 
 func toCloudEvent(event Event, source string) (cloudevents.Event, error) {
 	e := cloudevents.NewEvent()
 	e.SetType(event.GetEventType())
+	e.SetSource(source)
 	if err := e.SetData(cloudevents.ApplicationJSON, event); err != nil {
 		return e, err
-	}
-	if source != "" {
-		e.SetSource(source)
 	}
 
 	return e, nil

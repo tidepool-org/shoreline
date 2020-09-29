@@ -12,8 +12,12 @@ export TIDEPOOL_STORE_DATABASE="user"
 
 export SERVER_SECRET="This needs to be the same secret everywhere. YaHut75NsK1f9UKUXuWqxNN0RUwHFBCy"
 export KAFKA_TOPIC="events"
-export KAFKA_PREFIX="todd-"
-export KAFKA_BROKERS="kafka-kafka-0.kafka-kafka-brokers.kafka.svc:9092"
+export KAFKA_TOPIC_PREFIX="local-todd-"
+export KAFKA_VERSION="2.4.1.1"
+export KAFKA_REQUIRE_SSL=true
+export KAFKA_BROKERS="b-1.default-ops.gxm6gl.c4.kafka.us-west-2.amazonaws.com:9094,b-2.default-ops.gxm6gl.c4.kafka.us-west-2.amazonaws.com:9094,b-3.default-ops.gxm6gl.c4.kafka.us-west-2.amazonaws.com:9094"
+export CLOUD_EVENTS_SOURCE="shoreline"
+export KAFKA_CONSUMER_GROUP="trst" 
 
 export TIDEPOOL_SHORELINE_ENV='{
     "hakken": { "host": "localhost:8000" },

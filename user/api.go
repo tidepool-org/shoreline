@@ -444,6 +444,8 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 		if e := a.userEventsNotifier.NotifyUserDeleted(req.Context(), *user); e != nil {
 			a.logger.Println(e)
 		}
+	} else {
+		a.logger.Println(e)
 	}
 
 	td, err := a.authenticateSessionToken(req.Context(), req.Header.Get(TP_SESSION_TOKEN))
