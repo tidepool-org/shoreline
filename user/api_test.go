@@ -105,7 +105,7 @@ xwIDAQAB
 	logger      = log.New(os.Stdout, USER_API_PREFIX, log.LstdFlags|log.Lshortfile)
 	mockStore   = NewMockStoreClient(fakeConfig.Salt, false, false)
 	mockMetrics = highwater.NewMock()
-	api   = InitAPITest(fakeConfig, logger, mockStore)
+	api         = InitAPITest(fakeConfig, logger, mockStore)
 	/*
 	 *
 	 */
