@@ -43,3 +43,17 @@ Go into the package directory e.g. `user` then use `go test -v` within that dire
 
 Specify the user ID for the demo account to automatically share with a new signup with VCA.
 ```
+
+## Running the service locally
+
+If you want to use the service with Kafka cluster hosted on Amazon MSK you have to trust the Amazon CA.
+To import the CA on MacOS:
+```
+wget https://www.amazontrust.com/repository/SFSRootCAG2.pem
+sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain ./SFSRootCAG2.pem
+```
+To import the CA on Linux:
+```
+wget https://www.amazontrust.com/repository/SFSRootCAG2.pem
+sudo certutil -addstore -f "ROOT" ./SFSRootCAG2.pem
+```

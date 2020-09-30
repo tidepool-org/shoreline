@@ -7,32 +7,17 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 
 	"github.com/gorilla/mux"
 
-	"github.com/Shopify/sarama"
-	"github.com/cloudevents/sdk-go/protocol/kafka_sarama/v2"
-	cloudevents "github.com/cloudevents/sdk-go/v2"
-	"github.com/kelseyhightower/envconfig"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	common "github.com/tidepool-org/go-common"
 	"github.com/tidepool-org/go-common/clients"
 	"github.com/tidepool-org/go-common/clients/disc"
 	"github.com/tidepool-org/go-common/clients/hakken"
-	"github.com/tidepool-org/go-common/clients/highwater"
 	"github.com/tidepool-org/go-common/clients/mongo"
+	"github.com/tidepool-org/go-common/events"
 	"github.com/tidepool-org/shoreline/user"
-	"github.com/tidepool-org/shoreline/user/marketo"
-)
-
-var (
-	marketoConfig = promauto.NewGauge(prometheus.GaugeOpts{
-		Name: "tidepool_shoreline_marketo_config_valid",
-		Help: "Indicates if the latest shoreline marketo configuration is valid.",
-	})
 )
 
 type (
@@ -44,36 +29,6 @@ type (
 	}
 )
 
-type Kafka struct {
-	Prefix     string `envconfig:"KAFKA_PREFIX" required:"false"`
-	BaseTopic  string `envconfig:"KAFKA_TOPIC" default:"marketo"`
-	FinalTopic string
-	Broker     string `envconfig:"KAFKA_BROKERS" required:"false"`
-}
-
-func NewServiceConfigFromEnv() (*Kafka, error) {
-	var config Kafka
-	err := envconfig.Process("", &config)
-	config.FinalTopic = config.Prefix + config.BaseTopic
-	return &config, err
-}
-
-func kafkaSender() (*kafka_sarama.Sender, error) {
-	kafkaConfig, err := NewServiceConfigFromEnv()
-	if err != nil {
-		log.Printf("failed to retrieve config: %s", err.Error())
-	}
-	log.Printf("Config: %v, Broker: %s, Topic: %s", kafkaConfig, kafkaConfig.Broker, kafkaConfig.FinalTopic)
-	saramaConfig := sarama.NewConfig()
-	saramaConfig.Version = sarama.V2_0_0_0
-
-	sender, err := kafka_sarama.NewSender([]string{kafkaConfig.Broker}, saramaConfig, kafkaConfig.FinalTopic)
-	return sender, err
-}
-func kafkaClient(Sender *kafka_sarama.Sender) (cloudevents.Client, error) {
-	c, err := cloudevents.NewClient(Sender, cloudevents.WithTimeNow(), cloudevents.WithUUIDs())
-	return c, err
-}
 func main() {
 	var config Config
 	logger := log.New(os.Stdout, user.USER_API_PREFIX, log.LstdFlags|log.Lshortfile)
@@ -127,21 +82,6 @@ func main() {
 	if found {
 		config.User.ClinicDemoUserID = clinicDemoUserID
 	}
-	config.User.Marketo.ID, _ = os.LookupEnv("MARKETO_ID")
-	config.User.Marketo.URL, _ = os.LookupEnv("MARKETO_URL")
-	config.User.Marketo.Secret, _ = os.LookupEnv("MARKETO_SECRET")
-	config.User.Marketo.ClinicRole, _ = os.LookupEnv("MARKETO_CLINIC_ROLE")
-	config.User.Marketo.PatientRole, _ = os.LookupEnv("MARKETO_PATIENT_ROLE")
-
-	unParsedTimeout, found := os.LookupEnv("MARKETO_TIMEOUT")
-	if found {
-		parsedTimeout64, err := strconv.ParseInt(unParsedTimeout, 10, 32)
-		parsedTimeout := uint(parsedTimeout64)
-		if err != nil {
-			logger.Println(err)
-		}
-		config.User.Marketo.Timeout = parsedTimeout
-	}
 
 	salt, found := os.LookupEnv("SALT")
 	if found {
@@ -176,40 +116,36 @@ func main() {
 
 	httpClient := &http.Client{Transport: tr}
 
-	highwater := highwater.NewHighwaterClientBuilder().
-		WithHostGetter(config.HighwaterConfig.ToHostGetter(hakkenClient)).
-		WithHttpClient(httpClient).
-		WithConfig(&config.HighwaterConfig.HighwaterClientConfig).
-		Build()
-
 	rtr := mux.NewRouter()
 
 	/*
 	 * User-Api setup
 	 */
 
-	var marketoManager marketo.Manager
-	if err := config.User.Marketo.Validate(); err != nil {
-		logger.Println("WARNING: Marketo config is invalid", err)
-	} else {
-		logger.Print("initializing marketo manager")
-		marketoManager, _ = marketo.NewManager(logger, config.User.Marketo)
-		marketoConfig.Set(1)
-	}
-
 	clientStore := user.NewMongoStoreClient(&config.Mongo)
 	defer clientStore.Disconnect()
 	clientStore.EnsureIndexes()
-	kafkaSender, err := kafkaSender()
+
+	notifier, err := user.NewUserEventsNotifier()
 	if err != nil {
-		log.Printf("failed to create Sender: %s", err.Error())
+		log.Fatalln(err)
 	}
-	kafkaClient, err := kafkaClient(kafkaSender)
+
+	kafkaConfig := events.NewConfig()
+	if err := kafkaConfig.LoadFromEnv(); err != nil {
+		log.Fatalln(err)
+	}
+	handler, err := user.NewUserEventsHandler(clientStore)
 	if err != nil {
-		log.Printf("failed to create kakfaclient: %s", err)
+		log.Fatalln()
 	}
-	userapi := user.InitApi(config.User, logger, clientStore, highwater, marketoManager, kafkaSender, kafkaClient)
-	defer userapi.Sender.Close(context.Background())
+	consumer, err := events.NewSaramaCloudEventsConsumer(kafkaConfig)
+	if err != nil {
+		log.Fatalln()
+	}
+	consumer.RegisterHandler(events.NewUserEventsHandler(handler))
+
+	userapi := user.InitApi(config.User, logger, clientStore, notifier)
 	logger.Print("installing handlers")
 	userapi.SetHandlers("", rtr)
 
@@ -225,52 +161,37 @@ func main() {
 	userapi.AttachPerms(permsClient)
 
 	/*
-	 * Serve it up and publish
+	 * Serve it up
 	 */
-	done := make(chan bool)
 	logger.Print("creating http server")
 	server := common.NewServer(&http.Server{
 		Addr:    config.Service.GetPort(),
 		Handler: rtr,
 	})
 
-	var start func() error
-	if config.Service.Scheme == "https" {
-		sslSpec := config.Service.GetSSLSpec()
-		start = func() error { return server.ListenAndServeTLS(sslSpec.CertFile, sslSpec.KeyFile) }
-	} else {
-		start = func() error { return server.ListenAndServe() }
-	}
-
 	logger.Print("starting http server")
-	if err := start(); err != nil {
+	if err := server.ListenAndServe(); err != nil {
 		logger.Fatal(err)
 	}
 
-	hakkenClient.Publish(&config.Service)
+	ctx, cancel := context.WithCancel(context.Background())
 
-	logger.Print("listenting for signals")
-
-	signals := make(chan os.Signal, 40)
-	signal.Notify(signals)
+	logger.Print("listening for signals")
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		for {
 			sig := <-signals
-			// Ignore SIGURG, because Go 1.14 uses it internally to implement
-			// non-cooperative preemption (https://go.googlesource.com/proposal/+/master/design/24543-non-cooperative-preemption.md)
-			if sig == syscall.SIGURG {
-
-			} else {
-				logger.Printf("Got signal [%s]", sig)
+			logger.Printf("Got signal [%s], terminating ...", sig)
+			if err := server.Close(); err != nil {
+				log.Printf("Error while stopping http server: %v", err)
 			}
-			if sig == syscall.SIGINT || sig == syscall.SIGTERM {
-				logger.Printf("Got signal [%s]", sig)
-				server.Close()
-				done <- true
-			}
+			cancel()
 		}
 	}()
 
-	<-done
-
+	// blocks until context is canceled right after server.Close()
+	if err := consumer.Start(ctx); err != nil {
+		log.Printf("Error while starting events consumer: %v", err)
+	}
 }

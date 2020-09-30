@@ -38,6 +38,7 @@ type ResponsableMockStoreClient struct {
 	AddTokenResponses         []error
 	FindTokenByIDResponses    []FindTokenByIDResponse
 	RemoveTokenByIDResponses  []error
+	RemoveTokensForUserResponses []error
 }
 
 func NewResponsableMockStoreClient() *ResponsableMockStoreClient {
@@ -161,4 +162,12 @@ func (r *ResponsableMockStoreClient) RemoveTokenByID(id string) (err error) {
 		return err
 	}
 	panic("RemoveTokenByIDResponses unavailable")
+}
+
+func (r *ResponsableMockStoreClient) RemoveTokensForUser(userId string) (err error) {
+	if len(r.RemoveTokensForUserResponses) > 0 {
+		err, r.RemoveTokenByIDResponses = r.RemoveTokenByIDResponses[0], r.RemoveTokenByIDResponses[1:]
+		return err
+	}
+	panic("RemoveTokensForUser unavailable")
 }

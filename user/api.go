@@ -12,28 +12,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Shopify/sarama"
-	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 
 	"github.com/tidepool-org/go-common/clients"
-	"github.com/tidepool-org/go-common/clients/highwater"
 	"github.com/tidepool-org/go-common/clients/status"
-	"github.com/tidepool-org/shoreline/user/marketo"
 
-	"github.com/cloudevents/sdk-go/protocol/kafka_sarama/v2"
-	cloudevents "github.com/cloudevents/sdk-go/v2"
-	"github.com/cloudevents/sdk-go/v2/binding"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var (
-	failedMarketoUploadCount = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "tidepool_shoreline_failed_marketo_upload_total",
-		Help: "The total number of failures to connect to marketo due to errors",
-	})
 	statusCount = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "tidepool_shoreline_failed_status_count",
 		Help: "The number of errors for each status code and status reason.",
@@ -41,34 +30,21 @@ var (
 )
 
 type (
-	BasicSender interface {
-		Close(context.Context) error
-		Send(ctx context.Context, m binding.Message, transformers ...binding.Transformer) error
-	}
-	CloudEventsClient interface {
-		Send(ctx context.Context, event cloudevents.Event)  cloudevents.Result
-		Request(ctx context.Context, event cloudevents.Event) (*cloudevents.Event, cloudevents.Result)
-		StartReceiver(ctx context.Context, fn interface{}) error
-	}
 	Api struct {
-		Store          Storage
-		ApiConfig      ApiConfig
-		metrics        highwater.Client
-		perms          clients.Gatekeeper
-		logger         *log.Logger
-		marketoManager marketo.Manager
-		Sender         BasicSender
-		Cloudevents    CloudEventsClient
+		Store              Storage
+		ApiConfig          ApiConfig
+		perms              clients.Gatekeeper
+		logger             *log.Logger
+		userEventsNotifier EventsNotifier
 	}
 	ApiConfig struct {
-		ServerSecret         string         `json:"serverSercret"`
-		TokenConfigs         []TokenConfig  `json:"tokenConfigs"` // the first token config is used for encoding new tokens
-		LongTermKey          string         `json:"longTermKey"`
-		LongTermDaysDuration int            `json:"longTermDaysDuration"`
-		Salt                 string         `json:"salt"`
-		VerificationSecret   string         `json:"verificationSecret"`
-		ClinicDemoUserID     string         `json:"clinicDemoUserId"`
-		Marketo              marketo.Config `json:"marketo"`
+		ServerSecret         string        `json:"serverSercret"`
+		TokenConfigs         []TokenConfig `json:"tokenConfigs"` // the first token config is used for encoding new tokens
+		LongTermKey          string        `json:"longTermKey"`
+		LongTermDaysDuration int           `json:"longTermDaysDuration"`
+		Salt                 string        `json:"salt"`
+		VerificationSecret   string        `json:"verificationSecret"`
+		ClinicDemoUserID     string        `json:"clinicDemoUserId"`
 	}
 	varsHandler func(http.ResponseWriter, *http.Request, map[string]string)
 )
@@ -110,15 +86,12 @@ const (
 	STATUS_INVALID_ROLE          = "The role specified is invalid"
 )
 
-func InitApi(cfg ApiConfig, logger *log.Logger, store Storage, metrics highwater.Client, manager marketo.Manager, sender BasicSender, cloudevents CloudEventsClient) *Api {
+func InitApi(cfg ApiConfig, logger *log.Logger, store Storage, userEventsNotifier EventsNotifier) *Api {
 	return &Api{
-		Store:          store,
-		ApiConfig:      cfg,
-		metrics:        metrics,
-		logger:         logger,
-		marketoManager: manager,
-		Sender:         sender,
-		Cloudevents:    cloudevents,
+		Store:              store,
+		ApiConfig:          cfg,
+		logger:             logger,
+		userEventsNotifier: userEventsNotifier,
 	}
 }
 
@@ -305,28 +278,6 @@ func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, va
 	}
 }
 
-func (a *Api) KafkaProducer(event string, newUser string) {
-	e := cloudevents.NewEvent()
-	e.SetID(uuid.New().String())
-	e.SetType(event)
-	e.SetSource("github.com/tidepool-org/shoreline/user/marketo")
-	_ = e.SetData(cloudevents.ApplicationJSON, map[string]interface{}{
-		"user":  newUser,
-		"event": event,
-	})
-
-	if result := a.Cloudevents.Send(
-		// Set the producer message key
-		kafka_sarama.WithMessageKey(context.Background(), sarama.StringEncoder(e.ID())),
-		e,
-	); cloudevents.IsUndelivered(result) {
-		log.Println("failed to send message",)
-		a.Cloudevents.Send(kafka_sarama.WithMessageKey(context.Background(), sarama.StringEncoder(e.ID())), e,)
-	} else {
-		log.Printf("sent: %s %s, accepted: %t", event, newUser, cloudevents.IsACK(result))
-	}
-}
-
 // UpdateUser updates a user
 // status: 200
 // status: 400 STATUS_INVALID_USER_DETAILS
@@ -407,7 +358,6 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 			updatedUser.EmailVerified = *updateUserDetails.EmailVerified
 		}
 
-
 		if err := a.Store.WithContext(req.Context()).UpsertUser(updatedUser); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_USR, err)
 		} else {
@@ -417,17 +367,11 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 				}
 			}
 
-			if updatedUser.EmailVerified && updatedUser.TermsAccepted != "" && !strings.HasSuffix(updatedUser.Username, "@tidepool.io") && !strings.HasSuffix(updatedUser.Username, "@tidepool.org") {
-				if a.marketoManager != nil && a.marketoManager.IsAvailable() {
-					if  updateUserDetails.EmailVerified != nil || updateUserDetails.TermsAccepted != nil {
-						a.logger.Printf("Sending create Kafka message for: %v", updatedUser.Id)
-						a.KafkaProducer("create-user", updatedUser.Id)
-					} else {
-						a.logger.Printf("Sending update Kafka message for: %v", updatedUser.Id)
-						a.KafkaProducer("update-user", updatedUser.Id)
-					}
+			if updatedUser.EmailVerified && updatedUser.TermsAccepted != "" {
+				if updateUserDetails.EmailVerified != nil || updateUserDetails.TermsAccepted != nil {
+					a.userEventsNotifier.NotifyUserCreated(req.Context(), *updatedUser)
 				} else {
-					failedMarketoUploadCount.Inc()
+					a.userEventsNotifier.NotifyUserUpdated(req.Context(), *originalUser, *updatedUser)
 				}
 			}
 			a.logMetricForUser(updatedUser.Id, "userupdated", sessionToken, map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
@@ -478,53 +422,57 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 }
 
 func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
-
-	td, err := a.authenticateSessionToken(req.Context(), req.Header.Get(TP_SESSION_TOKEN))
-
+	userId := vars["userid"]
+	tokenData, err := a.authenticateSessionToken(req.Context(), req.Header.Get(TP_SESSION_TOKEN))
 	if err != nil {
 		a.logger.Println(http.StatusUnauthorized, err.Error())
 		res.WriteHeader(http.StatusUnauthorized)
 		return
 	}
 
-	var id string
-	if td.IsServer == true {
-		id = vars["userid"]
-		a.logger.Println("operating as server")
+	var requiresPassword bool
+	ownerOrCustodian := clients.Permissions{"root": clients.Allowed, "custodian": clients.Allowed}
+	if permissions, err := a.tokenUserHasRequestedPermissions(tokenData, userId, ownerOrCustodian); err != nil {
+		a.logger.Println(http.StatusInternalServerError, err.Error())
+		res.WriteHeader(http.StatusInternalServerError)
+		return
+	} else if _, ok := permissions["custodian"]; ok {
+		// server tokens will have all requested permission even 'custodian'
+		requiresPassword = false
+	} else if _, ok := permissions["root"]; ok {
+		requiresPassword = true
 	} else {
-		id = td.UserId
+		res.WriteHeader(http.StatusUnauthorized)
+		return
 	}
 
-	pw := getGivenDetail(req)["password"]
-
-	if id != "" && pw != "" {
-
-		var err error
-		toDelete := &User{Id: id}
-
-		if err = toDelete.HashPassword(pw, a.ApiConfig.Salt); err == nil {
-			if err = a.Store.WithContext(req.Context()).RemoveUser(toDelete); err == nil {
-
-				if td.IsServer {
-					a.logMetricForUser(id, "deleteuser", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "true"})
-				} else {
-					a.logMetric("deleteuser", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "false"})
-				}
-				//cleanup if any
-				if td.IsServer == false {
-					a.Store.WithContext(req.Context()).RemoveTokenByID(req.Header.Get(TP_SESSION_TOKEN))
-				}
-				//all good
-				res.WriteHeader(http.StatusAccepted)
-				return
-			}
-		}
+	user, err := a.Store.WithContext(req.Context()).FindUser(&User{Id: userId})
+	if err != nil {
 		a.logger.Println(http.StatusInternalServerError, err.Error())
 		res.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	a.logger.Println(http.StatusForbidden, STATUS_MISSING_ID_PW)
-	sendModelAsResWithStatus(res, status.NewStatus(http.StatusForbidden, STATUS_MISSING_ID_PW), http.StatusForbidden)
+
+	if user.IsClinic() {
+		res.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	if requiresPassword {
+		password := getGivenDetail(req)["password"]
+		if !user.PasswordsMatch(password, a.ApiConfig.Salt) {
+			sendModelAsResWithStatus(res, status.NewStatus(http.StatusForbidden, STATUS_MISSING_ID_PW), http.StatusForbidden)
+			return
+		}
+	}
+
+	if err := a.userEventsNotifier.NotifyUserDeleted(req.Context(), *user); err != nil {
+		a.logger.Println(http.StatusInternalServerError, err.Error())
+		res.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	res.WriteHeader(http.StatusAccepted)
 	return
 }
 
