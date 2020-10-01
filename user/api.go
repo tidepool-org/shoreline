@@ -369,9 +369,18 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 
 			if updatedUser.EmailVerified && updatedUser.TermsAccepted != "" {
 				if updateUserDetails.EmailVerified != nil || updateUserDetails.TermsAccepted != nil {
-					a.userEventsNotifier.NotifyUserCreated(req.Context(), *updatedUser)
+					if err := a.userEventsNotifier.NotifyUserCreated(req.Context(), *updatedUser); err != nil {
+						a.logger.Println(http.StatusInternalServerError, err.Error())
+						res.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+
 				} else {
-					a.userEventsNotifier.NotifyUserUpdated(req.Context(), *originalUser, *updatedUser)
+					if err := a.userEventsNotifier.NotifyUserUpdated(req.Context(), *originalUser, *updatedUser); err != nil {
+						a.logger.Println(http.StatusInternalServerError, err.Error())
+						res.WriteHeader(http.StatusInternalServerError)
+						return
+					}
 				}
 			}
 			a.logMetricForUser(updatedUser.Id, "userupdated", sessionToken, map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
@@ -431,19 +440,20 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 	}
 
 	var requiresPassword bool
-	ownerOrCustodian := clients.Permissions{"root": clients.Allowed, "custodian": clients.Allowed}
-	if permissions, err := a.tokenUserHasRequestedPermissions(tokenData, userId, ownerOrCustodian); err != nil {
-		a.logger.Println(http.StatusInternalServerError, err.Error())
-		res.WriteHeader(http.StatusInternalServerError)
-		return
-	} else if _, ok := permissions["custodian"]; ok {
-		// server tokens will have all requested permission even 'custodian'
-		requiresPassword = false
-	} else if _, ok := permissions["root"]; ok {
-		requiresPassword = true
-	} else {
-		res.WriteHeader(http.StatusUnauthorized)
-		return
+	if !tokenData.IsServer {
+		ownerOrCustodian := clients.Permissions{"root": clients.Allowed, "custodian": clients.Allowed}
+		if permissions, err := a.tokenUserHasRequestedPermissions(tokenData, userId, ownerOrCustodian); err != nil {
+			a.logger.Println(http.StatusInternalServerError, err.Error())
+			res.WriteHeader(http.StatusInternalServerError)
+			return
+		} else if permissions["root"] != nil {
+			requiresPassword = true
+		} else if permissions["custodian"] != nil {
+			requiresPassword = false
+		} else {
+			res.WriteHeader(http.StatusUnauthorized)
+			return
+		}
 	}
 
 	user, err := a.Store.WithContext(req.Context()).FindUser(&User{Id: userId})
