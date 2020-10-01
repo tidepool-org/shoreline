@@ -35,12 +35,7 @@ type userEventsNotifier struct {
 	events.EventProducer
 }
 
-func NewUserEventsNotifier() (EventsNotifier, error) {
-	config := events.NewConfig()
-	if err := config.LoadFromEnv(); err != nil {
-		return nil, err
-	}
-
+func NewUserEventsNotifier(config *events.CloudEventsConfig) (EventsNotifier, error) {
 	producer, err := events.NewKafkaCloudEventsProducer(config)
 	if err != nil {
 		return nil, err

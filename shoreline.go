@@ -11,6 +11,7 @@ import (
 
 	"github.com/gorilla/mux"
 
+	"github.com/Shopify/sarama"
 	common "github.com/tidepool-org/go-common"
 	"github.com/tidepool-org/go-common/clients"
 	"github.com/tidepool-org/go-common/clients/disc"
@@ -126,13 +127,16 @@ func main() {
 	defer clientStore.Disconnect()
 	clientStore.EnsureIndexes()
 
-	notifier, err := user.NewUserEventsNotifier()
-	if err != nil {
-		log.Fatalln(err)
-	}
+	sarama.Logger = logger
 
 	kafkaConfig := events.NewConfig()
 	if err := kafkaConfig.LoadFromEnv(); err != nil {
+		log.Fatalln(err)
+	}
+	kafkaConfig.SaramaConfig.Net.TLS.Config.InsecureSkipVerify = true
+	
+	notifier, err := user.NewUserEventsNotifier(kafkaConfig)
+	if err != nil {
 		log.Fatalln(err)
 	}
 	handler, err := user.NewUserEventsHandler(clientStore)

@@ -1,4 +1,5 @@
 # github.com/Shopify/sarama v1.27.0
+## explicit
 github.com/Shopify/sarama
 # github.com/beorn7/perks v1.0.1
 github.com/beorn7/perks/quantile
