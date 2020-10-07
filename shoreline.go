@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"crypto/tls"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
