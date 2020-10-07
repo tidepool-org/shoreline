@@ -137,7 +137,7 @@ func main() {
 	}
 	//I believe this should be removed at some point
 	kafkaConfig.SaramaConfig.Net.TLS.Config.InsecureSkipVerify = true
-	
+
 	notifier, err := user.NewUserEventsNotifier(kafkaConfig)
 	if err != nil {
 		log.Fatalln(err)
@@ -151,9 +151,6 @@ func main() {
 		log.Fatalln()
 	}
 	consumer.RegisterHandler(events.NewUserEventsHandler(handler))
-
-	// Stop logging kafka connection debug info
-	sarama.Logger = log.New(ioutil.Discard, "[Sarama] ", log.LstdFlags)
 
 	userapi := user.InitApi(config.User, logger, clientStore, notifier)
 	logger.Print("installing handlers")
