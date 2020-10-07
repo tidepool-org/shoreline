@@ -131,13 +131,13 @@ func main() {
 	// Start logging kafka connection debug info
 	sarama.Logger = logger
 
-	//I believe this should be removed at some point
-	kafkaConfig.SaramaConfig.Net.TLS.Config.InsecureSkipVerify = true
-
 	kafkaConfig := events.NewConfig()
 	if err := kafkaConfig.LoadFromEnv(); err != nil {
 		log.Fatalln(err)
 	}
+	//I believe this should be removed at some point
+	kafkaConfig.SaramaConfig.Net.TLS.Config.InsecureSkipVerify = true
+	
 	notifier, err := user.NewUserEventsNotifier(kafkaConfig)
 	if err != nil {
 		log.Fatalln(err)
