@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -127,14 +128,13 @@ func main() {
 	defer clientStore.Disconnect()
 	clientStore.EnsureIndexes()
 
+	// Start logging kafka connection debug info
 	sarama.Logger = logger
 
 	kafkaConfig := events.NewConfig()
 	if err := kafkaConfig.LoadFromEnv(); err != nil {
 		log.Fatalln(err)
 	}
-	kafkaConfig.SaramaConfig.Net.TLS.Config.InsecureSkipVerify = true
-	
 	notifier, err := user.NewUserEventsNotifier(kafkaConfig)
 	if err != nil {
 		log.Fatalln(err)
@@ -148,6 +148,9 @@ func main() {
 		log.Fatalln()
 	}
 	consumer.RegisterHandler(events.NewUserEventsHandler(handler))
+
+	// Stop logging kafka connection debug info
+	sarama.Logger = log.New(ioutil.Discard, "[Sarama] ", log.LstdFlags)
 
 	userapi := user.InitApi(config.User, logger, clientStore, notifier)
 	logger.Print("installing handlers")
