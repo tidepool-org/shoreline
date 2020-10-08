@@ -232,6 +232,11 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 			a.logMetricForUser(newUser.Id, "usercreated", sessionToken.ID, map[string]string{"server": "false"})
 			res.Header().Set(TP_SESSION_TOKEN, sessionToken.ID)
 			a.sendUserWithStatus(res, newUser, http.StatusCreated, false)
+			if err := a.userEventsNotifier.NotifyUserCreated(req.Context(), *newUser); err != nil {
+				a.logger.Println(http.StatusInternalServerError, err.Error())
+				res.WriteHeader(http.StatusInternalServerError)
+				return
+			}
 		}
 	}
 }
@@ -274,6 +279,11 @@ func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, va
 		} else {
 			a.logMetricForUser(newCustodialUser.Id, "custodialusercreated", sessionToken, map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
 			a.sendUserWithStatus(res, newCustodialUser, http.StatusCreated, tokenData.IsServer)
+			if err := a.userEventsNotifier.NotifyUserCreated(req.Context(), *newCustodialUser); err != nil {
+				a.logger.Println(http.StatusInternalServerError, err.Error())
+				res.WriteHeader(http.StatusInternalServerError)
+				return
+			}
 		}
 	}
 }
@@ -367,24 +377,13 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 				}
 			}
 
-			if updatedUser.EmailVerified && updatedUser.TermsAccepted != "" {
-				if updateUserDetails.EmailVerified != nil || updateUserDetails.TermsAccepted != nil {
-					if err := a.userEventsNotifier.NotifyUserCreated(req.Context(), *updatedUser); err != nil {
-						a.logger.Println(http.StatusInternalServerError, err.Error())
-						res.WriteHeader(http.StatusInternalServerError)
-						return
-					}
-
-				} else {
-					if err := a.userEventsNotifier.NotifyUserUpdated(req.Context(), *originalUser, *updatedUser); err != nil {
-						a.logger.Println(http.StatusInternalServerError, err.Error())
-						res.WriteHeader(http.StatusInternalServerError)
-						return
-					}
-				}
-			}
 			a.logMetricForUser(updatedUser.Id, "userupdated", sessionToken, map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
 			a.sendUser(res, updatedUser, tokenData.IsServer)
+			if err := a.userEventsNotifier.NotifyUserUpdated(req.Context(), *originalUser, *updatedUser); err != nil {
+				a.logger.Println(http.StatusInternalServerError, err.Error())
+				res.WriteHeader(http.StatusInternalServerError)
+				return
+			}
 		}
 	}
 }
@@ -431,58 +430,53 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 }
 
 func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
-	// userId := vars["userid"]
-	// tokenData, err := a.authenticateSessionToken(req.Context(), req.Header.Get(TP_SESSION_TOKEN))
-	// if err != nil {
-	// 	a.logger.Println(http.StatusUnauthorized, err.Error())
-	// 	res.WriteHeader(http.StatusUnauthorized)
-	// 	return
-	// }
 
-	// var requiresPassword bool
-	// if !tokenData.IsServer {
-	// 	ownerOrCustodian := clients.Permissions{"root": clients.Allowed, "custodian": clients.Allowed}
-	// 	if permissions, err := a.tokenUserHasRequestedPermissions(tokenData, userId, ownerOrCustodian); err != nil {
-	// 		a.logger.Println(http.StatusInternalServerError, err.Error())
-	// 		res.WriteHeader(http.StatusInternalServerError)
-	// 		return
-	// 	} else if permissions["root"] != nil {
-	// 		requiresPassword = true
-	// 	} else if permissions["custodian"] != nil {
-	// 		requiresPassword = false
-	// 	} else {
-	// 		res.WriteHeader(http.StatusUnauthorized)
-	// 		return
-	// 	}
-	// }
+	td, err := a.authenticateSessionToken(req.Context(), req.Header.Get(TP_SESSION_TOKEN))
 
-	// user, err := a.Store.WithContext(req.Context()).FindUser(&User{Id: userId})
-	// if err != nil {
-	// 	a.logger.Println(http.StatusInternalServerError, err.Error())
-	// 	res.WriteHeader(http.StatusInternalServerError)
-	// 	return
-	// }
+	if err != nil {
+		a.logger.Println(http.StatusUnauthorized, err.Error())
+		res.WriteHeader(http.StatusUnauthorized)
+		return
+	}
 
-	// if user.IsClinic() {
-	// 	res.WriteHeader(http.StatusUnauthorized)
-	// 	return
-	// }
+	var id string
+	if td.IsServer == true {
+		id = vars["userid"]
+		a.logger.Println("operating as server")
+	} else {
+		id = td.UserId
+	}
 
-	// if requiresPassword {
-	// 	password := getGivenDetail(req)["password"]
-	// 	if !user.PasswordsMatch(password, a.ApiConfig.Salt) {
-	// 		sendModelAsResWithStatus(res, status.NewStatus(http.StatusForbidden, STATUS_MISSING_ID_PW), http.StatusForbidden)
-	// 		return
-	// 	}
-	// }
+	pw := getGivenDetail(req)["password"]
 
-	// if err := a.userEventsNotifier.NotifyUserDeleted(req.Context(), *user); err != nil {
-	// 	a.logger.Println(http.StatusInternalServerError, err.Error())
-	// 	res.WriteHeader(http.StatusInternalServerError)
-	// 	return
-	// }
+	if id != "" && pw != "" {
 
-	// res.WriteHeader(http.StatusAccepted)
+		var err error
+		toDelete := &User{Id: id}
+
+		if err = toDelete.HashPassword(pw, a.ApiConfig.Salt); err == nil {
+			if err = a.Store.WithContext(req.Context()).RemoveUser(toDelete); err == nil {
+
+				if td.IsServer {
+					a.logMetricForUser(id, "deleteuser", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "true"})
+				} else {
+					a.logMetric("deleteuser", req.Header.Get(TP_SESSION_TOKEN), map[string]string{"server": "false"})
+				}
+				//cleanup if any
+				if td.IsServer == false {
+					a.Store.WithContext(req.Context()).RemoveTokenByID(req.Header.Get(TP_SESSION_TOKEN))
+				}
+				//all good
+				res.WriteHeader(http.StatusAccepted)
+				return
+			}
+		}
+		a.logger.Println(http.StatusInternalServerError, err.Error())
+		res.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	a.logger.Println(http.StatusForbidden, STATUS_MISSING_ID_PW)
+	sendModelAsResWithStatus(res, status.NewStatus(http.StatusForbidden, STATUS_MISSING_ID_PW), http.StatusForbidden)
 	return
 }
 

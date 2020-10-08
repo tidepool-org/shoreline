@@ -16,5 +16,4 @@ type Storage interface {
 	AddToken(token *SessionToken) error
 	FindTokenByID(id string) (*SessionToken, error)
 	RemoveTokenByID(id string) error
-	RemoveTokensForUser(userId string) error
 }

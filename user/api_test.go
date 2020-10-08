@@ -303,9 +303,6 @@ func expectResponsablesEmpty(t *testing.T) {
 		if len(responsableStore.RemoveTokenByIDResponses) > 0 {
 			t.Logf("RemoveTokenByIDResponses still available")
 		}
-		if len(responsableStore.RemoveTokensForUserResponses) > 0 {
-			t.Logf("RemoveTokensForUserResponses still available")
-		}
 		responsableStore.Reset()
 		t.Fail()
 	}
