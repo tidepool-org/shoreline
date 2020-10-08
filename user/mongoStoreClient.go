@@ -102,12 +102,12 @@ func (msc *MongoStoreClient) EnsureIndexes() error {
 				SetExpireAfterSeconds(0).
 				SetBackground(true),
 		},
-		{
-			Keys: bson.D{{Key: "userId", Value: 1}},
-			Options: options.Index().
-				SetName("TokenUserId").
-				SetBackground(true),
-		},
+		// {
+		// 	Keys: bson.D{{Key: "userId", Value: 1}},
+		// 	Options: options.Index().
+		// 		SetName("TokenUserId").
+		// 		SetBackground(true),
+		// },
 	}
 
 	if _, err := tokensCollection(msc).Indexes().CreateMany(context.Background(), tokenIndexes); err != nil {

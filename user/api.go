@@ -431,58 +431,58 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 }
 
 func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
-	userId := vars["userid"]
-	tokenData, err := a.authenticateSessionToken(req.Context(), req.Header.Get(TP_SESSION_TOKEN))
-	if err != nil {
-		a.logger.Println(http.StatusUnauthorized, err.Error())
-		res.WriteHeader(http.StatusUnauthorized)
-		return
-	}
+	// userId := vars["userid"]
+	// tokenData, err := a.authenticateSessionToken(req.Context(), req.Header.Get(TP_SESSION_TOKEN))
+	// if err != nil {
+	// 	a.logger.Println(http.StatusUnauthorized, err.Error())
+	// 	res.WriteHeader(http.StatusUnauthorized)
+	// 	return
+	// }
 
-	var requiresPassword bool
-	if !tokenData.IsServer {
-		ownerOrCustodian := clients.Permissions{"root": clients.Allowed, "custodian": clients.Allowed}
-		if permissions, err := a.tokenUserHasRequestedPermissions(tokenData, userId, ownerOrCustodian); err != nil {
-			a.logger.Println(http.StatusInternalServerError, err.Error())
-			res.WriteHeader(http.StatusInternalServerError)
-			return
-		} else if permissions["root"] != nil {
-			requiresPassword = true
-		} else if permissions["custodian"] != nil {
-			requiresPassword = false
-		} else {
-			res.WriteHeader(http.StatusUnauthorized)
-			return
-		}
-	}
+	// var requiresPassword bool
+	// if !tokenData.IsServer {
+	// 	ownerOrCustodian := clients.Permissions{"root": clients.Allowed, "custodian": clients.Allowed}
+	// 	if permissions, err := a.tokenUserHasRequestedPermissions(tokenData, userId, ownerOrCustodian); err != nil {
+	// 		a.logger.Println(http.StatusInternalServerError, err.Error())
+	// 		res.WriteHeader(http.StatusInternalServerError)
+	// 		return
+	// 	} else if permissions["root"] != nil {
+	// 		requiresPassword = true
+	// 	} else if permissions["custodian"] != nil {
+	// 		requiresPassword = false
+	// 	} else {
+	// 		res.WriteHeader(http.StatusUnauthorized)
+	// 		return
+	// 	}
+	// }
 
-	user, err := a.Store.WithContext(req.Context()).FindUser(&User{Id: userId})
-	if err != nil {
-		a.logger.Println(http.StatusInternalServerError, err.Error())
-		res.WriteHeader(http.StatusInternalServerError)
-		return
-	}
+	// user, err := a.Store.WithContext(req.Context()).FindUser(&User{Id: userId})
+	// if err != nil {
+	// 	a.logger.Println(http.StatusInternalServerError, err.Error())
+	// 	res.WriteHeader(http.StatusInternalServerError)
+	// 	return
+	// }
 
-	if user.IsClinic() {
-		res.WriteHeader(http.StatusUnauthorized)
-		return
-	}
+	// if user.IsClinic() {
+	// 	res.WriteHeader(http.StatusUnauthorized)
+	// 	return
+	// }
 
-	if requiresPassword {
-		password := getGivenDetail(req)["password"]
-		if !user.PasswordsMatch(password, a.ApiConfig.Salt) {
-			sendModelAsResWithStatus(res, status.NewStatus(http.StatusForbidden, STATUS_MISSING_ID_PW), http.StatusForbidden)
-			return
-		}
-	}
+	// if requiresPassword {
+	// 	password := getGivenDetail(req)["password"]
+	// 	if !user.PasswordsMatch(password, a.ApiConfig.Salt) {
+	// 		sendModelAsResWithStatus(res, status.NewStatus(http.StatusForbidden, STATUS_MISSING_ID_PW), http.StatusForbidden)
+	// 		return
+	// 	}
+	// }
 
-	if err := a.userEventsNotifier.NotifyUserDeleted(req.Context(), *user); err != nil {
-		a.logger.Println(http.StatusInternalServerError, err.Error())
-		res.WriteHeader(http.StatusInternalServerError)
-		return
-	}
+	// if err := a.userEventsNotifier.NotifyUserDeleted(req.Context(), *user); err != nil {
+	// 	a.logger.Println(http.StatusInternalServerError, err.Error())
+	// 	res.WriteHeader(http.StatusInternalServerError)
+	// 	return
+	// }
 
-	res.WriteHeader(http.StatusAccepted)
+	// res.WriteHeader(http.StatusAccepted)
 	return
 }
 
