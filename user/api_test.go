@@ -107,7 +107,7 @@ xwIDAQAB
 	mockNotifier = &MockEventsNotifier{}
 	mockStore    = NewMockStoreClient(fakeConfig.Salt, false, false)
 	mockMetrics  = highwater.NewMock()
-	api    = InitAPITest(fakeConfig, logger, mockStore, mockNotifier)
+	mockShoreline    = InitAPITest(fakeConfig, logger, mockStore, mockNotifier)
 	/*
 	 *
 	 */
@@ -125,9 +125,9 @@ xwIDAQAB
 )
 
 func InitShoreline(config ApiConfig, store Storage, perms clients.Gatekeeper, userEventsNotifier EventsNotifier) *Api {
-	api := InitAPITest(config, logger, store, mockNotifier)
-	api.AttachPerms(perms)
-	return api
+	mockShoreline := InitAPITest(config, logger, store, mockNotifier)
+	mockShoreline.AttachPerms(perms)
+	return mockShoreline
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -338,9 +338,9 @@ func TestGetStatus_StatusOk(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/status", nil)
 	response := httptest.NewRecorder()
 
-	api.SetHandlers("", rtr)
+	mockShoreline.SetHandlers("", rtr)
 
-	api.GetStatus(response, request)
+	mockShoreline.GetStatus(response, request)
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("Resp given [%d] expected [%d] ", response.Code, http.StatusOK)
@@ -471,7 +471,7 @@ func FindUsersWithIds(t *testing.T, userIds []string) {
 		t.Fatal(err)
 	}
 
-	api.GetUsers(rr, r)
+	mockShoreline.GetUsers(rr, r)
 
 	rs := rr.Result()
 
@@ -1251,9 +1251,9 @@ func TestDeleteUser_StatusForbidden_WhenNoPw(t *testing.T) {
 	request.Header.Set(TP_SESSION_TOKEN, userToken.ID)
 	response := httptest.NewRecorder()
 
-	api.SetHandlers("", rtr)
+	mockShoreline.SetHandlers("", rtr)
 
-	api.DeleteUser(response, request, noParams)
+	mockShoreline.DeleteUser(response, request, noParams)
 
 	if response.Code != http.StatusForbidden {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusForbidden, response.Code)
@@ -1273,9 +1273,9 @@ func TestDeleteUser_StatusForbidden_WhenEmptyPw(t *testing.T) {
 	request.Header.Set(TP_SESSION_TOKEN, userToken.ID)
 	response := httptest.NewRecorder()
 
-	api.SetHandlers("", rtr)
+	mockShoreline.SetHandlers("", rtr)
 
-	api.DeleteUser(response, request, noParams)
+	mockShoreline.DeleteUser(response, request, noParams)
 
 	if response.Code != http.StatusForbidden {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusForbidden, response.Code)
@@ -1294,9 +1294,9 @@ func TestDeleteUser_Failure(t *testing.T) {
 	req.Header.Set(TP_SESSION_TOKEN, userToken.ID)
 	resp := httptest.NewRecorder()
 
-	api.SetHandlers("", rtr)
+	shorelineFails.SetHandlers("", rtr)
 
-	api.DeleteUser(resp, req, noParams)
+	shorelineFails.DeleteUser(resp, req, noParams)
 
 	if resp.Code != http.StatusUnauthorized {
 		t.Fatalf("Expected [%v] and got [%v]", http.StatusUnauthorized, resp.Code)
@@ -1310,9 +1310,9 @@ func TestDeleteUser_StatusAccepted(t *testing.T) {
 	request.Header.Set(TP_SESSION_TOKEN, userToken.ID)
 	response := httptest.NewRecorder()
 
-	api.SetHandlers("", rtr)
+	mockShoreline.SetHandlers("", rtr)
 
-	api.DeleteUser(response, request, map[string]string{"userid": user.Id})
+	mockShoreline.DeleteUser(response, request, map[string]string{"userid": user.Id})
 
 	if response.Code != http.StatusAccepted {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusAccepted, response.Code)
@@ -1323,9 +1323,9 @@ func TestDeleteUser_StatusUnauthorized_WhenNoToken(t *testing.T) {
 	request, _ := http.NewRequest("DELETE", "/", nil)
 	response := httptest.NewRecorder()
 
-	api.SetHandlers("", rtr)
+	mockShoreline.SetHandlers("", rtr)
 
-	api.DeleteUser(response, request, noParams)
+	mockShoreline.DeleteUser(response, request, noParams)
 
 	if response.Code != http.StatusUnauthorized {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusUnauthorized, response.Code)
@@ -1472,9 +1472,9 @@ func TestServerLogin_StatusBadRequest_WhenNoNameOrSecret(t *testing.T) {
 	request, _ := http.NewRequest("POST", "/", nil)
 	response := httptest.NewRecorder()
 
-	api.SetHandlers("", rtr)
+	mockShoreline.SetHandlers("", rtr)
 
-	api.ServerLogin(response, request)
+	mockShoreline.ServerLogin(response, request)
 
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusBadRequest, response.Code)
@@ -1492,9 +1492,9 @@ func TestServerLogin_StatusBadRequest_WhenNoName(t *testing.T) {
 	request.Header.Set(TP_SERVER_SECRET, theSecret)
 	response := httptest.NewRecorder()
 
-	api.SetHandlers("", rtr)
+	mockShoreline.SetHandlers("", rtr)
 
-	api.ServerLogin(response, request)
+	mockShoreline.ServerLogin(response, request)
 
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusBadRequest, response.Code)
@@ -1512,9 +1512,9 @@ func TestServerLogin_StatusBadRequest_WhenNoSecret(t *testing.T) {
 	request.Header.Set(TP_SERVER_NAME, "shoreline")
 	response := httptest.NewRecorder()
 
-	api.SetHandlers("", rtr)
+	mockShoreline.SetHandlers("", rtr)
 
-	api.ServerLogin(response, request)
+	mockShoreline.ServerLogin(response, request)
 
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusBadRequest, response.Code)
@@ -1533,9 +1533,9 @@ func TestServerLogin_StatusOK(t *testing.T) {
 	request.Header.Set(TP_SERVER_SECRET, theSecret)
 	response := httptest.NewRecorder()
 
-	api.SetHandlers("", rtr)
+	mockShoreline.SetHandlers("", rtr)
 
-	api.ServerLogin(response, request)
+	mockShoreline.ServerLogin(response, request)
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, response.Code)
@@ -1568,9 +1568,9 @@ func TestServerLogin_StatusUnauthorized_WhenSecretWrong(t *testing.T) {
 	request.Header.Set(TP_SERVER_SECRET, "wrong secret")
 	response := httptest.NewRecorder()
 
-	api.SetHandlers("", rtr)
+	mockShoreline.SetHandlers("", rtr)
 
-	api.ServerLogin(response, request)
+	mockShoreline.ServerLogin(response, request)
 
 	if response.Code != http.StatusUnauthorized {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusUnauthorized, response.Code)
@@ -1589,9 +1589,9 @@ func TestRefreshSession_StatusUnauthorized_WithNoToken(t *testing.T) {
 	request, _ := http.NewRequest("GET", "/", nil)
 	response := httptest.NewRecorder()
 
-	api.SetHandlers("", rtr)
+	mockShoreline.SetHandlers("", rtr)
 
-	api.RefreshSession(response, request)
+	mockShoreline.RefreshSession(response, request)
 
 	if response.Code != http.StatusUnauthorized {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusUnauthorized, response.Code)
@@ -1603,9 +1603,9 @@ func TestRefreshSession_StatusUnauthorized_WithWrongToken(t *testing.T) {
 	request.Header.Set(TP_SESSION_TOKEN, "not this token")
 	response := httptest.NewRecorder()
 
-	api.SetHandlers("", rtr)
+	mockShoreline.SetHandlers("", rtr)
 
-	api.RefreshSession(response, request)
+	mockShoreline.RefreshSession(response, request)
 
 	if response.Code != http.StatusUnauthorized {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusUnauthorized, response.Code)
@@ -1614,13 +1614,13 @@ func TestRefreshSession_StatusUnauthorized_WithWrongToken(t *testing.T) {
 
 func TestRefreshSession_StatusOK(t *testing.T) {
 
-	api.SetHandlers("", rtr)
+	mockShoreline.SetHandlers("", rtr)
 
 	refreshRequest, _ := http.NewRequest("GET", "/", nil)
 	refreshRequest.Header.Set(TP_SESSION_TOKEN, userToken.ID)
 	response := httptest.NewRecorder()
 
-	api.RefreshSession(response, refreshRequest)
+	mockShoreline.RefreshSession(response, refreshRequest)
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, response.Code)
@@ -1782,7 +1782,7 @@ func Test_LongTermLogin_Success(t *testing.T) {
 
 func TestHasServerToken_True(t *testing.T) {
 
-	api.SetHandlers("", rtr)
+	mockShoreline.SetHandlers("", rtr)
 
 	//login as server
 	svrLoginRequest, _ := http.NewRequest("POST", "/", nil)
@@ -1790,7 +1790,7 @@ func TestHasServerToken_True(t *testing.T) {
 	svrLoginRequest.Header.Set(TP_SERVER_SECRET, theSecret)
 	response := httptest.NewRecorder()
 
-	api.ServerLogin(response, svrLoginRequest)
+	mockShoreline.ServerLogin(response, svrLoginRequest)
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, response.Code)
@@ -1800,7 +1800,7 @@ func TestHasServerToken_True(t *testing.T) {
 		t.Fatal("The session token should have been set")
 	}
 
-	if hasServerToken(response.Header().Get(TP_SESSION_TOKEN), api.ApiConfig.TokenConfigs[0]) == false {
+	if hasServerToken(response.Header().Get(TP_SESSION_TOKEN), mockShoreline.ApiConfig.TokenConfigs[0]) == false {
 		t.Fatal("The token should have been a valid server token")
 	}
 }
@@ -1809,7 +1809,7 @@ func TestServerCheckToken_StatusOK(t *testing.T) {
 
 	//the api
 
-	api.SetHandlers("", rtr)
+	mockShoreline.SetHandlers("", rtr)
 
 	//step 1 - login as server
 	request, _ := http.NewRequest("POST", "/serverlogin", nil)
@@ -1817,7 +1817,7 @@ func TestServerCheckToken_StatusOK(t *testing.T) {
 	request.Header.Set(TP_SERVER_SECRET, theSecret)
 	response := httptest.NewRecorder()
 
-	api.ServerLogin(response, request)
+	mockShoreline.ServerLogin(response, request)
 
 	svrTokenToUse := response.Header().Get(TP_SESSION_TOKEN)
 
@@ -1830,7 +1830,7 @@ func TestServerCheckToken_StatusOK(t *testing.T) {
 	checkTokenRequest.Header.Set(TP_SESSION_TOKEN, svrTokenToUse)
 	checkTokenResponse := httptest.NewRecorder()
 
-	api.ServerCheckToken(checkTokenResponse, checkTokenRequest, map[string]string{"token": svrTokenToUse})
+	mockShoreline.ServerCheckToken(checkTokenResponse, checkTokenRequest, map[string]string{"token": svrTokenToUse})
 
 	if checkTokenResponse.Code != http.StatusOK {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, checkTokenResponse.Code)
@@ -1860,12 +1860,12 @@ func TestServerCheckToken_StatusUnauthorized_WhenNoSvrToken(t *testing.T) {
 
 	//the api
 
-	api.SetHandlers("", rtr)
+	mockShoreline.SetHandlers("", rtr)
 
 	request, _ := http.NewRequest("GET", "/", nil)
 	response := httptest.NewRecorder()
 
-	api.ServerCheckToken(response, request, noParams)
+	mockShoreline.ServerCheckToken(response, request, noParams)
 
 	if response.Code != http.StatusUnauthorized {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusUnauthorized, response.Code)
@@ -1878,7 +1878,7 @@ func TestCheckToken_StatusOK(t *testing.T) {
 
 	//the api
 
-	api.SetHandlers("", rtr)
+	mockShoreline.SetHandlers("", rtr)
 
 	//step 1 - login as server
 	request, _ := http.NewRequest("POST", "/serverlogin", nil)
@@ -1886,7 +1886,7 @@ func TestCheckToken_StatusOK(t *testing.T) {
 	request.Header.Set(TP_SERVER_SECRET, theSecret)
 	response := httptest.NewRecorder()
 
-	api.ServerLogin(response, request)
+	mockShoreline.ServerLogin(response, request)
 
 	svrTokenToUse := response.Header().Get(TP_SESSION_TOKEN)
 
@@ -1899,7 +1899,7 @@ func TestCheckToken_StatusOK(t *testing.T) {
 	checkTokenRequest.Header.Set(TP_SESSION_TOKEN, svrTokenToUse)
 	checkTokenResponse := httptest.NewRecorder()
 
-	api.CheckToken(checkTokenResponse, checkTokenRequest)
+	mockShoreline.CheckToken(checkTokenResponse, checkTokenRequest)
 
 	if checkTokenResponse.Code != http.StatusOK {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, checkTokenResponse.Code)
@@ -1929,12 +1929,12 @@ func TestCheckToken_StatusUnauthorized_WhenNoToken(t *testing.T) {
 
 	//the api
 
-	api.SetHandlers("", rtr)
+	mockShoreline.SetHandlers("", rtr)
 
 	request, _ := http.NewRequest("GET", "/", nil)
 	response := httptest.NewRecorder()
 
-	api.CheckToken(response, request)
+	mockShoreline.CheckToken(response, request)
 
 	if response.Code != http.StatusUnauthorized {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusUnauthorized, response.Code)
@@ -1947,9 +1947,9 @@ func TestLogout_StatusOK_WhenNoToken(t *testing.T) {
 	request, _ := http.NewRequest("POST", "/", nil)
 	response := httptest.NewRecorder()
 
-	api.SetHandlers("", rtr)
+	mockShoreline.SetHandlers("", rtr)
 
-	api.Logout(response, request)
+	mockShoreline.Logout(response, request)
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, response.Code)
@@ -1958,13 +1958,13 @@ func TestLogout_StatusOK_WhenNoToken(t *testing.T) {
 
 func TestLogout_StatusOK(t *testing.T) {
 
-	api.SetHandlers("", rtr)
+	mockShoreline.SetHandlers("", rtr)
 	//now logout with valid token
 	request, _ := http.NewRequest("POST", "/", nil)
 	request.Header.Set(TP_SESSION_TOKEN, userToken.ID)
 	response := httptest.NewRecorder()
 
-	api.Logout(response, request)
+	mockShoreline.Logout(response, request)
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, response.Code)
@@ -1997,9 +1997,9 @@ func TestAnonymousIdHashPair_StatusOK(t *testing.T) {
 
 	response := httptest.NewRecorder()
 
-	api.SetHandlers("", rtr)
+	mockShoreline.SetHandlers("", rtr)
 
-	api.AnonymousIdHashPair(response, request)
+	mockShoreline.AnonymousIdHashPair(response, request)
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, response.Code)
@@ -2032,9 +2032,9 @@ func TestAnonymousIdHashPair_StatusOK_EvenWhenNoURLParams(t *testing.T) {
 
 	response := httptest.NewRecorder()
 
-	api.SetHandlers("", rtr)
+	mockShoreline.SetHandlers("", rtr)
 
-	api.AnonymousIdHashPair(response, request)
+	mockShoreline.AnonymousIdHashPair(response, request)
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, response.Code)
@@ -2064,7 +2064,7 @@ func TestAnonymousIdHashPair_StatusOK_EvenWhenNoURLParams(t *testing.T) {
 
 func TestAnonIdHashPair_InBulk(t *testing.T) {
 
-	api.SetHandlers("", rtr)
+	mockShoreline.SetHandlers("", rtr)
 
 	// we ask for 100 AnonymousIdHashPair to be created
 	//NOTE: while we can run more locally travis doesn't like it so 100 should be good enough
@@ -2080,7 +2080,7 @@ func TestAnonIdHashPair_InBulk(t *testing.T) {
 			defer wg.Done()
 			req, _ := http.NewRequest("GET", "/", nil)
 			res := httptest.NewRecorder()
-			api.AnonymousIdHashPair(res, req)
+			mockShoreline.AnonymousIdHashPair(res, req)
 			body, _ := ioutil.ReadAll(res.Body)
 			json.Unmarshal(body, &hash)
 			mutex.Lock()
