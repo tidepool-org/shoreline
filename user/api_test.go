@@ -107,7 +107,7 @@ xwIDAQAB
 	mockNotifier = &MockEventsNotifier{}
 	mockStore    = NewMockStoreClient(fakeConfig.Salt, false, false)
 	mockMetrics  = highwater.NewMock()
-	api          = InitAPITest(fakeConfig, logger, mockStore, mockNotifier)
+	api    = InitAPITest(fakeConfig, logger, mockStore, mockNotifier)
 	/*
 	 *
 	 */
@@ -320,9 +320,6 @@ func expectResponsablesEmpty(t *testing.T) {
 		t.Fail()
 	}
 	if mockNotifier.HasResponses() {
-		if len(mockNotifier.NotifyUserDeletedResponses) > 0 {
-			t.Logf("NotifyUserDeletedResponses still available")
-		}
 		if len(mockNotifier.NotifyUserCreatedResponses) > 0 {
 			t.Logf("NotifyUserCreatedResponses still available")
 		}
@@ -609,6 +606,7 @@ func Test_CreateUser_Success(t *testing.T) {
 	responsableStore.UpsertUserResponses = []error{nil}
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
 	responsableStore.AddTokenResponses = []error{nil}
+	mockNotifier.NotifyUserCreatedResponses = []error{nil}
 	defer expectResponsablesEmpty(t)
 
 	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\", \"roles\": [\"clinic\"]}"
@@ -738,6 +736,7 @@ func Test_CreateCustodialUser_Success_Anonymous(t *testing.T) {
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
 	responsableStore.UpsertUserResponses = []error{nil}
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
+	mockNotifier.NotifyUserCreatedResponses = []error{nil}
 	defer expectResponsablesEmpty(t)
 
 	body := "{}"
@@ -755,6 +754,7 @@ func Test_CreateCustodialUser_Success_Anonymous_Server(t *testing.T) {
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
 	responsableStore.UpsertUserResponses = []error{nil}
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
+	mockNotifier.NotifyUserCreatedResponses = []error{nil}
 	defer expectResponsablesEmpty(t)
 
 	body := "{}"
@@ -772,6 +772,7 @@ func Test_CreateCustodialUser_Success_Known(t *testing.T) {
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
 	responsableStore.UpsertUserResponses = []error{nil}
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
+	mockNotifier.NotifyUserCreatedResponses = []error{nil}
 	defer expectResponsablesEmpty(t)
 
 	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}"
@@ -1004,6 +1005,7 @@ func Test_UpdateUser_Error_RemoveCustodians_UsersInGroupError(t *testing.T) {
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
 	responsableStore.UpsertUserResponses = []error{nil}
 	responsableGatekeeper.UsersInGroupResponses = []UsersPermissionsResponse{{clients.UsersPermissions{}, errors.New("ERROR")}}
+	mockNotifier.NotifyUserUpdatedResponses = []error{nil}
 	defer expectResponsablesEmpty(t)
 
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\"}}"
@@ -1021,6 +1023,8 @@ func Test_UpdateUser_Error_RemoveCustodians_SetPermissionsError(t *testing.T) {
 	responsableStore.UpsertUserResponses = []error{nil}
 	responsableGatekeeper.UsersInGroupResponses = []UsersPermissionsResponse{{clients.UsersPermissions{"0000000000": {"custodian": clients.Allowed}}, nil}}
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, errors.New("ERROR")}}
+	mockNotifier.NotifyUserUpdatedResponses = []error{nil}
+
 	defer expectResponsablesEmpty(t)
 
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\"}}"
@@ -1037,6 +1041,7 @@ func Test_UpdateUser_Success_Custodian(t *testing.T) {
 	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{"custodian": clients.Allowed}, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
 	responsableStore.UpsertUserResponses = []error{nil}
+	mockNotifier.NotifyUserUpdatedResponses = []error{nil}
 	defer expectResponsablesEmpty(t)
 
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}}"
@@ -1056,6 +1061,8 @@ func Test_UpdateUser_Success_UserFromUrl(t *testing.T) {
 	responsableStore.UpsertUserResponses = []error{nil}
 	responsableGatekeeper.UsersInGroupResponses = []UsersPermissionsResponse{{clients.UsersPermissions{"0000000000": {"custodian": clients.Allowed}}, nil}}
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
+	mockNotifier.NotifyUserUpdatedResponses = []error{nil}
+
 	defer expectResponsablesEmpty(t)
 
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"newpassword\", \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
@@ -1075,6 +1082,7 @@ func Test_UpdateUser_Success_UserFromToken(t *testing.T) {
 	responsableStore.UpsertUserResponses = []error{nil}
 	responsableGatekeeper.UsersInGroupResponses = []UsersPermissionsResponse{{clients.UsersPermissions{"0000000000": {"custodian": clients.Allowed}}, nil}}
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
+	mockNotifier.NotifyUserUpdatedResponses = []error{nil}
 	defer expectResponsablesEmpty(t)
 
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"newpassword\", \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
@@ -1092,7 +1100,6 @@ func Test_UpdateUser_Success_Server_WithoutPassword(t *testing.T) {
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
 	responsableStore.UpsertUserResponses = []error{nil}
-	mockNotifier.NotifyUserCreatedResponses = []error{nil}
 	mockNotifier.NotifyUserUpdatedResponses = []error{nil}
 	defer expectResponsablesEmpty(t)
 
@@ -1102,7 +1109,6 @@ func Test_UpdateUser_Success_Server_WithoutPassword(t *testing.T) {
 	response := performRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
 	successResponse := expectSuccessResponseWithJSONMap(t, response, 200)
 	expectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
-	mockNotifier.NotifyUserUpdated(context.Background(), *user, *user)
 	expectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": true, "emails": []interface{}{"a@z.co"}, "username": "a@z.co", "roles": []interface{}{"clinic"}, "termsAccepted": "2016-01-01T01:23:45-08:00", "passwordExists": false})
 }
 
@@ -1114,7 +1120,6 @@ func Test_UpdateUser_Success_Server_WithPassword(t *testing.T) {
 	responsableStore.UpsertUserResponses = []error{nil}
 	responsableGatekeeper.UsersInGroupResponses = []UsersPermissionsResponse{{clients.UsersPermissions{"0000000000": {"custodian": clients.Allowed}}, nil}}
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
-	mockNotifier.NotifyUserCreatedResponses = []error{nil}
 	mockNotifier.NotifyUserUpdatedResponses = []error{nil}
 	defer expectResponsablesEmpty(t)
 
@@ -1124,7 +1129,6 @@ func Test_UpdateUser_Success_Server_WithPassword(t *testing.T) {
 	response := performRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
 	successResponse := expectSuccessResponseWithJSONMap(t, response, 200)
 	expectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
-	mockNotifier.NotifyUserUpdated(context.Background(), *user, *user)
 	expectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": true, "emails": []interface{}{"a@z.co"}, "username": "a@z.co", "roles": []interface{}{"clinic"}, "termsAccepted": "2016-01-01T01:23:45-08:00", "passwordExists": true})
 }
 
@@ -1243,128 +1247,89 @@ func Test_GetUserInfo_Success_Server(t *testing.T) {
 ////////////////////////////////////////////////////////////////////////////////
 
 func TestDeleteUser_StatusForbidden_WhenNoPw(t *testing.T) {
-	// sessionToken := createSessionToken(t, "0000000000", false, tokenDuration)
-	// responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
-	// responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "0000000000", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", EmailVerified: true, PwHash: "xyz", Hash: "123"}, nil}}
-	// defer expectResponsablesEmpty(t)
+	request, _ := http.NewRequest("DELETE", "/", nil)
+	request.Header.Set(TP_SESSION_TOKEN, userToken.ID)
+	response := httptest.NewRecorder()
 
-	// headers := http.Header{}
-	// headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
-	// response := performRequestHeaders(t, "DELETE", "/user/0000000000", headers)
+	api.SetHandlers("", rtr)
 
-	// if response.Code != http.StatusForbidden {
-	// 	t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusForbidden, response.Code)
-	// }
+	api.DeleteUser(response, request, noParams)
 
-	// body, _ := ioutil.ReadAll(response.Body)
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusForbidden, response.Code)
+	}
 
-	// if string(body) != `{"code":403,"reason":"Missing id and/or password"}` {
-	// 	t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_MISSING_ID_PW)
-	// }
+	body, _ := ioutil.ReadAll(response.Body)
+
+	if string(body) != `{"code":403,"reason":"Missing id and/or password"}` {
+		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_MISSING_ID_PW)
+	}
 }
 
 func TestDeleteUser_StatusForbidden_WhenEmptyPw(t *testing.T) {
-	// sessionToken := createSessionToken(t, "0000000000", false, tokenDuration)
-	// responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
-	// responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "0000000000", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", EmailVerified: true, PwHash: "xyz", Hash: "123"}, nil}}
-	// defer expectResponsablesEmpty(t)
 
-	// headers := http.Header{}
-	// headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
-	// response := performRequestBodyHeaders(t, "DELETE", "/user/0000000000", `{"password":""}`, headers)
+	var jsonData = []byte(`{"password": ""}`)
+	request, _ := http.NewRequest("DELETE", "/", bytes.NewBuffer(jsonData))
+	request.Header.Set(TP_SESSION_TOKEN, userToken.ID)
+	response := httptest.NewRecorder()
 
-	// if response.Code != http.StatusForbidden {
-	// 	t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusForbidden, response.Code)
-	// }
+	api.SetHandlers("", rtr)
 
-	// body, _ := ioutil.ReadAll(response.Body)
+	api.DeleteUser(response, request, noParams)
 
-	// if string(body) != `{"code":403,"reason":"Missing id and/or password"}` {
-	// 	t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_MISSING_ID_PW)
-	// }
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusForbidden, response.Code)
+	}
+
+	body, _ := ioutil.ReadAll(response.Body)
+
+	if string(body) != `{"code":403,"reason":"Missing id and/or password"}` {
+		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_MISSING_ID_PW)
+	}
 }
 
-func TestDeleteUser_StatusForbidden_WhenWrongPw(t *testing.T) {
-	// sessionToken := createSessionToken(t, "0000000000", false, tokenDuration)
-	// responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
-	// responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "0000000000", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", EmailVerified: true, PwHash: "xyz", Hash: "123"}, nil}}
-	// defer expectResponsablesEmpty(t)
+func TestDeleteUser_Failure(t *testing.T) {
+	var jsonData = []byte(`{"password": "92ggh38"}`)
+	req, _ := http.NewRequest("DELETE", "/", bytes.NewBuffer(jsonData))
+	req.Header.Set(TP_SESSION_TOKEN, userToken.ID)
+	resp := httptest.NewRecorder()
 
-	// headers := http.Header{}
-	// headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
-	// response := performRequestBodyHeaders(t, "DELETE", "/user/0000000000", `{"password":"incorrect"}`, headers)
-	// if response.Code != http.StatusForbidden {
-	// 	t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusForbidden, response.Code)
-	// }
+	api.SetHandlers("", rtr)
 
-	// body, _ := ioutil.ReadAll(response.Body)
-	// if string(body) != `{"code":403,"reason":"Missing id and/or password"}` {
-	// 	t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_MISSING_ID_PW)
-	// }
+	api.DeleteUser(resp, req, noParams)
+
+	if resp.Code != http.StatusUnauthorized {
+		t.Fatalf("Expected [%v] and got [%v]", http.StatusUnauthorized, resp.Code)
+	}
 }
 
-func TestDeleteUser_StatusAcceptedCorrectPassword(t *testing.T) {
-	// sessionToken := createSessionToken(t, "1111111111", false, tokenDuration)
-	// responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
-	// responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", EmailVerified: true, PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5", Hash: "123"}, nil}}
-	// mockNotifier.NotifyUserDeletedResponses = []error{nil}
-	// defer expectResponsablesEmpty(t)
+func TestDeleteUser_StatusAccepted(t *testing.T) {
 
-	// headers := http.Header{}
-	// headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
-	// response := performRequestBodyHeaders(t, "DELETE", "/user/1111111111", `{"password":"password"}`, headers)
+	var jsonData = []byte(`{"password": "123youknoWm3"}`)
+	request, _ := http.NewRequest("DELETE", "/", bytes.NewBuffer(jsonData))
+	request.Header.Set(TP_SESSION_TOKEN, userToken.ID)
+	response := httptest.NewRecorder()
 
-	// if response.Code != http.StatusAccepted {
-	// 	t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusAccepted, response.Code)
-	// }
+	api.SetHandlers("", rtr)
+
+	api.DeleteUser(response, request, map[string]string{"userid": user.Id})
+
+	if response.Code != http.StatusAccepted {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusAccepted, response.Code)
+	}
 }
 
-func TestDeleteUser_StatusAcceptedCustodian(t *testing.T) {
-	// sessionToken := createSessionToken(t, "1111111111", false, tokenDuration)
-	// responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
-	// responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "0000000000", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", EmailVerified: true, PwHash: "xyz", Hash: "123"}, nil}}
-	// responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{"custodian": clients.Allowed}, nil}}
-	// mockNotifier.NotifyUserDeletedResponses = []error{nil}
-	// defer expectResponsablesEmpty(t)
+func TestDeleteUser_StatusUnauthorized_WhenNoToken(t *testing.T) {
+	request, _ := http.NewRequest("DELETE", "/", nil)
+	response := httptest.NewRecorder()
 
-	// headers := http.Header{}
-	// headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
-	// response := performRequestHeaders(t, "DELETE", "/user/0000000000", headers)
+	api.SetHandlers("", rtr)
 
-	// if response.Code != http.StatusAccepted {
-	// 	t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusAccepted, response.Code)
-	// }
-}
+	api.DeleteUser(response, request, noParams)
 
-func TestDeleteUser_StatusAcceptedWithServerToken(t *testing.T) {
-	// sessionToken := createSessionToken(t, "platform", true, tokenDuration)
-	// responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
-	// responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", EmailVerified: true, PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5", Hash: "123"}, nil}}
-	// mockNotifier.NotifyUserDeletedResponses = []error{nil}
-	// defer expectResponsablesEmpty(t)
-
-	// headers := http.Header{}
-	// headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
-	// response := performRequestHeaders(t, "DELETE", "/user/1111111111", headers)
-
-	// if response.Code != http.StatusAccepted {
-	// 	t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusAccepted, response.Code)
-	// }
-}
-
-func TestDeleteUser_StatusUnauthorizedWhenClinic(t *testing.T) {
-	// sessionToken := createSessionToken(t, "platform", true, tokenDuration)
-	// responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
-	// responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111", Username: "a@z.co", Emails: []string{"a@z.co"}, Roles: []string{"clinic"}, TermsAccepted: "2016-01-01T01:23:45-08:00", EmailVerified: true, PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5", Hash: "123"}, nil}}
-	// defer expectResponsablesEmpty(t)
-
-	// headers := http.Header{}
-	// headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
-	// response := performRequestHeaders(t, "DELETE", "/user/1111111111", headers)
-
-	// if response.Code != http.StatusUnauthorized {
-	// 	t.Fatalf("Non-expected status code %v:\n\tbody: %v", http.StatusUnauthorized, response.Code)
-	// }
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusUnauthorized, response.Code)
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
