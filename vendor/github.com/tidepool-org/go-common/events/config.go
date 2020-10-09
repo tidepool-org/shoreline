@@ -17,6 +17,8 @@ type CloudEventsConfig struct {
 	KafkaTopicPrefix      string   `envconfig:"KAFKA_TOPIC_PREFIX" required:"true"`
 	KafkaRequireSSL       bool     `envconfig:"KAFKA_REQUIRE_SSL" required:"true"`
 	KafkaVersion          string   `envconfig:"KAFKA_VERSION" required:"true"`
+	KafkaUsername         string   `envconfig:"KAFKA_USERNAME" required:"false"`
+	KafkaPassword         string   `envconfig:"KAFKA_PASSWORD" required:"false"`
 	SaramaConfig          *sarama.Config
 }
 
@@ -38,7 +40,16 @@ func (k *CloudEventsConfig) LoadFromEnv() error {
 	k.SaramaConfig.Version = version
 	if k.KafkaRequireSSL {
 		k.SaramaConfig.Net.TLS.Enable = true
+		// Use the root CAs of the host
+		k.SaramaConfig.Net.TLS.Config.RootCAs = nil
 	}
+	if k.KafkaUsername != "" && k.KafkaPassword != "" {
+		k.SaramaConfig.Net.SASL.Enable = true
+		k.SaramaConfig.Net.SASL.Mechanism = sarama.SASLTypeSCRAMSHA512
+		k.SaramaConfig.Net.SASL.User = k.KafkaUsername
+		k.SaramaConfig.Net.SASL.Password = k.KafkaPassword
+	}
+
 	return nil
 }
 
