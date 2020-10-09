@@ -84,24 +84,3 @@ func NewUserEventsHandler(store Storage) (events.UserEventsHandler, error) {
 		store: store,
 	}, nil
 }
-
-func (u *eventsHandler) HandleDeleteUserEvent(payload events.DeleteUserEvent) error {
-	// var errs []error
-	// if err := u.store.RemoveTokensForUser(payload.UserID); err != nil {
-	// 	errs = append(errs, err)
-	// 	log.Printf("Error deleteting user tokens for user %v: %v", payload.UserID, err)
-	// 	failedEvents.WithLabelValues(payload.GetEventType(), ShorelineUserEventHandlerName, RemoveUserTokensOperationName)
-	// }
-	// if err := u.store.RemoveUser(&User{Id: payload.UserID}); err != nil {
-	// 	errs = append(errs, err)
-	// 	log.Printf("Error deleteting user %v: %v", payload.UserID, err)
-	// 	failedEvents.WithLabelValues(payload.GetEventType(), ShorelineUserEventHandlerName, RemoveUserOperationName)
-	// }
-	// if len(errs) == 1 {
-	// 	return errs[0]
-	// } else if len(errs) > 1 {
-	// 	return errors.New(fmt.Sprintf("multiple errors occurred while deleting user: %v", errs))
-	// }
-
-	return nil
-}

@@ -134,8 +134,6 @@ func main() {
 	if err := kafkaConfig.LoadFromEnv(); err != nil {
 		log.Fatalln(err)
 	}
-	//I believe this should be removed at some point
-	kafkaConfig.SaramaConfig.Net.TLS.Config.InsecureSkipVerify = true
 
 	notifier, err := user.NewUserEventsNotifier(kafkaConfig)
 	if err != nil {

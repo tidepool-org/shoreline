@@ -232,11 +232,6 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 			a.logMetricForUser(newUser.Id, "usercreated", sessionToken.ID, map[string]string{"server": "false"})
 			res.Header().Set(TP_SESSION_TOKEN, sessionToken.ID)
 			a.sendUserWithStatus(res, newUser, http.StatusCreated, false)
-			if err := a.userEventsNotifier.NotifyUserCreated(req.Context(), *newUser); err != nil {
-				a.logger.Println(http.StatusInternalServerError, err.Error())
-				res.WriteHeader(http.StatusInternalServerError)
-				return
-			}
 		}
 	}
 }
@@ -279,11 +274,6 @@ func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, va
 		} else {
 			a.logMetricForUser(newCustodialUser.Id, "custodialusercreated", sessionToken, map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
 			a.sendUserWithStatus(res, newCustodialUser, http.StatusCreated, tokenData.IsServer)
-			if err := a.userEventsNotifier.NotifyUserCreated(req.Context(), *newCustodialUser); err != nil {
-				a.logger.Println(http.StatusInternalServerError, err.Error())
-				res.WriteHeader(http.StatusInternalServerError)
-				return
-			}
 		}
 	}
 }
@@ -378,12 +368,12 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 			}
 
 			a.logMetricForUser(updatedUser.Id, "userupdated", sessionToken, map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
-			a.sendUser(res, updatedUser, tokenData.IsServer)
 			if err := a.userEventsNotifier.NotifyUserUpdated(req.Context(), *originalUser, *updatedUser); err != nil {
 				a.logger.Println(http.StatusInternalServerError, err.Error())
 				res.WriteHeader(http.StatusInternalServerError)
 				return
 			}
+			a.sendUser(res, updatedUser, tokenData.IsServer)
 		}
 	}
 }

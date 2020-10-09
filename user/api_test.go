@@ -606,7 +606,6 @@ func Test_CreateUser_Success(t *testing.T) {
 	responsableStore.UpsertUserResponses = []error{nil}
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
 	responsableStore.AddTokenResponses = []error{nil}
-	mockNotifier.NotifyUserCreatedResponses = []error{nil}
 	defer expectResponsablesEmpty(t)
 
 	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\", \"roles\": [\"clinic\"]}"
@@ -736,7 +735,6 @@ func Test_CreateCustodialUser_Success_Anonymous(t *testing.T) {
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
 	responsableStore.UpsertUserResponses = []error{nil}
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
-	mockNotifier.NotifyUserCreatedResponses = []error{nil}
 	defer expectResponsablesEmpty(t)
 
 	body := "{}"
@@ -754,7 +752,6 @@ func Test_CreateCustodialUser_Success_Anonymous_Server(t *testing.T) {
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
 	responsableStore.UpsertUserResponses = []error{nil}
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
-	mockNotifier.NotifyUserCreatedResponses = []error{nil}
 	defer expectResponsablesEmpty(t)
 
 	body := "{}"
@@ -772,7 +769,6 @@ func Test_CreateCustodialUser_Success_Known(t *testing.T) {
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
 	responsableStore.UpsertUserResponses = []error{nil}
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
-	mockNotifier.NotifyUserCreatedResponses = []error{nil}
 	defer expectResponsablesEmpty(t)
 
 	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}"
