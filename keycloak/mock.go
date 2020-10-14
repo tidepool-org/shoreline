@@ -19,6 +19,13 @@ func (m *MockClient) Login(ctx context.Context, username, password string) (*oau
 	}, nil
 }
 
+func (m *MockClient) GetServiceAccountToken(ctx context.Context) (*oauth2.Token, error) {
+	return &oauth2.Token{
+		AccessToken:  "SSSSSS",
+		RefreshToken: "ZZZZZZ",
+	}, nil
+}
+
 func (m *MockClient) RevokeToken(ctx context.Context, token *oauth2.Token) error {
 	return nil
 }

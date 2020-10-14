@@ -17,6 +17,7 @@ const (
 	tokenPrefix         = "kc"
 	tokenPartsSeparator = ":"
 	masterRealm         = "master"
+	serverRole          = "backend_service"
 )
 
 var ErrUserNotFound = errors.New("user not found")
@@ -24,6 +25,7 @@ var ErrUserConflict = errors.New("user already exists")
 
 type Client interface {
 	Login(ctx context.Context, username, password string) (*oauth2.Token, error)
+	GetServiceAccountToken(ctx context.Context) (*oauth2.Token, error)
 	IntrospectToken(ctx context.Context, token *oauth2.Token) (*TokenIntrospectionResult, error)
 	RefreshToken(ctx context.Context, token *oauth2.Token) (*oauth2.Token, error)
 	RevokeToken(ctx context.Context, token *oauth2.Token) error
@@ -100,7 +102,15 @@ type RealmAccess struct {
 	Roles []string `json:"roles"`
 }
 
-func (t *TokenIntrospectionResult) HasServerScope() bool {
+func (t *TokenIntrospectionResult) IsServerToken() bool {
+	if len(t.RealmAccess.Roles) > 0 {
+		for _, role := range t.RealmAccess.Roles {
+			if role == serverRole {
+				return true
+			}
+		}
+	}
+
 	return false
 }
 
@@ -157,6 +167,14 @@ func (c *client) Login(ctx context.Context, username, password string) (*oauth2.
 		username,
 		password,
 	)
+	if err != nil {
+		return nil, err
+	}
+	return c.jwtToAccessToken(jwt), nil
+}
+
+func (c *client) GetServiceAccountToken(ctx context.Context) (*oauth2.Token, error) {
+	jwt, err := c.keycloak.LoginClient(ctx, c.cfg.ClientID, c.cfg.ClientSecret, c.cfg.Realm)
 	if err != nil {
 		return nil, err
 	}
@@ -225,7 +243,7 @@ func (c *client) GetUserByEmail(ctx context.Context, email string) (*User, error
 
 	users, err := c.keycloak.GetUsers(ctx, token.AccessToken, c.cfg.Realm, gocloak.GetUsersParams{
 		Email: &email,
-		//Exact: gocloak.BoolP(true),
+		Exact: gocloak.BoolP(true),
 	})
 	if err != nil || len(users) == 0 {
 		return nil, err

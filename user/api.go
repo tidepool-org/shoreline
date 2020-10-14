@@ -491,33 +491,32 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 // status: 401 STATUS_PW_WRONG
 // status: 500 STATUS_ERR_GENERATING_TOKEN
 func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
-
-	server, pw := req.Header.Get(TP_SERVER_NAME), req.Header.Get(TP_SERVER_SECRET)
-
-	if server == "" || pw == "" {
+	clientId, clientSecret := req.Header.Get(TP_SERVER_NAME), req.Header.Get(TP_SERVER_SECRET)
+	if clientId == "" || clientSecret == "" {
 		a.logger.Println(http.StatusBadRequest, STATUS_MISSING_ID_PW)
 		sendModelAsResWithStatus(res, status.NewStatus(http.StatusBadRequest, STATUS_MISSING_ID_PW), http.StatusBadRequest)
 		return
 	}
-	if pw == a.ApiConfig.ServerSecret {
-		//generate new token
-		if sessionToken, err := CreateSessionTokenAndSave(
-			&TokenData{DurationSecs: extractTokenDuration(req), UserId: server, IsServer: true},
-			a.ApiConfig.TokenConfigs[0],
-			a.Store.WithContext(req.Context()),
-		); err != nil {
-			a.logger.Println(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN, err.Error())
-			sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN), http.StatusInternalServerError)
-			return
-		} else {
-			a.logMetricAsServer("serverlogin", sessionToken.ID, nil)
-			res.Header().Set(TP_SESSION_TOKEN, sessionToken.ID)
-			return
-		}
+
+	if clientSecret != a.ApiConfig.ServerSecret {
+		a.logger.Println(http.StatusUnauthorized, STATUS_PW_WRONG)
+		sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_PW_WRONG), http.StatusUnauthorized)
+		return
 	}
-	a.logger.Println(http.StatusUnauthorized, STATUS_PW_WRONG)
-	sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_PW_WRONG), http.StatusUnauthorized)
-	return
+
+	var token string
+	oauthToken, err := a.keycloakClient.GetServiceAccountToken(req.Context())
+	if err == nil {
+		token, err = keycloak.CreateBackwardCompatibleToken(oauthToken)
+	}
+
+	if err != nil {
+		a.logger.Println(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN, err.Error())
+		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN), http.StatusInternalServerError)
+		return
+	}
+
+	res.Header().Set(TP_SESSION_TOKEN, token)
 }
 
 // status: 200 TP_SESSION_TOKEN, TokenData

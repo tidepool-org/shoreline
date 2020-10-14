@@ -233,7 +233,7 @@ func TokenDataFromIntrospectionResult(introspectionResult *keycloak.TokenIntrosp
 	}
 
 	return &TokenData{
-		IsServer:     introspectionResult.HasServerScope(),
+		IsServer:     introspectionResult.IsServerToken(),
 		UserId:       introspectionResult.Subject,
 		DurationSecs: duration,
 	}, nil

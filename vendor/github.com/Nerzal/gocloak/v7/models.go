@@ -220,8 +220,8 @@ type UserGroup struct {
 type GetUsersParams struct {
 	BriefRepresentation *bool   `json:"briefRepresentation,string"`
 	Email               *string `json:"email,omitempty"`
-	Enabled             *bool   `json:"enabled,omitempty"`
-	Exact               *bool   `json:"exact,omitempty"`
+	Enabled             *bool   `json:"enabled,string,omitempty"`
+	Exact               *bool   `json:"exact,string,omitempty"`
 	First               *int    `json:"first,string,omitempty"`
 	FirstName           *string `json:"firstName,omitempty"`
 	LastName            *string `json:"lastName,omitempty"`
@@ -772,6 +772,14 @@ func (t *RequestingPartyTokenOptions) FormData() map[string]string {
 	return res
 }
 
+// RequestingPartyPermission is returned by request party token with response type set to "permissions"
+type RequestingPartyPermission struct {
+	Claims       *map[string]string `json:"claims,omitempty"`
+	ResourceID   *string            `json:"rsid,omitempty"`
+	ResourceName *string            `json:"rsname,omitempty"`
+	Scopes       *[]string          `json:"scopes"`
+}
+
 // UserSessionRepresentation represents a list of user's sessions
 type UserSessionRepresentation struct {
 	Clients    *map[string]string `json:"clients,omitempty"`
@@ -891,7 +899,7 @@ type GetUsersByRoleParams struct {
 	Max   *int `json:"max,string,omitempty"`
 }
 
-// PermissionRepresentation is a representation of a Permission
+// PermissionRepresentation is a representation of a RequestingPartyPermission
 type PermissionRepresentation struct {
 	DecisionStrategy *DecisionStrategy `json:"decisionStrategy,omitempty"`
 	Description      *string           `json:"description,omitempty"`

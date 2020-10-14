@@ -224,9 +224,9 @@ func main() {
 	go func() {
 		for {
 			sig := <-signals
-			logger.Printf("Got signal [%s]", sig)
 
 			if sig == syscall.SIGINT || sig == syscall.SIGTERM {
+				logger.Printf("Got signal [%s]", sig)
 				server.Close()
 				done <- true
 			}
