@@ -37,7 +37,11 @@ func (h *history) reset() {
 	}
 	h.decoders = sequenceDecs{}
 	if h.huffTree != nil {
+<<<<<<< HEAD
 		if h.dict == nil || h.dict.litDec != h.huffTree {
+=======
+		if h.dict == nil || h.dict.litEnc != h.huffTree {
+>>>>>>> master
 			huffDecoderPool.Put(h.huffTree)
 		}
 	}
@@ -55,7 +59,11 @@ func (h *history) setDict(dict *dict) {
 	h.decoders.offsets = dict.ofDec
 	h.decoders.matchLengths = dict.mlDec
 	h.recentOffsets = dict.offsets
+<<<<<<< HEAD
 	h.huffTree = dict.litDec
+=======
+	h.huffTree = dict.litEnc
+>>>>>>> master
 }
 
 // append bytes to history.

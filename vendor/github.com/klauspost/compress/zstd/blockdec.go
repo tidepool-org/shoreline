@@ -646,7 +646,11 @@ func (b *blockDec) decodeCompressed(hist *history) error {
 		}
 	} else {
 		if hist.huffTree != nil && huff != nil {
+<<<<<<< HEAD
 			if hist.dict == nil || hist.dict.litDec != hist.huffTree {
+=======
+			if hist.dict == nil || hist.dict.litEnc != hist.huffTree {
+>>>>>>> master
 				huffDecoderPool.Put(hist.huffTree)
 			}
 			hist.huffTree = nil

@@ -32,7 +32,7 @@ const use8BitTables = true
 // The size of the input may be larger than the table definition.
 // Any content remaining after the table definition will be returned.
 // If no Scratch is provided a new one is allocated.
-// The returned Scratch can be used for decoding input using this table.
+// The returned Scratch can be used for encoding or decoding input using this table.
 func ReadTable(in []byte, s *Scratch) (s2 *Scratch, remain []byte, err error) {
 	s, err = s.prepare(in)
 	if err != nil {
@@ -58,8 +58,8 @@ func ReadTable(in []byte, s *Scratch) (s2 *Scratch, remain []byte, err error) {
 		s.symbolLen = uint16(oSize)
 		in = in[iSize:]
 	} else {
-		if len(in) <= int(iSize) {
-			return s, nil, errors.New("input too small for table")
+		if len(in) < int(iSize) {
+			return s, nil, fmt.Errorf("input too small for table, want %d bytes, have %d", iSize, len(in))
 		}
 		// FSE compressed weights
 		s.fse.DecompressLimit = 255
@@ -138,15 +138,37 @@ func ReadTable(in []byte, s *Scratch) (s2 *Scratch, remain []byte, err error) {
 	if len(s.dt.single) != tSize {
 		s.dt.single = make([]dEntrySingle, tSize)
 	}
+	cTable := s.prevTable
+	if cap(cTable) < maxSymbolValue+1 {
+		cTable = make([]cTableEntry, 0, maxSymbolValue+1)
+	}
+	cTable = cTable[:maxSymbolValue+1]
+	s.prevTable = cTable[:s.symbolLen]
+	s.prevTableLog = s.actualTableLog
+
 	for n, w := range s.huffWeight[:s.symbolLen] {
 		if w == 0 {
+			cTable[n] = cTableEntry{
+				val:   0,
+				nBits: 0,
+			}
 			continue
 		}
 		length := (uint32(1) << w) >> 1
 		d := dEntrySingle{
 			entry: uint16(s.actualTableLog+1-w) | (uint16(n) << 8),
 		}
+<<<<<<< HEAD
 		rank := &rankStats[w]
+=======
+
+		rank := &rankStats[w]
+		cTable[n] = cTableEntry{
+			val:   uint16(*rank >> (w - 1)),
+			nBits: uint8(d.entry),
+		}
+
+>>>>>>> master
 		single := s.dt.single[*rank : *rank+length]
 		for i := range single {
 			single[i] = d
@@ -200,6 +222,7 @@ func (s *Scratch) Decoder() *Decoder {
 		actualTableLog: s.actualTableLog,
 	}
 }
+<<<<<<< HEAD
 
 // Decoder provides stateless decoding.
 type Decoder struct {
@@ -207,12 +230,22 @@ type Decoder struct {
 	actualTableLog uint8
 }
 
+=======
+
+// Decoder provides stateless decoding.
+type Decoder struct {
+	dt             dTable
+	actualTableLog uint8
+}
+
+>>>>>>> master
 // Decompress1X will decompress a 1X encoded stream.
 // The cap of the output buffer will be the maximum decompressed size.
 // The length of the supplied input must match the end of a block exactly.
 func (d *Decoder) Decompress1X(dst, src []byte) ([]byte, error) {
 	if len(d.dt.single) == 0 {
 		return nil, errors.New("no table loaded")
+<<<<<<< HEAD
 	}
 	if use8BitTables && d.actualTableLog <= 8 {
 		return d.decompress1X8Bit(dst, src)
@@ -222,6 +255,17 @@ func (d *Decoder) Decompress1X(dst, src []byte) ([]byte, error) {
 	if err != nil {
 		return dst, err
 	}
+=======
+	}
+	if use8BitTables && d.actualTableLog <= 8 {
+		return d.decompress1X8Bit(dst, src)
+	}
+	var br bitReaderShifted
+	err := br.init(src)
+	if err != nil {
+		return dst, err
+	}
+>>>>>>> master
 	maxDecodedSize := cap(dst)
 	dst = dst[:0]
 
