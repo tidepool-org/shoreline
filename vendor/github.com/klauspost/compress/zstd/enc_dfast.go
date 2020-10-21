@@ -676,8 +676,6 @@ encodeLoop:
 	if e.cur < bufferReset {
 		e.cur += int32(len(src))
 	}
-<<<<<<< HEAD
-=======
 }
 
 // ResetDict will reset and set a dictionary if not nil
@@ -712,5 +710,4 @@ func (e *doubleFastEncoder) Reset(d *dict, singleBlock bool) {
 	// Reset table to initial state
 	e.cur = e.maxMatchOff
 	copy(e.longTable[:], e.dictLongTable)
->>>>>>> master
 }

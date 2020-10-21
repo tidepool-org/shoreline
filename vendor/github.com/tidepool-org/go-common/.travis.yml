@@ -1,11 +1,7 @@
 language: go
 
 go:
-<<<<<<< HEAD
  - 1.14
-=======
- - 1.11.4
->>>>>>> master
 
 before_install:
   npm install -g snyk

@@ -450,16 +450,10 @@ func fuzzFseEncoder(data []byte) int {
 }
 
 // encode will encode the block and append the output in b.output.
-<<<<<<< HEAD
-func (b *blockEnc) encode(raw, rawAllLits bool) error {
-	if len(b.sequences) == 0 {
-		return b.encodeLits(rawAllLits)
-=======
 // Previous offset codes must be pushed if more blocks are expected.
 func (b *blockEnc) encode(org []byte, raw, rawAllLits bool) error {
 	if len(b.sequences) == 0 {
 		return b.encodeLits(b.literals, rawAllLits)
->>>>>>> master
 	}
 	// We want some difference to at least account for the headers.
 	saved := b.size - len(b.literals) - (b.size >> 5)

@@ -614,35 +614,6 @@ encodeLoop:
 	// We do not store history, so we must offset e.cur to avoid false matches for next user.
 	if e.cur < bufferReset {
 		e.cur += int32(len(src))
-<<<<<<< HEAD
-	}
-}
-
-func (e *fastBase) addBlock(src []byte) int32 {
-	if debugAsserts && e.cur > bufferReset {
-		panic(fmt.Sprintf("ecur (%d) > buffer reset (%d)", e.cur, bufferReset))
-	}
-	// check if we have space already
-	if len(e.hist)+len(src) > cap(e.hist) {
-		if cap(e.hist) == 0 {
-			l := e.maxMatchOff * 2
-			// Make it at least 1MB.
-			if l < 1<<20 {
-				l = 1 << 20
-			}
-			e.hist = make([]byte, 0, l)
-		} else {
-			if cap(e.hist) < int(e.maxMatchOff*2) {
-				panic("unexpected buffer size")
-			}
-			// Move down
-			offset := int32(len(e.hist)) - e.maxMatchOff
-			copy(e.hist[0:e.maxMatchOff], e.hist[offset:])
-			e.cur += offset
-			e.hist = e.hist[:e.maxMatchOff]
-		}
-=======
->>>>>>> master
 	}
 }
 
@@ -653,31 +624,6 @@ func (e *fastEncoder) Reset(d *dict, singleBlock bool) {
 		return
 	}
 
-<<<<<<< HEAD
-	// Extend the match to be as long as possible.
-	return int32(matchLen(src[s:], src[t:]))
-}
-
-// Reset the encoding table.
-func (e *fastBase) Reset(singleBlock bool) {
-	if e.blk == nil {
-		e.blk = &blockEnc{}
-		e.blk.init()
-	} else {
-		e.blk.reset(nil)
-	}
-	e.blk.initNewEncode()
-	if e.crc == nil {
-		e.crc = xxhash.New()
-	} else {
-		e.crc.Reset()
-	}
-	if !singleBlock && cap(e.hist) < int(e.maxMatchOff*2) {
-		l := e.maxMatchOff * 2
-		// Make it at least 1MB.
-		if l < 1<<20 {
-			l = 1 << 20
-=======
 	// Init or copy dict table
 	if len(e.dictTable) != len(e.table) || d.id != e.lastDictID {
 		if len(e.dictTable) != len(e.table) {
@@ -705,7 +651,6 @@ func (e *fastBase) Reset(singleBlock bool) {
 					offset: i + 2,
 				}
 			}
->>>>>>> master
 		}
 		e.lastDictID = d.id
 	}

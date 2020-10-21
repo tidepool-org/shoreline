@@ -5,10 +5,6 @@ It offers a very wide range of compression / speed trade-off, while being backed
 A high performance compression algorithm is implemented. For now focused on speed. 
 
 This package provides [compression](#Compressor) to and [decompression](#Decompressor) of Zstandard content. 
-<<<<<<< HEAD
-Note that custom dictionaries are only supported for decompression.
-=======
->>>>>>> master
 
 This package is pure Go and without use of "unsafe". 
 
@@ -152,99 +148,12 @@ I have collected some speed examples to compare speed and compression against ot
 ```
 Silesia Corpus:
 http://sun.aei.polsl.pl/~sdeor/corpus/silesia.zip
-<<<<<<< HEAD
 
 This package:
 file    out     level   insize      outsize     millis  mb/s
 silesia.tar zskp    1   211947520   73101992    643     313.87
 silesia.tar zskp    2   211947520   67504318    969     208.38
 silesia.tar zskp    3   211947520   65177448    1899    106.44
-
-cgo zstd:
-silesia.tar zstd    1   211947520   73605392    543     371.56
-silesia.tar zstd    3   211947520   66793289    864     233.68
-silesia.tar zstd    6   211947520   62916450    1913    105.66
-
-gzip, stdlib/this package:
-silesia.tar gzstd   1   211947520   80007735    1654    122.21
-silesia.tar gzkp    1   211947520   80369488    1168    173.06
-
-GOB stream of binary data. Highly compressible.
-https://files.klauspost.com/compress/gob-stream.7z
-
-file        out     level   insize  outsize     millis  mb/s
-gob-stream  zskp    1   1911399616  235022249   3088    590.30
-gob-stream  zskp    2   1911399616  205669791   3786    481.34
-gob-stream  zskp    3   1911399616  185792019   9324    195.48
-gob-stream  zstd    1   1911399616  249810424   2637    691.26
-gob-stream  zstd    3   1911399616  208192146   3490    522.31
-gob-stream  zstd    6   1911399616  193632038   6687    272.56
-gob-stream  gzstd   1   1911399616  357382641   10251   177.82
-gob-stream  gzkp    1   1911399616  362156523   5695    320.08
-
-The test data for the Large Text Compression Benchmark is the first
-10^9 bytes of the English Wikipedia dump on Mar. 3, 2006.
-http://mattmahoney.net/dc/textdata.html
-
-file    out level   insize      outsize     millis  mb/s
-enwik9  zskp    1   1000000000  343848582   3609    264.18
-enwik9  zskp    2   1000000000  317276632   5746    165.97
-enwik9  zskp    3   1000000000  294540704   11725   81.34
-enwik9  zstd    1   1000000000  358072021   3110    306.65
-enwik9  zstd    3   1000000000  313734672   4784    199.35
-enwik9  zstd    6   1000000000  295138875   10290   92.68
-enwik9  gzstd   1   1000000000  382578136   9604    99.30
-enwik9  gzkp    1   1000000000  383825945   6544    145.73
-
-Highly compressible JSON file.
-https://files.klauspost.com/compress/github-june-2days-2019.json.zst
-
-file                        out level   insize      outsize     millis  mb/s
-github-june-2days-2019.json zskp    1   6273951764  699045015   10620   563.40
-github-june-2days-2019.json zskp    2   6273951764  617881763   11687   511.96
-github-june-2days-2019.json zskp    3   6273951764  537511906   29252   204.54
-github-june-2days-2019.json zstd    1   6273951764  766284037   8450    708.00
-github-june-2days-2019.json zstd    3   6273951764  661889476   10927   547.57
-github-june-2days-2019.json zstd    6   6273951764  642756859   22996   260.18
-github-june-2days-2019.json gzstd   1   6273951764  1164400847  29948   199.79
-github-june-2days-2019.json gzkp    1   6273951764  1128755542  19236   311.03
-
-VM Image, Linux mint with a few installed applications:
-https://files.klauspost.com/compress/rawstudio-mint14.7z
-
-file                    out level   insize      outsize     millis  mb/s
-rawstudio-mint14.tar    zskp    1   8558382592  3667489370  20210   403.84
-rawstudio-mint14.tar    zskp    2   8558382592  3364592300  31873   256.07
-rawstudio-mint14.tar    zskp    3   8558382592  3224594213  71751   113.75
-rawstudio-mint14.tar    zstd    1   8558382592  3609250104  17136   476.27
-rawstudio-mint14.tar    zstd    3   8558382592  3341679997  29262   278.92
-rawstudio-mint14.tar    zstd    6   8558382592  3235846406  77904   104.77
-rawstudio-mint14.tar    gzstd   1   8558382592  3926257486  57722   141.40
-rawstudio-mint14.tar    gzkp    1   8558382592  3970463184  41749   195.49
-
-CSV data:
-https://files.klauspost.com/compress/nyc-taxi-data-10M.csv.zst
-
-file                    out level   insize      outsize     millis  mb/s
-nyc-taxi-data-10M.csv   zskp    1   3325605752  641339945   8925    355.35
-nyc-taxi-data-10M.csv   zskp    2   3325605752  591748091   11268   281.44
-nyc-taxi-data-10M.csv   zskp    3   3325605752  538490114   19880   159.53
-nyc-taxi-data-10M.csv   zstd    1   3325605752  687399637   8233    385.18
-nyc-taxi-data-10M.csv   zstd    3   3325605752  598514411   10065   315.07
-nyc-taxi-data-10M.csv   zstd    6   3325605752  570522953   20038   158.27
-nyc-taxi-data-10M.csv   gzstd   1   3325605752  928656485   23876   132.83
-nyc-taxi-data-10M.csv   gzkp    1   3325605752  924718719   16388   193.53
-```
-
-### Converters
-=======
-
-This package:
-file    out     level   insize      outsize     millis  mb/s
-silesia.tar zskp    1   211947520   73101992    643     313.87
-silesia.tar zskp    2   211947520   67504318    969     208.38
-silesia.tar zskp    3   211947520   65177448    1899    106.44
->>>>>>> master
 
 cgo zstd:
 silesia.tar zstd    1   211947520   73605392    543     371.56
@@ -392,8 +301,6 @@ A re-used Decoder will still contain the dictionaries registered.
 
 When registering multiple dictionaries with the same ID, the last one will be used.
 
-<<<<<<< HEAD
-=======
 It is possible to use dictionaries when compressing data.
 
 To enable a dictionary use `WithEncoderDict(dict []byte)`. Here only one dictionary will be used 
@@ -409,7 +316,6 @@ For information see [zstd dictionary information](https://github.com/facebook/zs
 For now there is a fixed startup performance penalty for compressing content with dictionaries. 
 This will likely be improved over time. Just be aware to test performance when implementing.  
 
->>>>>>> master
 ### Allocation-less operation
 
 The decoder has been designed to operate without allocations after a warmup. 

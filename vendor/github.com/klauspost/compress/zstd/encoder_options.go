@@ -24,10 +24,7 @@ type encoderOptions struct {
 	allLitEntropy   bool
 	customWindow    bool
 	customALEntropy bool
-<<<<<<< HEAD
-=======
 	dict            *dict
->>>>>>> master
 }
 
 func (o *encoderOptions) setDefault() {

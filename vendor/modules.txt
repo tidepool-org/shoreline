@@ -1,11 +1,6 @@
-<<<<<<< HEAD
 # github.com/Shopify/sarama v1.27.0
 ## explicit
 github.com/Shopify/sarama
-=======
-# github.com/SpeakData/minimarketo v0.0.0-20170821092521-29339e452f44
-## explicit
-github.com/SpeakData/minimarketo
 # github.com/aws/aws-sdk-go v1.29.15
 github.com/aws/aws-sdk-go/aws
 github.com/aws/aws-sdk-go/aws/awserr
@@ -24,7 +19,6 @@ github.com/aws/aws-sdk-go/internal/strings
 github.com/aws/aws-sdk-go/internal/sync/singleflight
 github.com/aws/aws-sdk-go/private/protocol
 github.com/aws/aws-sdk-go/private/protocol/rest
->>>>>>> master
 # github.com/beorn7/perks v1.0.1
 github.com/beorn7/perks/quantile
 # github.com/cespare/xxhash/v2 v2.1.1
@@ -78,10 +72,9 @@ github.com/golang/protobuf/ptypes/duration
 github.com/golang/protobuf/ptypes/timestamp
 # github.com/golang/snappy v0.0.1
 github.com/golang/snappy
-<<<<<<< HEAD
 # github.com/google/uuid v1.1.1
 github.com/google/uuid
-# github.com/gorilla/mux v1.7.4
+# github.com/gorilla/mux v1.8.0
 ## explicit
 github.com/gorilla/mux
 # github.com/hashicorp/go-uuid v1.0.2
@@ -91,18 +84,12 @@ github.com/hashicorp/golang-lru/simplelru
 # github.com/jcmturner/gofork v1.0.0
 github.com/jcmturner/gofork/encoding/asn1
 github.com/jcmturner/gofork/x/crypto/pbkdf2
-# github.com/kelseyhightower/envconfig v1.4.0
-github.com/kelseyhightower/envconfig
-# github.com/klauspost/compress v1.10.10
-=======
-# github.com/gorilla/mux v1.8.0
-## explicit
-github.com/gorilla/mux
 # github.com/jmespath/go-jmespath v0.0.0-20180206201540-c2b33e8439af
 github.com/jmespath/go-jmespath
+# github.com/kelseyhightower/envconfig v1.4.0
+github.com/kelseyhightower/envconfig
 # github.com/klauspost/compress v1.11.1
 ## explicit
->>>>>>> master
 github.com/klauspost/compress/fse
 github.com/klauspost/compress/huff0
 github.com/klauspost/compress/snappy
@@ -118,11 +105,7 @@ github.com/pierrec/lz4
 github.com/pierrec/lz4/internal/xxh32
 # github.com/pkg/errors v0.9.1
 github.com/pkg/errors
-<<<<<<< HEAD
-# github.com/prometheus/client_golang v1.6.0
-=======
 # github.com/prometheus/client_golang v1.7.1
->>>>>>> master
 ## explicit
 github.com/prometheus/client_golang/prometheus
 github.com/prometheus/client_golang/prometheus/internal
@@ -144,11 +127,7 @@ github.com/rcrowley/go-metrics
 github.com/russross/blackfriday/v2
 # github.com/shurcooL/sanitized_anchor_name v1.0.0
 github.com/shurcooL/sanitized_anchor_name
-<<<<<<< HEAD
 # github.com/tidepool-org/go-common v0.6.3-0.20201014125142-0883b62ba70a
-=======
-# github.com/tidepool-org/go-common v0.6.2
->>>>>>> master
 ## explicit
 github.com/tidepool-org/go-common
 github.com/tidepool-org/go-common/clients
@@ -169,11 +148,7 @@ github.com/xdg/scram
 # github.com/xdg/stringprep v1.0.0
 ## explicit
 github.com/xdg/stringprep
-<<<<<<< HEAD
-# go.mongodb.org/mongo-driver v1.3.4
-=======
 # go.mongodb.org/mongo-driver v1.4.1
->>>>>>> master
 ## explicit
 go.mongodb.org/mongo-driver/bson
 go.mongodb.org/mongo-driver/bson/bsoncodec
@@ -207,7 +182,6 @@ go.mongodb.org/mongo-driver/x/mongo/driver/session
 go.mongodb.org/mongo-driver/x/mongo/driver/topology
 go.mongodb.org/mongo-driver/x/mongo/driver/uuid
 go.mongodb.org/mongo-driver/x/mongo/driver/wiremessage
-<<<<<<< HEAD
 # go.opencensus.io v0.22.0
 go.opencensus.io
 go.opencensus.io/internal
@@ -237,23 +211,17 @@ go.uber.org/zap/internal/bufferpool
 go.uber.org/zap/internal/color
 go.uber.org/zap/internal/exit
 go.uber.org/zap/zapcore
-# golang.org/x/crypto v0.0.0-20200510223506-06a226fb4e37
+# golang.org/x/crypto v0.0.0-20201002170205-7f63de1d35b0
+## explicit
 golang.org/x/crypto/md4
+golang.org/x/crypto/ocsp
 golang.org/x/crypto/pbkdf2
 # golang.org/x/net v0.0.0-20200528225125-3c3fba18258b
 golang.org/x/net/internal/socks
 golang.org/x/net/proxy
-# golang.org/x/sync v0.0.0-20200317015054-43a5402ce75a
-## explicit
-=======
-# golang.org/x/crypto v0.0.0-20201002170205-7f63de1d35b0
-## explicit
-golang.org/x/crypto/ocsp
-golang.org/x/crypto/pbkdf2
 # golang.org/x/sync v0.0.0-20200930132711-30421366ff76
 ## explicit
 golang.org/x/sync/errgroup
->>>>>>> master
 golang.org/x/sync/semaphore
 # golang.org/x/sys v0.0.0-20200615200032-f1bc736245b1
 golang.org/x/sys/internal/unsafeheader
