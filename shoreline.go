@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"log"
 	"net/http"
 	"os"
@@ -141,11 +142,11 @@ func main() {
 	}
 	handler, err := user.NewUserEventsHandler(clientStore)
 	if err != nil {
-		log.Fatalln()
+		log.Fatalln(err)
 	}
 	consumer, err := events.NewSaramaCloudEventsConsumer(kafkaConfig)
 	if err != nil {
-		log.Fatalln()
+		log.Fatalln(err)
 	}
 	consumer.RegisterHandler(events.NewUserEventsHandler(handler))
 

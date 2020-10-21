@@ -23,6 +23,10 @@ import (
 )
 
 var (
+	failedUserEventCount = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "tidepool_shoreline_failed_user_event_total",
+		Help: "The total number of failures to send update user event to kafka due to errors",
+	})
 	statusCount = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "tidepool_shoreline_failed_status_count",
 		Help: "The number of errors for each status code and status reason.",
@@ -370,6 +374,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 			a.logMetricForUser(updatedUser.Id, "userupdated", sessionToken, map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
 			if err := a.userEventsNotifier.NotifyUserUpdated(req.Context(), *originalUser, *updatedUser); err != nil {
 				a.logger.Println(http.StatusInternalServerError, err.Error())
+				failedUserEventCount.Inc()
 				res.WriteHeader(http.StatusInternalServerError)
 				return
 			}
