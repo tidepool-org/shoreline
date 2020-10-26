@@ -10,7 +10,7 @@ require (
 	github.com/gorilla/mux v1.8.0
 	github.com/klauspost/compress v1.11.1 // indirect
 	github.com/prometheus/client_golang v1.7.1
-	github.com/tidepool-org/go-common v0.6.3-0.20201008091429-020dcd262191
+	github.com/tidepool-org/go-common v0.7.1
 	github.com/urfave/cli v1.22.4
 	github.com/xdg/stringprep v1.0.0 // indirect
 	go.mongodb.org/mongo-driver v1.4.1
