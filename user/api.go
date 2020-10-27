@@ -497,7 +497,7 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 		return
 	}
 
-	res.WriteHeader(http.StatusAccepted)
+	res.WriteHeader(http.StatusNoContent)
 	return
 }
 

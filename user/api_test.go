@@ -1331,7 +1331,7 @@ func TestDeleteUser_StatusForbidden_WhenWrongPw(t *testing.T) {
 	}
 }
 
-func TestDeleteUser_StatusAcceptedCustodian(t *testing.T) {
+func TestDeleteUser_StatusNoContentCustodian(t *testing.T) {
 	sessionToken := createSessionToken(t, "1111111111", false, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "0000000000", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", EmailVerified: true, PwHash: "xyz", Hash: "123"}, nil}}
@@ -1344,12 +1344,12 @@ func TestDeleteUser_StatusAcceptedCustodian(t *testing.T) {
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := performRequestHeaders(t, "DELETE", "/user/0000000000", headers)
 
-	if response.Code != http.StatusAccepted {
-		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusAccepted, response.Code)
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusNoContent, response.Code)
 	}
 }
 
-func TestDeleteUser_StatusAcceptedCorrectPassword(t *testing.T) {
+func TestDeleteUser_StatusNoContentCorrectPassword(t *testing.T) {
 	sessionToken := createSessionToken(t, "1111111111", false, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", EmailVerified: true, PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5", Hash: "123"}, nil}}
@@ -1360,12 +1360,12 @@ func TestDeleteUser_StatusAcceptedCorrectPassword(t *testing.T) {
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := performRequestBodyHeaders(t, "DELETE", "/user/1111111111", `{"password":"password"}`, headers)
 
-	if response.Code != http.StatusAccepted {
-		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusAccepted, response.Code)
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusNoContent, response.Code)
 	}
 }
 
-func TestDeleteUser_StatusAcceptedWithServerToken(t *testing.T) {
+func TestDeleteUser_StatusNoContentWithServerToken(t *testing.T) {
 	sessionToken := createSessionToken(t, "platform", true, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", EmailVerified: true, PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5", Hash: "123"}, nil}}
@@ -1376,8 +1376,8 @@ func TestDeleteUser_StatusAcceptedWithServerToken(t *testing.T) {
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := performRequestHeaders(t, "DELETE", "/user/1111111111", headers)
 
-	if response.Code != http.StatusAccepted {
-		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusAccepted, response.Code)
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusNoContent, response.Code)
 	}
 }
 
