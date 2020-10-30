@@ -11,7 +11,6 @@ require (
 	github.com/prometheus/client_golang v1.7.1
 	github.com/tidepool-org/go-common v0.7.1
 	github.com/urfave/cli v1.22.4
-	github.com/xdg/stringprep v1.0.0 // indirect
 	go.mongodb.org/mongo-driver v1.4.1
 	golang.org/x/crypto v0.0.0-20201002170205-7f63de1d35b0 // indirect
 	golang.org/x/sync v0.0.0-20200930132711-30421366ff76 // indirect
