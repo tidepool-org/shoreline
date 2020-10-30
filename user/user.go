@@ -51,6 +51,10 @@ type UpdateUserDetails struct {
 	EmailVerified *bool
 }
 
+type Profile struct {
+	FullName string `json:"fullName"`
+}
+
 var (
 	User_error_details_missing        = errors.New("User details are missing")
 	User_error_username_missing       = errors.New("Username is missing")
