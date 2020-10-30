@@ -2,11 +2,13 @@ package user
 
 import (
 	"context"
-
+	"errors"
+	"fmt"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/tidepool-org/go-common/clients/shoreline"
+	sl "github.com/tidepool-org/go-common/clients/shoreline"
 	"github.com/tidepool-org/go-common/events"
+	"log"
 )
 
 const (
@@ -21,7 +23,7 @@ var failedEvents = promauto.NewCounterVec(prometheus.CounterOpts{
 }, []string{"event_type", "handler_name", "operation_name"})
 
 type EventsNotifier interface {
-	NotifyUserDeleted(ctx context.Context, user User) error
+	NotifyUserDeleted(ctx context.Context, user User, profile Profile) error
 	NotifyUserCreated(ctx context.Context, user User) error
 	NotifyUserUpdated(ctx context.Context, before User, after User) error
 }
@@ -43,9 +45,10 @@ func NewUserEventsNotifier(config *events.CloudEventsConfig) (EventsNotifier, er
 	}, nil
 }
 
-func (u *userEventsNotifier) NotifyUserDeleted(ctx context.Context, user User) error {
+func (u *userEventsNotifier) NotifyUserDeleted(ctx context.Context, user User, profile Profile) error {
 	return u.Send(ctx, &events.DeleteUserEvent{
-		UserData: toUserData(user),
+		UserData:        toUserData(user),
+		ProfileFullName: profile.FullName,
 	})
 }
 
@@ -62,8 +65,8 @@ func (u *userEventsNotifier) NotifyUserUpdated(ctx context.Context, before User,
 	})
 }
 
-func toUserData(user User) shoreline.UserData {
-	return shoreline.UserData{
+func toUserData(user User) sl.UserData {
+	return sl.UserData{
 		UserID:         user.Id,
 		Username:       user.Username,
 		Emails:         user.Emails,
@@ -83,4 +86,25 @@ func NewUserEventsHandler(store Storage) (events.UserEventsHandler, error) {
 	return &eventsHandler{
 		store: store,
 	}, nil
+}
+
+func (u *eventsHandler) HandleDeleteUserEvent(payload events.DeleteUserEvent) error {
+	var errs []error
+	if err := u.store.RemoveTokensForUser(payload.UserID); err != nil {
+		errs = append(errs, err)
+		log.Printf("Error deleteting user tokens for user %v: %v", payload.UserID, err)
+		failedEvents.WithLabelValues(payload.GetEventType(), ShorelineUserEventHandlerName, RemoveUserTokensOperationName)
+	}
+	if err := u.store.RemoveUser(&User{Id: payload.UserID}); err != nil {
+		errs = append(errs, err)
+		log.Printf("Error deleteting user %v: %v", payload.UserID, err)
+		failedEvents.WithLabelValues(payload.GetEventType(), ShorelineUserEventHandlerName, RemoveUserOperationName)
+	}
+	if len(errs) == 1 {
+		return errs[0]
+	} else if len(errs) > 1 {
+		return errors.New(fmt.Sprintf("multiple errors occurred while deleting user: %v", errs))
+	}
+
+	return nil
 }

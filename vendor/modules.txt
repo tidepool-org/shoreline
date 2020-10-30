@@ -127,7 +127,7 @@ github.com/rcrowley/go-metrics
 github.com/russross/blackfriday/v2
 # github.com/shurcooL/sanitized_anchor_name v1.0.0
 github.com/shurcooL/sanitized_anchor_name
-# github.com/tidepool-org/go-common v0.6.3-0.20201014125142-0883b62ba70a
+# github.com/tidepool-org/go-common v0.7.1
 ## explicit
 github.com/tidepool-org/go-common
 github.com/tidepool-org/go-common/clients

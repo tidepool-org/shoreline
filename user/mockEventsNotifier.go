@@ -24,7 +24,7 @@ func (m *MockEventsNotifier) Reset() {
 	m.NotifyUserUpdatedResponses = nil
 }
 
-func (m *MockEventsNotifier) NotifyUserDeleted(ctx context.Context, user User) (err error) {
+func (m *MockEventsNotifier) NotifyUserDeleted(ctx context.Context, user User, profile Profile) (err error) {
 	if len(m.NotifyUserDeletedResponses) > 0 {
 		err, m.NotifyUserDeletedResponses = m.NotifyUserDeletedResponses[0], m.NotifyUserDeletedResponses[1:]
 		return err

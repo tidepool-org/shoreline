@@ -153,3 +153,10 @@ func (d MockStoreClient) RemoveTokenByID(id string) error {
 	}
 	return nil
 }
+
+func (d *MockStoreClient) RemoveTokensForUser(userId string) error {
+	if d.doBad {
+		return errors.New("RemoveTokensForUser failure")
+	}
+	return nil
+}

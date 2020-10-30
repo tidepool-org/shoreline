@@ -3,16 +3,18 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 
+	"github.com/Shopify/sarama"
+
 	"github.com/gorilla/mux"
 
-	"github.com/Shopify/sarama"
-	common "github.com/tidepool-org/go-common"
+	"github.com/tidepool-org/go-common"
 	"github.com/tidepool-org/go-common/clients"
 	"github.com/tidepool-org/go-common/clients/disc"
 	"github.com/tidepool-org/go-common/clients/hakken"
@@ -134,7 +136,6 @@ func main() {
 	if err := kafkaConfig.LoadFromEnv(); err != nil {
 		log.Fatalln(err)
 	}
-
 	notifier, err := user.NewUserEventsNotifier(kafkaConfig)
 	if err != nil {
 		log.Fatalln(err)
@@ -149,7 +150,16 @@ func main() {
 	}
 	consumer.RegisterHandler(events.NewUserEventsHandler(handler))
 
-	userapi := user.InitApi(config.User, logger, clientStore, notifier)
+	// Stop logging kafka connection debug info
+	sarama.Logger = log.New(ioutil.Discard, "[Sarama] ", log.LstdFlags)
+
+	logger.Print("creating seagull client")
+	seagull := clients.NewSeagullClientBuilder().
+		WithHostGetter(disc.NewStaticHostGetterFromString("http://seagull:9120")).
+		WithHttpClient(httpClient).
+		Build()
+
+	userapi := user.InitApi(config.User, logger, clientStore, notifier, seagull)
 	logger.Print("installing handlers")
 	userapi.SetHandlers("", rtr)
 
