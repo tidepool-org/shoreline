@@ -16,7 +16,6 @@ import (
 
 	"github.com/tidepool-org/go-common/clients"
 	"github.com/tidepool-org/go-common/clients/status"
-	"github.com/tidepool-org/shoreline/user/marketo"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -24,9 +23,9 @@ import (
 )
 
 var (
-	failedMarketoUploadCount = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "tidepool_shoreline_failed_marketo_upload_total",
-		Help: "The total number of failures to connect to marketo due to errors",
+	failedUserEventCount = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "tidepool_shoreline_failed_user_event_total",
+		Help: "The total number of failures to send update user event to kafka due to errors",
 	})
 	statusCount = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "tidepool_shoreline_failed_status_count",
@@ -41,19 +40,17 @@ type (
 		perms              clients.Gatekeeper
 		seagull            clients.Seagull
 		logger             *log.Logger
-		marketoManager     marketo.Manager
 		userEventsNotifier EventsNotifier
 		sessionToken       *SessionToken
 	}
 	ApiConfig struct {
-		ServerSecret         string         `json:"serverSercret"`
-		TokenConfigs         []TokenConfig  `json:"tokenConfigs"` // the first token config is used for encoding new tokens
-		LongTermKey          string         `json:"longTermKey"`
-		LongTermDaysDuration int            `json:"longTermDaysDuration"`
-		Salt                 string         `json:"salt"`
-		VerificationSecret   string         `json:"verificationSecret"`
-		ClinicDemoUserID     string         `json:"clinicDemoUserId"`
-		Marketo              marketo.Config `json:"marketo"`
+		ServerSecret         string        `json:"serverSercret"`
+		TokenConfigs         []TokenConfig `json:"tokenConfigs"` // the first token config is used for encoding new tokens
+		LongTermKey          string        `json:"longTermKey"`
+		LongTermDaysDuration int           `json:"longTermDaysDuration"`
+		Salt                 string        `json:"salt"`
+		VerificationSecret   string        `json:"verificationSecret"`
+		ClinicDemoUserID     string        `json:"clinicDemoUserId"`
 	}
 	varsHandler func(http.ResponseWriter, *http.Request, map[string]string)
 )
@@ -95,12 +92,11 @@ const (
 	STATUS_INVALID_ROLE          = "The role specified is invalid"
 )
 
-func InitApi(cfg ApiConfig, logger *log.Logger, store Storage, manager marketo.Manager, userEventsNotifier EventsNotifier, seagull clients.Seagull) *Api {
+func InitApi(cfg ApiConfig, logger *log.Logger, store Storage, userEventsNotifier EventsNotifier, seagull clients.Seagull) *Api {
 	return &Api{
 		Store:              store,
 		ApiConfig:          cfg,
 		logger:             logger,
-		marketoManager:     manager,
 		userEventsNotifier: userEventsNotifier,
 		seagull:            seagull,
 	}
@@ -378,18 +374,13 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 				}
 			}
 
-			if updatedUser.EmailVerified && updatedUser.TermsAccepted != "" {
-				if a.marketoManager != nil && a.marketoManager.IsAvailable() {
-					if updateUserDetails.EmailVerified != nil || updateUserDetails.TermsAccepted != nil {
-						a.marketoManager.CreateListMembershipForUser(updatedUser)
-					} else {
-						a.marketoManager.UpdateListMembershipForUser(originalUser, updatedUser)
-					}
-				} else {
-					failedMarketoUploadCount.Inc()
-				}
-			}
 			a.logMetricForUser(updatedUser.Id, "userupdated", sessionToken, map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
+			if err := a.userEventsNotifier.NotifyUserUpdated(req.Context(), *originalUser, *updatedUser); err != nil {
+				a.logger.Println(http.StatusInternalServerError, err.Error())
+				failedUserEventCount.Inc()
+				res.WriteHeader(http.StatusInternalServerError)
+				return
+			}
 			a.sendUser(res, updatedUser, tokenData.IsServer)
 		}
 	}
