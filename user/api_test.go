@@ -21,6 +21,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/tidepool-org/go-common/clients"
 	"github.com/tidepool-org/go-common/clients/highwater"
+	"github.com/tidepool-org/shoreline/user/marketo"
 )
 
 const (
@@ -28,11 +29,12 @@ const (
 	makeItFail = true
 )
 
-func InitAPITest(cfg ApiConfig, logger *log.Logger, store Storage, userEventsNotifier EventsNotifier, seagull clients.Seagull) *Api {
+func InitAPITest(cfg ApiConfig, logger *log.Logger, store Storage, marketoManager marketo.Manager, userEventsNotifier EventsNotifier, seagull clients.Seagull) *Api {
 	return &Api{
 		Store:              store,
 		ApiConfig:          cfg,
 		logger:             logger,
+		marketoManager:     marketoManager,
 		userEventsNotifier: userEventsNotifier,
 		seagull:            seagull,
 	}
@@ -90,6 +92,14 @@ xwIDAQAB
 		Salt:               "a mineral substance composed primarily of sodium chloride",
 		VerificationSecret: "",
 		ClinicDemoUserID:   "00000000",
+		Marketo: marketo.Config{
+			ID:          "1234",
+			Secret:      "shhh! don't tell *3",
+			URL:         "https:xxx-xxx-xxx.mktorest.com",
+			ClinicRole:  "clinic",
+			PatientRole: "user",
+			Timeout:     10,
+		},
 	}
 	/*
 	 * users and tokens
@@ -104,22 +114,23 @@ xwIDAQAB
 	/*
 	 * expected path
 	 */
-	logger       = log.New(os.Stdout, USER_API_PREFIX, log.LstdFlags|log.Lshortfile)
-	mockNotifier = &MockEventsNotifier{}
-	mockStore    = NewMockStoreClient(fakeConfig.Salt, false, false)
-	mockMetrics  = highwater.NewMock()
-	mockSeagull  = clients.NewSeagullMock()
-	shoreline    = InitAPITest(fakeConfig, logger, mockStore, mockNotifier, mockSeagull)
+	logger             = log.New(os.Stdout, USER_API_PREFIX, log.LstdFlags|log.Lshortfile)
+	mockNotifier       = &MockEventsNotifier{}
+	mockStore          = NewMockStoreClient(fakeConfig.Salt, false, false)
+	mockMetrics        = highwater.NewMock()
+	mockMarketoManager = NewTestManager()
+	mockSeagull        = clients.NewSeagullMock()
+	shoreline          = InitAPITest(fakeConfig, logger, mockStore, mockMarketoManager, mockNotifier, mockSeagull)
 	/*
 	 *
 	 */
 	mockNoDupsStore = NewMockStoreClient(fakeConfig.Salt, true, false)
-	shorelineNoDups = InitAPITest(fakeConfig, logger, mockNoDupsStore, mockNotifier, mockSeagull)
+	shorelineNoDups = InitAPITest(fakeConfig, logger, mockNoDupsStore, mockMarketoManager, mockNotifier, mockSeagull)
 	/*
 	 * failure path
 	 */
 	mockStoreFails = NewMockStoreClient(fakeConfig.Salt, false, makeItFail)
-	shorelineFails = InitAPITest(fakeConfig, logger, mockStoreFails, mockNotifier, mockSeagull)
+	shorelineFails = InitAPITest(fakeConfig, logger, mockStoreFails, mockMarketoManager, mockNotifier, mockSeagull)
 
 	responsableStore      = NewResponsableMockStoreClient()
 	responsableGatekeeper = NewResponsableMockGatekeeper()
@@ -127,12 +138,28 @@ xwIDAQAB
 )
 
 func InitShoreline(config ApiConfig, store Storage, perms clients.Gatekeeper, notifier EventsNotifier) *Api {
-	api := InitAPITest(config, logger, store, notifier, mockSeagull)
+	api := InitAPITest(config, logger, store, mockMarketoManager, notifier, mockSeagull)
 	api.AttachPerms(perms)
 	return api
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// creating a mock Marketo Manager
+type MockManager struct {
+}
+
+func (U *MockManager) CreateListMembershipForUser(newUser marketo.User) {
+
+}
+func (U *MockManager) UpdateListMembershipForUser(oldUser marketo.User, newUser marketo.User) {
+
+}
+func (U *MockManager) IsAvailable() bool {
+	return false
+}
+func NewTestManager() marketo.Manager {
+	return &MockManager{}
+}
 
 func createAuthorization(t *testing.T, email string, password string) string {
 	return fmt.Sprintf("Basic %s", base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", email, password))))
@@ -1009,7 +1036,6 @@ func Test_UpdateUser_Error_RemoveCustodians_UsersInGroupError(t *testing.T) {
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
 	responsableStore.UpsertUserResponses = []error{nil}
 	responsableGatekeeper.UsersInGroupResponses = []UsersPermissionsResponse{{clients.UsersPermissions{}, errors.New("ERROR")}}
-	mockNotifier.NotifyUserUpdatedResponses = []error{nil}
 	defer expectResponsablesEmpty(t)
 
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\"}}"
@@ -1027,8 +1053,6 @@ func Test_UpdateUser_Error_RemoveCustodians_SetPermissionsError(t *testing.T) {
 	responsableStore.UpsertUserResponses = []error{nil}
 	responsableGatekeeper.UsersInGroupResponses = []UsersPermissionsResponse{{clients.UsersPermissions{"0000000000": {"custodian": clients.Allowed}}, nil}}
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, errors.New("ERROR")}}
-	mockNotifier.NotifyUserUpdatedResponses = []error{nil}
-
 	defer expectResponsablesEmpty(t)
 
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\"}}"
@@ -1045,7 +1069,6 @@ func Test_UpdateUser_Success_Custodian(t *testing.T) {
 	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{"custodian": clients.Allowed}, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
 	responsableStore.UpsertUserResponses = []error{nil}
-	mockNotifier.NotifyUserUpdatedResponses = []error{nil}
 	defer expectResponsablesEmpty(t)
 
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}}"
@@ -1065,8 +1088,6 @@ func Test_UpdateUser_Success_UserFromUrl(t *testing.T) {
 	responsableStore.UpsertUserResponses = []error{nil}
 	responsableGatekeeper.UsersInGroupResponses = []UsersPermissionsResponse{{clients.UsersPermissions{"0000000000": {"custodian": clients.Allowed}}, nil}}
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
-	mockNotifier.NotifyUserUpdatedResponses = []error{nil}
-
 	defer expectResponsablesEmpty(t)
 
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"newpassword\", \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
@@ -1086,7 +1107,6 @@ func Test_UpdateUser_Success_UserFromToken(t *testing.T) {
 	responsableStore.UpsertUserResponses = []error{nil}
 	responsableGatekeeper.UsersInGroupResponses = []UsersPermissionsResponse{{clients.UsersPermissions{"0000000000": {"custodian": clients.Allowed}}, nil}}
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
-	mockNotifier.NotifyUserUpdatedResponses = []error{nil}
 	defer expectResponsablesEmpty(t)
 
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"newpassword\", \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
@@ -1104,7 +1124,6 @@ func Test_UpdateUser_Success_Server_WithoutPassword(t *testing.T) {
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
 	responsableStore.UpsertUserResponses = []error{nil}
-	mockNotifier.NotifyUserUpdatedResponses = []error{nil}
 	defer expectResponsablesEmpty(t)
 
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"roles\": [\"clinic\"], \"emailVerified\": true, \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
@@ -1124,7 +1143,6 @@ func Test_UpdateUser_Success_Server_WithPassword(t *testing.T) {
 	responsableStore.UpsertUserResponses = []error{nil}
 	responsableGatekeeper.UsersInGroupResponses = []UsersPermissionsResponse{{clients.UsersPermissions{"0000000000": {"custodian": clients.Allowed}}, nil}}
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
-	mockNotifier.NotifyUserUpdatedResponses = []error{nil}
 	defer expectResponsablesEmpty(t)
 
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"newpassword\", \"roles\": [\"clinic\"], \"emailVerified\": true, \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"

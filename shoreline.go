@@ -3,17 +3,19 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"github.com/Shopify/sarama"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
-
-	"github.com/Shopify/sarama"
 
 	"github.com/gorilla/mux"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/tidepool-org/go-common"
 	"github.com/tidepool-org/go-common/clients"
 	"github.com/tidepool-org/go-common/clients/disc"
@@ -21,6 +23,14 @@ import (
 	"github.com/tidepool-org/go-common/clients/mongo"
 	"github.com/tidepool-org/go-common/events"
 	"github.com/tidepool-org/shoreline/user"
+	"github.com/tidepool-org/shoreline/user/marketo"
+)
+
+var (
+	marketoConfig = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "tidepool_shoreline_marketo_config_valid",
+		Help: "Indicates if the latest shoreline marketo configuration is valid.",
+	})
 )
 
 type (
@@ -85,6 +95,21 @@ func main() {
 	if found {
 		config.User.ClinicDemoUserID = clinicDemoUserID
 	}
+	config.User.Marketo.ID, _ = os.LookupEnv("MARKETO_ID")
+	config.User.Marketo.URL, _ = os.LookupEnv("MARKETO_URL")
+	config.User.Marketo.Secret, _ = os.LookupEnv("MARKETO_SECRET")
+	config.User.Marketo.ClinicRole, _ = os.LookupEnv("MARKETO_CLINIC_ROLE")
+	config.User.Marketo.PatientRole, _ = os.LookupEnv("MARKETO_PATIENT_ROLE")
+
+	unParsedTimeout, found := os.LookupEnv("MARKETO_TIMEOUT")
+	if found {
+		parsedTimeout64, err := strconv.ParseInt(unParsedTimeout, 10, 32)
+		parsedTimeout := uint(parsedTimeout64)
+		if err != nil {
+			logger.Println(err)
+		}
+		config.User.Marketo.Timeout = parsedTimeout
+	}
 
 	salt, found := os.LookupEnv("SALT")
 	if found {
@@ -125,6 +150,15 @@ func main() {
 	 * User-Api setup
 	 */
 
+	var marketoManager marketo.Manager
+	if err := config.User.Marketo.Validate(); err != nil {
+		logger.Println("WARNING: Marketo config is invalid", err)
+	} else {
+		logger.Print("initializing marketo manager")
+		marketoManager, _ = marketo.NewManager(logger, config.User.Marketo)
+		marketoConfig.Set(1)
+	}
+
 	clientStore := user.NewMongoStoreClient(&config.Mongo)
 	defer clientStore.Disconnect()
 	clientStore.EnsureIndexes()
@@ -159,7 +193,7 @@ func main() {
 		WithHttpClient(httpClient).
 		Build()
 
-	userapi := user.InitApi(config.User, logger, clientStore, notifier, seagull)
+	userapi := user.InitApi(config.User, logger, clientStore, marketoManager, notifier, seagull)
 	logger.Print("installing handlers")
 	userapi.SetHandlers("", rtr)
 

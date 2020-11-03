@@ -1,6 +1,9 @@
 # github.com/Shopify/sarama v1.27.0
 ## explicit
 github.com/Shopify/sarama
+# github.com/SpeakData/minimarketo v0.0.0-20170821092521-29339e452f44
+## explicit
+github.com/SpeakData/minimarketo
 # github.com/aws/aws-sdk-go v1.29.15
 github.com/aws/aws-sdk-go/aws
 github.com/aws/aws-sdk-go/aws/awserr
@@ -146,6 +149,7 @@ github.com/urfave/cli
 # github.com/xdg/scram v0.0.0-20180814205039-7eeb5667e42c
 github.com/xdg/scram
 # github.com/xdg/stringprep v1.0.0
+## explicit
 github.com/xdg/stringprep
 # go.mongodb.org/mongo-driver v1.4.1
 ## explicit
