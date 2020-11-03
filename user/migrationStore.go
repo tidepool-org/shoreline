@@ -218,4 +218,8 @@ func (m *MigrationStore) RemoveTokenByID(id string) error {
 	return m.fallback.RemoveTokenByID(id)
 }
 
+func (m *MigrationStore) RemoveTokensForUser(userId string) error {
+	return m.fallback.RemoveTokensForUser(userId)
+}
+
 var _ Storage = &MigrationStore{}

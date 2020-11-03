@@ -103,6 +103,12 @@ func (msc *MongoStoreClient) EnsureIndexes() error {
 				SetExpireAfterSeconds(0).
 				SetBackground(true),
 		},
+		{
+			Keys: bson.D{{Key: "userId", Value: 1}},
+			Options: options.Index().
+				SetName("TokenUserId").
+				SetBackground(true),
+		},
 	}
 
 	if _, err := tokensCollection(msc).Indexes().CreateMany(context.Background(), tokenIndexes); err != nil {
@@ -320,4 +326,10 @@ func (msc *MongoStoreClient) RemoveTokenByID(id string) (err error) {
 		return result.Err()
 	}
 	return nil
+}
+
+// RemoveTokensForUser - delete an auth token matching an ID
+func (msc *MongoStoreClient) RemoveTokensForUser(userId string) (err error) {
+	_, err = tokensCollection(msc).DeleteMany(msc.context, bson.M{"userId": userId})
+	return
 }

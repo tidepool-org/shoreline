@@ -30,14 +30,15 @@ const (
 	makeItFail = true
 )
 
-func InitAPITest(cfg ApiConfig, logger *log.Logger, store Storage, metrics highwater.Client, marketoManager marketo.Manager, keycloakClient keycloak.Client) *Api {
+func InitAPITest(cfg ApiConfig, logger *log.Logger, store Storage, marketoManager marketo.Manager, keycloakClient keycloak.Client, userEventsNotifier EventsNotifier, seagull clients.Seagull) *Api {
 	return &Api{
 		Store:          store,
 		ApiConfig:      cfg,
-		metrics:        metrics,
 		logger:         logger,
 		marketoManager: marketoManager,
 		keycloakClient: keycloakClient,
+		userEventsNotifier: userEventsNotifier,
+		seagull:            seagull,
 	}
 }
 
@@ -116,29 +117,31 @@ xwIDAQAB
 	 * expected path
 	 */
 	logger             = log.New(os.Stdout, USER_API_PREFIX, log.LstdFlags|log.Lshortfile)
+	mockNotifier       = &MockEventsNotifier{}
 	mockStore          = NewMockStoreClient(fakeConfig.Salt, false, false)
 	mockMetrics        = highwater.NewMock()
 	mockMarketoManager = NewTestManager()
 	mockKeycloakClient = &keycloak.MockClient{}
-	shoreline          = InitAPITest(fakeConfig, logger, mockStore, mockMetrics, mockMarketoManager, mockKeycloakClient)
+	mockSeagull        = clients.NewSeagullMock()
+	shoreline          = InitAPITest(fakeConfig, logger, mockStore, mockMarketoManager, mockKeycloakClient, mockNotifier, mockSeagull)
 	/*
 	 *
 	 */
 	mockNoDupsStore = NewMockStoreClient(fakeConfig.Salt, true, false)
-	shorelineNoDups = InitAPITest(fakeConfig, logger, mockNoDupsStore, mockMetrics, mockMarketoManager, mockKeycloakClient)
+	shorelineNoDups = InitAPITest(fakeConfig, logger, mockNoDupsStore, mockMarketoManager, mockKeycloakClient, mockNotifier, mockSeagull)
 	/*
 	 * failure path
 	 */
 	mockStoreFails = NewMockStoreClient(fakeConfig.Salt, false, makeItFail)
-	shorelineFails = InitAPITest(fakeConfig, logger, mockStoreFails, mockMetrics, mockMarketoManager, mockKeycloakClient)
+	shorelineFails = InitAPITest(fakeConfig, logger, mockStoreFails, mockMarketoManager, mockKeycloakClient, mockNotifier, mockSeagull)
 
 	responsableStore      = NewResponsableMockStoreClient()
 	responsableGatekeeper = NewResponsableMockGatekeeper()
-	responsableShoreline  = InitShoreline(fakeConfig, responsableStore, mockMetrics, responsableGatekeeper)
+	responsableShoreline  = InitShoreline(fakeConfig, responsableStore, responsableGatekeeper, mockNotifier)
 )
 
-func InitShoreline(config ApiConfig, store Storage, metrics highwater.Client, perms clients.Gatekeeper) *Api {
-	api := InitAPITest(config, logger, store, metrics, mockMarketoManager, mockKeycloakClient)
+func InitShoreline(config ApiConfig, store Storage, perms clients.Gatekeeper, notifier EventsNotifier) *Api {
+	api := InitAPITest(config, logger, store, mockMarketoManager, mockKeycloakClient, notifier, mockSeagull)
 	api.AttachPerms(perms)
 	return api
 }
@@ -332,6 +335,9 @@ func expectResponsablesEmpty(t *testing.T) {
 		if len(responsableStore.RemoveTokenByIDResponses) > 0 {
 			t.Logf("RemoveTokenByIDResponses still available")
 		}
+		if len(responsableStore.RemoveTokensForUserResponses) > 0 {
+			t.Logf("RemoveTokensForUserResponses still available")
+		}
 		responsableStore.Reset()
 		t.Fail()
 	}
@@ -346,6 +352,19 @@ func expectResponsablesEmpty(t *testing.T) {
 			t.Logf("SetPermissionsResponses still available")
 		}
 		responsableGatekeeper.Reset()
+		t.Fail()
+	}
+	if mockNotifier.HasResponses() {
+		if len(mockNotifier.NotifyUserDeletedResponses) > 0 {
+			t.Logf("NotifyUserDeletedResponses still available")
+		}
+		if len(mockNotifier.NotifyUserCreatedResponses) > 0 {
+			t.Logf("NotifyUserCreatedResponses still available")
+		}
+		if len(mockNotifier.NotifyUserUpdatedResponses) > 0 {
+			t.Logf("NotifyUserUpdatedResponses still available")
+		}
+		mockNotifier.Reset()
 		t.Fail()
 	}
 }
@@ -1253,13 +1272,14 @@ func Test_GetUserInfo_Success_Server(t *testing.T) {
 ////////////////////////////////////////////////////////////////////////////////
 
 func TestDeleteUser_StatusForbidden_WhenNoPw(t *testing.T) {
-	request, _ := http.NewRequest("DELETE", "/", nil)
-	request.Header.Set(TP_SESSION_TOKEN, userToken.ID)
-	response := httptest.NewRecorder()
+	sessionToken := createSessionToken(t, "0000000000", false, tokenDuration)
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "0000000000", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", EmailVerified: true, PwHash: "xyz", Hash: "123"}, nil}}
+	defer expectResponsablesEmpty(t)
 
-	shoreline.SetHandlers("", rtr)
-
-	shoreline.DeleteUser(response, request, noParams)
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
+	response := performRequestHeaders(t, "DELETE", "/user/0000000000", headers)
 
 	if response.Code != http.StatusForbidden {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusForbidden, response.Code)
@@ -1273,15 +1293,14 @@ func TestDeleteUser_StatusForbidden_WhenNoPw(t *testing.T) {
 }
 
 func TestDeleteUser_StatusForbidden_WhenEmptyPw(t *testing.T) {
+	sessionToken := createSessionToken(t, "0000000000", false, tokenDuration)
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "0000000000", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", EmailVerified: true, PwHash: "xyz", Hash: "123"}, nil}}
+	defer expectResponsablesEmpty(t)
 
-	var jsonData = []byte(`{"password": ""}`)
-	request, _ := http.NewRequest("DELETE", "/", bytes.NewBuffer(jsonData))
-	request.Header.Set(TP_SESSION_TOKEN, userToken.ID)
-	response := httptest.NewRecorder()
-
-	shoreline.SetHandlers("", rtr)
-
-	shoreline.DeleteUser(response, request, noParams)
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
+	response := performRequestBodyHeaders(t, "DELETE", "/user/0000000000", `{"password":""}`, headers)
 
 	if response.Code != http.StatusForbidden {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusForbidden, response.Code)
@@ -1294,48 +1313,89 @@ func TestDeleteUser_StatusForbidden_WhenEmptyPw(t *testing.T) {
 	}
 }
 
-func TestDeleteUser_Failure(t *testing.T) {
+func TestDeleteUser_StatusForbidden_WhenWrongPw(t *testing.T) {
+	sessionToken := createSessionToken(t, "0000000000", false, tokenDuration)
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "0000000000", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", EmailVerified: true, PwHash: "xyz", Hash: "123"}, nil}}
+	defer expectResponsablesEmpty(t)
 
-	var jsonData = []byte(`{"password": "92ggh38"}`)
-	req, _ := http.NewRequest("DELETE", "/", bytes.NewBuffer(jsonData))
-	req.Header.Set(TP_SESSION_TOKEN, userToken.ID)
-	resp := httptest.NewRecorder()
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
+	response := performRequestBodyHeaders(t, "DELETE", "/user/0000000000", `{"password":"incorrect"}`, headers)
 
-	shorelineFails.SetHandlers("", rtr)
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusForbidden, response.Code)
+	}
 
-	shorelineFails.DeleteUser(resp, req, noParams)
+	body, _ := ioutil.ReadAll(response.Body)
 
-	if resp.Code != http.StatusUnauthorized {
-		t.Fatalf("Expected [%v] and got [%v]", http.StatusUnauthorized, resp.Code)
+	if string(body) != `{"code":403,"reason":"Missing id and/or password"}` {
+		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_MISSING_ID_PW)
 	}
 }
 
-func TestDeleteUser_StatusAccepted(t *testing.T) {
+func TestDeleteUser_StatusNoContentCustodian(t *testing.T) {
+	sessionToken := createSessionToken(t, "1111111111", false, tokenDuration)
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "0000000000", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", EmailVerified: true, PwHash: "xyz", Hash: "123"}, nil}}
+	responsableStore.AddTokenResponses = []error{nil}
+	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{"custodian": clients.Allowed}, nil}}
+	mockNotifier.NotifyUserDeletedResponses = []error{nil}
+	defer expectResponsablesEmpty(t)
 
-	var jsonData = []byte(`{"password": "123youknoWm3"}`)
-	request, _ := http.NewRequest("DELETE", "/", bytes.NewBuffer(jsonData))
-	request.Header.Set(TP_SESSION_TOKEN, userToken.ID)
-	response := httptest.NewRecorder()
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
+	response := performRequestHeaders(t, "DELETE", "/user/0000000000", headers)
 
-	shoreline.SetHandlers("", rtr)
-
-	shoreline.DeleteUser(response, request, map[string]string{"userid": user.Id})
-
-	if response.Code != http.StatusAccepted {
-		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusAccepted, response.Code)
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusNoContent, response.Code)
 	}
 }
 
-func TestDeleteUser_StatusUnauthorized_WhenNoToken(t *testing.T) {
-	request, _ := http.NewRequest("DELETE", "/", nil)
-	response := httptest.NewRecorder()
+func TestDeleteUser_StatusNoContentCorrectPassword(t *testing.T) {
+	sessionToken := createSessionToken(t, "1111111111", false, tokenDuration)
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", EmailVerified: true, PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5", Hash: "123"}, nil}}
+	mockNotifier.NotifyUserDeletedResponses = []error{nil}
+	defer expectResponsablesEmpty(t)
 
-	shoreline.SetHandlers("", rtr)
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
+	response := performRequestBodyHeaders(t, "DELETE", "/user/1111111111", `{"password":"password"}`, headers)
 
-	shoreline.DeleteUser(response, request, noParams)
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusNoContent, response.Code)
+	}
+}
+
+func TestDeleteUser_StatusNoContentWithServerToken(t *testing.T) {
+	sessionToken := createSessionToken(t, "platform", true, tokenDuration)
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", EmailVerified: true, PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5", Hash: "123"}, nil}}
+	mockNotifier.NotifyUserDeletedResponses = []error{nil}
+	defer expectResponsablesEmpty(t)
+
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
+	response := performRequestHeaders(t, "DELETE", "/user/1111111111", headers)
+
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusNoContent, response.Code)
+	}
+}
+
+func TestDeleteUser_StatusUnauthorizedWhenClinic(t *testing.T) {
+	sessionToken := createSessionToken(t, "platform", true, tokenDuration)
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111", Username: "a@z.co", Emails: []string{"a@z.co"}, Roles: []string{"clinic"}, TermsAccepted: "2016-01-01T01:23:45-08:00", EmailVerified: true, PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5", Hash: "123"}, nil}}
+	defer expectResponsablesEmpty(t)
+
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
+	response := performRequestHeaders(t, "DELETE", "/user/1111111111", headers)
 
 	if response.Code != http.StatusUnauthorized {
-		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusUnauthorized, response.Code)
+		t.Fatalf("Non-expected status code %v:\n\tbody: %v", http.StatusUnauthorized, response.Code)
 	}
 }
 
@@ -1873,6 +1933,75 @@ func TestServerCheckToken_StatusUnauthorized_WhenNoSvrToken(t *testing.T) {
 	response := httptest.NewRecorder()
 
 	shoreline.ServerCheckToken(response, request, noParams)
+
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusUnauthorized, response.Code)
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+func TestCheckToken_StatusOK(t *testing.T) {
+
+	//the api
+
+	shoreline.SetHandlers("", rtr)
+
+	//step 1 - login as server
+	request, _ := http.NewRequest("POST", "/serverlogin", nil)
+	request.Header.Set(TP_SERVER_NAME, "shoreline")
+	request.Header.Set(TP_SERVER_SECRET, theSecret)
+	response := httptest.NewRecorder()
+
+	shoreline.ServerLogin(response, request)
+
+	svrTokenToUse := response.Header().Get(TP_SESSION_TOKEN)
+
+	if svrTokenToUse == "" {
+		t.Fatalf("we expected to get a token back from login")
+	}
+
+	//step 2 - do the check
+	checkTokenRequest, _ := http.NewRequest("GET", "/", nil)
+	checkTokenRequest.Header.Set(TP_SESSION_TOKEN, svrTokenToUse)
+	checkTokenResponse := httptest.NewRecorder()
+
+	shoreline.CheckToken(checkTokenResponse, checkTokenRequest)
+
+	if checkTokenResponse.Code != http.StatusOK {
+		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, checkTokenResponse.Code)
+	}
+
+	if checkTokenResponse.Header().Get("content-type") != "application/json" {
+		t.Fatal("the resp should be json")
+	}
+
+	body, _ := ioutil.ReadAll(checkTokenResponse.Body)
+
+	var tokenData TokenData
+	_ = json.Unmarshal(body, &tokenData)
+
+	t.Log("token data returned ", tokenData)
+
+	if tokenData.UserId != "shoreline" {
+		t.Fatalf("should have had a server id of `shoreline` but was %v", tokenData.UserId)
+	}
+
+	if tokenData.IsServer != true {
+		t.Fatalf("should have been a server token but was %v", tokenData.IsServer)
+	}
+}
+
+func TestCheckToken_StatusUnauthorized_WhenNoToken(t *testing.T) {
+
+	//the api
+
+	shoreline.SetHandlers("", rtr)
+
+	request, _ := http.NewRequest("GET", "/", nil)
+	response := httptest.NewRecorder()
+
+	shoreline.CheckToken(response, request)
 
 	if response.Code != http.StatusUnauthorized {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusUnauthorized, response.Code)
