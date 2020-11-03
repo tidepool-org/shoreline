@@ -1,8 +1,8 @@
 // @title Shoreline API
-// @version 0.0.1
+// @version 1.1.2
 // @description The purpose of this API is to provide authentication for end users and other tidepool Services
 // @license.name BSD 2-Clause "Simplified" License
-// @host localhost
+// @host api.android-qa.your-loops.dev
 // @BasePath /auth
 // @accept json
 // @produce json
@@ -250,18 +250,15 @@ func main() {
 
 	logger.Print("listenting for signals")
 
-	signals := make(chan os.Signal, 40)
-	signal.Notify(signals)
+	// Wait for SIGINT (Ctrl+C) or SIGTERM to stop the service
+	sigc := make(chan os.Signal, 1)
+	signal.Notify(sigc, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		for {
-			sig := <-signals
-			logger.Printf("Got signal [%s]", sig)
-
-			if sig == syscall.SIGINT || sig == syscall.SIGTERM {
-				storage.Close()
-				server.Close()
-				done <- true
-			}
+			<-sigc
+			storage.Close()
+			server.Close()
+			done <- true
 		}
 	}()
 

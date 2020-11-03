@@ -2,6 +2,11 @@
 
 Shoreline is the module that manages logins and user accounts.
 
+## 1.1.2 - 2020-10-29
+### Engineering
+- YLP-243 Review openapi generation so we can serve it through a website
+- Update to Go 1.15
+
 ## 1.1.1 - 2020-09-25
 ### Fixed
 - Fix S3 deployment

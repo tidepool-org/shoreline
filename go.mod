@@ -1,6 +1,6 @@
 module github.com/mdblp/shoreline
 
-go 1.12
+go 1.15
 
 replace github.com/tidepool-org/shoreline => ./
 
@@ -13,7 +13,7 @@ require (
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/gorilla/mux v1.7.3
 	github.com/prometheus/client_golang v1.4.1
-	github.com/swaggo/swag v1.6.5
+	github.com/swaggo/swag v1.6.9
 	github.com/tidepool-org/go-common v0.0.0-00010101000000-000000000000
 	github.com/tidepool-org/shoreline v0.0.0-00010101000000-000000000000
 	go.mongodb.org/mongo-driver v1.4.0
