@@ -13,6 +13,7 @@ require (
 	github.com/urfave/cli v1.22.4
 	go.mongodb.org/mongo-driver v1.4.1
 	go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux v0.13.0
+	go.opentelemetry.io/otel v0.13.0
 	golang.org/x/crypto v0.0.0-20201002170205-7f63de1d35b0 // indirect
 	golang.org/x/sync v0.0.0-20200930132711-30421366ff76 // indirect
 )
