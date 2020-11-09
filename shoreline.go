@@ -14,6 +14,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagators"
 
 	"github.com/tidepool-org/go-common"
@@ -122,7 +123,7 @@ func main() {
 	httpClient := &http.Client{Transport: tr}
 
 	rtr := mux.NewRouter()
-	rtr.Use(otelmux.Middleware("shoreline", otelmux.WithPropagators(propagators.TraceContext{}, propagators.Baggage{})))
+	rtr.Use(otelmux.Middleware("shoreline", otelmux.WithPropagators(otel.NewCompositeTextMapPropagator(propagators.TraceContext{}, propagators.Baggage{}))))
 
 	/*
 	 * User-Api setup
