@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"syscall"
@@ -20,7 +21,6 @@ import (
 	"github.com/tidepool-org/go-common"
 	"github.com/tidepool-org/go-common/clients"
 	"github.com/tidepool-org/go-common/clients/disc"
-	"github.com/tidepool-org/go-common/clients/hakken"
 	"github.com/tidepool-org/go-common/clients/mongo"
 	"github.com/tidepool-org/go-common/events"
 	"github.com/tidepool-org/shoreline/user"
@@ -97,22 +97,6 @@ func main() {
 	config.Mongo.FromEnv()
 
 	/*
-	 * Hakken setup
-	 */
-	hakkenClient := hakken.NewHakkenBuilder().
-		WithConfig(&config.HakkenConfig).
-		Build()
-
-	if !config.HakkenConfig.SkipHakken {
-		if err := hakkenClient.Start(); err != nil {
-			logger.Fatal(err)
-		}
-		defer hakkenClient.Close()
-	} else {
-		logger.Print("skipping hakken service")
-	}
-
-	/*
 	 * Clients
 	 */
 
@@ -158,8 +142,9 @@ func main() {
 	sarama.Logger = log.New(ioutil.Discard, "[Sarama] ", log.LstdFlags)
 
 	logger.Print("creating seagull client")
+	seagullHost, err := url.Parse("http://seagull:9120") // XXX
 	seagull := clients.NewSeagullClientBuilder().
-		WithHostGetter(disc.NewStaticHostGetterFromString("http://seagull:9120")).
+		WithHost(seagullHost).
 		WithHttpClient(httpClient).
 		Build()
 
@@ -170,8 +155,9 @@ func main() {
 	userClient := user.NewUserClient(userapi)
 
 	logger.Print("creating gatekeeper client")
+	gatekeeperHost, err := url.Parse("http://gatekeeper:9123") // XXX
 	permsClient := clients.NewGatekeeperClientBuilder().
-		WithHostGetter(config.GatekeeperConfig.ToHostGetter(hakkenClient)).
+		WithHost(gatekeeperHost).
 		WithHttpClient(httpClient).
 		WithTokenProvider(userClient).
 		Build()
