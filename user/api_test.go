@@ -2346,7 +2346,7 @@ func Test_TokenUserHasRequestedPermissions_FullMatch(t *testing.T) {
 
 	tokenData := &TokenData{UserId: "abcdef1234", IsServer: false, DurationSecs: tokenDuration}
 	requestedPermissions := clients.Permissions{"a": clients.Allowed, "b": clients.Allowed}
-	permissions, err := responsableShoreline.tokenUserHasRequestedPermissions(tokenData, "1234567890", requestedPermissions)
+	permissions, err := responsableShoreline.tokenUserHasRequestedPermissions(context.Background(), tokenData, "1234567890", requestedPermissions)
 	if err != nil {
 		t.Fatalf("Unexpected error: %#v", err)
 	}
