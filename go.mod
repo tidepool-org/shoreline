@@ -9,7 +9,7 @@ require (
 	github.com/gorilla/mux v1.8.0
 	github.com/klauspost/compress v1.11.1 // indirect
 	github.com/prometheus/client_golang v1.7.1
-	github.com/tidepool-org/go-common v0.7.2-0.20201110010845-6858e0b69831
+	github.com/tidepool-org/go-common v0.7.2-0.20201110012314-9b2742489f51
 	github.com/urfave/cli v1.22.4
 	go.mongodb.org/mongo-driver v1.4.1
 	go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux v0.13.0
