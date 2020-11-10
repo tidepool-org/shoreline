@@ -31,4 +31,3 @@ services:
 script:
   - ./build.sh
   - ./test.sh
-  - ./artifact.sh
