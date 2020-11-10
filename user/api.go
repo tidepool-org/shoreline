@@ -223,7 +223,7 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 		}
 		if newUser.IsClinic() {
 			if a.ApiConfig.ClinicDemoUserID != "" {
-				if _, err := a.perms.SetPermissions(newUser.Id, a.ApiConfig.ClinicDemoUserID, clients.Permissions{"view": clients.Allowed}); err != nil {
+				if _, err := a.perms.SetPermissions(req.Context(), newUser.Id, a.ApiConfig.ClinicDemoUserID, clients.Permissions{"view": clients.Allowed}); err != nil {
 					a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
 					return
 				}
@@ -274,7 +274,7 @@ func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, va
 
 	} else {
 		permissions := clients.Permissions{"custodian": clients.Allowed, "view": clients.Allowed, "upload": clients.Allowed}
-		if _, err := a.perms.SetPermissions(custodianUserID, newCustodialUser.Id, permissions); err != nil {
+		if _, err := a.perms.SetPermissions(req.Context(), custodianUserID, newCustodialUser.Id, permissions); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
 		} else {
 			a.sendUserWithStatus(res, newCustodialUser, http.StatusCreated, tokenData.IsServer)
@@ -306,7 +306,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 	} else if originalUser == nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, "User not found")
 
-	} else if permissions, err := a.tokenUserHasRequestedPermissions(tokenData, originalUser.Id, clients.Permissions{"root": clients.Allowed, "custodian": clients.Allowed}); err != nil {
+	} else if permissions, err := a.tokenUserHasRequestedPermissions(req.Context(), tokenData, originalUser.Id, clients.Permissions{"root": clients.Allowed, "custodian": clients.Allowed}); err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err)
 
 	} else if len(permissions) == 0 {
@@ -366,7 +366,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_USR, err)
 		} else {
 			if len(originalUser.PwHash) == 0 && len(updatedUser.PwHash) != 0 {
-				if err := a.removeUserPermissions(updatedUser.Id, clients.Permissions{"custodian": clients.Allowed}); err != nil {
+				if err := a.removeUserPermissions(req.Context(), updatedUser.Id, clients.Permissions{"custodian": clients.Allowed}); err != nil {
 					a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_USR, err)
 				}
 			}
@@ -410,7 +410,7 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 		} else if result := results[0]; result == nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, "Found user is nil")
 
-		} else if permissions, err := a.tokenUserHasRequestedPermissions(tokenData, result.Id, clients.Permissions{"root": clients.Allowed, "custodian": clients.Allowed}); err != nil {
+		} else if permissions, err := a.tokenUserHasRequestedPermissions(req.Context(), tokenData, result.Id, clients.Permissions{"root": clients.Allowed, "custodian": clients.Allowed}); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err)
 
 		} else if permissions["root"] == nil && permissions["custodian"] == nil {
@@ -436,7 +436,7 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 	var requiresPassword bool
 	if !tokenData.IsServer {
 		ownerOrCustodian := clients.Permissions{"root": clients.Allowed, "custodian": clients.Allowed}
-		if permissions, err := a.tokenUserHasRequestedPermissions(tokenData, userID, ownerOrCustodian); err != nil {
+		if permissions, err := a.tokenUserHasRequestedPermissions(ctx, tokenData, userID, ownerOrCustodian); err != nil {
 			a.logger.Println(http.StatusInternalServerError, err.Error())
 			res.WriteHeader(http.StatusInternalServerError)
 			return
@@ -499,7 +499,7 @@ func (a *Api) getUserProfile(ctx context.Context, userID string) (*Profile, erro
 	}
 
 	profile := &Profile{}
-	if err := a.seagull.GetCollection(userID, "profile", a.sessionToken.ID, profile); err != nil {
+	if err := a.seagull.GetCollection(ctx, userID, "profile", a.sessionToken.ID, profile); err != nil {
 		return nil, err
 	}
 	return profile, nil
@@ -728,12 +728,12 @@ func (a *Api) authenticateSessionToken(ctx context.Context, sessionToken string)
 	}
 }
 
-func (a *Api) tokenUserHasRequestedPermissions(tokenData *TokenData, groupId string, requestedPermissions clients.Permissions) (clients.Permissions, error) {
+func (a *Api) tokenUserHasRequestedPermissions(ctx context.Context, tokenData *TokenData, groupId string, requestedPermissions clients.Permissions) (clients.Permissions, error) {
 	if tokenData.IsServer {
 		return requestedPermissions, nil
 	} else if tokenData.UserId == groupId {
 		return requestedPermissions, nil
-	} else if actualPermissions, err := a.perms.UserInGroup(tokenData.UserId, groupId); err != nil {
+	} else if actualPermissions, err := a.perms.UserInGroup(ctx, tokenData.UserId, groupId); err != nil {
 		return clients.Permissions{}, err
 	} else {
 		finalPermissions := make(clients.Permissions, 0)
@@ -746,8 +746,8 @@ func (a *Api) tokenUserHasRequestedPermissions(tokenData *TokenData, groupId str
 	}
 }
 
-func (a *Api) removeUserPermissions(groupId string, removePermissions clients.Permissions) error {
-	originalUserPermissions, err := a.perms.UsersInGroup(groupId)
+func (a *Api) removeUserPermissions(ctx context.Context, groupId string, removePermissions clients.Permissions) error {
+	originalUserPermissions, err := a.perms.UsersInGroup(ctx, groupId)
 	if err != nil {
 		return err
 	}
@@ -759,7 +759,7 @@ func (a *Api) removeUserPermissions(groupId string, removePermissions clients.Pe
 			}
 		}
 		if len(finalPermissions) != len(originalPermissions) {
-			if _, err := a.perms.SetPermissions(userID, groupId, finalPermissions); err != nil {
+			if _, err := a.perms.SetPermissions(ctx, userID, groupId, finalPermissions); err != nil {
 				return err
 			}
 		}

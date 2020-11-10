@@ -98,7 +98,7 @@ func (msc *MongoStoreClient) EnsureIndexes(ctx context.Context) error {
 		},
 	}
 
-	if _, err := tokensCollection(msc).Indexes().CreateMany(context.Background(), tokenIndexes); err != nil {
+	if _, err := tokensCollection(msc).Indexes().CreateMany(ctx, tokenIndexes); err != nil {
 		log.Fatal(userStoreAPIPrefix, fmt.Sprintf("Unable to create token indexes: %s", err))
 	}
 

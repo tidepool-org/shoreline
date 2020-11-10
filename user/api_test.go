@@ -2271,7 +2271,7 @@ func Test_AuthenticateSessionToken_Success_Server(t *testing.T) {
 func Test_TokenUserHasRequestedPermissions_Server(t *testing.T) {
 	tokenData := &TokenData{UserId: "abcdef1234", IsServer: true, DurationSecs: tokenDuration}
 	requestedPermissions := clients.Permissions{"a": clients.Allowed, "b": clients.Allowed}
-	permissions, err := responsableShoreline.tokenUserHasRequestedPermissions(tokenData, "1234567890", requestedPermissions)
+	permissions, err := responsableShoreline.tokenUserHasRequestedPermissions(context.Background(), tokenData, "1234567890", requestedPermissions)
 	if err != nil {
 		t.Fatalf("Unexpected error: %#v", err)
 	}
@@ -2283,7 +2283,7 @@ func Test_TokenUserHasRequestedPermissions_Server(t *testing.T) {
 func Test_TokenUserHasRequestedPermissions_Owner(t *testing.T) {
 	tokenData := &TokenData{UserId: "abcdef1234", IsServer: false, DurationSecs: tokenDuration}
 	requestedPermissions := clients.Permissions{"a": clients.Allowed, "b": clients.Allowed}
-	permissions, err := responsableShoreline.tokenUserHasRequestedPermissions(tokenData, "abcdef1234", requestedPermissions)
+	permissions, err := responsableShoreline.tokenUserHasRequestedPermissions(context.Background(), tokenData, "abcdef1234", requestedPermissions)
 	if err != nil {
 		t.Fatalf("Unexpected error: %#v", err)
 	}
@@ -2298,7 +2298,7 @@ func Test_TokenUserHasRequestedPermissions_GatekeeperError(t *testing.T) {
 
 	tokenData := &TokenData{UserId: "abcdef1234", IsServer: false, DurationSecs: tokenDuration}
 	requestedPermissions := clients.Permissions{"a": clients.Allowed, "b": clients.Allowed}
-	permissions, err := responsableShoreline.tokenUserHasRequestedPermissions(tokenData, "1234567890", requestedPermissions)
+	permissions, err := responsableShoreline.tokenUserHasRequestedPermissions(context.Background(), tokenData, "1234567890", requestedPermissions)
 	if err == nil {
 		t.Fatalf("Unexpected success")
 	}
@@ -2316,7 +2316,7 @@ func Test_TokenUserHasRequestedPermissions_CompleteMismatch(t *testing.T) {
 
 	tokenData := &TokenData{UserId: "abcdef1234", IsServer: false, DurationSecs: tokenDuration}
 	requestedPermissions := clients.Permissions{"a": clients.Allowed, "b": clients.Allowed}
-	permissions, err := responsableShoreline.tokenUserHasRequestedPermissions(tokenData, "1234567890", requestedPermissions)
+	permissions, err := responsableShoreline.tokenUserHasRequestedPermissions(context.Background(), tokenData, "1234567890", requestedPermissions)
 	if err != nil {
 		t.Fatalf("Unexpected error: %#v", err)
 	}
@@ -2331,7 +2331,7 @@ func Test_TokenUserHasRequestedPermissions_PartialMismatch(t *testing.T) {
 
 	tokenData := &TokenData{UserId: "abcdef1234", IsServer: false, DurationSecs: tokenDuration}
 	requestedPermissions := clients.Permissions{"a": clients.Allowed, "b": clients.Allowed}
-	permissions, err := responsableShoreline.tokenUserHasRequestedPermissions(tokenData, "1234567890", requestedPermissions)
+	permissions, err := responsableShoreline.tokenUserHasRequestedPermissions(context.Background(), tokenData, "1234567890", requestedPermissions)
 	if err != nil {
 		t.Fatalf("Unexpected error: %#v", err)
 	}
@@ -2361,7 +2361,7 @@ func Test_RemoveUserPermissions_Error_UsersInGroupError(t *testing.T) {
 	responsableGatekeeper.UsersInGroupResponses = []UsersPermissionsResponse{{clients.UsersPermissions{}, errors.New("ERROR")}}
 	defer expectResponsablesEmpty(t)
 
-	err := responsableShoreline.removeUserPermissions("1", clients.Permissions{"a": clients.Allowed})
+	err := responsableShoreline.removeUserPermissions(context.Background(), "1", clients.Permissions{"a": clients.Allowed})
 	if err == nil {
 		t.Fatalf("Unexpected success")
 	}
@@ -2375,7 +2375,7 @@ func Test_RemoveUserPermissions_Error_SetPermissionsError(t *testing.T) {
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, errors.New("ERROR")}}
 	defer expectResponsablesEmpty(t)
 
-	err := responsableShoreline.removeUserPermissions("1", clients.Permissions{"a": clients.Allowed})
+	err := responsableShoreline.removeUserPermissions(context.Background(), "1", clients.Permissions{"a": clients.Allowed})
 	if err == nil {
 		t.Fatalf("Unexpected success")
 	}
@@ -2389,7 +2389,7 @@ func Test_RemoveUserPermissions_Success(t *testing.T) {
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
 	defer expectResponsablesEmpty(t)
 
-	err := responsableShoreline.removeUserPermissions("1", clients.Permissions{"a": clients.Allowed})
+	err := responsableShoreline.removeUserPermissions(context.Background(), "1", clients.Permissions{"a": clients.Allowed})
 	if err != nil {
 		t.Fatalf("Unexpected error: %#v", err)
 	}

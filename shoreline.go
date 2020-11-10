@@ -15,7 +15,9 @@ import (
 
 	"github.com/gorilla/mux"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/label"
 	"go.opentelemetry.io/otel/propagators"
 
 	"github.com/tidepool-org/go-common"
@@ -104,7 +106,7 @@ func main() {
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
 
-	httpClient := &http.Client{Transport: tr}
+	httpClient := &http.Client{Transport: otelhttp.NewTransport(tr)}
 
 	rtr := mux.NewRouter()
 	rtr.Use(otelmux.Middleware("shoreline", otelmux.WithPropagators(otel.NewCompositeTextMapPropagator(propagators.TraceContext{}, propagators.Baggage{}))))
@@ -114,8 +116,17 @@ func main() {
 	 */
 
 	clientStore := user.NewMongoStoreClient(&config.Mongo)
-	defer clientStore.Disconnect(context.Background())
-	clientStore.EnsureIndexes(context.Background())
+
+	disconnectCtx := otel.ContextWithBaggageValues(context.Background(),
+		label.String("service", "shoreline"),
+		label.String("function", "clientStore.Disconnect"))
+
+	defer clientStore.Disconnect(disconnectCtx)
+
+	ensureIndexesCtx := otel.ContextWithBaggageValues(context.Background(),
+		label.String("service", "shoreline"),
+		label.String("function", "clientStore.EnsureIndexes"))
+	clientStore.EnsureIndexes(ensureIndexesCtx)
 
 	// Start logging kafka connection debug info
 	sarama.Logger = logger
@@ -128,7 +139,11 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	handler, err := user.NewUserEventsHandler(clientStore, context.Background())
+
+	userEventsHandlerCtx := otel.ContextWithBaggageValues(context.Background(),
+		label.String("service", "shoreline"),
+		label.String("function", "user.NewUserEventsHandler"))
+	handler, err := user.NewUserEventsHandler(clientStore, userEventsHandlerCtx)
 	if err != nil {
 		log.Fatalln(err)
 	}
