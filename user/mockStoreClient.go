@@ -15,29 +15,23 @@ func NewMockStoreClient(salt string, returnDifferent, doBad bool) *MockStoreClie
 	return &MockStoreClient{salt: salt, doBad: doBad, returnDifferent: returnDifferent}
 }
 
-func (d *MockStoreClient) WithContext(ctx context.Context) Storage {
-	// For mock clients, return itself, since the mock client has state
-	// for testing that we need to preserve.
-	return d
-}
+func (d *MockStoreClient) EnsureIndexes(ctx context.Context) error { return nil }
 
-func (d *MockStoreClient) EnsureIndexes() error { return nil }
-
-func (d MockStoreClient) Ping() error {
+func (d MockStoreClient) Ping(ctx context.Context) error {
 	if d.doBad {
 		return errors.New("Session failure")
 	}
 	return nil
 }
 
-func (d MockStoreClient) UpsertUser(user *User) error {
+func (d MockStoreClient) UpsertUser(ctx context.Context, user *User) error {
 	if d.doBad {
 		return errors.New("UpsertUser failure")
 	}
 	return nil
 }
 
-func (d MockStoreClient) FindUsers(user *User) (found []*User, err error) {
+func (d MockStoreClient) FindUsers(ctx context.Context, user *User) (found []*User, err error) {
 	//`find` a pretend one we just made
 
 	if d.doBad {
@@ -65,14 +59,14 @@ func (d MockStoreClient) FindUsers(user *User) (found []*User, err error) {
 
 }
 
-func (d MockStoreClient) FindUsersByRole(role string) (found []*User, err error) {
+func (d MockStoreClient) FindUsersByRole(ctx context.Context, role string) (found []*User, err error) {
 	if d.doBad {
 		return found, errors.New("FindUsersByRole failure")
 	}
 	return nil, nil
 }
 
-func (d MockStoreClient) FindUsersWithIds(ids []string) (found []*User, err error) {
+func (d MockStoreClient) FindUsersWithIds(ctx context.Context, ids []string) (found []*User, err error) {
 	if d.doBad {
 		return found, errors.New("FindUsersWithIds failure")
 	}
@@ -94,7 +88,7 @@ func (d MockStoreClient) FindUsersWithIds(ids []string) (found []*User, err erro
 	return users, nil
 }
 
-func (d MockStoreClient) FindUser(user *User) (found *User, err error) {
+func (d MockStoreClient) FindUser(ctx context.Context, user *User) (found *User, err error) {
 
 	if d.doBad {
 		return found, errors.New("FindUser failure")
@@ -125,21 +119,21 @@ func (d MockStoreClient) FindUser(user *User) (found *User, err error) {
 	return user, nil
 }
 
-func (d MockStoreClient) RemoveUser(user *User) error {
+func (d MockStoreClient) RemoveUser(ctx context.Context, user *User) error {
 	if d.doBad {
 		return errors.New("RemoveUser failure")
 	}
 	return nil
 }
 
-func (d MockStoreClient) AddToken(token *SessionToken) error {
+func (d MockStoreClient) AddToken(ctx context.Context, token *SessionToken) error {
 	if d.doBad {
 		return errors.New("AddToken failure")
 	}
 	return nil
 }
 
-func (d MockStoreClient) FindTokenByID(id string) (*SessionToken, error) {
+func (d MockStoreClient) FindTokenByID(ctx context.Context, id string) (*SessionToken, error) {
 	if d.doBad {
 		return nil, errors.New("FindTokenByID failure")
 	}
@@ -147,14 +141,14 @@ func (d MockStoreClient) FindTokenByID(id string) (*SessionToken, error) {
 	return nil, nil
 }
 
-func (d MockStoreClient) RemoveTokenByID(id string) error {
+func (d MockStoreClient) RemoveTokenByID(ctx context.Context, id string) error {
 	if d.doBad {
 		return errors.New("RemoveTokenByID failure")
 	}
 	return nil
 }
 
-func (d *MockStoreClient) RemoveTokensForUser(userId string) error {
+func (d *MockStoreClient) RemoveTokensForUser(ctx context.Context, userId string) error {
 	if d.doBad {
 		return errors.New("RemoveTokensForUser failure")
 	}

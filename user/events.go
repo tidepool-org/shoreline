@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	sl "github.com/tidepool-org/go-common/clients/shoreline"
 	"github.com/tidepool-org/go-common/events"
-	"log"
 )
 
 const (
@@ -80,22 +81,25 @@ func toUserData(user User) sl.UserData {
 type eventsHandler struct {
 	events.NoopUserEventsHandler
 	store Storage
+	ctx   context.Context
 }
 
-func NewUserEventsHandler(store Storage) (events.UserEventsHandler, error) {
+func NewUserEventsHandler(store Storage, ctx context.Context) (events.UserEventsHandler, error) {
 	return &eventsHandler{
 		store: store,
+		ctx:   ctx,
 	}, nil
 }
 
 func (u *eventsHandler) HandleDeleteUserEvent(payload events.DeleteUserEvent) error {
 	var errs []error
-	if err := u.store.RemoveTokensForUser(payload.UserID); err != nil {
+	ctx := u.ctx
+	if err := u.store.RemoveTokensForUser(ctx, payload.UserID); err != nil {
 		errs = append(errs, err)
 		log.Printf("Error deleteting user tokens for user %v: %v", payload.UserID, err)
 		failedEvents.WithLabelValues(payload.GetEventType(), ShorelineUserEventHandlerName, RemoveUserTokensOperationName)
 	}
-	if err := u.store.RemoveUser(&User{Id: payload.UserID}); err != nil {
+	if err := u.store.RemoveUser(ctx, &User{Id: payload.UserID}); err != nil {
 		errs = append(errs, err)
 		log.Printf("Error deleteting user %v: %v", payload.UserID, err)
 		failedEvents.WithLabelValues(payload.GetEventType(), ShorelineUserEventHandlerName, RemoveUserOperationName)

@@ -105,7 +105,7 @@ xwIDAQAB
 	 * expected path
 	 */
 	logger       = log.New(os.Stdout, USER_API_PREFIX, log.LstdFlags|log.Lshortfile)
-	mockNotifier = &MockEventsNotifier{}
+	mockNotifier = &mockEventsNotifier{}
 	mockStore    = NewMockStoreClient(fakeConfig.Salt, false, false)
 	mockMetrics  = highwater.NewMock()
 	mockSeagull  = clients.NewSeagullMock()

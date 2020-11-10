@@ -143,7 +143,7 @@ func (h varsHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 }
 
 func (a *Api) GetStatus(res http.ResponseWriter, req *http.Request) {
-	if err := a.Store.WithContext(req.Context()).Ping(); err != nil {
+	if err := a.Store.Ping(req.Context()); err != nil {
 		a.logger.Println(http.StatusInternalServerError, STATUS_GETSTATUS_ERR, err.Error())
 		res.WriteHeader(http.StatusInternalServerError)
 		res.Write([]byte(err.Error()))
@@ -180,17 +180,16 @@ func (a *Api) GetUsers(res http.ResponseWriter, req *http.Request) {
 		var users []*User
 		switch {
 		case role != "":
-			if users, err = a.Store.WithContext(req.Context()).FindUsersByRole(role); err != nil {
+			if users, err = a.Store.FindUsersByRole(req.Context(), role); err != nil {
 				a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err.Error())
 			}
 		case len(userIds[0]) > 0:
-			if users, err = a.Store.WithContext(req.Context()).FindUsersWithIds(userIds); err != nil {
+			if users, err = a.Store.FindUsersWithIds(req.Context(), userIds); err != nil {
 				a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err.Error())
 			}
 		default:
 			a.sendError(res, http.StatusBadRequest, STATUS_PARAMETER_UNKNOWN)
 		}
-		a.logMetric("getusers", sessionToken, map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
 		a.sendUsers(res, users, tokenData.IsServer)
 	}
 }
@@ -207,7 +206,7 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, err)
 	} else if newUser, err := NewUser(newUserDetails, a.ApiConfig.Salt); err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
-	} else if existingUser, err := a.Store.WithContext(req.Context()).FindUsers(newUser); err != nil {
+	} else if existingUser, err := a.Store.FindUsers(req.Context(), newUser); err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
 
 	} else if len(existingUser) != 0 {
@@ -218,7 +217,7 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 			newUser.EmailVerified = true
 			a.logger.Printf("User email %s contains %v, setting email verified to %v", newUser.Username, a.ApiConfig.VerificationSecret, newUser.EmailVerified)
 		}
-		if err := a.Store.WithContext(req.Context()).UpsertUser(newUser); err != nil {
+		if err := a.Store.UpsertUser(req.Context(), newUser); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
 			return
 		}
@@ -233,10 +232,9 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 
 		tokenData := TokenData{DurationSecs: extractTokenDuration(req), UserId: newUser.Id, IsServer: false}
 		tokenConfig := a.ApiConfig.TokenConfigs[0]
-		if sessionToken, err := CreateSessionTokenAndSave(&tokenData, tokenConfig, a.Store.WithContext(req.Context())); err != nil {
+		if sessionToken, err := CreateSessionTokenAndSave(req.Context(), &tokenData, tokenConfig, a.Store); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN, err)
 		} else {
-			a.logMetricForUser(newUser.Id, "usercreated", sessionToken.ID, map[string]string{"server": "false"})
 			res.Header().Set(TP_SESSION_TOKEN, sessionToken.ID)
 			a.sendUserWithStatus(res, newUser, http.StatusCreated, false)
 		}
@@ -265,13 +263,13 @@ func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, va
 	} else if newCustodialUser, err := NewCustodialUser(newCustodialUserDetails, a.ApiConfig.Salt); err != nil {
 		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, err)
 
-	} else if existingCustodialUser, err := a.Store.WithContext(req.Context()).FindUsers(newCustodialUser); err != nil {
+	} else if existingCustodialUser, err := a.Store.FindUsers(req.Context(), newCustodialUser); err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
 
 	} else if len(existingCustodialUser) != 0 {
 		a.sendError(res, http.StatusConflict, STATUS_USR_ALREADY_EXISTS)
 
-	} else if err := a.Store.WithContext(req.Context()).UpsertUser(newCustodialUser); err != nil {
+	} else if err := a.Store.UpsertUser(req.Context(), newCustodialUser); err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
 
 	} else {
@@ -279,7 +277,6 @@ func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, va
 		if _, err := a.perms.SetPermissions(custodianUserID, newCustodialUser.Id, permissions); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
 		} else {
-			a.logMetricForUser(newCustodialUser.Id, "custodialusercreated", sessionToken, map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
 			a.sendUserWithStatus(res, newCustodialUser, http.StatusCreated, tokenData.IsServer)
 		}
 	}
@@ -303,7 +300,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 	} else if err := updateUserDetails.Validate(); err != nil {
 		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, err)
 
-	} else if originalUser, err := a.Store.WithContext(req.Context()).FindUser(&User{Id: firstStringNotEmpty(vars["userid"], tokenData.UserId)}); err != nil {
+	} else if originalUser, err := a.Store.FindUser(req.Context(), &User{Id: firstStringNotEmpty(vars["userid"], tokenData.UserId)}); err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err)
 
 	} else if originalUser == nil {
@@ -337,7 +334,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 				dupCheck.Emails = updatedUser.Emails
 			}
 
-			if results, err := a.Store.WithContext(req.Context()).FindUsers(dupCheck); err != nil {
+			if results, err := a.Store.FindUsers(req.Context(), dupCheck); err != nil {
 				a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err)
 				return
 			} else if len(results) > 0 {
@@ -365,7 +362,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 			updatedUser.EmailVerified = *updateUserDetails.EmailVerified
 		}
 
-		if err := a.Store.WithContext(req.Context()).UpsertUser(updatedUser); err != nil {
+		if err := a.Store.UpsertUser(req.Context(), updatedUser); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_USR, err)
 		} else {
 			if len(originalUser.PwHash) == 0 && len(updatedUser.PwHash) != 0 {
@@ -374,7 +371,6 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 				}
 			}
 
-			a.logMetricForUser(updatedUser.Id, "userupdated", sessionToken, map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
 			if err := a.userEventsNotifier.NotifyUserUpdated(req.Context(), *originalUser, *updatedUser); err != nil {
 				a.logger.Println(http.StatusInternalServerError, err.Error())
 				failedUserEventCount.Inc()
@@ -402,7 +398,7 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 			user = &User{Id: tokenData.UserId}
 		}
 
-		if results, err := a.Store.WithContext(req.Context()).FindUsers(user); err != nil {
+		if results, err := a.Store.FindUsers(req.Context(), user); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err)
 
 		} else if len(results) == 0 {
@@ -421,7 +417,6 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 			a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED)
 
 		} else {
-			a.logMetricForUser(user.Id, "getuserinfo", sessionToken, map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
 			a.sendUser(res, result, tokenData.IsServer)
 		}
 	}
@@ -455,7 +450,7 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 		}
 	}
 
-	user, err := a.Store.WithContext(ctx).FindUser(&User{Id: userID})
+	user, err := a.Store.FindUser(req.Context(), &User{Id: userID})
 	if err != nil {
 		a.logger.Println(http.StatusInternalServerError, err.Error())
 		res.WriteHeader(http.StatusInternalServerError)
@@ -497,7 +492,7 @@ func (a *Api) getUserProfile(ctx context.Context, userID string) (*Profile, erro
 		var err error
 		duration := int64(60 * 60 * 30)
 		tokenData := &TokenData{DurationSecs: duration, UserId: "shoreline", IsServer: true}
-		a.sessionToken, err = CreateSessionTokenAndSave(tokenData, a.ApiConfig.TokenConfigs[0], a.Store.WithContext(ctx))
+		a.sessionToken, err = CreateSessionTokenAndSave(ctx, tokenData, a.ApiConfig.TokenConfigs[0], a.Store)
 		if err != nil {
 			return nil, err
 		}
@@ -519,7 +514,7 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 	if user, password := unpackAuth(req.Header.Get("Authorization")); user == nil {
 		a.sendError(res, http.StatusBadRequest, STATUS_MISSING_ID_PW)
 
-	} else if results, err := a.Store.WithContext(req.Context()).FindUsers(user); err != nil {
+	} else if results, err := a.Store.FindUsers(req.Context(), user); err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err)
 
 	} else if len(results) != 1 {
@@ -540,11 +535,10 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 	} else {
 		tokenData := &TokenData{DurationSecs: extractTokenDuration(req), UserId: result.Id}
 		tokenConfig := a.ApiConfig.TokenConfigs[0]
-		if sessionToken, err := CreateSessionTokenAndSave(tokenData, tokenConfig, a.Store.WithContext(req.Context())); err != nil {
+		if sessionToken, err := CreateSessionTokenAndSave(req.Context(), tokenData, tokenConfig, a.Store); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_TOKEN, err)
 
 		} else {
-			a.logMetric("userlogin", sessionToken.ID, nil)
 			res.Header().Set(TP_SESSION_TOKEN, sessionToken.ID)
 			a.sendUser(res, result, false)
 		}
@@ -567,15 +561,15 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 	if pw == a.ApiConfig.ServerSecret {
 		//generate new token
 		if sessionToken, err := CreateSessionTokenAndSave(
+			req.Context(),
 			&TokenData{DurationSecs: extractTokenDuration(req), UserId: server, IsServer: true},
 			a.ApiConfig.TokenConfigs[0],
-			a.Store.WithContext(req.Context()),
+			a.Store,
 		); err != nil {
 			a.logger.Println(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN, err.Error())
 			sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN), http.StatusInternalServerError)
 			return
 		} else {
-			a.logMetricAsServer("serverlogin", sessionToken.ID, nil)
 			res.Header().Set(TP_SESSION_TOKEN, sessionToken.ID)
 			return
 		}
@@ -606,10 +600,10 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 	}
 	//refresh
 	if sessionToken, err := CreateSessionTokenAndSave(
+		req.Context(),
 		td,
 		a.ApiConfig.TokenConfigs[0],
-		a.Store.WithContext(req.Context()),
-	); err != nil {
+		a.Store); err != nil {
 		a.logger.Println(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN, err.Error())
 		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN), http.StatusInternalServerError)
 		return
@@ -684,7 +678,7 @@ func (a *Api) CheckToken(res http.ResponseWriter, req *http.Request) {
 // status: 200
 func (a *Api) Logout(res http.ResponseWriter, req *http.Request) {
 	if id := req.Header.Get(TP_SESSION_TOKEN); id != "" {
-		if err := a.Store.WithContext(req.Context()).RemoveTokenByID(id); err != nil {
+		if err := a.Store.RemoveTokenByID(req.Context(), id); err != nil {
 			//silently fail but still log it
 			a.logger.Println("Logout was unable to delete token", err.Error())
 		}
@@ -727,7 +721,7 @@ func (a *Api) authenticateSessionToken(ctx context.Context, sessionToken string)
 		return nil, errors.New("Session token is empty")
 	} else if tokenData, err := UnpackSessionTokenAndVerify(sessionToken, a.ApiConfig.TokenConfigs...); err != nil {
 		return nil, err
-	} else if _, err := a.Store.WithContext(ctx).FindTokenByID(sessionToken); err != nil {
+	} else if _, err := a.Store.FindTokenByID(ctx, sessionToken); err != nil {
 		return nil, err
 	} else {
 		return tokenData, nil

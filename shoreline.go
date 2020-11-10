@@ -114,8 +114,8 @@ func main() {
 	 */
 
 	clientStore := user.NewMongoStoreClient(&config.Mongo)
-	defer clientStore.Disconnect()
-	clientStore.EnsureIndexes()
+	defer clientStore.Disconnect(context.Background())
+	clientStore.EnsureIndexes(context.Background())
 
 	// Start logging kafka connection debug info
 	sarama.Logger = logger
@@ -128,7 +128,7 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	handler, err := user.NewUserEventsHandler(clientStore)
+	handler, err := user.NewUserEventsHandler(clientStore, context.Background())
 	if err != nil {
 		log.Fatalln(err)
 	}

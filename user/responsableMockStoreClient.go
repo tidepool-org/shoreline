@@ -71,15 +71,9 @@ func (r *ResponsableMockStoreClient) Reset() {
 	r.RemoveTokenByIDResponses = nil
 }
 
-func (r *ResponsableMockStoreClient) EnsureIndexes() error { return nil }
+func (r *ResponsableMockStoreClient) EnsureIndexes(ctx context.Context) error { return nil }
 
-func (r *ResponsableMockStoreClient) WithContext(ctx context.Context) Storage {
-	// For mock clients, return itself, since the mock client has state
-	// for testing that we need to preserve.
-	return r
-}
-
-func (r *ResponsableMockStoreClient) Ping() (err error) {
+func (r *ResponsableMockStoreClient) Ping(ctx context.Context) (err error) {
 	if len(r.PingResponses) > 0 {
 		err, r.PingResponses = r.PingResponses[0], r.PingResponses[1:]
 		return
@@ -87,7 +81,7 @@ func (r *ResponsableMockStoreClient) Ping() (err error) {
 	panic("PingResponses unavailable")
 }
 
-func (r *ResponsableMockStoreClient) UpsertUser(user *User) (err error) {
+func (r *ResponsableMockStoreClient) UpsertUser(ctx context.Context, user *User) (err error) {
 	if len(r.UpsertUserResponses) > 0 {
 		err, r.UpsertUserResponses = r.UpsertUserResponses[0], r.UpsertUserResponses[1:]
 		return err
@@ -95,7 +89,7 @@ func (r *ResponsableMockStoreClient) UpsertUser(user *User) (err error) {
 	panic("UpsertUserResponses unavailable")
 }
 
-func (r *ResponsableMockStoreClient) FindUsers(user *User) (found []*User, err error) {
+func (r *ResponsableMockStoreClient) FindUsers(ctx context.Context, user *User) (found []*User, err error) {
 	if len(r.FindUsersResponses) > 0 {
 		var response FindUsersResponse
 		response, r.FindUsersResponses = r.FindUsersResponses[0], r.FindUsersResponses[1:]
@@ -104,7 +98,7 @@ func (r *ResponsableMockStoreClient) FindUsers(user *User) (found []*User, err e
 	panic("FindUsersResponses unavailable")
 }
 
-func (r *ResponsableMockStoreClient) FindUsersByRole(role string) (found []*User, err error) {
+func (r *ResponsableMockStoreClient) FindUsersByRole(ctx context.Context, role string) (found []*User, err error) {
 	if len(r.FindUsersByRoleResponses) > 0 {
 		var response FindUsersByRoleResponse
 		response, r.FindUsersByRoleResponses = r.FindUsersByRoleResponses[0], r.FindUsersByRoleResponses[1:]
@@ -113,7 +107,7 @@ func (r *ResponsableMockStoreClient) FindUsersByRole(role string) (found []*User
 	panic("FindUsersByRoleResponses unavailable")
 }
 
-func (r *ResponsableMockStoreClient) FindUsersWithIds(ids []string) (found []*User, err error) {
+func (r *ResponsableMockStoreClient) FindUsersWithIds(ctx context.Context, ids []string) (found []*User, err error) {
 	if len(r.FindUsersWithIdsResponses) > 0 {
 		var response FindUsersWithIdsResponse
 		response, r.FindUsersWithIdsResponses = r.FindUsersWithIdsResponses[0], r.FindUsersWithIdsResponses[1:]
@@ -122,7 +116,7 @@ func (r *ResponsableMockStoreClient) FindUsersWithIds(ids []string) (found []*Us
 	panic("FindUsersWithIdsResponses unavailable")
 }
 
-func (r *ResponsableMockStoreClient) FindUser(user *User) (found *User, err error) {
+func (r *ResponsableMockStoreClient) FindUser(ctx context.Context, user *User) (found *User, err error) {
 	if len(r.FindUserResponses) > 0 {
 		var response FindUserResponse
 		response, r.FindUserResponses = r.FindUserResponses[0], r.FindUserResponses[1:]
@@ -131,7 +125,7 @@ func (r *ResponsableMockStoreClient) FindUser(user *User) (found *User, err erro
 	panic("FindUserResponses unavailable")
 }
 
-func (r *ResponsableMockStoreClient) RemoveUser(user *User) (err error) {
+func (r *ResponsableMockStoreClient) RemoveUser(ctx context.Context, user *User) (err error) {
 	if len(r.RemoveUserResponses) > 0 {
 		err, r.RemoveUserResponses = r.RemoveUserResponses[0], r.RemoveUserResponses[1:]
 		return err
@@ -139,7 +133,7 @@ func (r *ResponsableMockStoreClient) RemoveUser(user *User) (err error) {
 	panic("RemoveUserResponses unavailable")
 }
 
-func (r *ResponsableMockStoreClient) AddToken(token *SessionToken) (err error) {
+func (r *ResponsableMockStoreClient) AddToken(ctx context.Context, token *SessionToken) (err error) {
 	if len(r.AddTokenResponses) > 0 {
 		err, r.AddTokenResponses = r.AddTokenResponses[0], r.AddTokenResponses[1:]
 		return err
@@ -147,7 +141,7 @@ func (r *ResponsableMockStoreClient) AddToken(token *SessionToken) (err error) {
 	panic("AddTokenResponses unavailable")
 }
 
-func (r *ResponsableMockStoreClient) FindTokenByID(id string) (*SessionToken, error) {
+func (r *ResponsableMockStoreClient) FindTokenByID(ctx context.Context, id string) (*SessionToken, error) {
 	if len(r.FindTokenByIDResponses) > 0 {
 		var response FindTokenByIDResponse
 		response, r.FindTokenByIDResponses = r.FindTokenByIDResponses[0], r.FindTokenByIDResponses[1:]
@@ -156,7 +150,7 @@ func (r *ResponsableMockStoreClient) FindTokenByID(id string) (*SessionToken, er
 	panic("FindTokenByIDResponses unavailable")
 }
 
-func (r *ResponsableMockStoreClient) RemoveTokenByID(id string) (err error) {
+func (r *ResponsableMockStoreClient) RemoveTokenByID(ctx context.Context, id string) (err error) {
 	if len(r.RemoveTokenByIDResponses) > 0 {
 		err, r.RemoveTokenByIDResponses = r.RemoveTokenByIDResponses[0], r.RemoveTokenByIDResponses[1:]
 		return err
@@ -164,7 +158,7 @@ func (r *ResponsableMockStoreClient) RemoveTokenByID(id string) (err error) {
 	panic("RemoveTokenByIDResponses unavailable")
 }
 
-func (r *ResponsableMockStoreClient) RemoveTokensForUser(userId string) (err error) {
+func (r *ResponsableMockStoreClient) RemoveTokensForUser(ctx context.Context, userId string) (err error) {
 	if len(r.RemoveTokensForUserResponses) > 0 {
 		err, r.RemoveTokenByIDResponses = r.RemoveTokenByIDResponses[0], r.RemoveTokenByIDResponses[1:]
 		return err

@@ -9,6 +9,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.opentelemetry.io/contrib/instrumentation/go.mongodb.org/mongo-driver/mongo/otelmongo"
 
 	tpMongo "github.com/tidepool-org/go-common/clients/mongo"
 )
@@ -28,7 +29,6 @@ var usersCollation *options.Collation = &options.Collation{Locale: "en", Strengt
 // MongoStoreClient - Mongo Storage Client
 type MongoStoreClient struct {
 	client   *mongo.Client
-	context  context.Context
 	database string
 }
 
@@ -40,6 +40,7 @@ func NewMongoStoreClient(config *tpMongo.Config) *MongoStoreClient {
 	}
 
 	clientOptions := options.Client().ApplyURI(connectionString)
+	clientOptions.Monitor = otelmongo.NewMonitor("shoreline")
 	mongoClient, err := mongo.Connect(context.Background(), clientOptions)
 	if err != nil {
 		log.Fatal(userStoreAPIPrefix, fmt.Sprintf("Invalid MongoDB connection string: %s", err))
@@ -47,26 +48,13 @@ func NewMongoStoreClient(config *tpMongo.Config) *MongoStoreClient {
 
 	return &MongoStoreClient{
 		client:   mongoClient,
-		context:  context.Background(),
 		database: config.Database,
 	}
 }
 
-// WithContext returns a shallow copy of c with its context changed
-// to ctx. The provided ctx must be non-nil.
-func (msc *MongoStoreClient) WithContext(ctx context.Context) Storage {
-	if ctx == nil {
-		panic("nil context")
-	}
-	msc2 := new(MongoStoreClient)
-	*msc2 = *msc
-	msc2.context = ctx
-	return msc2
-}
-
 // EnsureIndexes exist for the MongoDB collection. EnsureIndexes uses the Background() context, in order
 // to pass back the MongoDB errors, rather than any context errors.
-func (msc *MongoStoreClient) EnsureIndexes() error {
+func (msc *MongoStoreClient) EnsureIndexes(ctx context.Context) error {
 	usersIndexes := []mongo.IndexModel{
 		{
 			Keys: bson.D{{Key: "userid", Value: 1}},
@@ -89,7 +77,7 @@ func (msc *MongoStoreClient) EnsureIndexes() error {
 		},
 	}
 
-	if _, err := usersCollection(msc).Indexes().CreateMany(context.Background(), usersIndexes); err != nil {
+	if _, err := usersCollection(msc).Indexes().CreateMany(ctx, usersIndexes); err != nil {
 		log.Fatal(userStoreAPIPrefix, fmt.Sprintf("Unable to create users indexes: %s", err))
 	}
 
@@ -126,25 +114,25 @@ func tokensCollection(msc *MongoStoreClient) *mongo.Collection {
 }
 
 // Ping the MongoDB database
-func (msc *MongoStoreClient) Ping() error {
+func (msc *MongoStoreClient) Ping(ctx context.Context) error {
 	// do we have a store session
-	return msc.client.Ping(msc.context, nil)
+	return msc.client.Ping(ctx, nil)
 }
 
 // Disconnect from the MongoDB database
-func (msc *MongoStoreClient) Disconnect() error {
-	return msc.client.Disconnect(msc.context)
+func (msc *MongoStoreClient) Disconnect(ctx context.Context) error {
+	return msc.client.Disconnect(ctx)
 }
 
 // UpsertUser - Update an existing user's details, or insert a new user if the user doesn't already exist.
-func (msc *MongoStoreClient) UpsertUser(user *User) error {
+func (msc *MongoStoreClient) UpsertUser(ctx context.Context, user *User) error {
 	if user.Roles != nil {
 		sort.Strings(user.Roles)
 	}
 
 	// if the user already exists we update otherwise we add
 	opts := options.FindOneAndUpdate().SetUpsert(true).SetCollation(usersCollation)
-	result := usersCollection(msc).FindOneAndUpdate(msc.context, bson.M{"userid": user.Id}, bson.D{{Key: "$set", Value: user}}, opts)
+	result := usersCollection(msc).FindOneAndUpdate(ctx, bson.M{"userid": user.Id}, bson.D{{Key: "$set", Value: user}}, opts)
 	if result.Err() != mongo.ErrNoDocuments {
 		return result.Err()
 	}
@@ -152,10 +140,10 @@ func (msc *MongoStoreClient) UpsertUser(user *User) error {
 }
 
 // FindUser - find and return an existing user
-func (msc *MongoStoreClient) FindUser(user *User) (result *User, err error) {
+func (msc *MongoStoreClient) FindUser(ctx context.Context, user *User) (result *User, err error) {
 	if user.Id != "" {
 		opts := options.FindOne().SetCollation(usersCollation)
-		if err = usersCollection(msc).FindOne(msc.context, bson.M{"userid": user.Id}, opts).Decode(&result); err != nil {
+		if err = usersCollection(msc).FindOne(ctx, bson.M{"userid": user.Id}, opts).Decode(&result); err != nil {
 			return result, err
 		}
 	}
@@ -164,7 +152,7 @@ func (msc *MongoStoreClient) FindUser(user *User) (result *User, err error) {
 }
 
 // FindUsers - find and return multiple existing users
-func (msc *MongoStoreClient) FindUsers(user *User) (results []*User, err error) {
+func (msc *MongoStoreClient) FindUsers(ctx context.Context, user *User) (results []*User, err error) {
 	fieldsToMatch := []bson.M{}
 
 	if user.Id != "" {
@@ -182,12 +170,12 @@ func (msc *MongoStoreClient) FindUsers(user *User) (results []*User, err error) 
 	}
 
 	opts := options.Find().SetCollation(usersCollation)
-	cursor, err := usersCollection(msc).Find(msc.context, bson.M{"$or": fieldsToMatch}, opts)
+	cursor, err := usersCollection(msc).Find(ctx, bson.M{"$or": fieldsToMatch}, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	if err = cursor.All(msc.context, &results); err != nil {
+	if err = cursor.All(ctx, &results); err != nil {
 		return results, err
 	}
 
@@ -200,14 +188,14 @@ func (msc *MongoStoreClient) FindUsers(user *User) (results []*User, err error) 
 }
 
 // FindUsersByRole - find and return multiple users matching a Role
-func (msc *MongoStoreClient) FindUsersByRole(role string) (results []*User, err error) {
+func (msc *MongoStoreClient) FindUsersByRole(ctx context.Context, role string) (results []*User, err error) {
 	opts := options.Find().SetCollation(usersCollation)
-	cursor, err := usersCollection(msc).Find(msc.context, bson.M{"roles": role}, opts)
+	cursor, err := usersCollection(msc).Find(ctx, bson.M{"roles": role}, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	if err = cursor.All(msc.context, &results); err != nil {
+	if err = cursor.All(ctx, &results); err != nil {
 		return results, err
 	}
 
@@ -220,14 +208,14 @@ func (msc *MongoStoreClient) FindUsersByRole(role string) (results []*User, err 
 }
 
 // FindUsersWithIds - find and return multiple users by Tidepool User ID
-func (msc *MongoStoreClient) FindUsersWithIds(ids []string) (results []*User, err error) {
+func (msc *MongoStoreClient) FindUsersWithIds(ctx context.Context, ids []string) (results []*User, err error) {
 	opts := options.Find().SetCollation(usersCollation)
-	cursor, err := usersCollection(msc).Find(msc.context, bson.M{"userid": bson.M{"$in": ids}}, opts)
+	cursor, err := usersCollection(msc).Find(ctx, bson.M{"userid": bson.M{"$in": ids}}, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	if err = cursor.All(msc.context, &results); err != nil {
+	if err = cursor.All(ctx, &results); err != nil {
 		return results, err
 	}
 
@@ -240,9 +228,9 @@ func (msc *MongoStoreClient) FindUsersWithIds(ids []string) (results []*User, er
 }
 
 // RemoveUser - Remove a user from the database
-func (msc *MongoStoreClient) RemoveUser(user *User) (err error) {
+func (msc *MongoStoreClient) RemoveUser(ctx context.Context, user *User) (err error) {
 	opts := options.FindOneAndDelete().SetCollation(usersCollation)
-	result := usersCollection(msc).FindOneAndDelete(msc.context, bson.M{"userid": user.Id}, opts)
+	result := usersCollection(msc).FindOneAndDelete(ctx, bson.M{"userid": user.Id}, opts)
 	if result.Err() != mongo.ErrNoDocuments {
 		return result.Err()
 	}
@@ -250,10 +238,10 @@ func (msc *MongoStoreClient) RemoveUser(user *User) (err error) {
 }
 
 // AddToken to the token collection
-func (msc *MongoStoreClient) AddToken(st *SessionToken) error {
+func (msc *MongoStoreClient) AddToken(ctx context.Context, st *SessionToken) error {
 	// if the token already exists we update otherwise we add
 	opts := options.FindOneAndUpdate().SetUpsert(true)
-	result := tokensCollection(msc).FindOneAndUpdate(msc.context, bson.M{"_id": st.ID}, bson.D{{Key: "$set", Value: st}}, opts)
+	result := tokensCollection(msc).FindOneAndUpdate(ctx, bson.M{"_id": st.ID}, bson.D{{Key: "$set", Value: st}}, opts)
 	if result.Err() != mongo.ErrNoDocuments {
 		return result.Err()
 	}
@@ -262,9 +250,9 @@ func (msc *MongoStoreClient) AddToken(st *SessionToken) error {
 }
 
 // FindTokenByID - find an auth token by its ID
-func (msc *MongoStoreClient) FindTokenByID(id string) (*SessionToken, error) {
+func (msc *MongoStoreClient) FindTokenByID(ctx context.Context, id string) (*SessionToken, error) {
 	sessionToken := &SessionToken{}
-	if err := tokensCollection(msc).FindOne(msc.context, bson.M{"_id": id}).Decode(&sessionToken); err != nil {
+	if err := tokensCollection(msc).FindOne(ctx, bson.M{"_id": id}).Decode(&sessionToken); err != nil {
 		return nil, err
 	}
 
@@ -272,8 +260,8 @@ func (msc *MongoStoreClient) FindTokenByID(id string) (*SessionToken, error) {
 }
 
 // RemoveTokenByID - delete an auth token matching an ID
-func (msc *MongoStoreClient) RemoveTokenByID(id string) (err error) {
-	result := tokensCollection(msc).FindOneAndDelete(msc.context, bson.M{"_id": id})
+func (msc *MongoStoreClient) RemoveTokenByID(ctx context.Context, id string) (err error) {
+	result := tokensCollection(msc).FindOneAndDelete(ctx, bson.M{"_id": id})
 	if result.Err() != mongo.ErrNoDocuments {
 		return result.Err()
 	}
@@ -281,7 +269,7 @@ func (msc *MongoStoreClient) RemoveTokenByID(id string) (err error) {
 }
 
 // RemoveTokensForUser - delete an auth token matching an ID
-func (msc *MongoStoreClient) RemoveTokensForUser(userId string) (err error) {
-	_, err = tokensCollection(msc).DeleteMany(msc.context, bson.M{"userId": userId})
+func (msc *MongoStoreClient) RemoveTokensForUser(ctx context.Context, userId string) (err error) {
+	_, err = tokensCollection(msc).DeleteMany(ctx, bson.M{"userId": userId})
 	return
 }

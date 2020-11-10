@@ -63,42 +63,6 @@ func sendModelAsResWithStatus(res http.ResponseWriter, model interface{}, status
 	}
 }
 
-//send metric
-func (a *Api) logMetric(name, token string, params map[string]string) {
-	if token == "" {
-		a.logger.Println("Missing token so couldn't log metric")
-		return
-	}
-	if params == nil {
-		params = make(map[string]string)
-	}
-	return
-}
-
-//send metric
-func (a *Api) logMetricAsServer(name, token string, params map[string]string) {
-	if token == "" {
-		a.logger.Println("Missing token so couldn't log metric")
-		return
-	}
-	if params == nil {
-		params = make(map[string]string)
-	}
-	return
-}
-
-//send metric
-func (a *Api) logMetricForUser(id, name, token string, params map[string]string) {
-	if token == "" {
-		a.logger.Println("Missing token so couldn't log metric")
-		return
-	}
-	if params == nil {
-		params = make(map[string]string)
-	}
-	return
-}
-
 func (a *Api) sendUser(res http.ResponseWriter, user *User, isServerRequest bool) {
 	a.sendUserWithStatus(res, user, http.StatusOK, isServerRequest)
 }
