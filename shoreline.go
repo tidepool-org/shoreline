@@ -103,10 +103,7 @@ func eventHandlerProvider(clientStore user.Storage) (events.EventHandler, error)
 }
 
 func loggerProvider() *log.Logger {
-	logger := log.New(os.Stdout, user.USER_API_PREFIX, log.LstdFlags|log.Lshortfile)
-	log.SetPrefix(user.USER_API_PREFIX)
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
-	return logger
+	return log.New(os.Stdout, "", log.LstdFlags|log.Lshortfile)
 }
 
 func routerProvider(api *user.Api) *mux.Router {
