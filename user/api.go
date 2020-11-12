@@ -92,18 +92,15 @@ const (
 	STATUS_INVALID_ROLE          = "The role specified is invalid"
 )
 
-func InitApi(cfg ApiConfig, logger *log.Logger, store Storage, userEventsNotifier EventsNotifier, seagull clients.Seagull) *Api {
+func InitApi(cfg ApiConfig, logger *log.Logger, store Storage, userEventsNotifier EventsNotifier, seagull clients.Seagull, perms clients.Gatekeeper) *Api {
 	return &Api{
 		Store:              store,
 		ApiConfig:          cfg,
 		logger:             logger,
 		userEventsNotifier: userEventsNotifier,
 		seagull:            seagull,
+		perms:              perms,
 	}
-}
-
-func (a *Api) AttachPerms(perms clients.Gatekeeper) {
-	a.perms = perms
 }
 
 func (a *Api) SetHandlers(prefix string, rtr *mux.Router) {

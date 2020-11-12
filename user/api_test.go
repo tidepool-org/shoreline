@@ -20,7 +20,6 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/tidepool-org/go-common/clients"
-	"github.com/tidepool-org/go-common/clients/highwater"
 )
 
 const (
@@ -28,13 +27,14 @@ const (
 	makeItFail = true
 )
 
-func InitAPITest(cfg ApiConfig, logger *log.Logger, store Storage, userEventsNotifier EventsNotifier, seagull clients.Seagull) *Api {
+func InitAPITest(cfg ApiConfig, logger *log.Logger, store Storage, userEventsNotifier EventsNotifier, seagull clients.Seagull, perms clients.Gatekeeper) *Api {
 	return &Api{
 		Store:              store,
 		ApiConfig:          cfg,
 		logger:             logger,
 		userEventsNotifier: userEventsNotifier,
 		seagull:            seagull,
+		perms:              perms,
 	}
 }
 
@@ -107,19 +107,18 @@ xwIDAQAB
 	logger       = log.New(os.Stdout, USER_API_PREFIX, log.LstdFlags|log.Lshortfile)
 	mockNotifier = &mockEventsNotifier{}
 	mockStore    = NewMockStoreClient(fakeConfig.Salt, false, false)
-	mockMetrics  = highwater.NewMock()
 	mockSeagull  = clients.NewSeagullMock()
-	shoreline    = InitAPITest(fakeConfig, logger, mockStore, mockNotifier, mockSeagull)
+	shoreline    = InitAPITest(fakeConfig, logger, mockStore, mockNotifier, mockSeagull, nil)
 	/*
 	 *
 	 */
 	mockNoDupsStore = NewMockStoreClient(fakeConfig.Salt, true, false)
-	shorelineNoDups = InitAPITest(fakeConfig, logger, mockNoDupsStore, mockNotifier, mockSeagull)
+	shorelineNoDups = InitAPITest(fakeConfig, logger, mockNoDupsStore, mockNotifier, mockSeagull, nil)
 	/*
 	 * failure path
 	 */
 	mockStoreFails = NewMockStoreClient(fakeConfig.Salt, false, makeItFail)
-	shorelineFails = InitAPITest(fakeConfig, logger, mockStoreFails, mockNotifier, mockSeagull)
+	shorelineFails = InitAPITest(fakeConfig, logger, mockStoreFails, mockNotifier, mockSeagull, nil)
 
 	responsableStore      = NewResponsableMockStoreClient()
 	responsableGatekeeper = NewResponsableMockGatekeeper()
@@ -127,8 +126,7 @@ xwIDAQAB
 )
 
 func InitShoreline(config ApiConfig, store Storage, perms clients.Gatekeeper, notifier EventsNotifier) *Api {
-	api := InitAPITest(config, logger, store, notifier, mockSeagull)
-	api.AttachPerms(perms)
+	api := InitAPITest(config, logger, store, notifier, mockSeagull, perms)
 	return api
 }
 

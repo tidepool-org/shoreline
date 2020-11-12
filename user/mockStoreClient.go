@@ -24,6 +24,10 @@ func (d MockStoreClient) Ping(ctx context.Context) error {
 	return nil
 }
 
+func (d MockStoreClient) Disconnect(ctx context.Context) error {
+	return nil
+}
+
 func (d MockStoreClient) UpsertUser(ctx context.Context, user *User) error {
 	if d.doBad {
 		return errors.New("UpsertUser failure")

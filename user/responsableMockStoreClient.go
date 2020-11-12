@@ -81,6 +81,10 @@ func (r *ResponsableMockStoreClient) Ping(ctx context.Context) (err error) {
 	panic("PingResponses unavailable")
 }
 
+func (r *ResponsableMockStoreClient) Disconnect(ctx context.Context) (err error) {
+	return nil
+}
+
 func (r *ResponsableMockStoreClient) UpsertUser(ctx context.Context, user *User) (err error) {
 	if len(r.UpsertUserResponses) > 0 {
 		err, r.UpsertUserResponses = r.UpsertUserResponses[0], r.UpsertUserResponses[1:]

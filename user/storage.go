@@ -5,6 +5,7 @@ import "context"
 // Storage interface
 type Storage interface {
 	Ping(ctx context.Context) error
+	Disconnect(ctx context.Context) error
 	EnsureIndexes(ctx context.Context) error
 	UpsertUser(ctx context.Context, user *User) error
 	FindUser(ctx context.Context, user *User) (*User, error)
