@@ -18,6 +18,7 @@ import (
 	"github.com/tidepool-org/go-common/clients"
 	"github.com/tidepool-org/go-common/clients/configuration"
 	"github.com/tidepool-org/go-common/clients/mongo"
+	"github.com/tidepool-org/go-common/clients/shoreline"
 	"github.com/tidepool-org/go-common/events"
 	cloudevents "github.com/tidepool-org/go-common/events"
 	"github.com/tidepool-org/go-common/tracing"
@@ -158,6 +159,7 @@ func main() {
 		),
 		clients.SeagullModule,
 		clients.GatekeeperModule,
+		shoreline.ShorelineModule,
 		configuration.Module,
 		fx.Provide(
 			routerProvider,
