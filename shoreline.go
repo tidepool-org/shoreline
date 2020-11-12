@@ -24,15 +24,15 @@ import (
 	"github.com/tidepool-org/shoreline/user"
 )
 
-//MongoProvider provide mongo configuration
-func MongoProvider() mongo.Config {
+//mongoProvider provide mongo configuration
+func mongoProvider() mongo.Config {
 	var c mongo.Config
 	c.FromEnv()
 	return c
 }
 
-//ConfigProvider read config
-func ConfigProvider() user.ApiConfig {
+//configProvider read config
+func configProvider() user.ApiConfig {
 	var c user.ApiConfig
 
 	c.TokenConfigs = make([]user.TokenConfig, 2)
@@ -62,8 +62,8 @@ func ConfigProvider() user.ApiConfig {
 	return c
 }
 
-// MongoClientStoreProvider provides a Mongo Client Store
-func MongoClientStoreProvider(m mongo.Config) user.Storage {
+// mongoClientStoreProvider provides a Mongo Client Store
+func mongoClientStoreProvider(m mongo.Config) user.Storage {
 	return user.NewMongoStoreClient(&m)
 }
 
@@ -91,15 +91,6 @@ func StoreIndexer(clientStore user.Storage, lifecycle fx.Lifecycle) {
 			return clientStore.Disconnect(disconnectCtx)
 		},
 	})
-}
-
-func userEventsNotifierProvider() (user.EventsNotifier, error) {
-	kafkaConfig := events.NewConfig()
-	if err := kafkaConfig.LoadFromEnv(); err != nil {
-		log.Fatalln(err)
-	}
-	notifier, err := user.NewUserEventsNotifier(kafkaConfig)
-	return notifier, err
 }
 
 func eventHandlerProvider(clientStore user.Storage) (events.EventHandler, error) {
@@ -171,11 +162,11 @@ func main() {
 		fx.Provide(
 			routerProvider,
 			loggerProvider,
-			MongoProvider,
-			ConfigProvider,
-			MongoClientStoreProvider,
+			mongoProvider,
+			configProvider,
+			mongoClientStoreProvider,
 			serverProvider,
-			userEventsNotifierProvider,
+			user.NewUserEventsNotifier,
 			user.InitApi,
 		),
 		fx.Invoke(tracing.StartTracer, StoreIndexer, cloudevents.StartEventConsumer, startService),
