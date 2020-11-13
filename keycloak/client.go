@@ -23,12 +23,13 @@ const (
 var ErrUserNotFound = errors.New("user not found")
 var ErrUserConflict = errors.New("user already exists")
 
+//go:generate mockgen -source=./client.go -destination=./client_mock.go -package keycloak Client
 type Client interface {
 	Login(ctx context.Context, username, password string) (*oauth2.Token, error)
 	GetServiceAccountToken(ctx context.Context) (*oauth2.Token, error)
-	IntrospectToken(ctx context.Context, token *oauth2.Token) (*TokenIntrospectionResult, error)
-	RefreshToken(ctx context.Context, token *oauth2.Token) (*oauth2.Token, error)
-	RevokeToken(ctx context.Context, token *oauth2.Token) error
+	IntrospectToken(ctx context.Context, token oauth2.Token) (*TokenIntrospectionResult, error)
+	RefreshToken(ctx context.Context, token oauth2.Token) (*oauth2.Token, error)
+	RevokeToken(ctx context.Context, token oauth2.Token) error
 	GetUserById(ctx context.Context, id string) (*User, error)
 	GetUserByEmail(ctx context.Context, email string) (*User, error)
 	UpdateUser(ctx context.Context, user *User) error
@@ -195,7 +196,7 @@ func (c *client) jwtToAccessToken(jwt *gocloak.JWT) *oauth2.Token {
 	})
 }
 
-func (c *client) RevokeToken(ctx context.Context, token *oauth2.Token) error {
+func (c *client) RevokeToken(ctx context.Context, token oauth2.Token) error {
 	return c.keycloak.Logout(
 		ctx,
 		c.cfg.ClientID,
@@ -205,7 +206,7 @@ func (c *client) RevokeToken(ctx context.Context, token *oauth2.Token) error {
 	)
 }
 
-func (c *client) RefreshToken(ctx context.Context, token *oauth2.Token) (*oauth2.Token, error) {
+func (c *client) RefreshToken(ctx context.Context, token oauth2.Token) (*oauth2.Token, error) {
 	jwt, err := c.keycloak.RefreshToken(
 		ctx,
 		token.RefreshToken,
@@ -364,7 +365,7 @@ func (c *client) FindUsersWithIds(ctx context.Context, ids []string) (users []*U
 	return
 }
 
-func (c *client) IntrospectToken(ctx context.Context, token *oauth2.Token) (*TokenIntrospectionResult, error) {
+func (c *client) IntrospectToken(ctx context.Context, token oauth2.Token) (*TokenIntrospectionResult, error) {
 	rtr, err := c.keycloak.RetrospectToken(
 		ctx,
 		token.AccessToken,

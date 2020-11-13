@@ -4,6 +4,8 @@ import (
 	"context"
 )
 
+//go:generate mockgen -source=./storage.go -destination=./storage_mock.go -package user Storage
+
 // Storage interface
 type Storage interface {
 	Ping() error

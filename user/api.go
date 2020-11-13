@@ -49,17 +49,19 @@ type (
 		seagull            clients.Seagull
 		userEventsNotifier EventsNotifier
 		sessionToken       *SessionToken
+		tokenAuthenticator TokenAuthenticator
 	}
 	ApiConfig struct {
-		ServerSecret         string         `json:"serverSercret"`
-		TokenConfigs         []TokenConfig  `json:"tokenConfigs"` // the first token config is used for encoding new tokens
-		LongTermKey          string         `json:"longTermKey"`
-		LongTermDaysDuration int            `json:"longTermDaysDuration"`
-		Salt                 string         `json:"salt"`
-		VerificationSecret   string         `json:"verificationSecret"`
-		ClinicDemoUserID     string         `json:"clinicDemoUserId"`
-		Marketo              marketo.Config `json:"marketo"`
-		MigrationSecret      string         `json:"migrationSecret"`
+		ServerSecret         string           `json:"serverSercret"`
+		TokenConfigs         []TokenConfig    `json:"tokenConfigs"` // the first token config is used for encoding new tokens
+		LongTermKey          string           `json:"longTermKey"`
+		LongTermDaysDuration int              `json:"longTermDaysDuration"`
+		Salt                 string           `json:"salt"`
+		VerificationSecret   string           `json:"verificationSecret"`
+		ClinicDemoUserID     string           `json:"clinicDemoUserId"`
+		Marketo              marketo.Config   `json:"marketo"`
+		MigrationSecret      string           `json:"migrationSecret"`
+		TokenCacheConfig     TokenCacheConfig `json:"tokenCacheConfig"`
 	}
 	varsHandler func(http.ResponseWriter, *http.Request, map[string]string)
 )
@@ -102,6 +104,11 @@ const (
 )
 
 func InitApi(cfg ApiConfig, logger *log.Logger, store Storage, manager marketo.Manager, keycloakClient keycloak.Client, userEventsNotifier EventsNotifier, seagull clients.Seagull) *Api {
+	tokenAuthenticator := NewTokenAuthenticator(keycloakClient, store, cfg.TokenConfigs)
+	if cfg.TokenCacheConfig.Enabled {
+		tokenAuthenticator = NewCachingTokenAuthenticator(&cfg.TokenCacheConfig, tokenAuthenticator)
+	}
+
 	return &Api{
 		Store:              store,
 		ApiConfig:          cfg,
@@ -110,6 +117,7 @@ func InitApi(cfg ApiConfig, logger *log.Logger, store Storage, manager marketo.M
 		keycloakClient:     keycloakClient,
 		userEventsNotifier: userEventsNotifier,
 		seagull:            seagull,
+		tokenAuthenticator: tokenAuthenticator,
 	}
 }
 
@@ -175,7 +183,7 @@ func (a *Api) GetStatus(res http.ResponseWriter, req *http.Request) {
 // status: 500 STATUS_ERR_FINDING_USR
 func (a *Api) GetUsers(res http.ResponseWriter, req *http.Request) {
 	sessionToken := req.Header.Get(TP_SESSION_TOKEN)
-	if tokenData, err := a.authenticateSessionToken(req.Context(), sessionToken); err != nil {
+	if tokenData, err := a.tokenAuthenticator.Authenticate(req.Context(), sessionToken); err != nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
 
 	} else if !tokenData.IsServer {
@@ -271,7 +279,7 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 // status: 500 STATUS_ERR_GENERATING_TOKEN
 func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 	token := req.Header.Get(TP_SESSION_TOKEN)
-	if tokenData, err := a.authenticateToken(req.Context(), token); err != nil {
+	if tokenData, err := a.tokenAuthenticator.Authenticate(req.Context(), token); err != nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
 
 	} else if custodianUserID := vars["userid"]; !tokenData.IsServer && custodianUserID != tokenData.UserId {
@@ -312,7 +320,7 @@ func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, va
 func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 	a.logger.Printf("UpdateUser %v", req)
 	token := req.Header.Get(TP_SESSION_TOKEN)
-	if tokenData, err := a.authenticateToken(req.Context(), token); err != nil {
+	if tokenData, err := a.tokenAuthenticator.Authenticate(req.Context(), token); err != nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
 
 	} else if updateUserDetails, err := ParseUpdateUserDetails(req.Body); err != nil {
@@ -380,7 +388,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 // status: 500 STATUS_ERR_FINDING_USR
 func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 	token := req.Header.Get(TP_SESSION_TOKEN)
-	tokenData, err := a.authenticateToken(req.Context(), token)
+	tokenData, err := a.tokenAuthenticator.Authenticate(req.Context(), token)
 	if err != nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
 		return
@@ -419,7 +427,7 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 	ctx := req.Context()
 	userID := vars["userid"]
 
-	tokenData, err := a.authenticateSessionToken(ctx, req.Header.Get(TP_SESSION_TOKEN))
+	tokenData, err := a.tokenAuthenticator.Authenticate(ctx, req.Header.Get(TP_SESSION_TOKEN))
 	if err != nil {
 		a.logger.Println(http.StatusUnauthorized, err.Error())
 		res.WriteHeader(http.StatusUnauthorized)
@@ -510,7 +518,7 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 		a.sendError(res, http.StatusUnauthorized, STATUS_ERR_FINDING_USR, err)
 	} else if tidepoolSessionToken, err := keycloak.CreateBackwardCompatibleToken(token); err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_TOKEN, err)
-	} else if introspectionResult, err := a.keycloakClient.IntrospectToken(req.Context(), token); err != nil {
+	} else if introspectionResult, err := a.keycloakClient.IntrospectToken(req.Context(), *token); err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_TOKEN, err)
 	} else if !introspectionResult.EmailVerified {
 		a.sendError(res, http.StatusForbidden, STATUS_NOT_VERIFIED)
@@ -581,10 +589,10 @@ func (a *Api) RefreshKeycloakSession(res http.ResponseWriter, req *http.Request)
 	if err == nil {
 		// Force token refresh if the token is not yet expired
 		oauthToken.Expiry = time.Now()
-		oauthToken, err = a.keycloakClient.RefreshToken(req.Context(), oauthToken)
+		oauthToken, err = a.keycloakClient.RefreshToken(req.Context(), *oauthToken)
 		if err == nil {
 			if token, err = keycloak.CreateBackwardCompatibleToken(oauthToken); err == nil {
-				tokenData, err = a.authenticateKeycloakToken(req.Context(), token)
+				tokenData, err = a.tokenAuthenticator.AuthenticateKeycloakToken(req.Context(), token)
 			}
 		}
 	}
@@ -604,7 +612,7 @@ func (a *Api) RefreshKeycloakSession(res http.ResponseWriter, req *http.Request)
 // status: 500 STATUS_ERR_GENERATING_TOKEN
 func (a *Api) RefreshLegacySession(res http.ResponseWriter, req *http.Request) {
 
-	td, err := a.authenticateSessionToken(req.Context(), req.Header.Get(TP_SESSION_TOKEN))
+	td, err := a.tokenAuthenticator.Authenticate(req.Context(), req.Header.Get(TP_SESSION_TOKEN))
 
 	if err != nil {
 		a.logger.Println(http.StatusUnauthorized, err.Error())
@@ -663,7 +671,7 @@ func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars 
 	ctx := req.Context()
 	// Check whether the request is made by a server authorized for using this endpoint
 	serverToken := req.Header.Get(TP_SESSION_TOKEN)
-	if tokenData, err := a.authenticateToken(ctx, serverToken); err != nil {
+	if tokenData, err := a.tokenAuthenticator.Authenticate(ctx, serverToken); err != nil {
 		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN), http.StatusInternalServerError)
 		return
 	} else if !tokenData.IsServer {
@@ -673,7 +681,7 @@ func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars 
 
 	// Return the token data
 	userToken := vars["token"]
-	tokenData, err := a.authenticateToken(ctx, userToken)
+	tokenData, err := a.tokenAuthenticator.Authenticate(ctx, userToken)
 	if err != nil {
 		a.logger.Println(http.StatusUnauthorized, STATUS_NO_TOKEN)
 		a.logger.Printf("header session token: %v", userToken)
@@ -689,7 +697,7 @@ func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars 
 // status: 401 STATUS_NO_TOKEN
 func (a *Api) CheckToken(res http.ResponseWriter, req *http.Request) {
 	token := req.Header.Get(TP_SESSION_TOKEN)
-	td, err := a.authenticateSessionToken(req.Context(), token)
+	td, err := a.tokenAuthenticator.Authenticate(req.Context(), token)
 	if err != nil {
 		a.logger.Printf("failed request: %v", req)
 		a.logger.Println(http.StatusUnauthorized, STATUS_NO_TOKEN, err.Error())
@@ -707,7 +715,7 @@ func (a *Api) Logout(res http.ResponseWriter, req *http.Request) {
 		if keycloak.IsKeycloakBackwardCompatibleToken(id) {
 			if token, err := keycloak.UnpackBackwardCompatibleToken(id); err != nil {
 				a.logger.Println("Unable to unpack token", err.Error())
-			} else if err := a.keycloakClient.RevokeToken(req.Context(), token); err != nil {
+			} else if err := a.keycloakClient.RevokeToken(req.Context(), *token); err != nil {
 				a.logger.Println("Unable to logout from keycloak", err.Error())
 			}
 		} else if err := a.Store.WithContext(req.Context()).RemoveTokenByID(id); err != nil {
@@ -839,39 +847,6 @@ func (a *Api) sendError(res http.ResponseWriter, statusCode int, reason string, 
 
 	a.logger.Printf("%s:%d RESPONSE ERROR: [%d %s] %s", file, line, statusCode, reason, strings.Join(messages, "; "))
 	sendModelAsResWithStatus(res, status.NewStatus(statusCode, reason), statusCode)
-}
-
-func (a *Api) authenticateToken(ctx context.Context, token string) (*TokenData, error) {
-	authenticate := a.authenticateSessionToken
-	if keycloak.IsKeycloakBackwardCompatibleToken(token) {
-		authenticate = a.authenticateKeycloakToken
-	}
-	return authenticate(ctx, token)
-}
-
-func (a *Api) authenticateSessionToken(ctx context.Context, sessionToken string) (*TokenData, error) {
-	if sessionToken == "" {
-		return nil, errors.New("Session token is empty")
-	} else if tokenData, err := UnpackSessionTokenAndVerify(sessionToken, a.ApiConfig.TokenConfigs...); err != nil {
-		return nil, err
-	} else if _, err := a.Store.WithContext(ctx).FindTokenByID(sessionToken); err != nil {
-		return nil, err
-	} else {
-		return tokenData, nil
-	}
-}
-
-func (a *Api) authenticateKeycloakToken(ctx context.Context, token string) (*TokenData, error) {
-	oauthToken, err := keycloak.UnpackBackwardCompatibleToken(token)
-	if err != nil {
-		return nil, err
-	}
-	result, err := a.keycloakClient.IntrospectToken(ctx, oauthToken)
-	if err != nil {
-		return nil, err
-	}
-
-	return TokenDataFromIntrospectionResult(result)
 }
 
 func (a *Api) tokenUserHasRequestedPermissions(tokenData *TokenData, groupId string, requestedPermissions clients.Permissions) (clients.Permissions, error) {

@@ -2,7 +2,6 @@ package user
 
 import (
 	"bytes"
-	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -21,7 +20,6 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/tidepool-org/go-common/clients"
-	"github.com/tidepool-org/go-common/clients/highwater"
 	"github.com/tidepool-org/shoreline/user/marketo"
 )
 
@@ -30,15 +28,16 @@ const (
 	makeItFail = true
 )
 
-func InitAPITest(cfg ApiConfig, logger *log.Logger, store Storage, marketoManager marketo.Manager, keycloakClient keycloak.Client, userEventsNotifier EventsNotifier, seagull clients.Seagull) *Api {
+func InitAPITest(cfg ApiConfig, logger *log.Logger, store Storage, marketoManager marketo.Manager, keycloakClient keycloak.Client, userEventsNotifier EventsNotifier, seagull clients.Seagull, tokenAuthenticator TokenAuthenticator) *Api {
 	return &Api{
-		Store:          store,
-		ApiConfig:      cfg,
-		logger:         logger,
-		marketoManager: marketoManager,
-		keycloakClient: keycloakClient,
+		Store:              store,
+		ApiConfig:          cfg,
+		logger:             logger,
+		marketoManager:     marketoManager,
+		keycloakClient:     keycloakClient,
 		userEventsNotifier: userEventsNotifier,
 		seagull:            seagull,
+		tokenAuthenticator: tokenAuthenticator,
 	}
 }
 
@@ -119,21 +118,17 @@ xwIDAQAB
 	logger             = log.New(os.Stdout, USER_API_PREFIX, log.LstdFlags|log.Lshortfile)
 	mockNotifier       = &MockEventsNotifier{}
 	mockStore          = NewMockStoreClient(fakeConfig.Salt, false, false)
-	mockMetrics        = highwater.NewMock()
 	mockMarketoManager = NewTestManager()
 	mockKeycloakClient = &keycloak.MockClient{}
 	mockSeagull        = clients.NewSeagullMock()
-	shoreline          = InitAPITest(fakeConfig, logger, mockStore, mockMarketoManager, mockKeycloakClient, mockNotifier, mockSeagull)
-	/*
-	 *
-	 */
-	mockNoDupsStore = NewMockStoreClient(fakeConfig.Salt, true, false)
-	shorelineNoDups = InitAPITest(fakeConfig, logger, mockNoDupsStore, mockMarketoManager, mockKeycloakClient, mockNotifier, mockSeagull)
+	tokenAuthenticator = NewTokenAuthenticator(mockKeycloakClient, mockStore, tokenConfigs)
+	shoreline          = InitAPITest(fakeConfig, logger, mockStore, mockMarketoManager, mockKeycloakClient, mockNotifier, mockSeagull, tokenAuthenticator)
+
 	/*
 	 * failure path
 	 */
 	mockStoreFails = NewMockStoreClient(fakeConfig.Salt, false, makeItFail)
-	shorelineFails = InitAPITest(fakeConfig, logger, mockStoreFails, mockMarketoManager, mockKeycloakClient, mockNotifier, mockSeagull)
+	shorelineFails = InitAPITest(fakeConfig, logger, mockStoreFails, mockMarketoManager, mockKeycloakClient, mockNotifier, mockSeagull, tokenAuthenticator)
 
 	responsableStore      = NewResponsableMockStoreClient()
 	responsableGatekeeper = NewResponsableMockGatekeeper()
@@ -141,7 +136,7 @@ xwIDAQAB
 )
 
 func InitShoreline(config ApiConfig, store Storage, perms clients.Gatekeeper, notifier EventsNotifier) *Api {
-	api := InitAPITest(config, logger, store, mockMarketoManager, mockKeycloakClient, notifier, mockSeagull)
+	api := InitAPITest(config, logger, store, mockMarketoManager, mockKeycloakClient, notifier, mockSeagull, tokenAuthenticator)
 	api.AttachPerms(perms)
 	return api
 }
@@ -2181,113 +2176,6 @@ func TestAnonIdHashPair_InBulk(t *testing.T) {
 	}
 
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-func Test_AuthenticateSessionToken_Missing(t *testing.T) {
-	tokenData, err := responsableShoreline.authenticateSessionToken(context.Background(), "")
-	if err == nil {
-		t.Fatalf("Unexpected success")
-	}
-	if err.Error() != "Session token is empty" {
-		t.Fatalf("Unexpected error: %s", err.Error())
-	}
-	if tokenData != nil {
-		t.Fatalf("Unexpected token data returned: %#v", tokenData)
-	}
-}
-
-func Test_AuthenticateSessionToken_Invalid(t *testing.T) {
-	tokenData, err := responsableShoreline.authenticateSessionToken(context.Background(), "xyz")
-	if err == nil {
-		t.Fatalf("Unexpected success")
-	}
-	if err.Error() != "token contains an invalid number of segments" {
-		t.Fatalf("Unexpected error: %s", err.Error())
-	}
-	if tokenData != nil {
-		t.Fatalf("Unexpected token data returned: %#v", tokenData)
-	}
-}
-
-func Test_AuthenticateSessionToken_Expired(t *testing.T) {
-	sessionToken := createSessionToken(t, "abcdef1234", false, -3600)
-	tokenData, err := responsableShoreline.authenticateSessionToken(context.Background(), sessionToken.ID)
-	if err == nil {
-		t.Fatalf("Unexpected success")
-	}
-	if err.Error() != "Token is expired" {
-		t.Fatalf("Unexpected error: %s", err.Error())
-	}
-	if tokenData != nil {
-		t.Fatalf("Unexpected token data returned: %#v", tokenData)
-	}
-}
-
-func Test_AuthenticateSessionToken_NotFound(t *testing.T) {
-	sessionToken := createSessionToken(t, "abcdef1234", false, tokenDuration)
-	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{nil, errors.New("NOT FOUND")}}
-	defer expectResponsablesEmpty(t)
-
-	tokenData, err := responsableShoreline.authenticateSessionToken(context.Background(), sessionToken.ID)
-	if err == nil {
-		t.Fatalf("Unexpected success")
-	}
-	if err.Error() != "NOT FOUND" {
-		t.Fatalf("Unexpected error: %s", err.Error())
-	}
-	if tokenData != nil {
-		t.Fatalf("Unexpected token data returned: %#v", tokenData)
-	}
-}
-
-func Test_AuthenticateSessionToken_Success_User(t *testing.T) {
-	sessionToken := createSessionToken(t, "abcdef1234", false, tokenDuration)
-	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
-	defer expectResponsablesEmpty(t)
-
-	tokenData, err := responsableShoreline.authenticateSessionToken(context.Background(), sessionToken.ID)
-	if err != nil {
-		t.Fatalf("Unexpected error: %#v", err)
-	}
-	if tokenData == nil {
-		t.Fatalf("Missing expected token data")
-	}
-	if tokenData.UserId != "abcdef1234" {
-		t.Fatalf("Unexpected token user id: %s", tokenData.UserId)
-	}
-	if tokenData.IsServer {
-		t.Fatalf("Unexpected server token")
-	}
-	if tokenData.DurationSecs != tokenDuration {
-		t.Fatalf("Unexpected token duration: %v", tokenData.DurationSecs)
-	}
-}
-
-func Test_AuthenticateSessionToken_Success_Server(t *testing.T) {
-	sessionToken := createSessionToken(t, "abcdef1234", true, tokenDuration)
-	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
-	defer expectResponsablesEmpty(t)
-
-	tokenData, err := responsableShoreline.authenticateSessionToken(context.Background(), sessionToken.ID)
-	if err != nil {
-		t.Fatalf("Unexpected error: %#v", err)
-	}
-	if tokenData == nil {
-		t.Fatalf("Missing expected token data")
-	}
-	if tokenData.UserId != "abcdef1234" {
-		t.Fatalf("Unexpected token user id: %s", tokenData.UserId)
-	}
-	if !tokenData.IsServer {
-		t.Fatalf("Unexpected non-server token")
-	}
-	if tokenData.DurationSecs != tokenDuration {
-		t.Fatalf("Unexpected token duration: %v", tokenData.DurationSecs)
-	}
-}
-
-////////////////////////////////////////////////////////////////////////////////
 
 func Test_TokenUserHasRequestedPermissions_Server(t *testing.T) {
 	tokenData := &TokenData{UserId: "abcdef1234", IsServer: true, DurationSecs: tokenDuration}
