@@ -201,9 +201,11 @@ func (m *MigrationStore) FindUsersWithIds(ids []string) (users []*User, err erro
 	return
 }
 
-// Not used - deletions are handled by the user service
 func (m *MigrationStore) RemoveUser(user *User) error {
-	return m.fallback.RemoveUser(user)
+	if err := m.fallback.RemoveUser(user); err != nil {
+		return err
+	}
+	return m.keycloakClient.DeleteUser(m.ctx, user.Id)
 }
 
 func (m *MigrationStore) AddToken(token *SessionToken) error {

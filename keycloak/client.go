@@ -36,6 +36,7 @@ type Client interface {
 	UpdateUserPassword(ctx context.Context, id, password string) error
 	CreateUser(ctx context.Context, user *User) (*User, error)
 	FindUsersWithIds(ctx context.Context, ids []string) ([]*User, error)
+	DeleteUser(ctx context.Context, id string) error
 }
 
 type User struct {
@@ -401,6 +402,20 @@ func (c *client) IntrospectToken(ctx context.Context, token oauth2.Token) (*Toke
 	}
 
 	return result, nil
+}
+
+func (c *client) DeleteUser(ctx context.Context, id string) error {
+	token, err := c.getAdminToken(ctx)
+	if err != nil {
+		return err
+	}
+
+	if err := c.keycloak.DeleteUser(ctx, token.AccessToken, c.cfg.Realm, id); err != nil {
+		if aErr, ok := err.(*gocloak.APIError); ok && aErr.Code == http.StatusNotFound {
+			return nil
+		}
+	}
+	return err
 }
 
 func (c *client) getRealmURL(realm string, path ...string) string {
