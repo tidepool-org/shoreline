@@ -195,3 +195,17 @@ func (mr *MockClientMockRecorder) FindUsersWithIds(ctx, ids interface{}) *gomock
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindUsersWithIds", reflect.TypeOf((*MockClient)(nil).FindUsersWithIds), ctx, ids)
 }
+
+// DeleteUser mocks base method
+func (m *MockClient) DeleteUser(ctx context.Context, id string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteUser", ctx, id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteUser indicates an expected call of DeleteUser
+func (mr *MockClientMockRecorder) DeleteUser(ctx, id interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUser", reflect.TypeOf((*MockClient)(nil).DeleteUser), ctx, id)
+}
