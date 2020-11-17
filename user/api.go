@@ -288,6 +288,9 @@ func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, va
 	} else if newCustodialUserDetails, err := ParseNewCustodialUserDetails(req.Body); err != nil {
 		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, err)
 
+	} else if err := newCustodialUserDetails.Validate(); err != nil {
+		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, err)
+
 	} else if newUserDetails, err := NewUserDetailsFromCustodialUserDetails(newCustodialUserDetails); err != nil {
 		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, err)
 
@@ -348,6 +351,24 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, "User does not have permissions")
 
 	} else {
+		if updateUserDetails.Username != nil || updateUserDetails.Emails != nil {
+			dupCheck := &User{}
+			if updateUserDetails.Username != nil {
+				dupCheck.Username = *updateUserDetails.Username
+			}
+			if updateUserDetails.Emails != nil {
+				dupCheck.Emails = updateUserDetails.Emails
+			}
+
+			if results, err := a.Store.WithContext(req.Context()).FindUsers(dupCheck); err != nil {
+				a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err)
+				return
+			} else if len(results) > 0 {
+				a.sendError(res, http.StatusConflict, STATUS_USR_ALREADY_EXISTS)
+				return
+			}
+		}
+
 		if updateUserDetails.Password != nil {
 			hash, err := GeneratePasswordHash(originalUser.Id, *updateUserDetails.Password, a.ApiConfig.Salt)
 			if err != nil {
@@ -410,7 +431,7 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err)
 
 	} else if user == nil {
-		a.sendError(res, http.StatusNotFound, STATUS_ERR_FINDING_USR, err)
+		a.sendError(res, http.StatusNotFound, STATUS_USER_NOT_FOUND, err)
 
 	} else if permissions, err := a.tokenUserHasRequestedPermissions(tokenData, user.Id, clients.Permissions{"root": clients.Allowed, "custodian": clients.Allowed}); err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err)
@@ -515,14 +536,14 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 	if user, password := unpackAuth(req.Header.Get("Authorization")); user == nil {
 		a.sendError(res, http.StatusBadRequest, STATUS_MISSING_ID_PW)
 	} else if token, err := a.keycloakClient.Login(req.Context(), user.Username, password); err != nil {
-		a.sendError(res, http.StatusUnauthorized, STATUS_ERR_FINDING_USR, err)
+		a.sendError(res, http.StatusUnauthorized, STATUS_NO_MATCH, err)
 	} else if tidepoolSessionToken, err := keycloak.CreateBackwardCompatibleToken(token); err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_TOKEN, err)
 	} else if introspectionResult, err := a.keycloakClient.IntrospectToken(req.Context(), *token); err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_TOKEN, err)
 	} else if !introspectionResult.EmailVerified {
 		a.sendError(res, http.StatusForbidden, STATUS_NOT_VERIFIED)
-	} else if user, err := a.findUser(req.Context(), introspectionResult.Subject); err != nil {
+	} else if user, err := a.Store.FindUser(&User{Id: introspectionResult.Subject}); err != nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_ERR_FINDING_USR, err)
 	} else {
 		res.Header().Set(TP_SESSION_TOKEN, tidepoolSessionToken)
@@ -590,10 +611,13 @@ func (a *Api) RefreshKeycloakSession(res http.ResponseWriter, req *http.Request)
 		// Force token refresh if the token is not yet expired
 		oauthToken.Expiry = time.Now()
 		oauthToken, err = a.keycloakClient.RefreshToken(req.Context(), *oauthToken)
-		if err == nil {
-			if token, err = keycloak.CreateBackwardCompatibleToken(oauthToken); err == nil {
-				tokenData, err = a.tokenAuthenticator.AuthenticateKeycloakToken(req.Context(), token)
-			}
+		if err != nil {
+			a.logger.Println(http.StatusUnauthorized, STATUS_NO_TOKEN, err.Error())
+			sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_TOKEN), http.StatusUnauthorized)
+			return
+		}
+		if token, err = keycloak.CreateBackwardCompatibleToken(oauthToken); err == nil {
+			tokenData, err = a.tokenAuthenticator.AuthenticateKeycloakToken(req.Context(), token)
 		}
 	}
 	if err != nil {
@@ -671,6 +695,11 @@ func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars 
 	ctx := req.Context()
 	// Check whether the request is made by a server authorized for using this endpoint
 	serverToken := req.Header.Get(TP_SESSION_TOKEN)
+	if serverToken == "" {
+		sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_TOKEN), http.StatusUnauthorized)
+		return
+	}
+
 	if tokenData, err := a.tokenAuthenticator.Authenticate(ctx, serverToken); err != nil {
 		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN), http.StatusInternalServerError)
 		return

@@ -6,7 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/golang/mock/gomock"
+	"github.com/gorilla/mux"
+	"github.com/tidepool-org/go-common/clients"
 	"github.com/tidepool-org/shoreline/keycloak"
+	"github.com/tidepool-org/shoreline/user/marketo"
+	"golang.org/x/oauth2"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -17,10 +22,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
-
-	"github.com/gorilla/mux"
-	"github.com/tidepool-org/go-common/clients"
-	"github.com/tidepool-org/shoreline/user/marketo"
+	"time"
 )
 
 const (
@@ -28,7 +30,8 @@ const (
 	makeItFail = true
 )
 
-func InitAPITest(cfg ApiConfig, logger *log.Logger, store Storage, marketoManager marketo.Manager, keycloakClient keycloak.Client, userEventsNotifier EventsNotifier, seagull clients.Seagull, tokenAuthenticator TokenAuthenticator) *Api {
+func InitAPITest(cfg ApiConfig, logger *log.Logger, store Storage, marketoManager marketo.Manager, keycloakClient keycloak.Client, userEventsNotifier EventsNotifier, seagull clients.Seagull) *Api {
+	logger.SetFlags(0)
 	return &Api{
 		Store:              store,
 		ApiConfig:          cfg,
@@ -37,7 +40,7 @@ func InitAPITest(cfg ApiConfig, logger *log.Logger, store Storage, marketoManage
 		keycloakClient:     keycloakClient,
 		userEventsNotifier: userEventsNotifier,
 		seagull:            seagull,
-		tokenAuthenticator: tokenAuthenticator,
+		tokenAuthenticator: NewTokenAuthenticator(keycloakClient, store, cfg.TokenConfigs),
 	}
 }
 
@@ -121,14 +124,13 @@ xwIDAQAB
 	mockMarketoManager = NewTestManager()
 	mockKeycloakClient = &keycloak.MockClient{}
 	mockSeagull        = clients.NewSeagullMock()
-	tokenAuthenticator = NewTokenAuthenticator(mockKeycloakClient, mockStore, tokenConfigs)
-	shoreline          = InitAPITest(fakeConfig, logger, mockStore, mockMarketoManager, mockKeycloakClient, mockNotifier, mockSeagull, tokenAuthenticator)
+	shoreline          = InitAPITest(fakeConfig, logger, mockStore, mockMarketoManager, mockKeycloakClient, mockNotifier, mockSeagull)
 
 	/*
 	 * failure path
 	 */
 	mockStoreFails = NewMockStoreClient(fakeConfig.Salt, false, makeItFail)
-	shorelineFails = InitAPITest(fakeConfig, logger, mockStoreFails, mockMarketoManager, mockKeycloakClient, mockNotifier, mockSeagull, tokenAuthenticator)
+	shorelineFails = InitAPITest(fakeConfig, logger, mockStoreFails, mockMarketoManager, mockKeycloakClient, mockNotifier, mockSeagull)
 
 	responsableStore      = NewResponsableMockStoreClient()
 	responsableGatekeeper = NewResponsableMockGatekeeper()
@@ -136,7 +138,7 @@ xwIDAQAB
 )
 
 func InitShoreline(config ApiConfig, store Storage, perms clients.Gatekeeper, notifier EventsNotifier) *Api {
-	api := InitAPITest(config, logger, store, mockMarketoManager, mockKeycloakClient, notifier, mockSeagull, tokenAuthenticator)
+	api := InitAPITest(config, logger, store, mockMarketoManager, mockKeycloakClient, notifier, mockSeagull)
 	api.AttachPerms(perms)
 	return api
 }
@@ -585,7 +587,7 @@ func Test_CreateUser_Error_InvalidUserDetails(t *testing.T) {
 }
 
 func Test_CreateUser_Error_ErrorFindingUsers(t *testing.T) {
-	responsableStore.FindUsersResponses = []FindUsersResponse{{nil, errors.New("ERROR")}}
+	responsableStore.FindUserResponses = []FindUserResponse{{nil, errors.New("ERROR")}}
 	defer expectResponsablesEmpty(t)
 
 	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\"}"
@@ -594,7 +596,7 @@ func Test_CreateUser_Error_ErrorFindingUsers(t *testing.T) {
 }
 
 func Test_CreateUser_Error_ConflictingEmail(t *testing.T) {
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{}}, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{&User{}, nil}}
 	defer expectResponsablesEmpty(t)
 
 	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\"}"
@@ -603,7 +605,7 @@ func Test_CreateUser_Error_ConflictingEmail(t *testing.T) {
 }
 
 func Test_CreateUser_Error_ErrorUpsertingUser(t *testing.T) {
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{nil, nil}}
 	responsableStore.UpsertUserResponses = []error{errors.New("ERROR")}
 	defer expectResponsablesEmpty(t)
 
@@ -613,7 +615,7 @@ func Test_CreateUser_Error_ErrorUpsertingUser(t *testing.T) {
 }
 
 func Test_CreateUser_Error_ErrorSettingPermissions(t *testing.T) {
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{nil, nil}}
 	responsableStore.UpsertUserResponses = []error{nil}
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, errors.New("ERROR")}}
 	defer expectResponsablesEmpty(t)
@@ -623,25 +625,19 @@ func Test_CreateUser_Error_ErrorSettingPermissions(t *testing.T) {
 	expectErrorResponse(t, response, 500, "Error creating the user")
 }
 
-func Test_CreateUser_Error_ErrorAddingToken(t *testing.T) {
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
-	responsableStore.UpsertUserResponses = []error{nil}
-	responsableStore.AddTokenResponses = []error{errors.New("ERROR")}
-	defer expectResponsablesEmpty(t)
-
-	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\"}"
-	response := performRequestBody(t, "POST", "/user", body)
-	expectErrorResponse(t, response, 500, "Error generating the token")
-}
-
 func Test_CreateUser_Success(t *testing.T) {
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{nil, nil}}
 	responsableStore.UpsertUserResponses = []error{nil}
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
-	responsableStore.AddTokenResponses = []error{nil}
 	defer expectResponsablesEmpty(t)
 
-	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\", \"roles\": [\"clinic\"]}"
+	mockCtrl := gomock.NewController(t)
+	mockKeycloakClient.Reset(mockCtrl)
+	token := &oauth2.Token{AccessToken: "access_token", RefreshToken: "refresh_token"}
+	mockKeycloakClient.EXPECT().Login(gomock.Any(), "a@z.co", "password").Return(token, nil)
+	defer mockCtrl.Finish()
+
+	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"password\", \"roles\": [\"clinic\"]}"
 	response := performRequestBody(t, "POST", "/user", body)
 	successResponse := expectSuccessResponseWithJSONMap(t, response, 201)
 	expectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
@@ -710,7 +706,7 @@ func Test_CreateCustodialUser_Error_InvalidDetails(t *testing.T) {
 func Test_CreateCustodialUser_Error_FindUsersError(t *testing.T) {
 	sessionToken := createSessionToken(t, "abcdef1234", false, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, errors.New("ERROR")}}
+	responsableStore.FindUserResponses = []FindUserResponse{{nil, errors.New("ERROR")}}
 	defer expectResponsablesEmpty(t)
 
 	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}"
@@ -723,7 +719,7 @@ func Test_CreateCustodialUser_Error_FindUsersError(t *testing.T) {
 func Test_CreateCustodialUser_Error_FindUsersDuplicate(t *testing.T) {
 	sessionToken := createSessionToken(t, "abcdef1234", false, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{}}, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{&User{}, nil}}
 	defer expectResponsablesEmpty(t)
 
 	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}"
@@ -736,8 +732,8 @@ func Test_CreateCustodialUser_Error_FindUsersDuplicate(t *testing.T) {
 func Test_CreateCustodialUser_Error_UpsertUserError(t *testing.T) {
 	sessionToken := createSessionToken(t, "abcdef1234", false, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
-	responsableStore.UpsertUserResponses = []error{errors.New("ERROR")}
+	responsableStore.FindUserResponses = []FindUserResponse{{nil, nil}}
+	responsableStore.CreateUserResponses = []CreateUserResponse{{nil, errors.New("ERROR")}}
 	defer expectResponsablesEmpty(t)
 
 	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}"
@@ -750,8 +746,8 @@ func Test_CreateCustodialUser_Error_UpsertUserError(t *testing.T) {
 func Test_CreateCustodialUser_Error_SetPermissionsError(t *testing.T) {
 	sessionToken := createSessionToken(t, "abcdef1234", false, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
-	responsableStore.UpsertUserResponses = []error{nil}
+	responsableStore.FindUserResponses = []FindUserResponse{{nil, nil}}
+	responsableStore.CreateUserResponses = []CreateUserResponse{{&User{}, nil}}
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, errors.New("ERROR")}}
 	defer expectResponsablesEmpty(t)
 
@@ -765,8 +761,8 @@ func Test_CreateCustodialUser_Error_SetPermissionsError(t *testing.T) {
 func Test_CreateCustodialUser_Success_Anonymous(t *testing.T) {
 	sessionToken := createSessionToken(t, "abcdef1234", false, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
-	responsableStore.UpsertUserResponses = []error{nil}
+	responsableStore.FindUserResponses = []FindUserResponse{{nil, nil}}
+	responsableStore.CreateUserResponses = []CreateUserResponse{{&User{Id: "1234567890"}, nil}}
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
 	defer expectResponsablesEmpty(t)
 
@@ -782,8 +778,8 @@ func Test_CreateCustodialUser_Success_Anonymous(t *testing.T) {
 func Test_CreateCustodialUser_Success_Anonymous_Server(t *testing.T) {
 	sessionToken := createSessionToken(t, "abcdef1234", true, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
-	responsableStore.UpsertUserResponses = []error{nil}
+	responsableStore.FindUserResponses = []FindUserResponse{{nil, nil}}
+	responsableStore.CreateUserResponses = []CreateUserResponse{{&User{Id: "1234567890"}, nil}}
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
 	defer expectResponsablesEmpty(t)
 
@@ -799,8 +795,8 @@ func Test_CreateCustodialUser_Success_Anonymous_Server(t *testing.T) {
 func Test_CreateCustodialUser_Success_Known(t *testing.T) {
 	sessionToken := createSessionToken(t, "abcdef1234", false, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
-	responsableStore.UpsertUserResponses = []error{nil}
+	responsableStore.FindUserResponses = []FindUserResponse{{nil, nil}}
+	responsableStore.CreateUserResponses = []CreateUserResponse{{&User{Id: "1234567890", Username: "a@z.co", Emails: []string{"a@z.co"}}, nil}}
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
 	defer expectResponsablesEmpty(t)
 
@@ -1017,7 +1013,7 @@ func Test_UpdateUser_Error_UpsertUserError(t *testing.T) {
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
 	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{"custodian": clients.Allowed}, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
-	responsableStore.UpsertUserResponses = []error{errors.New("ERROR")}
+	responsableStore.UpdateUserResponses = []UpdateUserResponse{{nil, errors.New("ERROR")}}
 	defer expectResponsablesEmpty(t)
 
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}}"
@@ -1028,11 +1024,19 @@ func Test_UpdateUser_Error_UpsertUserError(t *testing.T) {
 }
 
 func Test_UpdateUser_Error_RemoveCustodians_UsersInGroupError(t *testing.T) {
+	updatedUser := &User{
+		Id:            "1111111111",
+		Username:      "a@z.co",
+		Emails:        []string{"a@z.co"},
+		PwHash:        "newpasswordhash",
+		EmailVerified: false,
+		Enabled:       true,
+	}
 	sessionToken := createSessionToken(t, "1111111111", false, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
-	responsableStore.UpsertUserResponses = []error{nil}
+	responsableStore.UpdateUserResponses = []UpdateUserResponse{{updatedUser, nil}}
 	responsableGatekeeper.UsersInGroupResponses = []UsersPermissionsResponse{{clients.UsersPermissions{}, errors.New("ERROR")}}
 	defer expectResponsablesEmpty(t)
 
@@ -1044,11 +1048,19 @@ func Test_UpdateUser_Error_RemoveCustodians_UsersInGroupError(t *testing.T) {
 }
 
 func Test_UpdateUser_Error_RemoveCustodians_SetPermissionsError(t *testing.T) {
+	updatedUser := &User{
+		Id:            "1111111111",
+		Username:      "a@z.co",
+		Emails:        []string{"a@z.co"},
+		PwHash:        "newpasswordhash",
+		EmailVerified: false,
+		Enabled:       true,
+	}
 	sessionToken := createSessionToken(t, "1111111111", false, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
-	responsableStore.UpsertUserResponses = []error{nil}
+	responsableStore.UpdateUserResponses = []UpdateUserResponse{{updatedUser, nil}}
 	responsableGatekeeper.UsersInGroupResponses = []UsersPermissionsResponse{{clients.UsersPermissions{"0000000000": {"custodian": clients.Allowed}}, nil}}
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, errors.New("ERROR")}}
 	defer expectResponsablesEmpty(t)
@@ -1061,12 +1073,19 @@ func Test_UpdateUser_Error_RemoveCustodians_SetPermissionsError(t *testing.T) {
 }
 
 func Test_UpdateUser_Success_Custodian(t *testing.T) {
+	updatedUser := &User{
+		Id:            "1111111111",
+		Username:      "a@z.co",
+		Emails:        []string{"a@z.co"},
+		EmailVerified: false,
+		Enabled:       true,
+	}
 	sessionToken := createSessionToken(t, "0000000000", false, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
 	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{"custodian": clients.Allowed}, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
-	responsableStore.UpsertUserResponses = []error{nil}
+	responsableStore.UpdateUserResponses = []UpdateUserResponse{{updatedUser, nil}}
 	defer expectResponsablesEmpty(t)
 
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}}"
@@ -1079,11 +1098,20 @@ func Test_UpdateUser_Success_Custodian(t *testing.T) {
 }
 
 func Test_UpdateUser_Success_UserFromUrl(t *testing.T) {
+	updatedUser := &User{
+		Id:            "1111111111",
+		Username:      "a@z.co",
+		Emails:        []string{"a@z.co"},
+		TermsAccepted: "2016-01-01T01:23:45-08:00",
+		PwHash:        "newpasswordhash",
+		EmailVerified: false,
+		Enabled:       true,
+	}
 	sessionToken := createSessionToken(t, "1111111111", false, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
-	responsableStore.UpsertUserResponses = []error{nil}
+	responsableStore.UpdateUserResponses = []UpdateUserResponse{{updatedUser, nil}}
 	responsableGatekeeper.UsersInGroupResponses = []UsersPermissionsResponse{{clients.UsersPermissions{"0000000000": {"custodian": clients.Allowed}}, nil}}
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
 	defer expectResponsablesEmpty(t)
@@ -1098,11 +1126,20 @@ func Test_UpdateUser_Success_UserFromUrl(t *testing.T) {
 }
 
 func Test_UpdateUser_Success_UserFromToken(t *testing.T) {
+	updatedUser := &User{
+		Id:            "1111111111",
+		Username:      "a@z.co",
+		Emails:        []string{"a@z.co"},
+		TermsAccepted: "2016-01-01T01:23:45-08:00",
+		PwHash:        "newpasswordhash",
+		EmailVerified: false,
+		Enabled:       true,
+	}
 	sessionToken := createSessionToken(t, "1111111111", false, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
-	responsableStore.UpsertUserResponses = []error{nil}
+	responsableStore.UpdateUserResponses = []UpdateUserResponse{{updatedUser, nil}}
 	responsableGatekeeper.UsersInGroupResponses = []UsersPermissionsResponse{{clients.UsersPermissions{"0000000000": {"custodian": clients.Allowed}}, nil}}
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
 	defer expectResponsablesEmpty(t)
@@ -1117,11 +1154,20 @@ func Test_UpdateUser_Success_UserFromToken(t *testing.T) {
 }
 
 func Test_UpdateUser_Success_Server_WithoutPassword(t *testing.T) {
+	updatedUser := &User{
+		Id:            "1111111111",
+		Username:      "a@z.co",
+		Emails:        []string{"a@z.co"},
+		Roles:         []string{"clinic"},
+		TermsAccepted: "2016-01-01T01:23:45-08:00",
+		EmailVerified: true,
+		Enabled:       true,
+	}
 	sessionToken := createSessionToken(t, "0000000000", true, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
-	responsableStore.UpsertUserResponses = []error{nil}
+	responsableStore.UpdateUserResponses = []UpdateUserResponse{{updatedUser, nil}}
 	defer expectResponsablesEmpty(t)
 
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"roles\": [\"clinic\"], \"emailVerified\": true, \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
@@ -1134,11 +1180,21 @@ func Test_UpdateUser_Success_Server_WithoutPassword(t *testing.T) {
 }
 
 func Test_UpdateUser_Success_Server_WithPassword(t *testing.T) {
+	updatedUser := &User{
+		Id:            "1111111111",
+		Username:      "a@z.co",
+		Emails:        []string{"a@z.co"},
+		Roles:         []string{"clinic"},
+		TermsAccepted: "2016-01-01T01:23:45-08:00",
+		EmailVerified: true,
+		PwHash:        "newpasswordhash",
+		Enabled:       true,
+	}
 	sessionToken := createSessionToken(t, "0000000000", true, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
-	responsableStore.UpsertUserResponses = []error{nil}
+	responsableStore.UpdateUserResponses = []UpdateUserResponse{{updatedUser, nil}}
 	responsableGatekeeper.UsersInGroupResponses = []UsersPermissionsResponse{{clients.UsersPermissions{"0000000000": {"custodian": clients.Allowed}}, nil}}
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
 	defer expectResponsablesEmpty(t)
@@ -1162,7 +1218,7 @@ func Test_GetUserInfo_Error_MissingSessionToken(t *testing.T) {
 func Test_GetUserInfo_Error_FindUsersError(t *testing.T) {
 	sessionToken := createSessionToken(t, "0000000000", false, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, errors.New("ERROR")}}
+	responsableStore.FindUserResponses = []FindUserResponse{{nil, errors.New("ERROR")}}
 	defer expectResponsablesEmpty(t)
 
 	headers := http.Header{}
@@ -1174,7 +1230,7 @@ func Test_GetUserInfo_Error_FindUsersError(t *testing.T) {
 func Test_GetUserInfo_Error_FindUsersMissing(t *testing.T) {
 	sessionToken := createSessionToken(t, "0000000000", false, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{nil, nil}}
 	defer expectResponsablesEmpty(t)
 
 	headers := http.Header{}
@@ -1183,22 +1239,10 @@ func Test_GetUserInfo_Error_FindUsersMissing(t *testing.T) {
 	expectErrorResponse(t, response, 404, "User not found")
 }
 
-func Test_GetUserInfo_Error_FindUsersNil(t *testing.T) {
-	sessionToken := createSessionToken(t, "0000000000", false, tokenDuration)
-	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{nil}, nil}}
-	defer expectResponsablesEmpty(t)
-
-	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
-	response := performRequestHeaders(t, "GET", "/user/1111111111", headers)
-	expectErrorResponse(t, response, 500, "Error finding user")
-}
-
 func Test_GetUserInfo_Error_PermissionsError(t *testing.T) {
 	sessionToken := createSessionToken(t, "0000000000", false, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111"}}, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
 	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{}, errors.New("ERROR")}}
 	defer expectResponsablesEmpty(t)
 
@@ -1211,7 +1255,7 @@ func Test_GetUserInfo_Error_PermissionsError(t *testing.T) {
 func Test_GetUserInfo_Error_NoPermissions(t *testing.T) {
 	sessionToken := createSessionToken(t, "0000000000", false, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111"}}, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
 	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{"a": clients.Allowed}, nil}}
 	defer expectResponsablesEmpty(t)
 
@@ -1224,7 +1268,7 @@ func Test_GetUserInfo_Error_NoPermissions(t *testing.T) {
 func Test_GetUserInfo_Success_User(t *testing.T) {
 	sessionToken := createSessionToken(t, "1111111111", false, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", EmailVerified: true, PwHash: "xyz", Hash: "123"}}, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", EmailVerified: true, PwHash: "xyz", Hash: "123"}, nil}}
 	defer expectResponsablesEmpty(t)
 
 	headers := http.Header{}
@@ -1238,7 +1282,7 @@ func Test_GetUserInfo_Success_User(t *testing.T) {
 func Test_GetUserInfo_Success_Custodian(t *testing.T) {
 	sessionToken := createSessionToken(t, "0000000000", false, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", EmailVerified: true, PwHash: "xyz", Hash: "123"}}, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", EmailVerified: true, PwHash: "xyz", Hash: "123"}, nil}}
 	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{"custodian": clients.Allowed}, nil}}
 	defer expectResponsablesEmpty(t)
 
@@ -1253,7 +1297,7 @@ func Test_GetUserInfo_Success_Custodian(t *testing.T) {
 func Test_GetUserInfo_Success_Server(t *testing.T) {
 	sessionToken := createSessionToken(t, "0000000000", true, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", EmailVerified: true, PwHash: "xyz", Hash: "123"}}, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", EmailVerified: true, PwHash: "xyz", Hash: "123"}, nil}}
 	defer expectResponsablesEmpty(t)
 
 	headers := http.Header{}
@@ -1416,55 +1460,13 @@ func Test_Login_Error_InvalidAuthorization(t *testing.T) {
 	expectErrorResponse(t, response, 400, "Missing id and/or password")
 }
 
-func Test_Login_Error_FindUsersError(t *testing.T) {
+func Test_Login_Error_LoginFailure(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	mockKeycloakClient.Reset(mockCtrl)
+	mockKeycloakClient.EXPECT().Login(gomock.Any(), "a@b.co", "password").Return(nil, errors.New("login error"))
+	defer mockCtrl.Finish()
+
 	authorization := createAuthorization(t, "a@b.co", "password")
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, errors.New("ERROR")}}
-	defer expectResponsablesEmpty(t)
-
-	headers := http.Header{}
-	headers.Add("Authorization", authorization)
-	response := performRequestHeaders(t, "POST", "/login", headers)
-	expectErrorResponse(t, response, 500, "Error finding user")
-}
-
-func Test_Login_Error_FindUsersMissing(t *testing.T) {
-	authorization := createAuthorization(t, "a@b.co", "password")
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
-	defer expectResponsablesEmpty(t)
-
-	headers := http.Header{}
-	headers.Add("Authorization", authorization)
-	response := performRequestHeaders(t, "POST", "/login", headers)
-	expectErrorResponse(t, response, 401, "No user matched the given details")
-}
-
-func Test_Login_Error_FindUsersNil(t *testing.T) {
-	authorization := createAuthorization(t, "a@b.co", "password")
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{nil}, nil}}
-	defer expectResponsablesEmpty(t)
-
-	headers := http.Header{}
-	headers.Add("Authorization", authorization)
-	response := performRequestHeaders(t, "POST", "/login", headers)
-	expectErrorResponse(t, response, 401, "No user matched the given details")
-}
-
-func Test_Login_Error_NoPassword(t *testing.T) {
-	authorization := createAuthorization(t, "a@b.co", "password")
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111"}}, nil}}
-	defer expectResponsablesEmpty(t)
-
-	headers := http.Header{}
-	headers.Add("Authorization", authorization)
-	response := performRequestHeaders(t, "POST", "/login", headers)
-	expectErrorResponse(t, response, 401, "No user matched the given details")
-}
-
-func Test_Login_Error_PasswordMismatch(t *testing.T) {
-	authorization := createAuthorization(t, "a@b.co", "MISMATCH")
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5"}}, nil}}
-	defer expectResponsablesEmpty(t)
-
 	headers := http.Header{}
 	headers.Add("Authorization", authorization)
 	response := performRequestHeaders(t, "POST", "/login", headers)
@@ -1472,51 +1474,42 @@ func Test_Login_Error_PasswordMismatch(t *testing.T) {
 }
 
 func Test_Login_Error_EmailNotVerified(t *testing.T) {
-	authorization := createAuthorization(t, "a@b.co", "password")
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5"}}, nil}}
-	defer expectResponsablesEmpty(t)
+	mockCtrl := gomock.NewController(t)
+	mockKeycloakClient.Reset(mockCtrl)
+	token := oauth2.Token{AccessToken: "access_token", RefreshToken: "refresh_token"}
+	introspectionResult := keycloak.TokenIntrospectionResult{
+		Active:        true,
+		Subject:       "1111111111",
+		EmailVerified: false,
+	}
+	mockKeycloakClient.EXPECT().Login(gomock.Any(), "a@b.co", "password").Return(&token, nil)
+	mockKeycloakClient.EXPECT().IntrospectToken(gomock.Any(), token).Return(&introspectionResult, nil)
+	defer mockCtrl.Finish()
 
+	authorization := createAuthorization(t, "a@b.co", "password")
 	headers := http.Header{}
 	headers.Add("Authorization", authorization)
 	response := performRequestHeaders(t, "POST", "/login", headers)
 	expectErrorResponse(t, response, 403, "The user hasn't verified this account yet")
 }
 
-func Test_Login_Error_ErrorCreatingToken(t *testing.T) {
-	authorization := createAuthorization(t, "a@b.co", "password")
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5", EmailVerified: true}}, nil}}
-	responsableStore.AddTokenResponses = []error{errors.New("ERROR")}
-	defer expectResponsablesEmpty(t)
-
-	headers := http.Header{}
-	headers.Add("Authorization", authorization)
-	response := performRequestHeaders(t, "POST", "/login", headers)
-	expectErrorResponse(t, response, 500, "Error updating token")
-}
-
 func Test_Login_Success(t *testing.T) {
-	authorization := createAuthorization(t, "a@b.co", "password")
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5", EmailVerified: true}}, nil}}
-	responsableStore.AddTokenResponses = []error{nil}
-	defer expectResponsablesEmpty(t)
-
-	headers := http.Header{}
-	headers.Add("Authorization", authorization)
-	response := performRequestHeaders(t, "POST", "/login", headers)
-	successResponse := expectSuccessResponseWithJSONMap(t, response, 200)
-	expectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
-	expectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": true, "emails": []interface{}{"a@z.co"}, "username": "a@z.co", "termsAccepted": "2016-01-01T01:23:45-08:00"})
-	if response.Header().Get(TP_SESSION_TOKEN) == "" {
-		t.Fatalf("Missing expected %s header", TP_SESSION_TOKEN)
+	mockCtrl := gomock.NewController(t)
+	mockKeycloakClient.Reset(mockCtrl)
+	token := oauth2.Token{AccessToken: "access_token", RefreshToken: "refresh_token"}
+	introspectionResult := keycloak.TokenIntrospectionResult{
+		Active:        true,
+		Subject:       "1111111111",
+		EmailVerified: true,
 	}
-}
+	mockKeycloakClient.EXPECT().Login(gomock.Any(), "a@b.co", "password").Return(&token, nil)
+	mockKeycloakClient.EXPECT().IntrospectToken(gomock.Any(), token).Return(&introspectionResult, nil)
+	defer mockCtrl.Finish()
 
-func Test_Login_Success_Password_Complex(t *testing.T) {
-	authorization := createAuthorization(t, "a@b.co", "`-=[]\\;',./~!@#$%^&*)(_+}{|\":<>?`¡™£¢∞§¶•ª–≠‘“æ…÷≥”’")
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", PwHash: "80464ae775ca97187d29bc4b3e391e959947138a", EmailVerified: true}}, nil}}
-	responsableStore.AddTokenResponses = []error{nil}
+	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5", EmailVerified: true}, nil}}
 	defer expectResponsablesEmpty(t)
 
+	authorization := createAuthorization(t, "a@b.co", "password")
 	headers := http.Header{}
 	headers.Add("Authorization", authorization)
 	response := performRequestHeaders(t, "POST", "/login", headers)
@@ -1590,6 +1583,12 @@ func TestServerLogin_StatusBadRequest_WhenNoSecret(t *testing.T) {
 }
 
 func TestServerLogin_StatusOK(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	mockKeycloakClient.Reset(mockCtrl)
+	token := oauth2.Token{AccessToken: "service_access_token", RefreshToken: "service_refresh_token"}
+	mockKeycloakClient.EXPECT().GetServiceAccountToken(gomock.Any()).Return(&token, nil)
+	defer mockCtrl.Finish()
+
 	request, _ := http.NewRequest("POST", "/serverlogin", nil)
 	request.Header.Set(TP_SERVER_NAME, "shoreline")
 	request.Header.Set(TP_SERVER_SECRET, theSecret)
@@ -1610,6 +1609,11 @@ func TestServerLogin_StatusOK(t *testing.T) {
 }
 
 func TestServerLogin_Failure(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	mockKeycloakClient.Reset(mockCtrl)
+	mockKeycloakClient.EXPECT().GetServiceAccountToken(gomock.Any()).Return(nil, errors.New("error"))
+	defer mockCtrl.Finish()
+
 	req, _ := http.NewRequest("POST", "/", nil)
 	req.Header.Set(TP_SERVER_NAME, "shoreline")
 	req.Header.Set(TP_SERVER_SECRET, theSecret)
@@ -1656,13 +1660,18 @@ func TestRefreshSession_StatusUnauthorized_WithNoToken(t *testing.T) {
 	shoreline.RefreshSession(response, request)
 
 	if response.Code != http.StatusUnauthorized {
-		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusUnauthorized, response.Code)
+		t.Fatalf("Non-expected status code %v:\n\tbody: %v", http.StatusUnauthorized, response.Code)
 	}
 }
 
 func TestRefreshSession_StatusUnauthorized_WithWrongToken(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	mockKeycloakClient.Reset(mockCtrl)
+	mockKeycloakClient.EXPECT().RefreshToken(gomock.Any(), gomock.Any()).Return(nil, errors.New("error"))
+	defer mockCtrl.Finish()
+
 	request, _ := http.NewRequest("GET", "/", nil)
-	request.Header.Set(TP_SESSION_TOKEN, "not this token")
+	request.Header.Set(TP_SESSION_TOKEN, "kc:access:refresh")
 	response := httptest.NewRecorder()
 
 	shoreline.SetHandlers("", rtr)
@@ -1745,55 +1754,13 @@ func Test_LongTermLogin_Error_InvalidAuthorization(t *testing.T) {
 	expectErrorResponse(t, response, 400, "Missing id and/or password")
 }
 
-func Test_LongTermLogin_Error_FindUsersError(t *testing.T) {
-	authorization := createAuthorization(t, "a@b.co", "password")
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, errors.New("ERROR")}}
-	defer expectResponsablesEmpty(t)
+func Test_LongTermLogin_Error_LoginError(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	mockKeycloakClient.Reset(mockCtrl)
+	mockKeycloakClient.EXPECT().Login(gomock.Any(), "a@b.co", "MISMATCH").Return(nil, errors.New("login error"))
+	defer mockCtrl.Finish()
 
-	headers := http.Header{}
-	headers.Add("Authorization", authorization)
-	response := performRequestHeaders(t, "POST", "/login/thelongtermkey", headers)
-	expectErrorResponse(t, response, 500, "Error finding user")
-}
-
-func Test_LongTermLogin_Error_FindUsersMissing(t *testing.T) {
-	authorization := createAuthorization(t, "a@b.co", "password")
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
-	defer expectResponsablesEmpty(t)
-
-	headers := http.Header{}
-	headers.Add("Authorization", authorization)
-	response := performRequestHeaders(t, "POST", "/login/thelongtermkey", headers)
-	expectErrorResponse(t, response, 401, "No user matched the given details")
-}
-
-func Test_LongTermLogin_Error_FindUsersNil(t *testing.T) {
-	authorization := createAuthorization(t, "a@b.co", "password")
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{nil}, nil}}
-	defer expectResponsablesEmpty(t)
-
-	headers := http.Header{}
-	headers.Add("Authorization", authorization)
-	response := performRequestHeaders(t, "POST", "/login/thelongtermkey", headers)
-	expectErrorResponse(t, response, 401, "No user matched the given details")
-}
-
-func Test_LongTermLogin_Error_NoPassword(t *testing.T) {
-	authorization := createAuthorization(t, "a@b.co", "password")
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111"}}, nil}}
-	defer expectResponsablesEmpty(t)
-
-	headers := http.Header{}
-	headers.Add("Authorization", authorization)
-	response := performRequestHeaders(t, "POST", "/login/thelongtermkey", headers)
-	expectErrorResponse(t, response, 401, "No user matched the given details")
-}
-
-func Test_LongTermLogin_Error_PasswordMismatch(t *testing.T) {
 	authorization := createAuthorization(t, "a@b.co", "MISMATCH")
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5"}}, nil}}
-	defer expectResponsablesEmpty(t)
-
 	headers := http.Header{}
 	headers.Add("Authorization", authorization)
 	response := performRequestHeaders(t, "POST", "/login/thelongtermkey", headers)
@@ -1801,32 +1768,41 @@ func Test_LongTermLogin_Error_PasswordMismatch(t *testing.T) {
 }
 
 func Test_LongTermLogin_Error_EmailNotVerified(t *testing.T) {
-	authorization := createAuthorization(t, "a@b.co", "password")
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5"}}, nil}}
-	defer expectResponsablesEmpty(t)
+	mockCtrl := gomock.NewController(t)
+	mockKeycloakClient.Reset(mockCtrl)
+	token := oauth2.Token{AccessToken: "access_token", RefreshToken: "refresh_token"}
+	introspectionResult := keycloak.TokenIntrospectionResult{
+		Active:        true,
+		Subject:       "1111111111",
+		EmailVerified: false,
+		ExpiresAt:     time.Now().Unix() + int64(time.Hour.Seconds()),
+	}
+	mockKeycloakClient.EXPECT().Login(gomock.Any(), "a@b.co", "password").Return(&token, nil)
+	mockKeycloakClient.EXPECT().IntrospectToken(gomock.Any(), token).Return(&introspectionResult, nil)
+	defer mockCtrl.Finish()
 
+	authorization := createAuthorization(t, "a@b.co", "password")
 	headers := http.Header{}
 	headers.Add("Authorization", authorization)
 	response := performRequestHeaders(t, "POST", "/login/thelongtermkey", headers)
 	expectErrorResponse(t, response, 403, "The user hasn't verified this account yet")
 }
 
-func Test_LongTermLogin_Error_ErrorCreatingToken(t *testing.T) {
-	authorization := createAuthorization(t, "a@b.co", "password")
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5", EmailVerified: true}}, nil}}
-	responsableStore.AddTokenResponses = []error{errors.New("ERROR")}
-	defer expectResponsablesEmpty(t)
-
-	headers := http.Header{}
-	headers.Add("Authorization", authorization)
-	response := performRequestHeaders(t, "POST", "/login/thelongtermkey", headers)
-	expectErrorResponse(t, response, 500, "Error updating token")
-}
-
 func Test_LongTermLogin_Success(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	mockKeycloakClient.Reset(mockCtrl)
+	token := oauth2.Token{AccessToken: "access_token", RefreshToken: "refresh_token"}
+	introspectionResult := keycloak.TokenIntrospectionResult{
+		Active:        true,
+		Subject:       "1111111111",
+		EmailVerified: true,
+	}
+	mockKeycloakClient.EXPECT().Login(gomock.Any(), "a@b.co", "password").Return(&token, nil)
+	mockKeycloakClient.EXPECT().IntrospectToken(gomock.Any(), token).Return(&introspectionResult, nil)
+	defer mockCtrl.Finish()
+
 	authorization := createAuthorization(t, "a@b.co", "password")
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5", EmailVerified: true}}, nil}}
-	responsableStore.AddTokenResponses = []error{nil}
+	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5", EmailVerified: true}, nil}}
 	defer expectResponsablesEmpty(t)
 
 	headers := http.Header{}
@@ -1842,57 +1818,35 @@ func Test_LongTermLogin_Success(t *testing.T) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-func TestHasServerToken_True(t *testing.T) {
-
-	shoreline.SetHandlers("", rtr)
-
-	//login as server
-	svrLoginRequest, _ := http.NewRequest("POST", "/", nil)
-	svrLoginRequest.Header.Set(TP_SERVER_NAME, "shoreline")
-	svrLoginRequest.Header.Set(TP_SERVER_SECRET, theSecret)
-	response := httptest.NewRecorder()
-
-	shoreline.ServerLogin(response, svrLoginRequest)
-
-	if response.Code != http.StatusOK {
-		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, response.Code)
-	}
-
-	if response.Header().Get(TP_SESSION_TOKEN) == "" {
-		t.Fatal("The session token should have been set")
-	}
-
-	if hasServerToken(response.Header().Get(TP_SESSION_TOKEN), shoreline.ApiConfig.TokenConfigs[0]) == false {
-		t.Fatal("The token should have been a valid server token")
-	}
-}
-
 func TestServerCheckToken_StatusOK(t *testing.T) {
 
 	//the api
-
 	shoreline.SetHandlers("", rtr)
 
-	//step 1 - login as server
-	request, _ := http.NewRequest("POST", "/serverlogin", nil)
-	request.Header.Set(TP_SERVER_NAME, "shoreline")
-	request.Header.Set(TP_SERVER_SECRET, theSecret)
-	response := httptest.NewRecorder()
-
-	shoreline.ServerLogin(response, request)
-
-	svrTokenToUse := response.Header().Get(TP_SESSION_TOKEN)
-
-	if svrTokenToUse == "" {
-		t.Fatalf("we expected to get a token back from login")
+	token := oauth2.Token{
+		AccessToken:  "server_access",
+		RefreshToken: "server_refresh",
 	}
+	sessionToken := "kc:server_access:server_refresh"
+
+	mockCtrl := gomock.NewController(t)
+	mockKeycloakClient.Reset(mockCtrl)
+	introspectionResult := keycloak.TokenIntrospectionResult{
+		Active:        true,
+		Subject:       "shoreline",
+		EmailVerified: true,
+		RealmAccess:   keycloak.RealmAccess{Roles: []string{"backend_service"}},
+		ExpiresAt:     time.Now().Unix() + int64(time.Hour.Seconds()),
+	}
+	mockKeycloakClient.EXPECT().IntrospectToken(gomock.Any(), token).Return(&introspectionResult, nil).Times(2)
+	defer mockCtrl.Finish()
 
 	//step 2 - do the check
 	checkTokenRequest, _ := http.NewRequest("GET", "/", nil)
-	checkTokenRequest.Header.Set(TP_SESSION_TOKEN, svrTokenToUse)
+	checkTokenRequest.Header.Set(TP_SESSION_TOKEN, sessionToken)
 	checkTokenResponse := httptest.NewRecorder()
 
-	shoreline.ServerCheckToken(checkTokenResponse, checkTokenRequest, map[string]string{"token": svrTokenToUse})
+	shoreline.ServerCheckToken(checkTokenResponse, checkTokenRequest, map[string]string{"token": sessionToken})
 
 	if checkTokenResponse.Code != http.StatusOK {
 		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, checkTokenResponse.Code)
@@ -1930,7 +1884,7 @@ func TestServerCheckToken_StatusUnauthorized_WhenNoSvrToken(t *testing.T) {
 	shoreline.ServerCheckToken(response, request, noParams)
 
 	if response.Code != http.StatusUnauthorized {
-		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusUnauthorized, response.Code)
+		t.Fatalf("Non-expected status code %v:\n\tbody: %v", http.StatusUnauthorized, response.Code)
 	}
 }
 
@@ -1941,30 +1895,33 @@ func TestCheckToken_StatusOK(t *testing.T) {
 	//the api
 
 	shoreline.SetHandlers("", rtr)
-
-	//step 1 - login as server
-	request, _ := http.NewRequest("POST", "/serverlogin", nil)
-	request.Header.Set(TP_SERVER_NAME, "shoreline")
-	request.Header.Set(TP_SERVER_SECRET, theSecret)
-	response := httptest.NewRecorder()
-
-	shoreline.ServerLogin(response, request)
-
-	svrTokenToUse := response.Header().Get(TP_SESSION_TOKEN)
-
-	if svrTokenToUse == "" {
-		t.Fatalf("we expected to get a token back from login")
+	token := oauth2.Token{
+		AccessToken:  "server_access",
+		RefreshToken: "server_refresh",
 	}
+	sessionToken := "kc:server_access:server_refresh"
+
+	mockCtrl := gomock.NewController(t)
+	mockKeycloakClient.Reset(mockCtrl)
+	introspectionResult := keycloak.TokenIntrospectionResult{
+		Active:        true,
+		Subject:       "shoreline",
+		EmailVerified: true,
+		RealmAccess:   keycloak.RealmAccess{Roles: []string{"backend_service"}},
+		ExpiresAt:     time.Now().Unix() + int64(time.Hour.Seconds()),
+	}
+	mockKeycloakClient.EXPECT().IntrospectToken(gomock.Any(), token).Return(&introspectionResult, nil)
+	defer mockCtrl.Finish()
 
 	//step 2 - do the check
 	checkTokenRequest, _ := http.NewRequest("GET", "/", nil)
-	checkTokenRequest.Header.Set(TP_SESSION_TOKEN, svrTokenToUse)
+	checkTokenRequest.Header.Set(TP_SESSION_TOKEN, sessionToken)
 	checkTokenResponse := httptest.NewRecorder()
 
 	shoreline.CheckToken(checkTokenResponse, checkTokenRequest)
 
 	if checkTokenResponse.Code != http.StatusOK {
-		t.Fatalf("Non-expected status code%v:\n\tbody: %v", http.StatusOK, checkTokenResponse.Code)
+		t.Fatalf("Expected status code %v:\n\tGot: %v", http.StatusOK, checkTokenResponse.Code)
 	}
 
 	if checkTokenResponse.Header().Get("content-type") != "application/json" {
