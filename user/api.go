@@ -3,7 +3,6 @@ package user
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/tidepool-org/shoreline/keycloak"
 	"log"
@@ -697,7 +696,7 @@ func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars 
 	userToken := vars["token"]
 	tokenData, err := a.tokenAuthenticator.Authenticate(ctx, userToken)
 	if err != nil {
-		a.logger.Println(http.StatusUnauthorized, STATUS_NO_TOKEN)
+		a.logger.Println(http.StatusUnauthorized, STATUS_NO_TOKEN, err)
 		a.logger.Printf("header session token: %v", userToken)
 		sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_TOKEN), http.StatusUnauthorized)
 		return
@@ -812,34 +811,6 @@ func (a *Api) userWithPasswordExists(ctx context.Context, username, password str
 		!users[0].IsDeleted() &&
 		users[0].EmailVerified == true &&
 		users[0].PasswordsMatch(password, a.ApiConfig.Salt)
-}
-
-func (a *Api) findUser(ctx context.Context, id string) (*User, error) {
-	var keycloakUser *keycloak.User
-	var err error
-	if IsValidUserID(id) {
-		keycloakUser, err = a.keycloakClient.GetUserById(ctx, id)
-	} else {
-		keycloakUser, err = a.keycloakClient.GetUserByEmail(ctx, id)
-	}
-
-	if err != nil && err != keycloak.ErrUserNotFound {
-		return nil, err
-	} else if err == nil && keycloakUser != nil {
-		return NewUserFromKeycloakUser(keycloakUser), nil
-	}
-
-	// User was not found in keycloak, because it's not yet migrated
-	users, err := a.Store.WithContext(ctx).FindUsers(&User{Id: id, Username: id, Emails: []string{id}})
-	if err != nil {
-		return nil, err
-	} else if count := len(users); count > 1 {
-		return nil, errors.New(fmt.Sprintf("found %v users matching %v", len(users), id))
-	} else if count == 0 || users[0] == nil {
-		return nil, nil
-	}
-
-	return users[0], nil
 }
 
 func (a *Api) sendError(res http.ResponseWriter, statusCode int, reason string, extras ...interface{}) {

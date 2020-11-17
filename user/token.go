@@ -27,7 +27,7 @@ type (
 	TokenData struct {
 		IsServer     bool   `json:"isserver"`
 		UserId       string `json:"userid"`
-		DurationSecs int64  `json:"_"`
+		DurationSecs int64  `json:"-"`
 		ExpiresIn    int64  `json:"expires_in"`
 	}
 
