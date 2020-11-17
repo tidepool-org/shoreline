@@ -49,7 +49,7 @@ func Test_CachingTokenAuthenticator_AuthenticateKeycloakToken_CachesServerTokens
 	expectedTokenData := &TokenData{
 		IsServer:     true,
 		UserId:       "1234567890",
-		DurationSecs: 654,
+		ExpiresIn: 654,
 	}
 
 	// Expect to be called one time with the given arguments
@@ -83,7 +83,7 @@ func Test_CachingTokenAuthenticator_AuthenticateKeycloakToken_DoesntCacheUserTok
 	expectedTokenData := &TokenData{
 		IsServer:     false,
 		UserId:       "1234567890",
-		DurationSecs: 654,
+		ExpiresIn: 654,
 	}
 
 	// Expect to be called two times with the given arguments
@@ -118,7 +118,7 @@ func Test_CachingTokenAuthenticator_Authenticate_CachesServerTokens(t *testing.T
 	expectedTokenData := &TokenData{
 		IsServer:     true,
 		UserId:       "1234567890",
-		DurationSecs: 654,
+		ExpiresIn: 654,
 	}
 
 	// Expect to be called one time with the given arguments
@@ -152,7 +152,7 @@ func Test_CachingTokenAuthenticator_Authenticate_DoesntCacheUserTokens(t *testin
 	expectedTokenData := &TokenData{
 		IsServer:     false,
 		UserId:       "1234567890",
-		DurationSecs: 654,
+		ExpiresIn: 654,
 	}
 
 	// Expect to be called two times with the given arguments
