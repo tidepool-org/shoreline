@@ -50,7 +50,7 @@ func main() {
 		config.User.ServerSecret = serverSecret
 	}
 
-	config.User.TokenConfigs = make([]user.TokenConfig, 2)
+	config.User.TokenConfigs = make([]user.TokenConfig, 1)
 
 	current := &config.User.TokenConfigs[0]
 	privateKey, _ := os.LookupEnv("PRIVATE_KEY")
@@ -63,7 +63,7 @@ func main() {
 	current.Issuer = apiHost
 	current.DurationSecs = 60 * 60 * 24 * 30
 
-	previous := &config.User.TokenConfigs[1]
+	previous := user.TokenConfig{}
 	previousPrivateKey, _ := os.LookupEnv("PREVIOUS_PRIVATE_KEY")
 	previousPublicKey, _ := os.LookupEnv("PREVIOUS_PUBLIC_KEY")
 	previousApiHost, _ := os.LookupEnv("PREVIOUS_API_HOST")
@@ -73,6 +73,9 @@ func main() {
 	previous.Audience = previousApiHost
 	previous.Issuer = previousApiHost
 	previous.DurationSecs = 60 * 60 * 24 * 30
+	if previous.EncodeKey != "" {
+		config.User.TokenConfigs = append(config.User.TokenConfigs, previous)
+	}
 
 	longTermKey, found := os.LookupEnv("LONG_TERM_KEY")
 	if found {
