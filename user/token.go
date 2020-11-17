@@ -201,7 +201,6 @@ func UnpackSessionTokenAndVerify(id string, tokenConfigs ...TokenConfig) (*Token
 		}
 	}
 	if jwtToken == nil || err != nil {
-		log.Printf("failed to Parse JWT: %v", err)
 		return nil, err
 	}
 	if !jwtToken.Valid {
