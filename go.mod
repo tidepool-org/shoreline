@@ -5,7 +5,6 @@ go 1.15
 require (
 	github.com/Nerzal/gocloak/v7 v7.5.0
 	github.com/Shopify/sarama v1.27.0
-	github.com/SpeakData/minimarketo v0.0.0-20170821092521-29339e452f44
 	github.com/coocood/freecache v1.1.1
 	github.com/cpuguy83/go-md2man/v2 v2.0.0 // indirect
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible

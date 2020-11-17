@@ -19,7 +19,6 @@ import (
 	"github.com/tidepool-org/go-common/clients"
 	"github.com/tidepool-org/go-common/clients/highwater"
 	"github.com/tidepool-org/go-common/clients/status"
-	"github.com/tidepool-org/shoreline/user/marketo"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -27,10 +26,6 @@ import (
 )
 
 var (
-	failedMarketoUploadCount = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "tidepool_shoreline_failed_marketo_upload_total",
-		Help: "The total number of failures to connect to marketo due to errors",
-	})
 	statusCount = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "tidepool_shoreline_failed_status_count",
 		Help: "The number of errors for each status code and status reason.",
@@ -44,7 +39,6 @@ type (
 		metrics            highwater.Client
 		perms              clients.Gatekeeper
 		logger             *log.Logger
-		marketoManager     marketo.Manager
 		keycloakClient     keycloak.Client
 		seagull            clients.Seagull
 		userEventsNotifier EventsNotifier
@@ -59,7 +53,6 @@ type (
 		Salt                 string           `json:"salt"`
 		VerificationSecret   string           `json:"verificationSecret"`
 		ClinicDemoUserID     string           `json:"clinicDemoUserId"`
-		Marketo              marketo.Config   `json:"marketo"`
 		MigrationSecret      string           `json:"migrationSecret"`
 		TokenCacheConfig     TokenCacheConfig `json:"tokenCacheConfig"`
 	}
@@ -103,7 +96,7 @@ const (
 	STATUS_INVALID_ROLE          = "The role specified is invalid"
 )
 
-func InitApi(cfg ApiConfig, logger *log.Logger, store Storage, manager marketo.Manager, keycloakClient keycloak.Client, userEventsNotifier EventsNotifier, seagull clients.Seagull) *Api {
+func InitApi(cfg ApiConfig, logger *log.Logger, store Storage, keycloakClient keycloak.Client, userEventsNotifier EventsNotifier, seagull clients.Seagull) *Api {
 	tokenAuthenticator := NewTokenAuthenticator(keycloakClient, store, cfg.TokenConfigs)
 	if cfg.TokenCacheConfig.Enabled {
 		tokenAuthenticator = NewCachingTokenAuthenticator(&cfg.TokenCacheConfig, tokenAuthenticator)
@@ -113,7 +106,6 @@ func InitApi(cfg ApiConfig, logger *log.Logger, store Storage, manager marketo.M
 		Store:              store,
 		ApiConfig:          cfg,
 		logger:             logger,
-		marketoManager:     manager,
 		keycloakClient:     keycloakClient,
 		userEventsNotifier: userEventsNotifier,
 		seagull:            seagull,
@@ -386,18 +378,11 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 				}
 			}
 
-			if updatedUser.EmailVerified && updatedUser.TermsAccepted != "" {
-				if a.marketoManager != nil && a.marketoManager.IsAvailable() {
-					if updateUserDetails.EmailVerified != nil || updateUserDetails.TermsAccepted != nil {
-						a.marketoManager.CreateListMembershipForUser(updatedUser)
-					} else {
-						a.marketoManager.UpdateListMembershipForUser(originalUser, updatedUser)
-					}
-				} else {
-					failedMarketoUploadCount.Inc()
-				}
+			if err := a.userEventsNotifier.NotifyUserUpdated(req.Context(), *originalUser, *updatedUser); err != nil {
+				a.logger.Println(http.StatusInternalServerError, err.Error())
+				res.WriteHeader(http.StatusInternalServerError)
+				return
 			}
-			a.logMetricForUser(updatedUser.Id, "userupdated", token, map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
 			a.sendUser(res, updatedUser, tokenData.IsServer)
 		}
 	}
