@@ -49,19 +49,19 @@ func (mr *MockClientMockRecorder) Login(ctx, username, password interface{}) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Login", reflect.TypeOf((*MockClient)(nil).Login), ctx, username, password)
 }
 
-// GetServiceAccountToken mocks base method
-func (m *MockClient) GetServiceAccountToken(ctx context.Context) (*oauth2.Token, error) {
+// GetBackendServiceToken mocks base method
+func (m *MockClient) GetBackendServiceToken(ctx context.Context) (*oauth2.Token, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetServiceAccountToken", ctx)
+	ret := m.ctrl.Call(m, "GetBackendServiceToken", ctx)
 	ret0, _ := ret[0].(*oauth2.Token)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetServiceAccountToken indicates an expected call of GetServiceAccountToken
-func (mr *MockClientMockRecorder) GetServiceAccountToken(ctx interface{}) *gomock.Call {
+// GetBackendServiceToken indicates an expected call of GetBackendServiceToken
+func (mr *MockClientMockRecorder) GetBackendServiceToken(ctx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetServiceAccountToken", reflect.TypeOf((*MockClient)(nil).GetServiceAccountToken), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBackendServiceToken", reflect.TypeOf((*MockClient)(nil).GetBackendServiceToken), ctx)
 }
 
 // IntrospectToken mocks base method

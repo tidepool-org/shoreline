@@ -553,19 +553,14 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	var token string
-	oauthToken, err := a.keycloakClient.GetServiceAccountToken(req.Context())
-	if err == nil {
-		token, err = keycloak.CreateBackwardCompatibleToken(oauthToken)
-	}
-
+	oauthToken, err := a.keycloakClient.GetBackendServiceToken(req.Context())
 	if err != nil {
 		a.logger.Println(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN, err.Error())
 		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN), http.StatusInternalServerError)
 		return
 	}
 
-	res.Header().Set(TP_SESSION_TOKEN, token)
+	res.Header().Set(TP_SESSION_TOKEN, oauthToken.AccessToken)
 }
 
 // status: 200 TP_SESSION_TOKEN, TokenData

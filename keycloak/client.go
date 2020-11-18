@@ -26,7 +26,7 @@ var ErrUserConflict = errors.New("user already exists")
 //go:generate mockgen -source=./client.go -destination=./client_mock.go -package keycloak Client
 type Client interface {
 	Login(ctx context.Context, username, password string) (*oauth2.Token, error)
-	GetServiceAccountToken(ctx context.Context) (*oauth2.Token, error)
+	GetBackendServiceToken(ctx context.Context) (*oauth2.Token, error)
 	IntrospectToken(ctx context.Context, token oauth2.Token) (*TokenIntrospectionResult, error)
 	RefreshToken(ctx context.Context, token oauth2.Token) (*oauth2.Token, error)
 	RevokeToken(ctx context.Context, token oauth2.Token) error
@@ -117,12 +117,14 @@ func (t *TokenIntrospectionResult) IsServerToken() bool {
 }
 
 type Config struct {
-	ClientID      string `json:"clientId"`
-	ClientSecret  string `json:"clientSecret"`
-	BaseUrl       string `json:"baseUrl"`
-	Realm         string `json:"realm"`
-	AdminUsername string `json:"adminUsername"`
-	AdminPassword string `json:"adminPassword"`
+	ClientID            string `json:"clientId"`
+	ClientSecret        string `json:"clientSecret"`
+	BackendClientID     string `json:"backendClientId"`
+	BackendClientSecret string `json:"backendClientSecret"`
+	BaseUrl             string `json:"baseUrl"`
+	Realm               string `json:"realm"`
+	AdminUsername       string `json:"adminUsername"`
+	AdminPassword       string `json:"adminPassword"`
 }
 
 func (c *Config) FromEnv() {
@@ -131,6 +133,12 @@ func (c *Config) FromEnv() {
 	}
 	if clientSecret, ok := os.LookupEnv("TIDEPOOL_KEYCLOAK_CLIENT_SECRET"); ok {
 		c.ClientSecret = clientSecret
+	}
+	if backendClientId, ok := os.LookupEnv("TIDEPOOL_KEYCLOAK_BACKEND_CLIENT_ID"); ok {
+		c.BackendClientID = backendClientId
+	}
+	if backendClientSecret, ok := os.LookupEnv("TIDEPOOL_KEYCLOAK_BACKEND_CLIENT_SECRET"); ok {
+		c.BackendClientSecret = backendClientSecret
 	}
 	if baseUrl, ok := os.LookupEnv("TIDEPOOL_KEYCLOAK_BASE_URL"); ok {
 		c.BaseUrl = baseUrl
@@ -175,8 +183,8 @@ func (c *client) Login(ctx context.Context, username, password string) (*oauth2.
 	return c.jwtToAccessToken(jwt), nil
 }
 
-func (c *client) GetServiceAccountToken(ctx context.Context) (*oauth2.Token, error) {
-	jwt, err := c.keycloak.LoginClient(ctx, c.cfg.ClientID, c.cfg.ClientSecret, c.cfg.Realm)
+func (c *client) GetBackendServiceToken(ctx context.Context) (*oauth2.Token, error) {
+	jwt, err := c.keycloak.LoginClient(ctx, c.cfg.BackendClientID, c.cfg.BackendClientSecret, c.cfg.Realm)
 	if err != nil {
 		return nil, err
 	}

@@ -1567,7 +1567,7 @@ func TestServerLogin_StatusOK(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	mockKeycloakClient.Reset(mockCtrl)
 	token := oauth2.Token{AccessToken: "service_access_token", RefreshToken: "service_refresh_token"}
-	mockKeycloakClient.EXPECT().GetServiceAccountToken(gomock.Any()).Return(&token, nil)
+	mockKeycloakClient.EXPECT().GetBackendServiceToken(gomock.Any()).Return(&token, nil)
 	defer mockCtrl.Finish()
 
 	request, _ := http.NewRequest("POST", "/serverlogin", nil)
@@ -1592,7 +1592,7 @@ func TestServerLogin_StatusOK(t *testing.T) {
 func TestServerLogin_Failure(t *testing.T) {
 	mockCtrl := gomock.NewController(t)
 	mockKeycloakClient.Reset(mockCtrl)
-	mockKeycloakClient.EXPECT().GetServiceAccountToken(gomock.Any()).Return(nil, errors.New("error"))
+	mockKeycloakClient.EXPECT().GetBackendServiceToken(gomock.Any()).Return(nil, errors.New("error"))
 	defer mockCtrl.Finish()
 
 	req, _ := http.NewRequest("POST", "/", nil)
