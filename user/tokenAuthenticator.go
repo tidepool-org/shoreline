@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/coocood/freecache"
+	"github.com/kelseyhightower/envconfig"
 	"github.com/tidepool-org/shoreline/keycloak"
 	"golang.org/x/oauth2"
-	"github.com/coocood/freecache"
 	"time"
 )
 
@@ -91,6 +92,10 @@ type TokenCacheConfig struct {
 	CacheServerTokensOnly bool          `envconfig:"TIDEPOOL_TOKEN_CACHE_SERVER_TOKENS_ONLY" default:"true"`
 }
 
+func (t *TokenCacheConfig) FromEnv() error {
+	return envconfig.Process("", t)
+}
+
 func NewCachingTokenAuthenticator(config *TokenCacheConfig, delegate TokenAuthenticator) TokenAuthenticator {
 	shouldCache := CacheAllTokens
 	if config.CacheServerTokensOnly {
@@ -126,9 +131,11 @@ func (c *CachingTokenAuthenticator) authenticateWithCache(ctx context.Context, t
 		if val, err := c.encode(td); err != nil {
 			return nil, err
 		} else {
-			expiration := int(td.ExpiresIn) + int(c.expirationGracePeriod.Seconds())
-			if err := c.cache.Set([]byte(token), val, expiration); err != nil {
-				return nil, err
+			expiresAt := int(td.ExpiresAt) + int(c.expirationGracePeriod.Seconds())
+			if exp := expiresAt - int(time.Now().Unix()); exp > 0 {
+				if err := c.cache.Set([]byte(token), val, exp); err != nil {
+					return nil, err
+				}
 			}
 		}
 	}

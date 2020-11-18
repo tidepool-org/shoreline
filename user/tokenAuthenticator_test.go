@@ -29,11 +29,8 @@ func assertTokensAreEqual(t *testing.T, expected *TokenData, result *TokenData) 
 		if expected.IsServer != result.IsServer {
 			t.Fatalf("IsServer don't match. Expected %v, got: %v", expected.IsServer, result.IsServer)
 		}
-		if expected.DurationSecs != result.DurationSecs {
-			t.Fatalf("DurationSecs don't match. Expected %v, got: %v", expected.DurationSecs, result.DurationSecs)
-		}
-		if expected.ExpiresIn != result.ExpiresIn {
-			t.Fatalf("ExpiresIn don't match. Expected %v, got: %v", expected.ExpiresIn, result.ExpiresIn)
+		if expected.ExpiresAt != result.ExpiresAt {
+			t.Fatalf("ExpiresAt don't match. Expected %v, got: %v", expected.ExpiresAt, result.ExpiresAt)
 		}
 	}
 }
@@ -46,10 +43,11 @@ func Test_CachingTokenAuthenticator_AuthenticateKeycloakToken_CachesServerTokens
 	cachingTokenAuthenticator := NewCachingTokenAuthenticator(cacheConfig, mock)
 
 	token := "asdf"
+	expiresAt := time.Now().Unix() + 645
 	expectedTokenData := &TokenData{
-		IsServer:     true,
-		UserId:       "1234567890",
-		ExpiresIn: 654,
+		IsServer:  true,
+		UserId:    "1234567890",
+		ExpiresAt: expiresAt,
 	}
 
 	// Expect to be called one time with the given arguments
@@ -80,10 +78,11 @@ func Test_CachingTokenAuthenticator_AuthenticateKeycloakToken_DoesntCacheUserTok
 	cachingTokenAuthenticator := NewCachingTokenAuthenticator(cacheConfig, mock)
 
 	token := "asdf"
+	expiresAt := time.Now().Unix() + 645
 	expectedTokenData := &TokenData{
-		IsServer:     false,
-		UserId:       "1234567890",
-		ExpiresIn: 654,
+		IsServer:  false,
+		UserId:    "1234567890",
+		ExpiresAt: expiresAt,
 	}
 
 	// Expect to be called two times with the given arguments
@@ -115,10 +114,11 @@ func Test_CachingTokenAuthenticator_Authenticate_CachesServerTokens(t *testing.T
 	cachingTokenAuthenticator := NewCachingTokenAuthenticator(cacheConfig, mock)
 
 	token := "asdf"
+	expiresAt := time.Now().Unix() + 645
 	expectedTokenData := &TokenData{
-		IsServer:     true,
-		UserId:       "1234567890",
-		ExpiresIn: 654,
+		IsServer:  true,
+		UserId:    "1234567890",
+		ExpiresAt: expiresAt,
 	}
 
 	// Expect to be called one time with the given arguments
@@ -149,10 +149,11 @@ func Test_CachingTokenAuthenticator_Authenticate_DoesntCacheUserTokens(t *testin
 	cachingTokenAuthenticator := NewCachingTokenAuthenticator(cacheConfig, mock)
 
 	token := "asdf"
+	expiresAt := time.Now().Unix() + 645
 	expectedTokenData := &TokenData{
-		IsServer:     false,
-		UserId:       "1234567890",
-		ExpiresIn: 654,
+		IsServer:  false,
+		UserId:    "1234567890",
+		ExpiresAt: expiresAt,
 	}
 
 	// Expect to be called two times with the given arguments
@@ -185,19 +186,18 @@ func Test_TokenAuthenticator_AuthenticateKeycloak_IntrospectsBackwardCompatibleT
 
 	token := "kc:access_token:refresh_token"
 	subject := "1234567890"
-	expiresIn := int64(5)
+	expiresAt := time.Now().Unix() + 645
 	introspection := &keycloak.TokenIntrospectionResult{
 		Active:        true,
 		Subject:       subject,
 		EmailVerified: true,
-		ExpiresAt:     time.Now().Unix() + expiresIn,
+		ExpiresAt:     expiresAt,
 		RealmAccess:   keycloak.RealmAccess{},
 	}
 	expectedTokenData := &TokenData{
 		IsServer:     false,
 		UserId:       subject,
-		DurationSecs: expiresIn,
-		ExpiresIn:    expiresIn,
+		ExpiresAt:    expiresAt,
 	}
 
 	// Expect to be called called once
@@ -225,19 +225,18 @@ func Test_TokenAuthenticator_AuthenticateKeycloak_IntrospectsAccessTokens(t *tes
 
 	token := "access_token"
 	subject := "1234567890"
-	expiresIn := int64(5)
+	expiresAt := time.Now().Unix() + 645
 	introspection := &keycloak.TokenIntrospectionResult{
 		Active:        true,
 		Subject:       subject,
 		EmailVerified: true,
-		ExpiresAt:     time.Now().Unix() + expiresIn,
+		ExpiresAt:     expiresAt,
 		RealmAccess:   keycloak.RealmAccess{},
 	}
 	expectedTokenData := &TokenData{
 		IsServer:     false,
 		UserId:       subject,
-		DurationSecs: expiresIn,
-		ExpiresIn:    expiresIn,
+		ExpiresAt:    expiresAt,
 	}
 
 	// Expect to be called called once
@@ -264,12 +263,11 @@ func Test_TokenAuthenticator_Authenticate_LooksUpLegacyTokens(t *testing.T) {
 	tokenAuthenticator := NewTokenAuthenticator(mockKeycloakClient, mockStore, fakeConfig.TokenConfigs)
 
 	subject := "1234567890"
-	expiresIn := int64(5)
+	expiresAt := time.Now().Unix() + 645
 	tokenData := &TokenData{
 		IsServer:     false,
 		UserId:       subject,
-		DurationSecs: expiresIn,
-		ExpiresIn:    expiresIn,
+		ExpiresAt:    expiresAt,
 	}
 
 	token, err := CreateSessionToken(tokenData, fakeConfig.TokenConfigs[0])

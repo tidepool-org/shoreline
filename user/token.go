@@ -28,7 +28,7 @@ type (
 		IsServer     bool   `json:"isserver"`
 		UserId       string `json:"userid"`
 		DurationSecs int64  `json:"-"`
-		ExpiresIn    int64  `json:"expires_in"`
+		ExpiresAt    int64  `json:"expires_at"`
 	}
 
 	TokenConfig struct {
@@ -126,7 +126,7 @@ func CreateSessionToken(data *TokenData, config TokenConfig) (*SessionToken, err
 		return nil, err
 	}
 
-	data.ExpiresIn = int64(expiresIn.Seconds())
+	data.ExpiresAt = expiresAt
 	sessionToken := &SessionToken{
 		ID:        tokenString,
 		IsServer:  data.IsServer,
@@ -219,13 +219,12 @@ func UnpackSessionTokenAndVerify(id string, tokenConfigs ...TokenConfig) (*Token
 	if !ok {
 		expiresAt = int64(claims["exp"].(float64))
 	}
-	expiresIn := expiresAt - time.Now().Unix()
 
 	return &TokenData{
 		IsServer:     isServer,
 		DurationSecs: durationSecs,
 		UserId:       userId,
-		ExpiresIn:    expiresIn,
+		ExpiresAt:    expiresAt,
 	}, nil
 }
 
@@ -243,7 +242,7 @@ func TokenDataFromIntrospectionResult(introspectionResult *keycloak.TokenIntrosp
 		IsServer:     introspectionResult.IsServerToken(),
 		UserId:       introspectionResult.Subject,
 		DurationSecs: duration,
-		ExpiresIn:    duration,
+		ExpiresAt:    introspectionResult.ExpiresAt,
 	}, nil
 }
 

@@ -103,6 +103,10 @@ func main() {
 		config.User.MigrationSecret = secret
 	}
 
+	if err := config.User.TokenCacheConfig.FromEnv(); err != nil {
+		log.Fatalf("couldn't load token cache config from env: %v", err)
+	}
+
 	/*
 	 * Hakken setup
 	 */
