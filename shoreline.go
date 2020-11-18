@@ -157,7 +157,7 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	handler, err := user.NewUserEventsHandler(clientStore)
+	handler, err := user.NewUserEventsHandler(migrationStore)
 	if err != nil {
 		log.Fatalln(err)
 	}
