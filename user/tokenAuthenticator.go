@@ -8,7 +8,12 @@ import (
 	"github.com/kelseyhightower/envconfig"
 	"github.com/tidepool-org/shoreline/keycloak"
 	"golang.org/x/oauth2"
+	"log"
 	"time"
+)
+
+const (
+	entrySizeEstimate = 1280 // the size of single cache entry in bytes
 )
 
 //go:generate mockgen -source=./tokenAuthenticator.go -destination=./tokenAuthenticator_mock.go -package user TokenAuthenticator
@@ -101,8 +106,9 @@ func NewCachingTokenAuthenticator(config *TokenCacheConfig, delegate TokenAuthen
 	if config.CacheServerTokensOnly {
 		shouldCache = CacheServerTokensOnly
 	}
+	sizeBytes := entrySizeEstimate * config.Capacity
 	return &CachingTokenAuthenticator{
-		cache:                 freecache.NewCache(config.Capacity),
+		cache:                 freecache.NewCache(sizeBytes),
 		expirationGracePeriod: config.GracePeriod,
 		delegate:              delegate,
 		shouldCache:           shouldCache,
@@ -128,14 +134,12 @@ func (c *CachingTokenAuthenticator) authenticateWithCache(ctx context.Context, t
 	}
 
 	if c.shouldCache(td) {
-		if val, err := c.encode(td); err != nil {
-			return nil, err
-		} else {
-			expiresAt := int(td.ExpiresAt) + int(c.expirationGracePeriod.Seconds())
-			if exp := expiresAt - int(time.Now().Unix()); exp > 0 {
-				if err := c.cache.Set([]byte(token), val, exp); err != nil {
-					return nil, err
-				}
+		expiresAt := int(td.ExpiresAt) + int(c.expirationGracePeriod.Seconds())
+		if exp := expiresAt - int(time.Now().Unix()); exp > 0 {
+			if val, err := c.encode(td); err != nil {
+				log.Printf("unable to encode token: %v", err)
+			} else if err := c.cache.Set([]byte(token), val, exp); err != nil {
+				log.Printf("unable to save token to cache: %v", err)
 			}
 		}
 	}
