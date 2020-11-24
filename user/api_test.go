@@ -576,9 +576,9 @@ func Test_CreateUser_Error_ConflictingEmail(t *testing.T) {
 	expectErrorResponse(t, response, 409, "User already exists")
 }
 
-func Test_CreateUser_Error_ErrorUpsertingUser(t *testing.T) {
+func Test_CreateUser_Error_ErrorCreatingUser(t *testing.T) {
 	responsableStore.FindUserResponses = []FindUserResponse{{nil, nil}}
-	responsableStore.UpsertUserResponses = []error{errors.New("ERROR")}
+	responsableStore.CreateUserResponses = []CreateUserResponse{{nil, errors.New("ERROR")}}
 	defer expectResponsablesEmpty(t)
 
 	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\"}"
@@ -588,7 +588,7 @@ func Test_CreateUser_Error_ErrorUpsertingUser(t *testing.T) {
 
 func Test_CreateUser_Error_ErrorSettingPermissions(t *testing.T) {
 	responsableStore.FindUserResponses = []FindUserResponse{{nil, nil}}
-	responsableStore.UpsertUserResponses = []error{nil}
+	responsableStore.CreateUserResponses = []CreateUserResponse{{&User{Id: "1234567890", Roles: []string{"clinic"}}, nil}}
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, errors.New("ERROR")}}
 	defer expectResponsablesEmpty(t)
 
@@ -599,7 +599,7 @@ func Test_CreateUser_Error_ErrorSettingPermissions(t *testing.T) {
 
 func Test_CreateUser_Success(t *testing.T) {
 	responsableStore.FindUserResponses = []FindUserResponse{{nil, nil}}
-	responsableStore.UpsertUserResponses = []error{nil}
+	responsableStore.CreateUserResponses = []CreateUserResponse{{&User{Id: "1234567890", Emails: []string{"a@z.co"}, Username: "a@z.co", Roles: []string{"clinic"}}, nil}}
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
 	defer expectResponsablesEmpty(t)
 

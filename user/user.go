@@ -47,6 +47,7 @@ type NewUserDetails struct {
 	Password    *string
 	Roles       []string
 	IsCustodial bool
+	EmailVerified  bool
 }
 
 type NewCustodialUserDetails struct {

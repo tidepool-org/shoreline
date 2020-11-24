@@ -226,11 +226,14 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 		// This check is necessary because we want to prevent duplicates in both mongo and keycloak
 		a.sendError(res, http.StatusConflict, STATUS_USR_ALREADY_EXISTS)
 	} else {
-		if newUser.IsEmailVerified(a.ApiConfig.VerificationSecret) {
-			newUser.EmailVerified = true
+		isEmailVerified := newUser.IsEmailVerified(a.ApiConfig.VerificationSecret)
+		if isEmailVerified {
+			newUserDetails.EmailVerified = isEmailVerified
 			a.logger.Printf("User email %s contains %v, setting email verified to %v", newUser.Username, a.ApiConfig.VerificationSecret, newUser.EmailVerified)
 		}
-		if err := a.Store.WithContext(req.Context()).UpsertUser(newUser); err != nil {
+
+		newUser, err = a.Store.WithContext(req.Context()).CreateUser(newUserDetails)
+		if err != nil {
 			if err == ErrUserConflict {
 				a.sendError(res, http.StatusConflict, STATUS_USR_ALREADY_EXISTS)
 			} else {
@@ -238,6 +241,7 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 			}
 			return
 		}
+
 		if newUser.IsClinic() {
 			if a.ApiConfig.ClinicDemoUserID != "" {
 				if _, err := a.perms.SetPermissions(newUser.Id, a.ApiConfig.ClinicDemoUserID, clients.Permissions{"view": clients.Allowed}); err != nil {
@@ -246,7 +250,8 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 				}
 			}
 		}
-		token, err := a.keycloakClient.Login(req.Context(), newUser.Username, *newUserDetails.Password)
+
+		token, err := a.keycloakClient.Login(req.Context(), *newUserDetails.Username, *newUserDetails.Password)
 		if err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN, err)
 			return
