@@ -1292,6 +1292,11 @@ func Test_GetUserInfo_Success_Server(t *testing.T) {
 ////////////////////////////////////////////////////////////////////////////////
 
 func TestDeleteUser_StatusForbidden_WhenNoPw(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	mockKeycloakClient.Reset(mockCtrl)
+	mockKeycloakClient.EXPECT().Login(gomock.Any(), "a@z.co", "").Return(nil, errors.New("invalid credentials"))
+	defer mockCtrl.Finish()
+
 	sessionToken := createSessionToken(t, "0000000000", false, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "0000000000", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", EmailVerified: true, PwHash: "xyz", Hash: "123"}, nil}}
@@ -1313,6 +1318,11 @@ func TestDeleteUser_StatusForbidden_WhenNoPw(t *testing.T) {
 }
 
 func TestDeleteUser_StatusForbidden_WhenEmptyPw(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	mockKeycloakClient.Reset(mockCtrl)
+	mockKeycloakClient.EXPECT().Login(gomock.Any(), "a@z.co", "").Return(nil, errors.New("invalid credentials"))
+	defer mockCtrl.Finish()
+
 	sessionToken := createSessionToken(t, "0000000000", false, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "0000000000", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", EmailVerified: true, PwHash: "xyz", Hash: "123"}, nil}}
@@ -1334,6 +1344,11 @@ func TestDeleteUser_StatusForbidden_WhenEmptyPw(t *testing.T) {
 }
 
 func TestDeleteUser_StatusForbidden_WhenWrongPw(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	mockKeycloakClient.Reset(mockCtrl)
+	mockKeycloakClient.EXPECT().Login(gomock.Any(), "a@z.co", "incorrect").Return(nil, errors.New("invalid credentials"))
+	defer mockCtrl.Finish()
+
 	sessionToken := createSessionToken(t, "0000000000", false, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "0000000000", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", EmailVerified: true, PwHash: "xyz", Hash: "123"}, nil}}
@@ -1373,6 +1388,11 @@ func TestDeleteUser_StatusNoContentCustodian(t *testing.T) {
 }
 
 func TestDeleteUser_StatusNoContentCorrectPassword(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	mockKeycloakClient.Reset(mockCtrl)
+	mockKeycloakClient.EXPECT().Login(gomock.Any(), "a@z.co", "password").Return(&oauth2.Token{AccessToken: "access_token"}, nil)
+	defer mockCtrl.Finish()
+
 	sessionToken := createSessionToken(t, "1111111111", false, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", EmailVerified: true, PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5", Hash: "123"}, nil}}

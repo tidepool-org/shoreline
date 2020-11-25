@@ -475,7 +475,9 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 
 	if requiresPassword {
 		password := getGivenDetail(req)["password"]
-		if !user.PasswordsMatch(password, a.ApiConfig.Salt) {
+		// The only way to check the password with keycloak is to login with the credentials
+		if _, err := a.keycloakClient.Login(req.Context(), user.Username, password); err != nil {
+			a.logger.Println(http.StatusForbidden, STATUS_MISSING_ID_PW, err.Error())
 			sendModelAsResWithStatus(res, status.NewStatus(http.StatusForbidden, STATUS_MISSING_ID_PW), http.StatusForbidden)
 			return
 		}
