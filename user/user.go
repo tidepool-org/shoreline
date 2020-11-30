@@ -403,7 +403,7 @@ func NewUserDetailsFromCustodialUserDetails(details *NewCustodialUserDetails) (*
 
 func GenerateTemporaryEmail() string {
 	random := rand.Uint64()
-	return fmt.Sprintf("noreply+custodial-%020d@tidepool.org", random)
+	return fmt.Sprintf("unclaimed-custodial+%020d@tidepool.org", random)
 }
 
 func (details *UpdateUserDetails) ExtractFromJSON(reader io.Reader) error {
