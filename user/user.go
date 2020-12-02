@@ -15,7 +15,10 @@ import (
 
 const (
 	TimestampFormat = "2006-01-02T15:04:05-07:00"
+	custodialEmailFormat = "unclaimed-custodial-automation+%020d@tidepool.org"
 )
+
+var custodialAccountRegexp = regexp.MustCompile("unclaimed-custodial-automation\\+\\d+@tidepool\\.org")
 
 type User struct {
 	Id                   string                 `json:"userid,omitempty" bson:"userid,omitempty"` // map userid to id
@@ -391,7 +394,7 @@ func NewUserDetailsFromCustodialUserDetails(details *NewCustodialUserDetails) (*
 	} else if details.Username != nil {
 		email = *details.Username
 	} else {
-		email = GenerateTemporaryEmail()
+		email = GenerateTemporaryCustodialEmail()
 	}
 
 	return &NewUserDetails{
@@ -401,9 +404,13 @@ func NewUserDetailsFromCustodialUserDetails(details *NewCustodialUserDetails) (*
 	}, nil
 }
 
-func GenerateTemporaryEmail() string {
+func GenerateTemporaryCustodialEmail() string {
 	random := rand.Uint64()
-	return fmt.Sprintf("unclaimed-custodial+%020d@tidepool.org", random)
+	return fmt.Sprintf(custodialEmailFormat, random)
+}
+
+func IsTemporaryCustodialEmail(email string) bool {
+	return custodialAccountRegexp.MatchString(email)
 }
 
 func (details *UpdateUserDetails) ExtractFromJSON(reader io.Reader) error {

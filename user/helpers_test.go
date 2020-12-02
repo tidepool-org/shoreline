@@ -59,6 +59,22 @@ func Test_AsSerializableUser_Username(t *testing.T) {
 	}
 }
 
+func Test_AsSerializableUser_TemporaryCustodialUsername(t *testing.T) {
+	user := &User{Username: "unclaimed-custodial-automation+123456789@tidepool.org"}
+	serializableUser := shoreline.asSerializableUser(user, false).(map[string]interface{})
+	if serializableUser["username"] != nil {
+		t.Fatalf("Custodial username '%v' was serialized when it shouldn't have been", serializableUser["username"])
+	}
+}
+
+func Test_AsSerializableUser_TemporaryCustodialEmails(t *testing.T) {
+	user := &User{Emails: []string{"unclaimed-custodial-automation+123456789@tidepool.org"}}
+	serializableUser := shoreline.asSerializableUser(user, false).(map[string]interface{})
+	if serializableUser["emails"] != nil {
+		t.Fatalf("Custodial emails '%v' were serialized when they shouldn't have been", serializableUser["emails"])
+	}
+}
+
 func Test_AsSerializableUser_Emails(t *testing.T) {
 	user := &User{Emails: []string{"tester@test.com"}}
 	serializableUser := shoreline.asSerializableUser(user, false).(map[string]interface{})
