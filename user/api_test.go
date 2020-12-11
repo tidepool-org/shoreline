@@ -283,9 +283,6 @@ func expectResponsablesEmpty(t *testing.T) {
 		if len(responsableStore.PingResponses) > 0 {
 			t.Logf("PingResponses still available")
 		}
-		if len(responsableStore.UpsertUserResponses) > 0 {
-			t.Logf("UpsertUserResponses still available")
-		}
 		if len(responsableStore.FindUsersResponses) > 0 {
 			t.Logf("FindUsersResponses still available")
 		}
@@ -701,7 +698,7 @@ func Test_CreateCustodialUser_Error_FindUsersDuplicate(t *testing.T) {
 	expectErrorResponse(t, response, 409, "User already exists")
 }
 
-func Test_CreateCustodialUser_Error_UpsertUserError(t *testing.T) {
+func Test_CreateCustodialUser_Error_CreateUserError(t *testing.T) {
 	sessionToken := createSessionToken(t, "abcdef1234", false, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{nil, nil}}
@@ -949,27 +946,12 @@ func Test_UpdateUser_Error_UnauthorizedTermsAccepted_Custodian(t *testing.T) {
 	expectErrorResponse(t, response, 401, "Not authorized for requested operation")
 }
 
-func Test_UpdateUser_Error_FindUserDuplicateError(t *testing.T) {
+func Test_UpdateUser_Error_DuplicateError(t *testing.T) {
 	sessionToken := createSessionToken(t, "0000000000", false, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
 	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{"custodian": clients.Allowed}, nil}}
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, errors.New("ERROR")}}
-	defer expectResponsablesEmpty(t)
-
-	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}}"
-	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
-	response := performRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
-	expectErrorResponse(t, response, 500, "Error finding user")
-}
-
-func Test_UpdateUser_Error_FindUserDuplicateFound(t *testing.T) {
-	sessionToken := createSessionToken(t, "0000000000", false, tokenDuration)
-	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
-	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
-	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{"custodian": clients.Allowed}, nil}}
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1234567890"}}, nil}}
+	responsableStore.UpdateUserResponses = []UpdateUserResponse{{nil, ErrEmailConflict}}
 	defer expectResponsablesEmpty(t)
 
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}}"
@@ -979,12 +961,11 @@ func Test_UpdateUser_Error_FindUserDuplicateFound(t *testing.T) {
 	expectErrorResponse(t, response, 409, "User already exists")
 }
 
-func Test_UpdateUser_Error_UpsertUserError(t *testing.T) {
+func Test_UpdateUser_Error_UpdateUserError(t *testing.T) {
 	sessionToken := createSessionToken(t, "0000000000", false, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
 	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{"custodian": clients.Allowed}, nil}}
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
 	responsableStore.UpdateUserResponses = []UpdateUserResponse{{nil, errors.New("ERROR")}}
 	defer expectResponsablesEmpty(t)
 
@@ -1007,7 +988,6 @@ func Test_UpdateUser_Error_RemoveCustodians_UsersInGroupError(t *testing.T) {
 	sessionToken := createSessionToken(t, "1111111111", false, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
 	responsableStore.UpdateUserResponses = []UpdateUserResponse{{updatedUser, nil}}
 	responsableGatekeeper.UsersInGroupResponses = []UsersPermissionsResponse{{clients.UsersPermissions{}, errors.New("ERROR")}}
 	mockNotifier.NotifyUserUpdatedResponses = []error{nil}
@@ -1032,7 +1012,6 @@ func Test_UpdateUser_Error_RemoveCustodians_SetPermissionsError(t *testing.T) {
 	sessionToken := createSessionToken(t, "1111111111", false, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
 	responsableStore.UpdateUserResponses = []UpdateUserResponse{{updatedUser, nil}}
 	responsableGatekeeper.UsersInGroupResponses = []UsersPermissionsResponse{{clients.UsersPermissions{"0000000000": {"custodian": clients.Allowed}}, nil}}
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, errors.New("ERROR")}}
@@ -1059,7 +1038,6 @@ func Test_UpdateUser_Success_Custodian(t *testing.T) {
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
 	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{"custodian": clients.Allowed}, nil}}
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
 	responsableStore.UpdateUserResponses = []UpdateUserResponse{{updatedUser, nil}}
 	mockNotifier.NotifyUserUpdatedResponses = []error{nil}
 	defer expectResponsablesEmpty(t)
@@ -1086,7 +1064,6 @@ func Test_UpdateUser_Success_UserFromUrl(t *testing.T) {
 	sessionToken := createSessionToken(t, "1111111111", false, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
 	responsableStore.UpdateUserResponses = []UpdateUserResponse{{updatedUser, nil}}
 	responsableGatekeeper.UsersInGroupResponses = []UsersPermissionsResponse{{clients.UsersPermissions{"0000000000": {"custodian": clients.Allowed}}, nil}}
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
@@ -1116,7 +1093,6 @@ func Test_UpdateUser_Success_UserFromToken(t *testing.T) {
 	sessionToken := createSessionToken(t, "1111111111", false, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
 	responsableStore.UpdateUserResponses = []UpdateUserResponse{{updatedUser, nil}}
 	responsableGatekeeper.UsersInGroupResponses = []UsersPermissionsResponse{{clients.UsersPermissions{"0000000000": {"custodian": clients.Allowed}}, nil}}
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
@@ -1145,7 +1121,6 @@ func Test_UpdateUser_Success_Server_WithoutPassword(t *testing.T) {
 	sessionToken := createSessionToken(t, "0000000000", true, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
 	responsableStore.UpdateUserResponses = []UpdateUserResponse{{updatedUser, nil}}
 	mockNotifier.NotifyUserUpdatedResponses = []error{nil}
 	defer expectResponsablesEmpty(t)
@@ -1173,7 +1148,6 @@ func Test_UpdateUser_Success_Server_WithPassword(t *testing.T) {
 	sessionToken := createSessionToken(t, "0000000000", true, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
 	responsableStore.UpdateUserResponses = []UpdateUserResponse{{updatedUser, nil}}
 	responsableGatekeeper.UsersInGroupResponses = []UsersPermissionsResponse{{clients.UsersPermissions{"0000000000": {"custodian": clients.Allowed}}, nil}}
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, nil}}

@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	TimestampFormat = "2006-01-02T15:04:05-07:00"
+	TimestampFormat      = "2006-01-02T15:04:05-07:00"
 	custodialEmailFormat = "unclaimed-custodial-automation+%020d@tidepool.org"
 )
 
@@ -45,12 +45,12 @@ type User struct {
  * Incoming user details used to create or update a `User`
  */
 type NewUserDetails struct {
-	Username    *string
-	Emails      []string
-	Password    *string
-	Roles       []string
-	IsCustodial bool
-	EmailVerified  bool
+	Username      *string
+	Emails        []string
+	Password      *string
+	Roles         []string
+	IsCustodial   bool
+	EmailVerified bool
 }
 
 type NewCustodialUserDetails struct {
@@ -628,14 +628,14 @@ func NewUserFromKeycloakUser(keycloakUser *keycloak.User) *User {
 	}
 
 	user := &User{
-		Id:                   keycloakUser.ID,
-		Username:             keycloakUser.Username,
-		Emails:               []string{keycloakUser.Email},
-		Roles:                KeycloakRolesToTidepoolRoles(keycloakUser.Roles),
-		TermsAccepted:        termsAcceptedDate,
-		EmailVerified:        keycloakUser.EmailVerified,
-		IsMigrated:           true,
-		Enabled:              keycloakUser.Enabled,
+		Id:            keycloakUser.ID,
+		Username:      keycloakUser.Username,
+		Emails:        []string{keycloakUser.Email},
+		Roles:         KeycloakRolesToTidepoolRoles(keycloakUser.Roles),
+		TermsAccepted: termsAcceptedDate,
+		EmailVerified: keycloakUser.EmailVerified,
+		IsMigrated:    true,
+		Enabled:       keycloakUser.Enabled,
 	}
 
 	// All non-custodial users have a password and it's important to set the hash to a non-empty value.

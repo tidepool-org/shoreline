@@ -3,8 +3,8 @@ package main
 import (
 	"context"
 	"crypto/tls"
-	"io/ioutil"
 	"github.com/tidepool-org/shoreline/keycloak"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"

@@ -13,7 +13,6 @@ type Storage interface {
 	EnsureIndexes() error
 	CreateUser(details *NewUserDetails) (*User, error)
 	UpdateUser(user *User, details *UpdateUserDetails) (*User, error)
-	UpsertUser(user *User) error
 	FindUser(user *User) (*User, error)
 	FindUsers(user *User) ([]*User, error)
 	FindUsersByRole(role string) ([]*User, error)

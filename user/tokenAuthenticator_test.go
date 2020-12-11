@@ -195,9 +195,9 @@ func Test_TokenAuthenticator_AuthenticateKeycloak_IntrospectsBackwardCompatibleT
 		RealmAccess:   keycloak.RealmAccess{},
 	}
 	expectedTokenData := &TokenData{
-		IsServer:     false,
-		UserId:       subject,
-		ExpiresAt:    expiresAt,
+		IsServer:  false,
+		UserId:    subject,
+		ExpiresAt: expiresAt,
 	}
 
 	// Expect to be called called once
@@ -234,9 +234,9 @@ func Test_TokenAuthenticator_AuthenticateKeycloak_IntrospectsAccessTokens(t *tes
 		RealmAccess:   keycloak.RealmAccess{},
 	}
 	expectedTokenData := &TokenData{
-		IsServer:     false,
-		UserId:       subject,
-		ExpiresAt:    expiresAt,
+		IsServer:  false,
+		UserId:    subject,
+		ExpiresAt: expiresAt,
 	}
 
 	// Expect to be called called once
@@ -265,9 +265,9 @@ func Test_TokenAuthenticator_Authenticate_LooksUpLegacyTokens(t *testing.T) {
 	subject := "1234567890"
 	expiresAt := time.Now().Unix() + 645
 	tokenData := &TokenData{
-		IsServer:     false,
-		UserId:       subject,
-		ExpiresAt:    expiresAt,
+		IsServer:  false,
+		UserId:    subject,
+		ExpiresAt: expiresAt,
 	}
 
 	token, err := CreateSessionToken(tokenData, fakeConfig.TokenConfigs[0])

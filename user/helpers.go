@@ -125,7 +125,7 @@ func (a *Api) asSerializableUser(user *User, isServerRequest bool) interface{} {
 	if len(user.Username) > 0 && !IsTemporaryCustodialEmail(user.Username) {
 		serializable["username"] = user.Username
 	}
-	if len(user.Emails) == 1  && !IsTemporaryCustodialEmail(user.Emails[0]) {
+	if len(user.Emails) == 1 && !IsTemporaryCustodialEmail(user.Emails[0]) {
 		serializable["emails"] = user.Emails
 	}
 	if len(user.Roles) > 0 {

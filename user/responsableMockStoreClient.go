@@ -39,7 +39,6 @@ type UpdateUserResponse struct {
 
 type ResponsableMockStoreClient struct {
 	PingResponses                []error
-	UpsertUserResponses          []error
 	FindUsersResponses           []FindUsersResponse
 	FindUsersByRoleResponses     []FindUsersByRoleResponse
 	FindUsersWithIdsResponses    []FindUsersWithIdsResponse
@@ -59,7 +58,6 @@ func NewResponsableMockStoreClient() *ResponsableMockStoreClient {
 
 func (r *ResponsableMockStoreClient) HasResponses() bool {
 	return len(r.PingResponses) > 0 ||
-		len(r.UpsertUserResponses) > 0 ||
 		len(r.FindUsersResponses) > 0 ||
 		len(r.FindUsersByRoleResponses) > 0 ||
 		len(r.FindUsersWithIdsResponses) > 0 ||
@@ -74,7 +72,6 @@ func (r *ResponsableMockStoreClient) HasResponses() bool {
 
 func (r *ResponsableMockStoreClient) Reset() {
 	r.PingResponses = nil
-	r.UpsertUserResponses = nil
 	r.FindUsersResponses = nil
 	r.FindUsersByRoleResponses = nil
 	r.FindUsersWithIdsResponses = nil
@@ -119,14 +116,6 @@ func (r *ResponsableMockStoreClient) UpdateUser(user *User, details *UpdateUserD
 		return response.User, response.Error
 	}
 	panic("UpdateUserResponses unavailable")
-}
-
-func (r *ResponsableMockStoreClient) UpsertUser(user *User) (err error) {
-	if len(r.UpsertUserResponses) > 0 {
-		err, r.UpsertUserResponses = r.UpsertUserResponses[0], r.UpsertUserResponses[1:]
-		return err
-	}
-	panic("UpsertUserResponses unavailable")
 }
 
 func (r *ResponsableMockStoreClient) FindUsers(user *User) (found []*User, err error) {

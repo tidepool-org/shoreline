@@ -4,7 +4,7 @@ import "testing"
 
 func Test_IntrospectionResult_IsServerToken_Success(t *testing.T) {
 	result := &TokenIntrospectionResult{
-		RealmAccess:   RealmAccess{
+		RealmAccess: RealmAccess{
 			Roles: []string{"backend_service"},
 		},
 	}

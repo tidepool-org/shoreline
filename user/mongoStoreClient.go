@@ -142,61 +142,34 @@ func (msc *MongoStoreClient) CreateUser(newUserDetails *NewUserDetails) (*User, 
 }
 
 func (msc *MongoStoreClient) UpdateUser(originalUser *User, updateUserDetails *UpdateUserDetails) (*User, error) {
-	updatedUser := originalUser.DeepClone()
-	if updateUserDetails.Username != nil || updateUserDetails.Emails != nil {
-		dupCheck := &User{}
-		if updateUserDetails.Username != nil {
-			updatedUser.Username = *updateUserDetails.Username
-			dupCheck.Username = updatedUser.Username
-		}
-		if updateUserDetails.Emails != nil {
-			updatedUser.Emails = updateUserDetails.Emails
-			dupCheck.Emails = updatedUser.Emails
-		}
-
-		if results, err := msc.FindUsers(dupCheck); err != nil {
-			return nil, err
-		} else if len(results) > 0 {
-			return nil, errors.New(STATUS_USR_ALREADY_EXISTS)
-		}
+	user := originalUser.DeepClone()
+	if updateUserDetails.Username != nil {
+		user.Username = *updateUserDetails.Username
 	}
-
+	if updateUserDetails.Emails != nil {
+		user.Emails = updateUserDetails.Emails
+	}
 	if updateUserDetails.HashedPassword != nil {
-		updatedUser.PwHash = *updateUserDetails.HashedPassword
+		user.PwHash = *updateUserDetails.HashedPassword
 	}
-
 	if updateUserDetails.Roles != nil {
-		updatedUser.Roles = updateUserDetails.Roles
-	}
-
-	if updateUserDetails.TermsAccepted != nil {
-		updatedUser.TermsAccepted = *updateUserDetails.TermsAccepted
-	}
-
-	if updateUserDetails.EmailVerified != nil {
-		updatedUser.EmailVerified = *updateUserDetails.EmailVerified
-	}
-
-	if err := msc.UpsertUser(updatedUser); err != nil {
-		return nil, err
-	}
-
-	return updatedUser, nil
-}
-
-// UpsertUser - Update an existing user's details, or insert a new user if the user doesn't already exist.
-func (msc *MongoStoreClient) UpsertUser(user *User) error {
-	if user.Roles != nil {
 		sort.Strings(user.Roles)
+		user.Roles = updateUserDetails.Roles
+	}
+	if updateUserDetails.TermsAccepted != nil {
+		user.TermsAccepted = *updateUserDetails.TermsAccepted
+	}
+	if updateUserDetails.EmailVerified != nil {
+		user.EmailVerified = *updateUserDetails.EmailVerified
 	}
 
-	// if the user already exists we update otherwise we add
-	opts := options.FindOneAndUpdate().SetUpsert(true).SetCollation(usersCollation)
+	opts := options.FindOneAndUpdate().SetCollation(usersCollation)
 	result := usersCollection(msc).FindOneAndUpdate(msc.context, bson.M{"userid": user.Id}, bson.D{{Key: "$set", Value: user}}, opts)
-	if result.Err() != mongo.ErrNoDocuments {
-		return result.Err()
+	if result.Err() != nil {
+		return nil, result.Err()
 	}
-	return nil
+
+	return user, nil
 }
 
 // FindUser - find and return an existing user

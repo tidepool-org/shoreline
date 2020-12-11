@@ -38,13 +38,6 @@ func (d MockStoreClient) UpdateUser(user *User, details *UpdateUserDetails) (*Us
 	return user, nil
 }
 
-func (d MockStoreClient) UpsertUser(user *User) error {
-	if d.doBad {
-		return errors.New("UpsertUser failure")
-	}
-	return nil
-}
-
 func (d MockStoreClient) FindUsers(user *User) (found []*User, err error) {
 	//`find` a pretend one we just made
 

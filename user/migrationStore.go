@@ -8,6 +8,7 @@ import (
 )
 
 var ErrUserConflict = errors.New("user already exists")
+var ErrEmailConflict = errors.New("email already exists")
 
 type MigrationStore struct {
 	ctx            context.Context
@@ -80,16 +81,46 @@ func (m *MigrationStore) CreateUser(details *NewUserDetails) (*User, error) {
 	return NewUserFromKeycloakUser(user), nil
 }
 
-func (m *MigrationStore) UpsertUser(user *User) error {
-	return m.fallback.UpsertUser(user)
-}
-
 func (m *MigrationStore) UpdateUser(user *User, details *UpdateUserDetails) (*User, error) {
+	emails := append([]string{}, details.Emails...)
+	if details.Username != nil {
+		emails = append(emails, *details.Username)
+	}
+	if err := m.assertEmailsUnique(emails); err != nil {
+		return nil, err
+	}
+
 	if user.IsMigrated {
 		return m.updateKeycloakUser(user, details)
 	}
 
 	return m.fallback.UpdateUser(user, details)
+}
+
+func (m *MigrationStore) assertEmailsUnique(emails []string) error {
+	for _, email := range emails {
+		users, err := m.fallback.FindUsers(&User{
+			Username: email,
+			Emails:   emails,
+		})
+		if err != nil {
+			return err
+		}
+		if len(users) > 0 {
+			return ErrEmailConflict
+		}
+	}
+
+	for _, email := range emails {
+		user, err := m.keycloakClient.GetUserByEmail(m.ctx, email)
+		if err != nil {
+			return err
+		}
+		if user != nil {
+			return ErrEmailConflict
+		}
+	}
+	return nil
 }
 
 func (m *MigrationStore) updateKeycloakUser(user *User, details *UpdateUserDetails) (*User, error) {
@@ -174,30 +205,25 @@ func (m *MigrationStore) FindUsersWithIds(ids []string) (users []*User, err erro
 		return users, err
 	}
 
+	keycloakUsersMap := make(map[string]*keycloak.User, len(keycloakUsers))
+	for _, user := range keycloakUsers {
+		keycloakUsersMap[user.ID] = user
+		users = append(users, NewUserFromKeycloakUser(user))
+	}
+
 	notInKeycloak := make([]string, 0)
 	for _, id := range ids {
-		found := false
-		for _, u := range keycloakUsers {
-			if u.ID == id {
-				found = true
-				break
-			}
-		}
-		if !found {
+		if _, ok := keycloakUsersMap[id]; !ok {
 			notInKeycloak = append(notInKeycloak, id)
 		}
 	}
 
-	legacyUsers, err := m.fallback.FindUsersWithIds(ids)
+	legacyUsers, err := m.fallback.FindUsersWithIds(notInKeycloak)
 	if err != nil {
 		return
 	}
-	for _, u := range keycloakUsers {
-		users = append(users, NewUserFromKeycloakUser(u))
-	}
-	for _, u := range legacyUsers {
-		users = append(users, u)
-	}
+
+	users = append(users, legacyUsers...)
 	return
 }
 

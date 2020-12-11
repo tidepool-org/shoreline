@@ -2,6 +2,9 @@ package user
 
 import (
 	"context"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"strings"
 	"testing"
 	"time"
@@ -21,6 +24,15 @@ func mongoTestSetup() (*MongoStoreClient, error) {
 	usersCollection(mc).Drop(context.Background())
 
 	return mc, nil
+}
+
+func upsertUser(mc *MongoStoreClient, user *User) error {
+	opts := options.FindOneAndUpdate().SetUpsert(true)
+	res := usersCollection(mc).FindOneAndUpdate(mc.context, bson.M{"_id": user.Id}, bson.D{{Key: "$set", Value: user}}, opts)
+	if res.Err() != mongo.ErrNoDocuments {
+		return res.Err()
+	}
+	return nil
 }
 
 func TestMongoStoreUserOperations(t *testing.T) {
@@ -48,7 +60,7 @@ func TestMongoStoreUserOperations(t *testing.T) {
 		t.Fatalf("we could not create the user %v", err)
 	}
 
-	if err := mc.UpsertUser(user); err != nil {
+	if err := upsertUser(mc, user); err != nil {
 		t.Fatalf("we could not upsert the user %v", err)
 	}
 
@@ -91,9 +103,12 @@ func TestMongoStoreUserOperations(t *testing.T) {
 	}
 
 	//Do an update
-	user.Username = "test user updated"
+	username := "test user updated"
+	update := &UpdateUserDetails{
+		Username: &username,
+	}
 
-	if err := mc.UpsertUser(user); err != nil {
+	if user, err = mc.UpdateUser(user, update); err != nil {
 		t.Fatalf("we could not update the user %v", err)
 	}
 
@@ -148,7 +163,7 @@ func TestMongoStoreUserOperations(t *testing.T) {
 		t.Fatalf("we could not create the user %v", err)
 	}
 
-	if err := mc.UpsertUser(userTwo); err != nil {
+	if err := upsertUser(mc, userTwo); err != nil {
 		t.Fatalf("we could not upsert the user %v", err)
 	}
 
@@ -187,10 +202,10 @@ func TestMongoStore_FindUsersByRole(t *testing.T) {
 
 	userTwo, _ := NewUser(userTwoDetail, testsFakeSalt)
 
-	if err := mc.UpsertUser(userOne); err != nil {
+	if err := upsertUser(mc, userOne); err != nil {
 		t.Fatalf("we could not create the user %v", err)
 	}
-	if err := mc.UpsertUser(userTwo); err != nil {
+	if err := upsertUser(mc, userTwo); err != nil {
 		t.Fatalf("we could not create the user %v", err)
 	}
 
@@ -224,10 +239,10 @@ func TestMongoStore_FindUsersById(t *testing.T) {
 	userOne, _ := NewUser(userOneDetail, testsFakeSalt)
 	userTwo, _ := NewUser(userTwoDetail, testsFakeSalt)
 
-	if err := mc.UpsertUser(userOne); err != nil {
+	if err := upsertUser(mc, userOne); err != nil {
 		t.Fatalf("we could not create the user %v", err)
 	}
-	if err := mc.UpsertUser(userTwo); err != nil {
+	if err := upsertUser(mc, userTwo); err != nil {
 		t.Fatalf("we could not create the user %v", err)
 	}
 
