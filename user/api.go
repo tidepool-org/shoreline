@@ -125,6 +125,7 @@ func (a *Api) SetHandlers(prefix string, rtr *mux.Router) {
 
 	rtr.Handle("/user", varsHandler(a.GetUserInfo)).Methods("GET")
 	rtr.Handle("/user/{userid}", varsHandler(a.GetUserInfo)).Methods("GET")
+	rtr.Handle("/v1/users/{userid}", varsHandler(a.GetUserInfo)).Methods("GET")
 
 	rtr.HandleFunc("/user", a.CreateUser).Methods("POST")
 	rtr.Handle("/user", varsHandler(a.UpdateUser)).Methods("PUT")
