@@ -148,7 +148,7 @@ func (a *Api) SetHandlers(prefix string, rtr *mux.Router) {
 	rtr.HandleFunc("/private", a.AnonymousIdHashPair).Methods("GET")
 
 	rtr.Handle("/migrate/{username}", varsHandler(a.GetUserForMigration)).Methods("GET")
-	rtr.Handle("/migrate/{username}", varsHandler(a.CheckUserPassword)).Methods("POST")
+	rtr.Handle("/migrate/{userid}", varsHandler(a.CheckUserPassword)).Methods("POST")
 }
 
 func (h varsHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
@@ -774,7 +774,7 @@ type CheckPassword struct {
 
 // status: 200 if a user with the required password exists
 func (a *Api) CheckUserPassword(res http.ResponseWriter, req *http.Request, vars map[string]string) {
-	username, ok := vars["username"]
+	userid, ok := vars["userid"]
 	request := CheckPassword{}
 	err := json.NewDecoder(req.Body).Decode(&request)
 	if err != nil {
@@ -782,7 +782,7 @@ func (a *Api) CheckUserPassword(res http.ResponseWriter, req *http.Request, vars
 		return
 	}
 
-	if !ok || !a.userWithPasswordExists(req.Context(), username, request.Password) {
+	if !ok || !a.userWithPasswordExists(req.Context(), userid, request.Password) {
 		a.sendError(res, http.StatusNotFound, STATUS_USER_NOT_FOUND)
 		return
 	}
@@ -790,9 +790,9 @@ func (a *Api) CheckUserPassword(res http.ResponseWriter, req *http.Request, vars
 	res.WriteHeader(http.StatusOK)
 }
 
-func (a *Api) userWithPasswordExists(ctx context.Context, username, password string) bool {
+func (a *Api) userWithPasswordExists(ctx context.Context, userid, password string) bool {
 	users, err := a.Store.WithContext(ctx).FindUsers(&User{
-		Username: username,
+		Id: userid,
 	})
 
 	return err == nil &&
