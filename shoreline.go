@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"github.com/tidepool-org/shoreline/keycloak"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -26,9 +27,10 @@ import (
 type (
 	Config struct {
 		clients.Config
-		Service disc.ServiceListing `json:"service"`
-		Mongo   mongo.Config        `json:"mongo"`
-		User    user.ApiConfig      `json:"user"`
+		Service  disc.ServiceListing `json:"service"`
+		Mongo    mongo.Config        `json:"mongo"`
+		User     user.ApiConfig      `json:"user"`
+		Keycloak keycloak.Config     `json:"keycloak"`
 	}
 )
 
@@ -48,7 +50,7 @@ func main() {
 		config.User.ServerSecret = serverSecret
 	}
 
-	config.User.TokenConfigs = make([]user.TokenConfig, 2)
+	config.User.TokenConfigs = make([]user.TokenConfig, 1)
 
 	current := &config.User.TokenConfigs[0]
 	privateKey, _ := os.LookupEnv("PRIVATE_KEY")
@@ -61,7 +63,7 @@ func main() {
 	current.Issuer = apiHost
 	current.DurationSecs = 60 * 60 * 24 * 30
 
-	previous := &config.User.TokenConfigs[1]
+	previous := user.TokenConfig{}
 	previousPrivateKey, _ := os.LookupEnv("PREVIOUS_PRIVATE_KEY")
 	previousPublicKey, _ := os.LookupEnv("PREVIOUS_PUBLIC_KEY")
 	previousApiHost, _ := os.LookupEnv("PREVIOUS_API_HOST")
@@ -71,6 +73,9 @@ func main() {
 	previous.Audience = previousApiHost
 	previous.Issuer = previousApiHost
 	previous.DurationSecs = 60 * 60 * 24 * 30
+	if previous.EncodeKey != "" {
+		config.User.TokenConfigs = append(config.User.TokenConfigs, previous)
+	}
 
 	longTermKey, found := os.LookupEnv("LONG_TERM_KEY")
 	if found {
@@ -92,6 +97,15 @@ func main() {
 	}
 
 	config.Mongo.FromEnv()
+
+	config.Keycloak.FromEnv()
+	if secret, found := os.LookupEnv("TIDEPOOL_KEYCLOAK_MIGRATION_SECRET"); found {
+		config.User.MigrationSecret = secret
+	}
+
+	if err := config.User.TokenCacheConfig.FromEnv(); err != nil {
+		log.Fatalf("couldn't load token cache config from env: %v", err)
+	}
 
 	/*
 	 * Hakken setup
@@ -129,6 +143,9 @@ func main() {
 	defer clientStore.Disconnect()
 	clientStore.EnsureIndexes()
 
+	keycloakClient := keycloak.NewClient(&config.Keycloak)
+	migrationStore := user.NewMigrationStore(clientStore, keycloakClient)
+
 	// Start logging kafka connection debug info
 	sarama.Logger = logger
 
@@ -140,7 +157,7 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	handler, err := user.NewUserEventsHandler(clientStore)
+	handler, err := user.NewUserEventsHandler(migrationStore)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -159,7 +176,7 @@ func main() {
 		WithHttpClient(httpClient).
 		Build()
 
-	userapi := user.InitApi(config.User, logger, clientStore, notifier, seagull)
+	userapi := user.InitApi(config.User, logger, migrationStore, keycloakClient, notifier, seagull)
 	logger.Print("installing handlers")
 	userapi.SetHandlers("", rtr)
 

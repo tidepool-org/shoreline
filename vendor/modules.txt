@@ -1,3 +1,7 @@
+# github.com/Nerzal/gocloak/v7 v7.5.0
+## explicit
+github.com/Nerzal/gocloak/v7
+github.com/Nerzal/gocloak/v7/pkg/jwx
 # github.com/Shopify/sarama v1.27.0
 ## explicit
 github.com/Shopify/sarama
@@ -21,6 +25,8 @@ github.com/aws/aws-sdk-go/private/protocol
 github.com/aws/aws-sdk-go/private/protocol/rest
 # github.com/beorn7/perks v1.0.1
 github.com/beorn7/perks/quantile
+# github.com/cespare/xxhash v1.1.0
+github.com/cespare/xxhash
 # github.com/cespare/xxhash/v2 v2.1.1
 github.com/cespare/xxhash/v2
 # github.com/cloudevents/sdk-go/protocol/kafka_sarama/v2 v2.2.0
@@ -42,6 +48,9 @@ github.com/cloudevents/sdk-go/v2/observability
 github.com/cloudevents/sdk-go/v2/protocol
 github.com/cloudevents/sdk-go/v2/protocol/http
 github.com/cloudevents/sdk-go/v2/types
+# github.com/coocood/freecache v1.1.1
+## explicit
+github.com/coocood/freecache
 # github.com/cpuguy83/go-md2man/v2 v2.0.0
 ## explicit
 github.com/cpuguy83/go-md2man/v2/md2man
@@ -50,6 +59,8 @@ github.com/davecgh/go-spew/spew
 # github.com/dgrijalva/jwt-go v3.2.0+incompatible
 ## explicit
 github.com/dgrijalva/jwt-go
+# github.com/dgrijalva/jwt-go/v4 v4.0.0-preview1
+github.com/dgrijalva/jwt-go/v4
 # github.com/eapache/go-resiliency v1.2.0
 github.com/eapache/go-resiliency/breaker
 # github.com/eapache/go-xerial-snappy v0.0.0-20180814174437-776d5712da21
@@ -62,8 +73,14 @@ github.com/globalsign/mgo/bson
 github.com/globalsign/mgo/internal/json
 github.com/globalsign/mgo/internal/sasl
 github.com/globalsign/mgo/internal/scram
+# github.com/go-resty/resty/v2 v2.3.0
+## explicit
+github.com/go-resty/resty/v2
 # github.com/go-stack/stack v1.8.0
 github.com/go-stack/stack
+# github.com/golang/mock v1.4.4
+## explicit
+github.com/golang/mock/gomock
 # github.com/golang/protobuf v1.4.2
 github.com/golang/protobuf/proto
 github.com/golang/protobuf/ptypes
@@ -87,6 +104,7 @@ github.com/jcmturner/gofork/x/crypto/pbkdf2
 # github.com/jmespath/go-jmespath v0.0.0-20180206201540-c2b33e8439af
 github.com/jmespath/go-jmespath
 # github.com/kelseyhightower/envconfig v1.4.0
+## explicit
 github.com/kelseyhightower/envconfig
 # github.com/klauspost/compress v1.11.1
 ## explicit
@@ -100,10 +118,15 @@ github.com/lightstep/tracecontext.go/traceparent
 github.com/lightstep/tracecontext.go/tracestate
 # github.com/matttproud/golang_protobuf_extensions v1.0.1
 github.com/matttproud/golang_protobuf_extensions/pbutil
+# github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd
+## explicit
+# github.com/modern-go/reflect2 v1.0.1
+## explicit
 # github.com/pierrec/lz4 v2.5.2+incompatible
 github.com/pierrec/lz4
 github.com/pierrec/lz4/internal/xxh32
 # github.com/pkg/errors v0.9.1
+## explicit
 github.com/pkg/errors
 # github.com/prometheus/client_golang v1.7.1
 ## explicit
@@ -125,6 +148,8 @@ github.com/prometheus/procfs/internal/util
 github.com/rcrowley/go-metrics
 # github.com/russross/blackfriday/v2 v2.0.1
 github.com/russross/blackfriday/v2
+# github.com/segmentio/ksuid v1.0.3
+github.com/segmentio/ksuid
 # github.com/shurcooL/sanitized_anchor_name v1.0.0
 github.com/shurcooL/sanitized_anchor_name
 # github.com/tidepool-org/go-common v0.7.1
@@ -215,20 +240,36 @@ go.uber.org/zap/zapcore
 golang.org/x/crypto/md4
 golang.org/x/crypto/ocsp
 golang.org/x/crypto/pbkdf2
-# golang.org/x/net v0.0.0-20200528225125-3c3fba18258b
+# golang.org/x/net v0.0.0-20201010224723-4f7140c49acb
+## explicit
+golang.org/x/net/context
+golang.org/x/net/context/ctxhttp
 golang.org/x/net/internal/socks
 golang.org/x/net/proxy
+golang.org/x/net/publicsuffix
+# golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
+## explicit
+golang.org/x/oauth2
+golang.org/x/oauth2/internal
 # golang.org/x/sync v0.0.0-20200930132711-30421366ff76
 ## explicit
 golang.org/x/sync/errgroup
 golang.org/x/sync/semaphore
-# golang.org/x/sys v0.0.0-20200615200032-f1bc736245b1
+# golang.org/x/sys v0.0.0-20200930185726-fdedc70b468f
 golang.org/x/sys/internal/unsafeheader
 golang.org/x/sys/unix
 golang.org/x/sys/windows
 # golang.org/x/text v0.3.3
 golang.org/x/text/transform
 golang.org/x/text/unicode/norm
+# google.golang.org/appengine v1.4.0
+google.golang.org/appengine/internal
+google.golang.org/appengine/internal/base
+google.golang.org/appengine/internal/datastore
+google.golang.org/appengine/internal/log
+google.golang.org/appengine/internal/remote_api
+google.golang.org/appengine/internal/urlfetch
+google.golang.org/appengine/urlfetch
 # google.golang.org/protobuf v1.23.0
 google.golang.org/protobuf/encoding/prototext
 google.golang.org/protobuf/encoding/protowire
@@ -298,3 +339,5 @@ gopkg.in/jcmturner/gokrb5.v7/types
 # gopkg.in/jcmturner/rpc.v1 v1.1.0
 gopkg.in/jcmturner/rpc.v1/mstypes
 gopkg.in/jcmturner/rpc.v1/ndr
+# zvelo.io/ttlru v1.0.10
+## explicit
