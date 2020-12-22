@@ -2,6 +2,9 @@
 
 Shoreline is the module that manages logins and user accounts.
 
+## UNRELEASED
+- YLP-339 New route to provide JWT tokens for external services
+
 ## 1.1.2 - 2020-10-29
 ### Engineering
 - YLP-243 Review openapi generation so we can serve it through a website

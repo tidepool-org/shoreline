@@ -86,10 +86,16 @@ func main() {
 	if found {
 		config.User.ServerSecrets["default"] = serverSecret
 	}
-
+	// extract the list of token secrets
+	config.User.TokenSecrets = make(map[string]string)
+	zdkSecret, found := os.LookupEnv("ZENDESK_SECRET")
+	if found {
+		config.User.TokenSecrets["zendesk"] = zdkSecret
+	}
 	userSecret, found := os.LookupEnv("API_SECRET")
 	if found {
 		config.User.Secret = userSecret
+		config.User.TokenSecrets["default"] = userSecret
 	}
 
 	mailchimpAPIKey, found := os.LookupEnv("MAILCHIMP_APIKEY")

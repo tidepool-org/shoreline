@@ -50,9 +50,11 @@ func InitAPITest(cfg ApiConfig, logger *log.Logger, store Storage, marketoManage
 var (
 	NO_PARAMS      = map[string]string{}
 	TOKEN_DURATION = int64(3600)
+	tokenSecrets   = make(map[string]string)
 	FAKE_CONFIG    = ApiConfig{
 		Secrets: []Secret{Secret{Secret: "default", Pass: "This needs to be the same secret everywhere. YaHut75NsK1f9UKUXuWqxNN0RUwHFBCy"},
 			Secret{Secret: "product_website", Pass: "Not so secret"}},
+		TokenSecrets:                tokenSecrets,
 		Secret:                      "This is a local API secret for everyone. BsscSHqSHiwrBMJsEGqbvXiuIUPAjQXU",
 		TokenDurationSecs:           TOKEN_DURATION,
 		LongTermKey:                 "thelongtermkey",
@@ -106,6 +108,7 @@ var (
 )
 
 func InitShoreline(config ApiConfig, store Storage, perms clients.Gatekeeper) *Api {
+	config.TokenSecrets["zendesk"] = "zendeskSecret"
 	api := InitAPITest(config, logger, store, mockMarketoManager)
 	api.AttachPerms(perms)
 	return api
@@ -2304,5 +2307,43 @@ func Test_RemoveUserPermissions_Success(t *testing.T) {
 	err := responsableShoreline.removeUserPermissions("1", clients.Permissions{"a": clients.Allowed})
 	if err != nil {
 		t.Fatalf("Unexpected error: %#v", err)
+	}
+}
+
+func Test_ExtToken_Error_MissingService(t *testing.T) {
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, "")
+	response := T_PerformRequestHeaders(t, "POST", "/ext-token/", headers)
+	if response.Code != 404 {
+		t.Fatalf("Unexpected response status code: %d", 404)
+	}
+}
+func Test_ExtToken_Error_UnknownService(t *testing.T) {
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, "")
+	response := T_PerformRequestHeaders(t, "POST", "/ext-token/myservice", headers)
+	T_ExpectErrorResponse(t, response, 400, "Error generating the token")
+}
+func Test_ExtToken_Error_BadToken(t *testing.T) {
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, "some.invalid.token")
+	response := T_PerformRequestHeaders(t, "POST", "/ext-token/zendesk", headers)
+	if response.Code != 401 {
+		t.Fatalf("Unexpected response status code: %d", response.Code)
+	}
+}
+
+func Test_ExtToken_Success(t *testing.T) {
+	headers := http.Header{}
+	sessionToken := T_CreateSessionToken(t, "abcdef1234", false, TOKEN_DURATION)
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
+	defer T_ExpectResponsablesEmpty(t)
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
+	response := T_PerformRequestHeaders(t, "POST", "/ext-token/zendesk", headers)
+	if response.Code != 200 {
+		t.Fatalf("The token request should have returned 200 but returned %d", response.Code)
+	}
+	if response.Header().Get(EXT_SESSION_TOKEN) == "" {
+		t.Fatalf("Missing expected %s header", EXT_SESSION_TOKEN)
 	}
 }

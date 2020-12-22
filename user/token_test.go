@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"testing"
 	"time"
+
+	jwt "github.com/dgrijalva/jwt-go"
 )
 
 type tokenTestData struct {
@@ -24,11 +26,30 @@ func Test_GenerateSessionToken(t *testing.T) {
 		config: tokenConfig,
 	}
 
-	//given duration seconds trump the configured duration
 	token, _ := CreateSessionToken(testData.data, testData.config)
 
 	if token.ID == "" {
 		t.Fatalf("should generate a session token with an ID set")
+	}
+
+	jwtToken, err := jwt.Parse(token.ID, func(t *jwt.Token) (interface{}, error) { return []byte(testData.config.Secret), nil })
+	if err != nil || !jwtToken.Valid {
+		t.Fatalf("should decode and validate the token")
+	}
+
+	claims := jwtToken.Claims.(jwt.MapClaims)
+
+	if int64(claims["dur"].(float64)) != testData.data.DurationSecs {
+		t.Fatalf("token should use the DurationSecs it was given")
+	}
+	if claims["exp"] == nil {
+		t.Fatalf("token expiration should be set")
+	}
+	if claims["iat"] == nil {
+		t.Fatalf("token creation time should be set")
+	}
+	if claims["jti"] == nil {
+		t.Fatalf("token unique id (jti) should be set")
 	}
 
 	td, _ := UnpackSessionTokenAndVerify(token.ID, tokenConfig.Secret)
@@ -78,6 +99,64 @@ func Test_GenerateSessionToken_DurationSecsTrumpConfig(t *testing.T) {
 		t.Fatalf("the duration should come from the token data")
 	}
 
+}
+
+func Test_GenerateSessionToken_Zendesk_Claims(t *testing.T) {
+
+	testData := tokenTestData{
+		data:   &TokenData{UserId: "12-99-100", IsServer: false, DurationSecs: 5000, Audience: "zendesk"},
+		config: tokenConfig,
+	}
+
+	token, _ := CreateSessionToken(testData.data, testData.config)
+
+	if token.ID == "" || token.Time == 0 {
+		t.Fatalf("should generate a session token")
+	}
+
+	jwtToken, err := jwt.Parse(token.ID, func(t *jwt.Token) (interface{}, error) { return []byte(testData.config.Secret), nil })
+	if err != nil || !jwtToken.Valid {
+		t.Fatalf("should decode and validate the token")
+	}
+
+	claims := jwtToken.Claims.(jwt.MapClaims)
+
+	// check zendesk claims
+	if claims["organization"] != "Patient" {
+		t.Fatalf("the organization should have been set to 'Patient'")
+	}
+	if claims["aud"] != "zendesk" {
+		t.Fatalf("the audience should have been set to 'zendesk'")
+	}
+}
+
+func Test_GenerateSessionToken_With_UserDetails(t *testing.T) {
+
+	testData := tokenTestData{
+		data:   &TokenData{UserId: "12-99-100", IsServer: false, DurationSecs: 5000, Email: "user@test.com", Name: "John Doe"},
+		config: tokenConfig,
+	}
+
+	token, _ := CreateSessionToken(testData.data, testData.config)
+
+	if token.ID == "" || token.Time == 0 {
+		t.Fatalf("should generate a session token")
+	}
+
+	jwtToken, err := jwt.Parse(token.ID, func(t *jwt.Token) (interface{}, error) { return []byte(testData.config.Secret), nil })
+	if err != nil || !jwtToken.Valid {
+		t.Fatalf("should decode and validate the token")
+	}
+
+	claims := jwtToken.Claims.(jwt.MapClaims)
+
+	// check zendesk claims
+	if claims["email"] != testData.data.Email {
+		t.Fatalf("the email should have been set")
+	}
+	if claims["name"] != testData.data.Name {
+		t.Fatalf("the ame should have been set")
+	}
 }
 
 func Test_GenerateSessionToken_NoUserId(t *testing.T) {

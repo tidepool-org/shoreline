@@ -14,7 +14,8 @@
                 "TIDEPOOL_SHORELINE_ENV":"{\"gatekeeper\": {\"serviceSpec\": {\"type\": \"static\",\"hosts\": [\"http://localhost:9123\"]}},\"hakken\": {\"host\": \"fake-hakken\",\"skipHakken\": true}}",
                 "TIDEPOOL_SHORELINE_SERVICE":"{\"service\": {\"certFile\": \"config/cert.pem\",\"host\": \"localhost:9107\",\"keyFile\": \"config/key.pem\",\"protocol\": \"http\",\"service\": \"shoreline\"},\"user\": {\"longTermDaysDuration\": 30,\"tokenDurationSecs\": 2592000, \"secrets\": [{\"secret\": \"default\", \"pass\": \"${SERVER_SECRET}\"},{\"secret\": \"authent_api\", \"pass\": \"${AUTHENT_API_SECRET}\"}],\"maxFailedLogin\":5,\"delayBeforeNextLoginAttempt\":10,\"maxConcurrentLogin\":100,\"blockParallelLogin\": true,\"mailchimp\": {\"url\": \"${MAILCHIMP_URL}\",\"apiKey\": \"${MAILCHIMP_API_KEY}\",\"personalLists\": [],\"clinicLists\" : []}}}",
                 "API_SECRET":"${SHORELINE_API_SECRET}"
-                "VERIFICATION_SECRET": "${SHORELINE_VERIFICATION_SECRET}",
+                "ZENDESK_SECRET":"yourSharedSecret",
+                "VERIFICATION_SECRET": "+skip",
                 "SALT":"${SHORELINE_SALT}",
                 "LONG_TERM_KEY":"${SHORELINE_LONG_TERM_KEY}"
                 "DEMO_CLINIC_USER_ID":""

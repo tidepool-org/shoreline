@@ -11,6 +11,7 @@ require (
 	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751
 	github.com/codegangsta/cli v1.20.0
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
+	github.com/google/uuid v1.1.2
 	github.com/gorilla/mux v1.7.3
 	github.com/prometheus/client_golang v1.4.1
 	github.com/swaggo/swag v1.6.9

@@ -169,7 +169,8 @@ type (
 		//used for pw
 		Salt string `json:"salt"`
 		//used for token
-		Secret string `json:"apiSecret"`
+		Secret       string `json:"apiSecret"`
+		TokenSecrets map[string]string
 		// Maximum number of consecutive failed login before a delay is set
 		MaxFailedLogin int `json:"maxFailedLogin"`
 		// Delay in minutes the user must wait 10min before attempting a new login if the number of
@@ -199,9 +200,10 @@ const (
 	//api logging prefix
 	USER_API_PREFIX = "api/user "
 
-	TP_SERVER_NAME   = "x-tidepool-server-name"
-	TP_SERVER_SECRET = "x-tidepool-server-secret"
-	TP_SESSION_TOKEN = "x-tidepool-session-token"
+	TP_SERVER_NAME    = "x-tidepool-server-name"
+	TP_SERVER_SECRET  = "x-tidepool-server-secret"
+	TP_SESSION_TOKEN  = "x-tidepool-session-token"
+	EXT_SESSION_TOKEN = "x-external-session-token"
 	// TP_TRACE_SESSION Session trace: uuid v4
 	TP_TRACE_SESSION = "x-tidepool-trace-session"
 
@@ -292,6 +294,8 @@ func (a *Api) SetHandlers(prefix string, rtr *mux.Router) {
 	rtr.HandleFunc("/serverlogin", a.ServerLogin).Methods("POST")
 
 	rtr.Handle("/token/{token}", varsHandler(a.ServerCheckToken)).Methods("GET")
+
+	rtr.Handle("/ext-token/{service}", varsHandler(a.Get3rdPartyToken)).Methods("POST")
 
 	rtr.HandleFunc("/logout", a.Logout).Methods("POST")
 
@@ -771,7 +775,7 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 		a.sendError(res, http.StatusForbidden, STATUS_NOT_VERIFIED)
 
 	} else {
-		tokenData := &TokenData{DurationSecs: extractTokenDuration(req), UserId: result.Id}
+		tokenData := &TokenData{DurationSecs: extractTokenDuration(req), UserId: result.Id, Email: result.Username, Name: result.Username, IsClinic: result.IsClinic()}
 		tokenConfig := TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: a.ApiConfig.Secret}
 		if sessionToken, err := CreateSessionTokenAndSave(tokenData, tokenConfig, a.Store); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_TOKEN, err)
@@ -954,7 +958,6 @@ func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars 
 			sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_TOKEN), http.StatusUnauthorized)
 			return
 		}
-
 		sendModelAsRes(res, td)
 		return
 	}
@@ -996,6 +999,58 @@ func (a *Api) AnonymousIdHashPair(res http.ResponseWriter, req *http.Request) {
 	idHashPair := NewAnonIdHashPair([]string{a.ApiConfig.Salt}, req.URL.Query())
 	sendModelAsRes(res, idHashPair)
 	return
+}
+
+// @Summary Generate a 3rd party JWT
+// @Description Generate a token to authenticate the user to a 3rd party service
+// @ID shoreline-user-api-getToken
+// @Param service path string true "3rd party service name"
+// @Security TidepoolAuth
+// @Success 200 {object} status.Status
+// @Failure 500 {object} status.Status "message returned:\"Error generating the token" "
+// @Failure 401 {object} status.Status "message returned:\"Not authorized for requested operation\" "
+// @Failure 400 {object} status.Status "message returned:\"Unknown query parameter\" or \"Error generating the token\" "
+// @Router /ext-token/{service} [post]
+func (a *Api) Get3rdPartyToken(res http.ResponseWriter, req *http.Request, vars map[string]string) {
+
+	secret := ""
+	service := vars["service"]
+	if service == "" {
+		sendModelAsResWithStatus(res, status.NewStatus(http.StatusBadRequest, STATUS_PARAMETER_UNKNOWN), http.StatusBadRequest)
+		return
+	} else {
+		secret = a.ApiConfig.TokenSecrets[service]
+	}
+
+	if secret == "" {
+		// the secret is not defined for this service
+		a.logger.Println(http.StatusBadRequest, "the service does not exist")
+		sendModelAsResWithStatus(res, status.NewStatus(http.StatusBadRequest, STATUS_ERR_GENERATING_TOKEN), http.StatusBadRequest)
+		return
+	}
+
+	td, err := a.authenticateSessionToken(req.Header.Get(TP_SESSION_TOKEN))
+
+	if err != nil {
+		a.logger.Println(http.StatusUnauthorized, err.Error())
+		res.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	td.Audience = service
+	//refresh
+	if sessionToken, err := CreateSessionToken(
+		td,
+		TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: secret},
+	); err != nil {
+		a.logger.Println(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN, err.Error())
+		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN), http.StatusInternalServerError)
+		return
+	} else {
+		a.logAudit(req, td, "GenerateExternalToken")
+		res.Header().Set(EXT_SESSION_TOKEN, sessionToken.ID)
+		sendModelAsRes(res, td)
+		return
+	}
 }
 
 func (a *Api) sendError(res http.ResponseWriter, statusCode int, reason string, extras ...interface{}) {
