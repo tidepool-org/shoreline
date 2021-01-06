@@ -313,7 +313,7 @@ func (h varsHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 // @ID shoreline-user-api-getstatus
 // @Accept  json
 // @Produce  json
-// @Success 200
+// @Success 200 "Status ok"
 // @Failure 500 {string} string "error description"
 // @Router /status [get]
 func (a *Api) GetStatus(res http.ResponseWriter, req *http.Request) {
@@ -669,7 +669,7 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 // @Param userid path int true "user id for server request, from token for personal request" optional
 // @Param password body string true "password"
 // @Security TidepoolAuth
-// @Success 202
+// @Success 202 "User deleted"
 // @Failure 500 {string} string ""
 // @Failure 403 {object} status.Status "message returned:\"Missing id and/or password\" "
 // @Failure 401 {string} string ""
@@ -800,7 +800,7 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 // @Produce  json
 // @Param x-tidepool-server-name header string true "server name"
 // @Param x-tidepool-server-secret header string true "server secret"
-// @Success 200
+// @Success 200  "Authentication successfull"
 // @Header 200 {string} x-tidepool-session-token "authentication token"
 // @Failure 500 {object} status.Status "message returned:\"Error generating the token\" or \"No expected password is found\""
 // @Failure 401 {object} status.Status "message returned:\"Wrong password\" "
@@ -947,6 +947,7 @@ func (a *Api) LongtermLogin(res http.ResponseWriter, req *http.Request, vars map
 // @ID shoreline-user-api-serverchecktoken
 // @Accept  json
 // @Produce  json
+// @Param token path string true "server token to check"
 // @Security TidepoolAuth
 // @Success 200 {object} user.TokenData  "Token details"
 // @Failure 401 {object} status.Status "message returned:\"No x-tidepool-session-token was found\" "
@@ -1010,6 +1011,7 @@ func (a *Api) AnonymousIdHashPair(res http.ResponseWriter, req *http.Request) {
 // @Param service path string true "3rd party service name"
 // @Security TidepoolAuth
 // @Success 200 {object} status.Status
+// @Header 200 {string} x-external-session-token "3rd party token"
 // @Failure 500 {object} status.Status "message returned:\"Error generating the token" "
 // @Failure 401 {object} status.Status "message returned:\"Not authorized for requested operation\" "
 // @Failure 400 {object} status.Status "message returned:\"Unknown query parameter\" or \"Error generating the token\" "
