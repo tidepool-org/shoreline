@@ -4,7 +4,7 @@ go 1.15
 
 replace github.com/tidepool-org/shoreline => ./
 
-replace github.com/tidepool-org/go-common => github.com/mdblp/go-common v0.6.0
+replace github.com/tidepool-org/go-common => github.com/mdblp/go-common v0.6.2
 
 require (
 	github.com/SpeakData/minimarketo v0.0.0-20170821092521-29339e452f44

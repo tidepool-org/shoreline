@@ -3,6 +3,7 @@ package user
 import (
 	"bytes"
 	"container/list"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -2079,7 +2080,7 @@ func TestAnonIdHashPair_InBulk(t *testing.T) {
 ////////////////////////////////////////////////////////////////////////////////
 
 func Test_AuthenticateSessionToken_Missing(t *testing.T) {
-	tokenData, err := responsableShoreline.authenticateSessionToken("")
+	tokenData, err := responsableShoreline.authenticateSessionToken(context.Background(), "")
 	if err == nil {
 		t.Fatalf("Unexpected success")
 	}
@@ -2092,7 +2093,7 @@ func Test_AuthenticateSessionToken_Missing(t *testing.T) {
 }
 
 func Test_AuthenticateSessionToken_Invalid(t *testing.T) {
-	tokenData, err := responsableShoreline.authenticateSessionToken("xyz")
+	tokenData, err := responsableShoreline.authenticateSessionToken(context.Background(), "xyz")
 	if err == nil {
 		t.Fatalf("Unexpected success")
 	}
@@ -2106,7 +2107,7 @@ func Test_AuthenticateSessionToken_Invalid(t *testing.T) {
 
 func Test_AuthenticateSessionToken_Expired(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "abcdef1234", false, -3600)
-	tokenData, err := responsableShoreline.authenticateSessionToken(sessionToken.ID)
+	tokenData, err := responsableShoreline.authenticateSessionToken(context.Background(), sessionToken.ID)
 	if err == nil {
 		t.Fatalf("Unexpected success")
 	}
@@ -2123,7 +2124,7 @@ func Test_AuthenticateSessionToken_NotFound(t *testing.T) {
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{nil, errors.New("NOT FOUND")}}
 	defer T_ExpectResponsablesEmpty(t)
 
-	tokenData, err := responsableShoreline.authenticateSessionToken(sessionToken.ID)
+	tokenData, err := responsableShoreline.authenticateSessionToken(context.Background(), sessionToken.ID)
 	if err == nil {
 		t.Fatalf("Unexpected success")
 	}
@@ -2140,7 +2141,7 @@ func Test_AuthenticateSessionToken_Success_User(t *testing.T) {
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
-	tokenData, err := responsableShoreline.authenticateSessionToken(sessionToken.ID)
+	tokenData, err := responsableShoreline.authenticateSessionToken(context.Background(), sessionToken.ID)
 	if err != nil {
 		t.Fatalf("Unexpected error: %#v", err)
 	}
@@ -2163,7 +2164,7 @@ func Test_AuthenticateSessionToken_Success_Server(t *testing.T) {
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
-	tokenData, err := responsableShoreline.authenticateSessionToken(sessionToken.ID)
+	tokenData, err := responsableShoreline.authenticateSessionToken(context.Background(), sessionToken.ID)
 	if err != nil {
 		t.Fatalf("Unexpected error: %#v", err)
 	}

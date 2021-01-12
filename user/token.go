@@ -1,6 +1,7 @@
 package user
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -118,13 +119,13 @@ func CreateSessionToken(data *TokenData, config TokenConfig) (*SessionToken, err
 	return sessionToken, nil
 }
 
-func CreateSessionTokenAndSave(data *TokenData, config TokenConfig, store Storage) (*SessionToken, error) {
+func CreateSessionTokenAndSave(ctx context.Context, data *TokenData, config TokenConfig, store Storage) (*SessionToken, error) {
 	sessionToken, err := CreateSessionToken(data, config)
 	if err != nil {
 		return nil, err
 	}
 
-	err = store.AddToken(sessionToken)
+	err = store.AddToken(ctx, sessionToken)
 	if err != nil {
 		return nil, err
 	}
