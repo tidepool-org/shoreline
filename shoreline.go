@@ -18,7 +18,6 @@
 package main
 
 import (
-	"crypto/tls"
 	"encoding/json"
 	"log"
 	"math/rand"
@@ -179,16 +178,6 @@ func main() {
 		logger.Print("skipping hakken service")
 	}
 
-	/*
-	 * Clients
-	 */
-
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}
-
-	httpClient := &http.Client{Transport: tr}
-
 	rtr := mux.NewRouter()
 
 	/*
@@ -217,17 +206,6 @@ func main() {
 	userapi := user.InitApi(config.User, logger, storage, auditLogger, marketoManager)
 	logger.Print("installing handlers")
 	userapi.SetHandlers("", rtr)
-
-	userClient := user.NewUserClient(userapi)
-
-	logger.Print("creating gatekeeper client")
-	permsClient := clients.NewGatekeeperClientBuilder().
-		WithHostGetter(config.GatekeeperConfig.ToHostGetter(hakkenClient)).
-		WithHttpClient(httpClient).
-		WithTokenProvider(userClient).
-		Build()
-
-	userapi.AttachPerms(permsClient)
 
 	/*
 	 * Serve it up and publish
