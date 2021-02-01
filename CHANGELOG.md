@@ -5,6 +5,7 @@ Shoreline is the module that manages logins and user accounts.
 ## Unreleased
 ### Changed
 - YLP-446 Upgrade go-common to 0.6.2 version
+- YLP-475 Remove "Custodian" authorization in shoreline
 
 ## 1.2.0 - 2020-12-22
 ### Added
