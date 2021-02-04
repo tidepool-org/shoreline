@@ -189,19 +189,19 @@ func main() {
 		logger.Fatal(err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithCancel(context.Background())
 
 	logger.Print("listening for signals")
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
-		for {
-			sig := <-signals
-			logger.Printf("Got signal [%s], terminating ...", sig)
-			if err := server.Shutdown(ctx); err != nil {
-				log.Printf("Error while stopping http server: %v", err)
-			}
-			cancel()
+		sig := <-signals
+		logger.Printf("Got signal [%s], terminating ...", sig)
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), time.Second*10)
+		defer shutdownCancel()
+		defer cancel()
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			log.Printf("Error while stopping http server: %v", err)
 		}
 	}()
 
