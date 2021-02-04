@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/Shopify/sarama"
 
@@ -178,17 +179,17 @@ func main() {
 	 * Serve it up
 	 */
 	logger.Print("creating http server")
-	server := common.NewServer(&http.Server{
+	server := http.Server{
 		Addr:    config.Service.GetPort(),
 		Handler: rtr,
-	})
+	}
 
 	logger.Print("starting http server")
 	if err := server.ListenAndServe(); err != nil {
 		logger.Fatal(err)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 
 	logger.Print("listening for signals")
 	signals := make(chan os.Signal, 1)
@@ -197,7 +198,7 @@ func main() {
 		for {
 			sig := <-signals
 			logger.Printf("Got signal [%s], terminating ...", sig)
-			if err := server.Close(); err != nil {
+			if err := server.Shutdown(ctx); err != nil {
 				log.Printf("Error while stopping http server: %v", err)
 			}
 			cancel()
