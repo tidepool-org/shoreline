@@ -208,7 +208,7 @@ func main() {
 		signals := make(chan os.Signal, 1)
 		signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 		sig := <-signals
-		shutdown <- "Got signal " + sig.String() + " , terminating ..."
+		shutdown <- "Received signal " + sig.String()
 	}()
 
 	shutdownReason := <-shutdown
