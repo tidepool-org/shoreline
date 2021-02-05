@@ -24,6 +24,8 @@ import (
 	"github.com/tidepool-org/shoreline/user"
 )
 
+var DefaultShutdownTimeout = 5 * time.Second
+
 type (
 	Config struct {
 		clients.Config
@@ -184,31 +186,39 @@ func main() {
 		Handler: rtr,
 	}
 
+	shutdown := make(chan string)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		log.Println("Starting Kafka consumer")
+		if err := consumer.Start(ctx); err != nil {
+			shutdown <- "Error while starting events consumer:" + err.Error()
+		}
+	}()
+
 	go func() {
 		logger.Print("starting http server")
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Fatal(err)
+			shutdown <- "Error while starting server:" + err.Error()
 		}
 	}()
 
-	ctx, cancel := context.WithCancel(context.Background())
-
-	logger.Print("listening for signals")
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
+		logger.Print("listening for signals")
+		signals := make(chan os.Signal, 1)
+		signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 		sig := <-signals
-		logger.Printf("Got signal [%s], terminating ...", sig)
-		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), time.Second*10)
-		defer shutdownCancel()
-		defer cancel()
-		if err := server.Shutdown(shutdownCtx); err != nil {
-			log.Printf("Error while stopping http server: %v", err)
-		}
+		shutdown <- "Got signal " + sig.String() + " , terminating ..."
 	}()
 
-	// blocks until context is canceled right after server.Close()
-	if err := consumer.Start(ctx); err != nil {
-		log.Printf("Error while starting events consumer: %v", err)
+	shutdownReason := <-shutdown
+	log.Printf("Shutting the server down: %s", shutdownReason)
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), DefaultShutdownTimeout)
+	defer shutdownCancel()
+	defer cancel()
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		log.Fatalf("Error while gracefully shutting down: %v", err)
 	}
+
 }
