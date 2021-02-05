@@ -179,7 +179,7 @@ func main() {
 	 * Serve it up
 	 */
 	logger.Print("creating http server")
-	server := http.Server{
+	server := &http.Server{
 		Addr:    config.Service.GetPort(),
 		Handler: rtr,
 	}
