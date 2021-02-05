@@ -186,7 +186,7 @@ func main() {
 
 	go func() {
 		logger.Print("starting http server")
-		if err := server.ListenAndServe(); err != nil {
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Fatal(err)
 		}
 	}()
