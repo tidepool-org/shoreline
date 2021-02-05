@@ -184,10 +184,12 @@ func main() {
 		Handler: rtr,
 	}
 
-	logger.Print("starting http server")
-	if err := server.ListenAndServe(); err != nil {
-		logger.Fatal(err)
-	}
+	go func() {
+		logger.Print("starting http server")
+		if err := server.ListenAndServe(); err != nil {
+			logger.Fatal(err)
+		}
+	}()
 
 	ctx, cancel := context.WithCancel(context.Background())
 
