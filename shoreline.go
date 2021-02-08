@@ -24,8 +24,6 @@ import (
 	"github.com/tidepool-org/shoreline/user"
 )
 
-var DefaultShutdownTimeout = 5 * time.Second
-
 type (
 	Config struct {
 		clients.Config
@@ -49,6 +47,15 @@ func main() {
 	serverSecret, found := os.LookupEnv("SERVER_SECRET")
 	if found {
 		config.User.ServerSecret = serverSecret
+	}
+
+	var defaultShutdownTimeout = 5 * time.Second
+	shutdownTimeout, found := os.LookupEnv("SHUTDOWN_TIMEOUT")
+	if found {
+		shutdownDuration, err := time.ParseDuration(shutdownTimeout)
+		if err != nil {
+			defaultShutdownTimeout = shutdownDuration
+		}
 	}
 
 	config.User.TokenConfigs = make([]user.TokenConfig, 2)
@@ -214,7 +221,7 @@ func main() {
 	shutdownReason := <-shutdown
 	log.Printf("Shutting the server down: %s", shutdownReason)
 
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), DefaultShutdownTimeout)
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), defaultShutdownTimeout)
 	defer shutdownCancel()
 	defer cancel()
 	if err := server.Shutdown(shutdownCtx); err != nil {
