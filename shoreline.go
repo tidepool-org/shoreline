@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/Shopify/sarama"
 
@@ -46,6 +47,15 @@ func main() {
 	serverSecret, found := os.LookupEnv("SERVER_SECRET")
 	if found {
 		config.User.ServerSecret = serverSecret
+	}
+
+	var defaultShutdownTimeout = 5 * time.Second
+	shutdownTimeout, found := os.LookupEnv("SHUTDOWN_TIMEOUT")
+	if found {
+		shutdownDuration, err := time.ParseDuration(shutdownTimeout)
+		if err != nil {
+			defaultShutdownTimeout = shutdownDuration
+		}
 	}
 
 	config.User.TokenConfigs = make([]user.TokenConfig, 2)
@@ -178,34 +188,44 @@ func main() {
 	 * Serve it up
 	 */
 	logger.Print("creating http server")
-	server := common.NewServer(&http.Server{
+	server := &http.Server{
 		Addr:    config.Service.GetPort(),
 		Handler: rtr,
-	})
-
-	logger.Print("starting http server")
-	if err := server.ListenAndServe(); err != nil {
-		logger.Fatal(err)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	shutdown := make(chan string)
 
-	logger.Print("listening for signals")
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
+	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
-		for {
-			sig := <-signals
-			logger.Printf("Got signal [%s], terminating ...", sig)
-			if err := server.Close(); err != nil {
-				log.Printf("Error while stopping http server: %v", err)
-			}
-			cancel()
+		log.Println("Starting Kafka consumer")
+		if err := consumer.Start(ctx); err != nil {
+			shutdown <- "Error while starting events consumer:" + err.Error()
 		}
 	}()
 
-	// blocks until context is canceled right after server.Close()
-	if err := consumer.Start(ctx); err != nil {
-		log.Printf("Error while starting events consumer: %v", err)
+	go func() {
+		logger.Print("starting http server")
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			shutdown <- "Error while starting server:" + err.Error()
+		}
+	}()
+
+	go func() {
+		logger.Print("listening for signals")
+		signals := make(chan os.Signal, 1)
+		signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
+		sig := <-signals
+		shutdown <- "Received signal " + sig.String()
+	}()
+
+	shutdownReason := <-shutdown
+	log.Printf("Shutting the server down: %s", shutdownReason)
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), defaultShutdownTimeout)
+	defer shutdownCancel()
+	defer cancel()
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		log.Fatalf("Error while gracefully shutting down: %v", err)
 	}
+
 }
