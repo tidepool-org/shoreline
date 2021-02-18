@@ -126,10 +126,6 @@ func main() {
 		}
 	}
 
-	clinicDemoUserID, found := os.LookupEnv("DEMO_CLINIC_USER_ID")
-	if found {
-		config.User.ClinicDemoUserID = clinicDemoUserID
-	}
 	config.User.Marketo.ID, _ = os.LookupEnv("MARKETO_ID")
 
 	config.User.Marketo.URL, _ = os.LookupEnv("MARKETO_URL")

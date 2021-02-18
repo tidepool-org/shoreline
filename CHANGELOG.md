@@ -2,7 +2,10 @@
 
 Shoreline is the module that manages logins and user accounts.
 
-## Unreleased
+## 1.3.0
+### Added
+- YLP-505 Add patient, hcp and caregiver roles to our user token (used for teams permissions)
+
 ### Changed
 - YLP-446 Upgrade go-common to 0.6.2 version
 - YLP-475 Remove "Custodian" authorization in shoreline

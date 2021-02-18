@@ -149,7 +149,11 @@ func IsValidPassword(password string) bool {
 
 func IsValidRole(role string) bool {
 	switch role {
-	case "clinic":
+	case "caregiver":
+		return true
+	case "hcp":
+		return true
+	case "patient":
 		return true
 	default:
 		return false
@@ -228,11 +232,15 @@ func (details *NewUserDetails) Validate() error {
 	}
 
 	if details.Roles != nil {
+		// Should we reject when more than 1 role are provided?
 		for _, role := range details.Roles {
 			if !IsValidRole(role) {
 				return User_error_roles_invalid
 			}
 		}
+	} else {
+		// Defaults to patient if no role is provided
+		details.Roles = []string{"patient"}
 	}
 
 	return nil
@@ -467,7 +475,12 @@ func (u *User) HasRole(role string) bool {
 }
 
 func (u *User) IsClinic() bool {
-	return u.HasRole("clinic")
+	for _, userRole := range u.Roles {
+		if userRole == "hcp" || userRole == "clinic" {
+			return true
+		}
+	}
+	return false
 }
 
 func (u *User) HashPassword(pw, salt string) error {

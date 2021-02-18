@@ -180,7 +180,6 @@ type (
 		BlockParallelLogin bool `json:blockParallelLogin`
 		//allows for the skipping of verification for testing
 		VerificationSecret string           `json:"verificationSecret"`
-		ClinicDemoUserID   string           `json:"clinicDemoUserId"`
 		Mailchimp          mailchimp.Config `json:"mailchimp"`
 		// to create type/file
 		Marketo marketo.Config `json:"marketo"`
@@ -407,7 +406,7 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
 
 	} else {
-		tokenData := TokenData{DurationSecs: extractTokenDuration(req), UserId: newUser.Id, IsServer: false}
+		tokenData := TokenData{DurationSecs: extractTokenDuration(req), UserId: newUser.Id, IsServer: false, Role: "unverified"}
 		tokenConfig := TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: a.ApiConfig.Secret}
 		if sessionToken, err := CreateSessionTokenAndSave(req.Context(), &tokenData, tokenConfig, a.Store); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN, err)
@@ -693,7 +692,12 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 		a.sendError(res, http.StatusForbidden, STATUS_NOT_VERIFIED)
 
 	} else {
-		tokenData := &TokenData{DurationSecs: extractTokenDuration(req), UserId: result.Id, Email: result.Username, Name: result.Username, IsClinic: result.IsClinic()}
+		// TODO: replace this workaround, there should be only one role when the data is cleaned up
+		role := "patient"
+		if result.Roles != nil && len(result.Roles) > 0 {
+			role = result.Roles[0]
+		}
+		tokenData := &TokenData{DurationSecs: extractTokenDuration(req), UserId: result.Id, Email: result.Username, Name: result.Username, Role: role}
 		tokenConfig := TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: a.ApiConfig.Secret}
 		if sessionToken, err := CreateSessionTokenAndSave(req.Context(), tokenData, tokenConfig, a.Store); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_TOKEN, err)
@@ -1092,7 +1096,7 @@ func (a *Api) authenticateSessionToken(ctx context.Context, sessionToken string)
 func (a *Api) isAuthorized(tokenData *TokenData, userID string) bool {
 	if tokenData.IsServer {
 		return true
-	} 
+	}
 	if tokenData.UserId == userID {
 		return true
 	}

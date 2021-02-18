@@ -63,12 +63,11 @@ var (
 		DelayBeforeNextLoginAttempt: 10,
 		MaxConcurrentLogin:          100,
 		VerificationSecret:          "",
-		ClinicDemoUserID:            "00000000",
 		Marketo: marketo.Config{
 			ID:          "1234",
 			Secret:      "shhh! don't tell *3",
 			URL:         "https:xxx-xxx-xxx.mktorest.com",
-			ClinicRole:  "clinic",
+			ClinicRole:  "hcp",
 			PatientRole: "user",
 			Timeout:     10,
 		},
@@ -102,8 +101,8 @@ var (
 	mockStoreFails = NewMockStoreClient(FAKE_CONFIG.Salt, false, MAKE_IT_FAIL)
 	shorelineFails = InitAPITest(FAKE_CONFIG, logger, mockStoreFails, mockMarketoManager)
 
-	responsableStore      = NewResponsableMockStoreClient()
-	responsableShoreline  = InitShoreline(FAKE_CONFIG, responsableStore)
+	responsableStore     = NewResponsableMockStoreClient()
+	responsableShoreline = InitShoreline(FAKE_CONFIG, responsableStore)
 )
 
 func InitShoreline(config ApiConfig, store Storage) *Api {
@@ -358,7 +357,7 @@ func TestGetStatus_StatusInternalServerError(t *testing.T) {
 ////////////////////////////////////////////////////////////////////////////////
 
 func Test_GetUsers_Error_MissingSessionToken(t *testing.T) {
-	response := T_PerformRequest(t, "GET", "/users?role=clinic")
+	response := T_PerformRequest(t, "GET", "/users?role=hcp")
 	T_ExpectErrorResponse(t, response, 401, "Not authorized for requested operation")
 }
 
@@ -369,7 +368,7 @@ func Test_GetUsers_Error_TokenError(t *testing.T) {
 
 	headers := http.Header{}
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
-	response := T_PerformRequestHeaders(t, "GET", "/users?role=clinic", headers)
+	response := T_PerformRequestHeaders(t, "GET", "/users?role=hcp", headers)
 	T_ExpectErrorResponse(t, response, 401, "Not authorized for requested operation")
 }
 
@@ -380,7 +379,7 @@ func Test_GetUsers_Error_NotServerToken(t *testing.T) {
 
 	headers := http.Header{}
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
-	response := T_PerformRequestHeaders(t, "GET", "/users?role=clinic", headers)
+	response := T_PerformRequestHeaders(t, "GET", "/users?role=hcp", headers)
 	T_ExpectErrorResponse(t, response, 401, "Not authorized for requested operation")
 }
 
@@ -479,7 +478,7 @@ func Test_GetUsers_Error_FindUsersByRoleError(t *testing.T) {
 
 	headers := http.Header{}
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
-	response := T_PerformRequestHeaders(t, "GET", "/users?role=clinic", headers)
+	response := T_PerformRequestHeaders(t, "GET", "/users?role=hcp", headers)
 	T_ExpectErrorResponse(t, response, 500, "Error finding user")
 }
 
@@ -491,7 +490,7 @@ func Test_GetUsers_Error_FindUsersByRoleSuccess(t *testing.T) {
 
 	headers := http.Header{}
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
-	response := T_PerformRequestHeaders(t, "GET", "/users?role=clinic", headers)
+	response := T_PerformRequestHeaders(t, "GET", "/users?role=hcp", headers)
 	successResponse := T_ExpectSuccessResponseWithJSONArray(t, response, 200)
 	T_ExpectEqualsArray(t, successResponse, []interface{}{map[string]interface{}{"userid": "0000000000", "passwordExists": false}, map[string]interface{}{"userid": "1111111111", "passwordExists": false}})
 }
@@ -563,11 +562,11 @@ func Test_CreateUser_Success(t *testing.T) {
 	responsableStore.AddTokenResponses = []error{nil}
 	defer T_ExpectResponsablesEmpty(t)
 
-	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\", \"roles\": [\"clinic\"]}"
+	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\", \"roles\": [\"hcp\"]}"
 	response := T_PerformRequestBody(t, "POST", "/user", body)
 	successResponse := T_ExpectSuccessResponseWithJSONMap(t, response, 201)
 	T_ExpectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
-	T_ExpectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": false, "emails": []interface{}{"a@z.co"}, "username": "a@z.co", "roles": []interface{}{"clinic"}})
+	T_ExpectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": false, "emails": []interface{}{"a@z.co"}, "username": "a@z.co", "roles": []interface{}{"hcp"}})
 	if response.Header().Get(TP_SESSION_TOKEN) == "" {
 		t.Fatalf("Missing expected %s header", TP_SESSION_TOKEN)
 	}
@@ -650,7 +649,7 @@ func Test_UpdateUser_Error_UnauthorizedRoles_User(t *testing.T) {
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
-	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"roles\": [\"clinic\"]}}"
+	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"roles\": [\"hcp\"]}}"
 	headers := http.Header{}
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
@@ -729,13 +728,13 @@ func Test_UpdateUser_Success_Server_WithoutPassword(t *testing.T) {
 	responsableStore.UpsertUserResponses = []error{nil}
 	defer T_ExpectResponsablesEmpty(t)
 
-	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"roles\": [\"clinic\"], \"emailVerified\": true, \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
+	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"roles\": [\"hcp\"], \"emailVerified\": true, \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
 	headers := http.Header{}
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
 	successResponse := T_ExpectSuccessResponseWithJSONMap(t, response, 200)
 	T_ExpectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
-	T_ExpectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": true, "emails": []interface{}{"a@z.co"}, "username": "a@z.co", "roles": []interface{}{"clinic"}, "termsAccepted": "2016-01-01T01:23:45-08:00", "passwordExists": false})
+	T_ExpectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": true, "emails": []interface{}{"a@z.co"}, "username": "a@z.co", "roles": []interface{}{"hcp"}, "termsAccepted": "2016-01-01T01:23:45-08:00", "passwordExists": false})
 }
 
 func Test_UpdateUser_Success_Server_WithPassword(t *testing.T) {
@@ -746,13 +745,13 @@ func Test_UpdateUser_Success_Server_WithPassword(t *testing.T) {
 	responsableStore.UpsertUserResponses = []error{nil}
 	defer T_ExpectResponsablesEmpty(t)
 
-	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"newpassword\", \"roles\": [\"clinic\"], \"emailVerified\": true, \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
+	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"newpassword\", \"roles\": [\"hcp\"], \"emailVerified\": true, \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
 	headers := http.Header{}
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
 	successResponse := T_ExpectSuccessResponseWithJSONMap(t, response, 200)
 	T_ExpectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
-	T_ExpectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": true, "emails": []interface{}{"a@z.co"}, "username": "a@z.co", "roles": []interface{}{"clinic"}, "termsAccepted": "2016-01-01T01:23:45-08:00", "passwordExists": true})
+	T_ExpectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": true, "emails": []interface{}{"a@z.co"}, "username": "a@z.co", "roles": []interface{}{"hcp"}, "termsAccepted": "2016-01-01T01:23:45-08:00", "passwordExists": true})
 }
 
 ////////////////////////////////////////////////////////////////////////////////

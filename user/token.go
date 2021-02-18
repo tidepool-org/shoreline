@@ -29,7 +29,7 @@ type (
 		UserId       string `json:"userid"`
 		Email        string `json:"email"`
 		Name         string `json:"name"`
-		IsClinic     bool   `json:"isclinic"`
+		Role         string `json:"role"`
 		DurationSecs int64  `json:"-"`
 		Audience     string `json:"audience"`
 	}
@@ -76,13 +76,21 @@ func CreateSessionToken(data *TokenData, config TokenConfig) (*SessionToken, err
 	}
 	// Add claims specific to our 3rd party services
 	if strings.ToUpper(data.Audience) == "ZENDESK" {
-		if data.IsClinic {
-			claims["organization"] = "Psad"
-		} else {
-			claims["organization"] = "Patient"
+		if data.Role == "patient" {
+			claims["organization"] = "patient"
+			claims["tags"] = "patient"
+		}
+		if data.Role == "hcp" {
+			claims["organization"] = "professional"
+			claims["tags"] = "professional"
+		}
+		if data.Role == "caregiver" {
+			claims["organization"] = "patient"
 			claims["tags"] = "patient"
 		}
 		claims["aud"] = "zendesk"
+	} else {
+		claims["role"] = data.Role
 	}
 	claims["usr"] = data.UserId
 	if data.Name != "" {
@@ -162,6 +170,10 @@ func UnpackSessionTokenAndVerify(id string, secret string) (*TokenData, error) {
 	if !ok {
 		name = email
 	}
+	role, ok := claims["role"].(string)
+	if !ok {
+		role = ""
+	}
 
 	return &TokenData{
 		IsServer:     isServer,
@@ -169,6 +181,7 @@ func UnpackSessionTokenAndVerify(id string, secret string) (*TokenData, error) {
 		UserId:       userId,
 		Email:        email,
 		Name:         name,
+		Role:         role,
 	}, nil
 }
 
