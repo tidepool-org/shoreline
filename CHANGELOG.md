@@ -2,6 +2,13 @@
 
 Shoreline is the module that manages logins and user accounts.
 
+## 1.3.1
+### Engineering
+- Move light (jwt) authentication client from crew
+- Move full shoreline client from go-common 
+- Travis to Jenkins pipeline
+
+
 ## 1.3.0
 ### Added
 - YLP-505 Add patient, hcp and caregiver roles to our user token (used for teams permissions)
