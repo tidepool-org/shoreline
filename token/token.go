@@ -39,6 +39,9 @@ type (
 
 const (
 	TOKEN_DURATION_KEY = "tokenduration"
+	TP_SESSION_TOKEN   = "x-tidepool-session-token"
+	// TP_TRACE_SESSION Session trace: uuid v4
+	TP_TRACE_SESSION = "x-tidepool-trace-session"
 )
 
 var (
