@@ -2,12 +2,16 @@ package user
 
 import (
 	"container/list"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
+
+	"github.com/tidepool-org/shoreline/token"
 )
 
 func firstStringNotEmpty(strs ...string) string {
@@ -66,7 +70,7 @@ func sendModelAsResWithStatus(res http.ResponseWriter, model interface{}, status
 }
 
 // logAudit Variatic log for audit trails
-func (a *Api) logAudit(req *http.Request, tokenData *TokenData, format string, args ...interface{}) {
+func (a *Api) logAudit(req *http.Request, tokenData *token.TokenData, format string, args ...interface{}) {
 	var prefix string
 
 	if req.RemoteAddr != "" {
@@ -160,4 +164,40 @@ func (a *Api) removeUserLoginInProgress(elem *list.Element) {
 		a.loginLimiter.usersInProgress.Remove(elem)
 	}
 	a.loginLimiter.mutex.Unlock()
+}
+
+func CreateSessionTokenAndSave(ctx context.Context, data *token.TokenData, config token.TokenConfig, store Storage) (*token.SessionToken, error) {
+	sessionToken, err := token.CreateSessionToken(data, config)
+	if err != nil {
+		return nil, err
+	}
+
+	err = store.AddToken(ctx, sessionToken)
+	if err != nil {
+		return nil, err
+	}
+
+	return sessionToken, nil
+}
+
+func extractTokenDuration(r *http.Request) int64 {
+
+	durString := r.Header.Get(token.TOKEN_DURATION_KEY)
+
+	if durString != "" {
+		//if there is an error we just return a duration of zero
+		dur, err := strconv.ParseInt(durString, 10, 64)
+		if err == nil {
+			return dur
+		}
+	}
+	return 0
+}
+
+func hasServerToken(tokenString, secret string) bool {
+	td, err := token.UnpackSessionTokenAndVerify(tokenString, secret)
+	if err != nil {
+		return false
+	}
+	return td.IsServer
 }
