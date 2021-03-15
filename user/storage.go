@@ -4,6 +4,7 @@ import (
 	"context"
 
 	goComMgo "github.com/tidepool-org/go-common/clients/mongo"
+	"github.com/tidepool-org/shoreline/token"
 )
 
 type Storage interface {
@@ -14,7 +15,7 @@ type Storage interface {
 	FindUsersByRole(ctx context.Context, role string) ([]*User, error)
 	FindUsersWithIds(ctx context.Context, role []string) ([]*User, error)
 	RemoveUser(ctx context.Context, user *User) error
-	AddToken(ctx context.Context, token *SessionToken) error
-	FindTokenByID(ctx context.Context, id string) (*SessionToken, error)
+	AddToken(ctx context.Context, token *token.SessionToken) error
+	FindTokenByID(ctx context.Context, id string) (*token.SessionToken, error)
 	RemoveTokenByID(ctx context.Context, id string) error
 }

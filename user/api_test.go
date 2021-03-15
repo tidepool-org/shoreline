@@ -22,6 +22,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/tidepool-org/go-common/clients/version"
+	"github.com/tidepool-org/shoreline/token"
 
 	"github.com/tidepool-org/shoreline/user/marketo"
 )
@@ -75,10 +76,10 @@ var (
 	/*
 	 * users and tokens
 	 */
-	TOKEN_CONFIG  = TokenConfig{DurationSecs: FAKE_CONFIG.TokenDurationSecs, Secret: FAKE_CONFIG.Secret}
+	TOKEN_CONFIG  = token.TokenConfig{DurationSecs: FAKE_CONFIG.TokenDurationSecs, Secret: FAKE_CONFIG.Secret}
 	USR           = &User{Id: "123-99-100", Username: "test@new.bar", Emails: []string{"test@new.bar"}}
-	USR_TOKEN, _  = CreateSessionToken(&TokenData{UserId: USR.Id, IsServer: false, DurationSecs: TOKEN_DURATION}, TOKEN_CONFIG)
-	SRVR_TOKEN, _ = CreateSessionToken(&TokenData{UserId: "shoreline", IsServer: true, DurationSecs: TOKEN_DURATION}, TOKEN_CONFIG)
+	USR_TOKEN, _  = token.CreateSessionToken(&token.TokenData{UserId: USR.Id, IsServer: false, DurationSecs: TOKEN_DURATION}, TOKEN_CONFIG)
+	SRVR_TOKEN, _ = token.CreateSessionToken(&token.TokenData{UserId: "shoreline", IsServer: true, DurationSecs: TOKEN_DURATION}, TOKEN_CONFIG)
 	/*
 	 * basics setup
 	 */
@@ -133,8 +134,8 @@ func T_CreateAuthorization(t *testing.T, email string, password string) string {
 	return fmt.Sprintf("Basic %s", base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", email, password))))
 }
 
-func T_CreateSessionToken(t *testing.T, userId string, isServer bool, duration int64) *SessionToken {
-	sessionToken, err := CreateSessionToken(&TokenData{UserId: userId, IsServer: isServer, DurationSecs: duration}, TOKEN_CONFIG)
+func T_CreateSessionToken(t *testing.T, userId string, isServer bool, duration int64) *token.SessionToken {
+	sessionToken, err := token.CreateSessionToken(&token.TokenData{UserId: userId, IsServer: isServer, DurationSecs: duration}, TOKEN_CONFIG)
 	if err != nil {
 		t.Fatalf("Error creating session token: %#v", err)
 	}
@@ -1255,7 +1256,7 @@ func TestRefreshSession_StatusOK(t *testing.T) {
 
 	body, _ := ioutil.ReadAll(response.Body)
 
-	var tokenData TokenData
+	var tokenData token.TokenData
 	_ = json.Unmarshal(body, &tokenData)
 
 	if tokenData.UserId != USR.Id {
@@ -1461,7 +1462,7 @@ func TestServerCheckToken_StatusOK(t *testing.T) {
 
 	body, _ := ioutil.ReadAll(checkTokenResponse.Body)
 
-	var tokenData TokenData
+	var tokenData token.TokenData
 	_ = json.Unmarshal(body, &tokenData)
 
 	t.Log("token data returned ", tokenData)
@@ -1772,7 +1773,7 @@ func Test_AuthenticateSessionToken_Success_Server(t *testing.T) {
 
 ////////////////////////////////////////////////////////////////////////////////
 func Test_isAuthorized_Server(t *testing.T) {
-	tokenData := &TokenData{UserId: "abcdef1234", IsServer: true, DurationSecs: TOKEN_DURATION}
+	tokenData := &token.TokenData{UserId: "abcdef1234", IsServer: true, DurationSecs: TOKEN_DURATION}
 	permissions := responsableShoreline.isAuthorized(tokenData, "1234567890")
 	if !permissions {
 		t.Fatalf("Unexpected permissions returned: %#v", permissions)
@@ -1780,7 +1781,7 @@ func Test_isAuthorized_Server(t *testing.T) {
 }
 
 func Test_isAuthorized_Owner(t *testing.T) {
-	tokenData := &TokenData{UserId: "abcdef1234", IsServer: false, DurationSecs: TOKEN_DURATION}
+	tokenData := &token.TokenData{UserId: "abcdef1234", IsServer: false, DurationSecs: TOKEN_DURATION}
 	permissions := responsableShoreline.isAuthorized(tokenData, "abcdef1234")
 	if !permissions {
 		t.Fatalf("Unexpected permissions returned: %#v", permissions)
@@ -1788,7 +1789,7 @@ func Test_isAuthorized_Owner(t *testing.T) {
 }
 
 func Test_isAuthorized_OtherUser(t *testing.T) {
-	tokenData := &TokenData{UserId: "abcdef1234", IsServer: false, DurationSecs: TOKEN_DURATION}
+	tokenData := &token.TokenData{UserId: "abcdef1234", IsServer: false, DurationSecs: TOKEN_DURATION}
 	permissions := responsableShoreline.isAuthorized(tokenData, "1234567890")
 	if permissions {
 		t.Fatalf("Unexpected permissions returned: %#v", permissions)

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/tidepool-org/go-common/clients/mongo"
+	"github.com/tidepool-org/shoreline/token"
 )
 
 func mgoTestSetup() (*Client, error) {
@@ -261,8 +262,8 @@ func TestMongoStore_FindUsersById(t *testing.T) {
 
 func TestMongoStoreTokenOperations(t *testing.T) {
 
-	testing_token_data := &TokenData{UserId: "2341", IsServer: true, DurationSecs: 3600}
-	testing_token_config := TokenConfig{DurationSecs: 1200, Secret: "some secret for the tests"}
+	testing_token_data := &token.TokenData{UserId: "2341", IsServer: true, DurationSecs: 3600}
+	testing_token_config := token.TokenConfig{DurationSecs: 1200, Secret: "some secret for the tests"}
 
 	ctx := context.Background()
 	mc, err := mgoTestSetup()
@@ -273,7 +274,7 @@ func TestMongoStoreTokenOperations(t *testing.T) {
 	/*
 	 * THE TESTS
 	 */
-	sessionToken, _ := CreateSessionToken(
+	sessionToken, _ := token.CreateSessionToken(
 		testing_token_data,
 		testing_token_config,
 	)

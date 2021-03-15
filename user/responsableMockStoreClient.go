@@ -3,6 +3,7 @@ package user
 import (
 	"context"
 
+	"github.com/tidepool-org/shoreline/token"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
@@ -27,7 +28,7 @@ type FindUserResponse struct {
 }
 
 type FindTokenByIDResponse struct {
-	SessionToken *SessionToken
+	SessionToken *token.SessionToken
 	Error        error
 }
 
@@ -155,7 +156,7 @@ func (r *ResponsableMockStoreClient) RemoveUser(ctx context.Context, user *User)
 	panic("RemoveUserResponses unavailable")
 }
 
-func (r *ResponsableMockStoreClient) AddToken(ctx context.Context, token *SessionToken) (err error) {
+func (r *ResponsableMockStoreClient) AddToken(ctx context.Context, token *token.SessionToken) (err error) {
 	if len(r.AddTokenResponses) > 0 {
 		err, r.AddTokenResponses = r.AddTokenResponses[0], r.AddTokenResponses[1:]
 		return err
@@ -163,7 +164,7 @@ func (r *ResponsableMockStoreClient) AddToken(ctx context.Context, token *Sessio
 	panic("AddTokenResponses unavailable")
 }
 
-func (r *ResponsableMockStoreClient) FindTokenByID(ctx context.Context, id string) (*SessionToken, error) {
+func (r *ResponsableMockStoreClient) FindTokenByID(ctx context.Context, id string) (*token.SessionToken, error) {
 	if len(r.FindTokenByIDResponses) > 0 {
 		var response FindTokenByIDResponse
 		response, r.FindTokenByIDResponses = r.FindTokenByIDResponses[0], r.FindTokenByIDResponses[1:]

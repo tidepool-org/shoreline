@@ -8,6 +8,7 @@ import (
 	"sort"
 
 	goComMgo "github.com/tidepool-org/go-common/clients/mongo"
+	"github.com/tidepool-org/shoreline/token"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -120,7 +121,7 @@ func (c *Client) RemoveUser(ctx context.Context, user *User) (err error) {
 	return nil
 }
 
-func (c *Client) AddToken(ctx context.Context, st *SessionToken) error {
+func (c *Client) AddToken(ctx context.Context, st *token.SessionToken) error {
 	options := options.Update().SetUpsert(true)
 	update := bson.D{{"$set", st}}
 	// if the user already exists we update otherwise we add
@@ -128,9 +129,9 @@ func (c *Client) AddToken(ctx context.Context, st *SessionToken) error {
 	return err
 }
 
-func (c *Client) FindTokenByID(ctx context.Context, id string) (*SessionToken, error) {
+func (c *Client) FindTokenByID(ctx context.Context, id string) (*token.SessionToken, error) {
 	opts := options.FindOne()
-	sessionToken := &SessionToken{}
+	sessionToken := &token.SessionToken{}
 	if err := mgoTokensCollection(c).FindOne(ctx, bson.M{"_id": id}, opts).Decode(sessionToken); err != nil {
 		return nil, err
 	}

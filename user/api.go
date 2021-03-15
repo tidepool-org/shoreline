@@ -16,8 +16,8 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-
 	"github.com/tidepool-org/go-common/clients/status"
+	"github.com/tidepool-org/shoreline/token"
 	"github.com/tidepool-org/shoreline/user/mailchimp"
 	"github.com/tidepool-org/shoreline/user/marketo"
 
@@ -406,8 +406,8 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
 
 	} else {
-		tokenData := TokenData{DurationSecs: extractTokenDuration(req), UserId: newUser.Id, IsServer: false, Role: "unverified"}
-		tokenConfig := TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: a.ApiConfig.Secret}
+		tokenData := token.TokenData{DurationSecs: extractTokenDuration(req), UserId: newUser.Id, IsServer: false, Role: "unverified"}
+		tokenConfig := token.TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: a.ApiConfig.Secret}
 		if sessionToken, err := CreateSessionTokenAndSave(req.Context(), &tokenData, tokenConfig, a.Store); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN, err)
 		} else {
@@ -697,8 +697,8 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 		if result.Roles != nil && len(result.Roles) > 0 {
 			role = result.Roles[0]
 		}
-		tokenData := &TokenData{DurationSecs: extractTokenDuration(req), UserId: result.Id, Email: result.Username, Name: result.Username, Role: role}
-		tokenConfig := TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: a.ApiConfig.Secret}
+		tokenData := &token.TokenData{DurationSecs: extractTokenDuration(req), UserId: result.Id, Email: result.Username, Name: result.Username, Role: role}
+		tokenConfig := token.TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: a.ApiConfig.Secret}
 		if sessionToken, err := CreateSessionTokenAndSave(req.Context(), tokenData, tokenConfig, a.Store); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_TOKEN, err)
 
@@ -765,8 +765,8 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 		//generate new token
 		if sessionToken, err := CreateSessionTokenAndSave(
 			req.Context(),
-			&TokenData{DurationSecs: extractTokenDuration(req), UserId: server, IsServer: true},
-			TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: a.ApiConfig.Secret},
+			&token.TokenData{DurationSecs: extractTokenDuration(req), UserId: server, IsServer: true},
+			token.TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: a.ApiConfig.Secret},
 			a.Store,
 		); err != nil {
 			// Error generating the token
@@ -794,7 +794,7 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 // @Param x-tidepool-server-name header string true "server name"
 // @Param x-tidepool-server-secret header string true "server secret"
 // @Security TidepoolAuth
-// @Success 200 {object} user.TokenData  "Token details"
+// @Success 200 {object} token.TokenData  "Token details"
 // @Header 200 {string} x-tidepool-session-token "authentication token"
 // @Failure 500 {object} status.Status "message returned:\"Error generating the token\" "
 // @Failure 401 {string} string ""
@@ -813,7 +813,7 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 	if sessionToken, err := CreateSessionTokenAndSave(
 		req.Context(),
 		td,
-		TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: a.ApiConfig.Secret},
+		token.TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: a.ApiConfig.Secret},
 		a.Store,
 	); err != nil {
 		a.logger.Println(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN, err.Error())
@@ -852,7 +852,7 @@ func (a *Api) LongtermLogin(res http.ResponseWriter, req *http.Request, vars map
 
 	if longtermkey == a.ApiConfig.LongTermKey {
 		a.logger.Println("token duration is ", fmt.Sprint(time.Duration(duration)*time.Second))
-		req.Header.Add(TOKEN_DURATION_KEY, strconv.FormatFloat(float64(duration), 'f', -1, 64))
+		req.Header.Add(token.TOKEN_DURATION_KEY, strconv.FormatFloat(float64(duration), 'f', -1, 64))
 	} else {
 		//tell us there was no match
 		a.logger.Println("tried to login using the longtermkey but it didn't match the stored key")
@@ -870,7 +870,7 @@ func (a *Api) LongtermLogin(res http.ResponseWriter, req *http.Request, vars map
 // @Produce  json
 // @Param token path string true "server token to check"
 // @Security TidepoolAuth
-// @Success 200 {object} user.TokenData  "Token details"
+// @Success 200 {object} token.TokenData  "Token details"
 // @Failure 401 {object} status.Status "message returned:\"No x-tidepool-session-token was found\" "
 // @Router /token/{token} [get]
 func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars map[string]string) {
@@ -964,9 +964,9 @@ func (a *Api) Get3rdPartyToken(res http.ResponseWriter, req *http.Request, vars 
 	}
 	td.Audience = service
 	//refresh
-	if sessionToken, err := CreateSessionToken(
+	if sessionToken, err := token.CreateSessionToken(
 		td,
-		TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: secret},
+		token.TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: secret},
 	); err != nil {
 		a.logger.Println(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN, err.Error())
 		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN), http.StatusInternalServerError)
@@ -1081,10 +1081,10 @@ func (a *Api) sendError(res http.ResponseWriter, statusCode int, reason string, 
 	sendModelAsResWithStatus(res, status.NewStatus(statusCode, reason), statusCode)
 }
 
-func (a *Api) authenticateSessionToken(ctx context.Context, sessionToken string) (*TokenData, error) {
+func (a *Api) authenticateSessionToken(ctx context.Context, sessionToken string) (*token.TokenData, error) {
 	if sessionToken == "" {
 		return nil, errors.New("Session token is empty")
-	} else if tokenData, err := UnpackSessionTokenAndVerify(sessionToken, a.ApiConfig.Secret); err != nil {
+	} else if tokenData, err := token.UnpackSessionTokenAndVerify(sessionToken, a.ApiConfig.Secret); err != nil {
 		return nil, err
 	} else if _, err := a.Store.FindTokenByID(ctx, sessionToken); err != nil {
 		return nil, err
@@ -1093,7 +1093,7 @@ func (a *Api) authenticateSessionToken(ctx context.Context, sessionToken string)
 	}
 }
 
-func (a *Api) isAuthorized(tokenData *TokenData, userID string) bool {
+func (a *Api) isAuthorized(tokenData *token.TokenData, userID string) bool {
 	if tokenData.IsServer {
 		return true
 	}

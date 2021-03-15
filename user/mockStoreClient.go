@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/tidepool-org/shoreline/token"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
@@ -137,14 +138,14 @@ func (d MockStoreClient) RemoveUser(ctx context.Context, user *User) error {
 	return nil
 }
 
-func (d MockStoreClient) AddToken(ctx context.Context, token *SessionToken) error {
+func (d MockStoreClient) AddToken(ctx context.Context, token *token.SessionToken) error {
 	if d.doBad {
 		return errors.New("AddToken failure")
 	}
 	return nil
 }
 
-func (d MockStoreClient) FindTokenByID(ctx context.Context, id string) (*SessionToken, error) {
+func (d MockStoreClient) FindTokenByID(ctx context.Context, id string) (*token.SessionToken, error) {
 	if d.doBad {
 		return nil, errors.New("FindTokenByID failure")
 	}
