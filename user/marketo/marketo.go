@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/url"
 	"strings"
+	"sync"
 
 	"github.com/SpeakData/minimarketo"
 )
@@ -24,6 +25,7 @@ type Manager interface {
 	CreateListMembershipForUser(newUser User)
 	UpdateListMembershipForUser(oldUser User, newUser User)
 	IsAvailable() bool
+	WaitGroup() *sync.WaitGroup
 }
 
 // LeadResult Find lead returns "result" in this format
@@ -67,6 +69,7 @@ type Connector struct {
 	logger *log.Logger
 	client minimarketo.Client
 	config Config
+	wg     sync.WaitGroup
 }
 
 // Config is the env config
@@ -160,6 +163,11 @@ func NewManager(logger *log.Logger, config Config) (Manager, error) {
 	return &connector, nil
 }
 
+// WaitGroup returns the current waiting group for the connector
+func (m *Connector) WaitGroup() *sync.WaitGroup {
+	return &m.wg
+}
+
 // CreateListMembershipForUser is an asynchronous function that creates a user
 func (m *Connector) CreateListMembershipForUser(newUser User) {
 	m.logger.Printf("CreateListMembershipForUser %v", newUser)
@@ -167,7 +175,7 @@ func (m *Connector) CreateListMembershipForUser(newUser User) {
 		m.logger.Printf("nil user")
 		return
 	}
-
+	m.wg.Add(1)
 	go m.UpsertListMembership(nil, newUser)
 }
 
@@ -178,12 +186,13 @@ func (m *Connector) UpdateListMembershipForUser(oldUser User, newUser User) {
 		m.logger.Printf("nil user")
 		return
 	}
-
+	m.wg.Add(1)
 	go m.UpsertListMembership(oldUser, newUser)
 }
 
 // UpsertListMembership creates or updates a user depending on if the user already exists or not
 func (m *Connector) UpsertListMembership(oldUser User, newUser User) error {
+	defer m.wg.Done()
 	if matchUsers(oldUser, newUser) {
 		return nil
 	}
@@ -221,7 +230,7 @@ func (m *Connector) UpsertListMember(role string, listEmail string, newEmail str
 		"updateOnly",
 		"id",
 		[]Input{
-			Input{id, newEmail, role},
+			{id, newEmail, role},
 		},
 	}
 	if !exists {
@@ -229,7 +238,7 @@ func (m *Connector) UpsertListMember(role string, listEmail string, newEmail str
 			"createOnly",
 			"email",
 			[]Input{
-				Input{0, newEmail, role},
+				{0, newEmail, role},
 			},
 		}
 	}

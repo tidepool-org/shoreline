@@ -9,10 +9,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"runtime/debug"
 
 	"testing"
-	"time"
 
 	"github.com/mdblp/shoreline/user/marketo"
 )
@@ -168,7 +166,7 @@ func Test_NewManager_Success(t *testing.T) {
 func Test_CreateListMembershipForUser_User_Missing(t *testing.T) {
 	manager := NewTestManagerWithClientMock(t)
 	manager.CreateListMembershipForUser(nil)
-	time.Sleep(time.Second)
+	manager.WaitGroup().Wait()
 }
 
 func Test_CreateListMembershipForUser_User_Email_Missing(t *testing.T) {
@@ -176,7 +174,7 @@ func Test_CreateListMembershipForUser_User_Email_Missing(t *testing.T) {
 	newUserMock := NewUserMock()
 	newUserMock.EmailStub = func() string { return "" }
 	manager.CreateListMembershipForUser(newUserMock)
-	time.Sleep(time.Second)
+	manager.WaitGroup().Wait()
 }
 
 func Test_CreateListMembershipForUser_User_Email_Tidepool_Io(t *testing.T) {
@@ -184,7 +182,7 @@ func Test_CreateListMembershipForUser_User_Email_Tidepool_Io(t *testing.T) {
 	newUserMock := NewUserMock()
 	newUserMock.EmailStub = func() string { return "test@tidepool.io" }
 	manager.CreateListMembershipForUser(newUserMock)
-	time.Sleep(time.Second)
+	manager.WaitGroup().Wait()
 }
 
 func Test_CreateListMembershipForUser_User_Email_Tidepool_Org(t *testing.T) {
@@ -192,7 +190,7 @@ func Test_CreateListMembershipForUser_User_Email_Tidepool_Org(t *testing.T) {
 	newUserMock := NewUserMock()
 	newUserMock.EmailStub = func() string { return "test@tidepool.org" }
 	manager.CreateListMembershipForUser(newUserMock)
-	time.Sleep(time.Second)
+	manager.WaitGroup().Wait()
 }
 
 func Test_CreateListMembershipForUser_NewUser_Match_Personal(t *testing.T) {
@@ -243,11 +241,11 @@ func Test_CreateListMembershipForUser_NewUser_Match_Personal(t *testing.T) {
 	newUserMock.EmailStub = func() string { return "tester@example.com" }
 	newUserMock.IsClinicStub = func() bool { return false }
 	s.CreateListMembershipForUser(newUserMock)
+	manager.WaitGroup().Wait()
 	user := s.TypeForUser(newUserMock)
 	if user != "user" {
 		t.Errorf("Expected '%v', got 'clinic'", user)
 	}
-	time.Sleep(time.Second)
 }
 func Test_CreateListMembershipForUser_NewUser_Match_Clinic(t *testing.T) {
 	getResponseSuccess := `{
@@ -297,24 +295,24 @@ func Test_CreateListMembershipForUser_NewUser_Match_Clinic(t *testing.T) {
 	newUserMock.EmailStub = func() string { return "tester@example.com" }
 	newUserMock.IsClinicStub = func() bool { return true }
 	s.CreateListMembershipForUser(newUserMock)
+	manager.WaitGroup().Wait()
 	user := s.TypeForUser(newUserMock)
 	if user != "clinic" {
 		t.Errorf("Expected '%v', got 'user'", user)
 	}
-	time.Sleep(time.Second)
 }
 func Test_UpdateListMembershipForUser_OldUser_Missing(t *testing.T) {
 	manager := NewTestManagerWithClientMock(t)
 	newUserMock := NewUserMock()
 	manager.UpdateListMembershipForUser(nil, newUserMock)
-	time.Sleep(time.Second)
+	manager.WaitGroup().Wait()
 }
 
 func Test_UpdateListMembershipForUser_NewUser_Missing(t *testing.T) {
 	manager := NewTestManagerWithClientMock(t)
 	oldUserMock := NewUserMock()
 	manager.UpdateListMembershipForUser(oldUserMock, nil)
-	time.Sleep(time.Second)
+	manager.WaitGroup().Wait()
 }
 
 func Test_UpdateListMembershipForUser_NewUser_Match_Personal(t *testing.T) {
@@ -327,11 +325,11 @@ func Test_UpdateListMembershipForUser_NewUser_Match_Personal(t *testing.T) {
 	newUserMock.EmailStub = func() string { return "ten@sample.com" }
 	newUserMock.IsClinicStub = func() bool { return false }
 	s.UpdateListMembershipForUser(oldUserMock, newUserMock)
+	manager.WaitGroup().Wait()
 	user := s.TypeForUser(newUserMock)
 	if user != "user" {
 		t.Errorf("Expected '%v', got 'clinic'", user)
 	}
-	time.Sleep(time.Second)
 }
 
 func Test_UpdateListMembershipForUser_NewUser_Match_Clinic(t *testing.T) {
@@ -344,11 +342,11 @@ func Test_UpdateListMembershipForUser_NewUser_Match_Clinic(t *testing.T) {
 	newUserMock.EmailStub = func() string { return "eleven@sample.com" }
 	newUserMock.IsClinicStub = func() bool { return true }
 	s.UpdateListMembershipForUser(oldUserMock, newUserMock)
+	manager.WaitGroup().Wait()
 	user := s.TypeForUser(newUserMock)
 	if user != "clinic" {
 		t.Errorf("Expected '%v', got 'user'", user)
 	}
-	time.Sleep(time.Second)
 }
 
 func Test_UpdateListMembershipForUser_NewUser_Email_Missing(t *testing.T) {
@@ -358,7 +356,7 @@ func Test_UpdateListMembershipForUser_NewUser_Email_Missing(t *testing.T) {
 	newUserMock := NewUserMock()
 	newUserMock.EmailStub = func() string { return "" }
 	manager.UpdateListMembershipForUser(oldUserMock, newUserMock)
-	time.Sleep(time.Second)
+	manager.WaitGroup().Wait()
 }
 
 func Test_UpdateListMembershipForUser_NewUser_Email_Tidepool_Io(t *testing.T) {
@@ -368,7 +366,7 @@ func Test_UpdateListMembershipForUser_NewUser_Email_Tidepool_Io(t *testing.T) {
 	newUserMock := NewUserMock()
 	newUserMock.EmailStub = func() string { return "test@tidepool.io" }
 	manager.UpdateListMembershipForUser(oldUserMock, newUserMock)
-	time.Sleep(time.Second)
+	manager.WaitGroup().Wait()
 }
 
 func Test_UpdateListMembershipForUser_NewUser_Email_Tidepool_Org(t *testing.T) {
@@ -378,7 +376,7 @@ func Test_UpdateListMembershipForUser_NewUser_Email_Tidepool_Org(t *testing.T) {
 	newUserMock := NewUserMock()
 	newUserMock.EmailStub = func() string { return "test@tidepool.org" }
 	manager.UpdateListMembershipForUser(oldUserMock, newUserMock)
-	time.Sleep(time.Second)
+	manager.WaitGroup().Wait()
 }
 
 const (
@@ -724,9 +722,6 @@ const (
 )
 
 func checkParam(t *testing.T, params url.Values, key, expected string) {
-	log.Printf("PARAMS KEY %v", params[key][0])
-	log.Printf("EXPECTED %v", expected)
-	debug.PrintStack()
 	if params[key][0] != expected {
 		t.Errorf("expected '%s', got '%s'", expected, params[key][0])
 	}

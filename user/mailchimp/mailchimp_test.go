@@ -300,7 +300,7 @@ func Test_NewManager_Success(t *testing.T) {
 func Test_CreateListMembershipForUser_User_Missing(t *testing.T) {
 	manager, _ := NewTestManagerWithClientMock(t)
 	manager.CreateListMembershipForUser(nil)
-	time.Sleep(time.Second)
+	manager.WaitGroup().Wait()
 }
 
 func Test_CreateListMembershipForUser_User_Email_Missing(t *testing.T) {
@@ -308,7 +308,7 @@ func Test_CreateListMembershipForUser_User_Email_Missing(t *testing.T) {
 	newUserMock := NewUserMock()
 	newUserMock.EmailStub = func() string { return "" }
 	manager.CreateListMembershipForUser(newUserMock)
-	time.Sleep(time.Second)
+	manager.WaitGroup().Wait()
 }
 
 func Test_CreateListMembershipForUser_User_Email_Tidepool_Io(t *testing.T) {
@@ -316,7 +316,7 @@ func Test_CreateListMembershipForUser_User_Email_Tidepool_Io(t *testing.T) {
 	newUserMock := NewUserMock()
 	newUserMock.EmailStub = func() string { return "test@tidepool.io" }
 	manager.CreateListMembershipForUser(newUserMock)
-	time.Sleep(time.Second)
+	manager.WaitGroup().Wait()
 }
 
 func Test_CreateListMembershipForUser_User_Email_Tidepool_Org(t *testing.T) {
@@ -324,7 +324,7 @@ func Test_CreateListMembershipForUser_User_Email_Tidepool_Org(t *testing.T) {
 	newUserMock := NewUserMock()
 	newUserMock.EmailStub = func() string { return "test@tidepool.org" }
 	manager.CreateListMembershipForUser(newUserMock)
-	time.Sleep(time.Second)
+	manager.WaitGroup().Wait()
 }
 
 func Test_CreateListMembershipForUser_Failure_Get_Do(t *testing.T) {
@@ -334,7 +334,7 @@ func Test_CreateListMembershipForUser_Failure_Get_Do(t *testing.T) {
 	newUserMock.IsClinicStub = func() bool { return true }
 	clientMock.DoOutputs = []DoOutput{{nil, errors.New("test failure")}}
 	manager.CreateListMembershipForUser(newUserMock)
-	time.Sleep(time.Second)
+	manager.WaitGroup().Wait()
 	if !clientMock.AllOutputsConsumed() {
 		t.Fatal("Not all outputs consumed for clientMock")
 	}
@@ -347,7 +347,7 @@ func Test_CreateListMembershipForUser_Failure_Get_StatusCode(t *testing.T) {
 	newUserMock.IsClinicStub = func() bool { return true }
 	clientMock.DoOutputs = []DoOutput{{&http.Response{StatusCode: http.StatusForbidden}, nil}}
 	manager.CreateListMembershipForUser(newUserMock)
-	time.Sleep(time.Second)
+	manager.WaitGroup().Wait()
 	if !clientMock.AllOutputsConsumed() {
 		t.Fatal("Not all outputs consumed for clientMock")
 	}
@@ -360,7 +360,7 @@ func Test_CreateListMembershipForUser_Failure_Get_DecodeJSON(t *testing.T) {
 	newUserMock.IsClinicStub = func() bool { return true }
 	clientMock.DoOutputs = []DoOutput{{&http.Response{Body: ioutil.NopCloser(strings.NewReader("{"))}, nil}}
 	manager.CreateListMembershipForUser(newUserMock)
-	time.Sleep(time.Second)
+	manager.WaitGroup().Wait()
 	if !clientMock.AllOutputsConsumed() {
 		t.Fatal("Not all outputs consumed for clientMock")
 	}
@@ -376,7 +376,7 @@ func Test_CreateListMembershipForUser_Failure_Put_Do(t *testing.T) {
 		{nil, errors.New("test failure")},
 	}
 	manager.CreateListMembershipForUser(newUserMock)
-	time.Sleep(time.Second)
+	manager.WaitGroup().Wait()
 	if !clientMock.AllOutputsConsumed() {
 		t.Fatal("Not all outputs consumed for clientMock")
 	}
@@ -392,7 +392,7 @@ func Test_CreateListMembershipForUser_Failure_Put_StatusCode(t *testing.T) {
 		{&http.Response{StatusCode: http.StatusForbidden}, nil},
 	}
 	manager.CreateListMembershipForUser(newUserMock)
-	time.Sleep(time.Second)
+	manager.WaitGroup().Wait()
 	if !clientMock.AllOutputsConsumed() {
 		t.Fatal("Not all outputs consumed for clientMock")
 	}
@@ -408,7 +408,7 @@ func Test_CreateListMembershipForUser_Clinic_Success(t *testing.T) {
 		{&http.Response{StatusCode: http.StatusOK}, nil},
 	}
 	manager.CreateListMembershipForUser(newUserMock)
-	time.Sleep(time.Second)
+	manager.WaitGroup().Wait()
 	if length := len(clientMock.DoInputs); length != 2 {
 		t.Fatalf("CreateListMembershipForUser invoked Client.Do an unexpected number of times: %d", length)
 	}
@@ -426,7 +426,7 @@ func Test_CreateListMembershipForUser_Clinic_Success_Existing(t *testing.T) {
 	newUserMock.IsClinicStub = func() bool { return true }
 	clientMock.DoOutputs = []DoOutput{{&http.Response{StatusCode: http.StatusOK, Body: ioutil.NopCloser(strings.NewReader("{}"))}, nil}}
 	manager.CreateListMembershipForUser(newUserMock)
-	time.Sleep(time.Second)
+	manager.WaitGroup().Wait()
 	if length := len(clientMock.DoInputs); length != 1 {
 		t.Fatalf("CreateListMembershipForUser invoked Client.Do an unexpected number of times: %d", length)
 	}
@@ -448,7 +448,7 @@ func Test_CreateListMembershipForUser_Personal_Success(t *testing.T) {
 		{&http.Response{StatusCode: http.StatusOK}, nil},
 	}
 	manager.CreateListMembershipForUser(newUserMock)
-	time.Sleep(time.Second)
+	manager.WaitGroup().Wait()
 	if length := len(clientMock.DoInputs); length != 4 {
 		t.Fatalf("CreateListMembershipForUser invoked Client.Do an unexpected number of times: %d", length)
 	}
@@ -471,7 +471,7 @@ func Test_CreateListMembershipForUser_Personal_Success_Existing(t *testing.T) {
 		{&http.Response{StatusCode: http.StatusOK, Body: ioutil.NopCloser(strings.NewReader("{}"))}, nil},
 	}
 	manager.CreateListMembershipForUser(newUserMock)
-	time.Sleep(time.Second)
+	manager.WaitGroup().Wait()
 	if length := len(clientMock.DoInputs); length != 2 {
 		t.Fatalf("CreateListMembershipForUser invoked Client.Do an unexpected number of times: %d", length)
 	}
@@ -486,14 +486,14 @@ func Test_UpdateListMembershipForUser_OldUser_Missing(t *testing.T) {
 	manager, _ := NewTestManagerWithClientMock(t)
 	newUserMock := NewUserMock()
 	manager.UpdateListMembershipForUser(nil, newUserMock)
-	time.Sleep(time.Second)
+	manager.WaitGroup().Wait()
 }
 
 func Test_UpdateListMembershipForUser_NewUser_Missing(t *testing.T) {
 	manager, _ := NewTestManagerWithClientMock(t)
 	oldUserMock := NewUserMock()
 	manager.UpdateListMembershipForUser(oldUserMock, nil)
-	time.Sleep(time.Second)
+	manager.WaitGroup().Wait()
 }
 
 func Test_UpdateListMembershipForUser_NewUser_Match_Personal(t *testing.T) {
@@ -505,7 +505,7 @@ func Test_UpdateListMembershipForUser_NewUser_Match_Personal(t *testing.T) {
 	newUserMock.EmailStub = func() string { return "ten@sample.com" }
 	newUserMock.IsClinicStub = func() bool { return false }
 	manager.UpdateListMembershipForUser(oldUserMock, newUserMock)
-	time.Sleep(time.Second)
+	manager.WaitGroup().Wait()
 }
 
 func Test_UpdateListMembershipForUser_NewUser_Match_Clinic(t *testing.T) {
@@ -517,7 +517,7 @@ func Test_UpdateListMembershipForUser_NewUser_Match_Clinic(t *testing.T) {
 	newUserMock.EmailStub = func() string { return "eleven@sample.com" }
 	newUserMock.IsClinicStub = func() bool { return true }
 	manager.UpdateListMembershipForUser(oldUserMock, newUserMock)
-	time.Sleep(time.Second)
+	manager.WaitGroup().Wait()
 }
 
 func Test_UpdateListMembershipForUser_NewUser_Email_Missing(t *testing.T) {
@@ -527,7 +527,7 @@ func Test_UpdateListMembershipForUser_NewUser_Email_Missing(t *testing.T) {
 	newUserMock := NewUserMock()
 	newUserMock.EmailStub = func() string { return "" }
 	manager.UpdateListMembershipForUser(oldUserMock, newUserMock)
-	time.Sleep(time.Second)
+	manager.WaitGroup().Wait()
 }
 
 func Test_UpdateListMembershipForUser_NewUser_Email_Tidepool_Io(t *testing.T) {
@@ -537,7 +537,7 @@ func Test_UpdateListMembershipForUser_NewUser_Email_Tidepool_Io(t *testing.T) {
 	newUserMock := NewUserMock()
 	newUserMock.EmailStub = func() string { return "test@tidepool.io" }
 	manager.UpdateListMembershipForUser(oldUserMock, newUserMock)
-	time.Sleep(time.Second)
+	manager.WaitGroup().Wait()
 }
 
 func Test_UpdateListMembershipForUser_NewUser_Email_Tidepool_Org(t *testing.T) {
@@ -547,7 +547,7 @@ func Test_UpdateListMembershipForUser_NewUser_Email_Tidepool_Org(t *testing.T) {
 	newUserMock := NewUserMock()
 	newUserMock.EmailStub = func() string { return "test@tidepool.org" }
 	manager.UpdateListMembershipForUser(oldUserMock, newUserMock)
-	time.Sleep(time.Second)
+	manager.WaitGroup().Wait()
 }
 
 func Test_UpdateListMembershipForUser_Failure_Put_Do(t *testing.T) {
@@ -562,7 +562,7 @@ func Test_UpdateListMembershipForUser_Failure_Put_Do(t *testing.T) {
 		{nil, errors.New("test failure")},
 	}
 	manager.UpdateListMembershipForUser(oldUserMock, newUserMock)
-	time.Sleep(time.Second)
+	manager.WaitGroup().Wait()
 	if !clientMock.AllOutputsConsumed() {
 		t.Fatal("Not all outputs consumed for clientMock")
 	}
@@ -580,7 +580,7 @@ func Test_UpdateListMembershipForUser_Failure_Put_StatusCode(t *testing.T) {
 		{&http.Response{StatusCode: http.StatusForbidden}, nil},
 	}
 	manager.UpdateListMembershipForUser(oldUserMock, newUserMock)
-	time.Sleep(time.Second)
+	manager.WaitGroup().Wait()
 	if !clientMock.AllOutputsConsumed() {
 		t.Fatal("Not all outputs consumed for clientMock")
 	}
@@ -598,7 +598,7 @@ func Test_UpdateListMembershipForUser_Clinic_Success_New(t *testing.T) {
 		{&http.Response{StatusCode: http.StatusOK}, nil},
 	}
 	manager.UpdateListMembershipForUser(oldUserMock, newUserMock)
-	time.Sleep(time.Second)
+	manager.WaitGroup().Wait()
 	if length := len(clientMock.DoInputs); length != 2 {
 		t.Fatalf("UpdateListMembershipForUser invoked Client.Do an unexpected number of times: %d", length)
 	}
@@ -619,7 +619,7 @@ func Test_UpdateListMembershipForUser_Clinic_Success_Existing_SameEmail(t *testi
 	newUserMock.IsClinicStub = func() bool { return true }
 	clientMock.DoOutputs = []DoOutput{{&http.Response{StatusCode: http.StatusOK, Body: ioutil.NopCloser(strings.NewReader("{}"))}, nil}}
 	manager.UpdateListMembershipForUser(oldUserMock, newUserMock)
-	time.Sleep(time.Second)
+	manager.WaitGroup().Wait()
 	if length := len(clientMock.DoInputs); length != 1 {
 		t.Fatalf("UpdateListMembershipForUser invoked Client.Do an unexpected number of times: %d", length)
 	}
@@ -641,7 +641,7 @@ func Test_UpdateListMembershipForUser_Clinic_Success_Existing_DifferentEmail(t *
 		{&http.Response{StatusCode: http.StatusOK}, nil},
 	}
 	manager.UpdateListMembershipForUser(oldUserMock, newUserMock)
-	time.Sleep(time.Second)
+	manager.WaitGroup().Wait()
 	if length := len(clientMock.DoInputs); length != 2 {
 		t.Fatalf("UpdateListMembershipForUser invoked Client.Do an unexpected number of times: %d", length)
 	}
@@ -666,7 +666,7 @@ func Test_UpdateListMembershipForUser_Personal_Success_New(t *testing.T) {
 		{&http.Response{StatusCode: http.StatusOK}, nil},
 	}
 	manager.UpdateListMembershipForUser(oldUserMock, newUserMock)
-	time.Sleep(time.Second)
+	manager.WaitGroup().Wait()
 	if length := len(clientMock.DoInputs); length != 4 {
 		t.Fatalf("UpdateListMembershipForUser invoked Client.Do an unexpected number of times: %d", length)
 	}
@@ -692,7 +692,7 @@ func Test_UpdateListMembershipForUser_Personal_Success_Existing_SameEmail(t *tes
 		{&http.Response{StatusCode: http.StatusOK, Body: ioutil.NopCloser(strings.NewReader("{}"))}, nil},
 	}
 	manager.UpdateListMembershipForUser(oldUserMock, newUserMock)
-	time.Sleep(time.Second)
+	manager.WaitGroup().Wait()
 	if length := len(clientMock.DoInputs); length != 2 {
 		t.Fatalf("UpdateListMembershipForUser invoked Client.Do an unexpected number of times: %d", length)
 	}
@@ -717,7 +717,7 @@ func Test_UpdateListMembershipForUser_Personal_Success_Existing_DifferentEmail(t
 		{&http.Response{StatusCode: http.StatusOK}, nil},
 	}
 	manager.UpdateListMembershipForUser(oldUserMock, newUserMock)
-	time.Sleep(time.Second)
+	manager.WaitGroup().Wait()
 	if length := len(clientMock.DoInputs); length != 4 {
 		t.Fatalf("UpdateListMembershipForUser invoked Client.Do an unexpected number of times: %d", length)
 	}

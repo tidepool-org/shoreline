@@ -126,6 +126,9 @@ func (U *MockManager) UpdateListMembershipForUser(oldUser marketo.User, newUser 
 func (U *MockManager) IsAvailable() bool {
 	return false
 }
+func (U *MockManager) WaitGroup() *sync.WaitGroup {
+	return nil
+}
 func NewTestManager() marketo.Manager {
 	return &MockManager{}
 }

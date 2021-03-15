@@ -11,6 +11,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 )
 
 type User interface {
@@ -21,6 +22,7 @@ type User interface {
 type Manager interface {
 	CreateListMembershipForUser(newUser User)
 	UpdateListMembershipForUser(oldUser User, newUser User)
+	WaitGroup() *sync.WaitGroup
 }
 
 type Client interface {
@@ -103,7 +105,6 @@ func NewManager(logger *log.Logger, client Client, config *Config) (Manager, err
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("mailchimp: config is not valid; %s", err)
 	}
-
 	return &manager{
 		logger: logger,
 		client: client,
@@ -115,13 +116,18 @@ type manager struct {
 	logger *log.Logger
 	client Client
 	config *Config
+	wg     sync.WaitGroup
+}
+
+func (m *manager) WaitGroup() *sync.WaitGroup {
+	return &m.wg
 }
 
 func (m *manager) CreateListMembershipForUser(newUser User) {
 	if newUser == nil {
 		return
 	}
-
+	m.wg.Add(1)
 	go m.upsertListMembership(nil, newUser)
 }
 
@@ -129,11 +135,12 @@ func (m *manager) UpdateListMembershipForUser(oldUser User, newUser User) {
 	if oldUser == nil || newUser == nil {
 		return
 	}
-
+	m.wg.Add(1)
 	go m.upsertListMembership(oldUser, newUser)
 }
 
 func (m *manager) upsertListMembership(oldUser User, newUser User) {
+	defer m.wg.Done()
 	if matchUsers(oldUser, newUser) {
 		return
 	}
