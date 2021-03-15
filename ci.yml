@@ -1,0 +1,10 @@
+module: shoreline
+type: golang
+runTests: false
+docker: true
+dockerPushToProduction : true
+publishNpm: false
+publishS3: false
+publishOpenapiBucket: com.diabeloop.backloops.docs
+publishSoupBucket: com.diabeloop.backloops.docs
+securityScan: true

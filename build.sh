@@ -15,6 +15,9 @@ VERSION_FULL_COMMIT=$(git rev-parse HEAD)
 
 GO_COMMON_PATH="github.com/tidepool-org/go-common"
 
+echo "go vet check"
+go vet ./...
+
 echo "Build shoreline $VERSION_BASE+$VERSION_FULL_COMMIT"
 go mod tidy
 go build -ldflags "-X $GO_COMMON_PATH/clients/version.ReleaseNumber=$VERSION_BASE \
@@ -22,7 +25,3 @@ go build -ldflags "-X $GO_COMMON_PATH/clients/version.ReleaseNumber=$VERSION_BAS
     -X $GO_COMMON_PATH/clients/version.ShortCommit=$VERSION_SHORT_COMMIT" \
     -o dist/shoreline shoreline.go
 
-go build -o dist/user-roles tools/user-roles.go
-
-cp start.sh dist/
-cp env.sh dist/

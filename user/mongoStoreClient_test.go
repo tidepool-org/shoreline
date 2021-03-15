@@ -20,6 +20,10 @@ func mgoTestSetup() (*Client, error) {
 		WaitConnectionInterval: 5 * time.Second,
 		MaxConnectionAttempts:  0,
 	}
+	if _, exist := os.LookupEnv("TIDEPOOL_STORE_ADDRESSES"); exist {
+		// if mongo connexion information is provided via env var
+		testingConfig.FromEnv()
+	}
 	var logger = log.New(os.Stdout, "mongo-test ", log.LstdFlags|log.LUTC|log.Lshortfile)
 
 	mc, _ := NewStore(testingConfig, logger)
