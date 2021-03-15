@@ -21,3 +21,29 @@ type (
 		EmailVerified *bool     `json:"emailVerified,omitempty"`
 	}
 )
+
+func (u *UserData) IsCustodial() bool {
+	return !u.PasswordExists
+}
+
+func (u *UserData) HasRole(role string) bool {
+	for _, userRole := range u.Roles {
+		if userRole == role {
+			return true
+		}
+	}
+	return false
+}
+
+func (u *UserData) IsClinic() bool {
+	for _, userRole := range u.Roles {
+		if userRole == "hcp" || userRole == "clinic" {
+			return true
+		}
+	}
+	return false
+}
+
+func (u *UserUpdate) HasUpdates() bool {
+	return u.Username != nil || u.Emails != nil || u.Password != nil || u.Roles != nil || u.EmailVerified != nil
+}
