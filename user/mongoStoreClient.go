@@ -46,7 +46,7 @@ func (c *Client) UpsertUser(ctx context.Context, user *User) error {
 		sort.Strings(user.Roles)
 	}
 	options := options.Update().SetUpsert(true)
-	update := bson.D{{"$set", user}}
+	update := bson.M{"$set": user}
 	// if the user already exists we update otherwise we add
 	_, err := mgoUsersCollection(c).UpdateOne(ctx, bson.M{"userid": user.Id}, update, options)
 	return err
@@ -123,7 +123,7 @@ func (c *Client) RemoveUser(ctx context.Context, user *User) (err error) {
 
 func (c *Client) AddToken(ctx context.Context, st *token.SessionToken) error {
 	options := options.Update().SetUpsert(true)
-	update := bson.D{{"$set", st}}
+	update := bson.M{"$set": st}
 	// if the user already exists we update otherwise we add
 	_, err := mgoTokensCollection(c).UpdateOne(ctx, bson.M{"_id": st.ID}, update, options)
 	return err

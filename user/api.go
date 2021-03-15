@@ -177,7 +177,7 @@ type (
 		// Maximum number of concurrent login
 		MaxConcurrentLogin int `json:"maxConcurrentLogin"`
 		// Block users to do multiple parallel logins (for load tests we desactivate this)
-		BlockParallelLogin bool `json:blockParallelLogin`
+		BlockParallelLogin bool `json:"blockParallelLogin"`
 		//allows for the skipping of verification for testing
 		VerificationSecret string           `json:"verificationSecret"`
 		Mailchimp          mailchimp.Config `json:"mailchimp"`

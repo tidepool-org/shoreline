@@ -56,7 +56,9 @@ func (client *UserClient) Signup(username, password, email string) (*commonUserA
 
 		return ud, nil
 	default:
-		return nil, &status.StatusError{status.NewStatus(response.Code, "There was an issue trying to signup a new user")}
+		return nil, &status.StatusError{
+			Status: status.NewStatus(response.Code, "There was an issue trying to signup a new user"),
+		}
 	}
 }
 
@@ -81,7 +83,9 @@ func (client *UserClient) Login(username, password string) (*commonUserApi.UserD
 	case 404:
 		return nil, "", nil
 	default:
-		return nil, "", &status.StatusError{status.NewStatus(response.Code, "Unknown response code from user api")}
+		return nil, "", &status.StatusError{
+			Status: status.NewStatus(response.Code, "Unknown response code from user api"),
+		}
 	}
 }
 
