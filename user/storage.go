@@ -3,8 +3,8 @@ package user
 import (
 	"context"
 
+	"github.com/mdblp/shoreline/token"
 	goComMgo "github.com/tidepool-org/go-common/clients/mongo"
-	"github.com/tidepool-org/shoreline/token"
 )
 
 type Storage interface {

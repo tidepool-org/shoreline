@@ -3,7 +3,7 @@ package user
 import (
 	"context"
 
-	"github.com/tidepool-org/shoreline/token"
+	"github.com/mdblp/shoreline/token"
 	"go.mongodb.org/mongo-driver/mongo"
 )
 

@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/tidepool-org/shoreline/token"
+	"github.com/mdblp/shoreline/token"
 )
 
 func Test_FirstStringNotEmpty_None(t *testing.T) {

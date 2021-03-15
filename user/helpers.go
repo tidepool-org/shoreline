@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/tidepool-org/shoreline/token"
+	"github.com/mdblp/shoreline/token"
 )
 
 func firstStringNotEmpty(strs ...string) string {

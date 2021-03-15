@@ -16,10 +16,10 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/mdblp/shoreline/token"
+	"github.com/mdblp/shoreline/user/mailchimp"
+	"github.com/mdblp/shoreline/user/marketo"
 	"github.com/tidepool-org/go-common/clients/status"
-	"github.com/tidepool-org/shoreline/token"
-	"github.com/tidepool-org/shoreline/user/mailchimp"
-	"github.com/tidepool-org/shoreline/user/marketo"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"

@@ -30,6 +30,8 @@ import (
 
 	"github.com/gorilla/mux"
 
+	"github.com/mdblp/shoreline/user"
+	"github.com/mdblp/shoreline/user/marketo"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	common "github.com/tidepool-org/go-common"
@@ -37,8 +39,6 @@ import (
 	"github.com/tidepool-org/go-common/clients/disc"
 	"github.com/tidepool-org/go-common/clients/hakken"
 	"github.com/tidepool-org/go-common/clients/mongo"
-	"github.com/tidepool-org/shoreline/user"
-	"github.com/tidepool-org/shoreline/user/marketo"
 )
 
 var (

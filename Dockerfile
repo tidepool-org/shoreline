@@ -2,9 +2,9 @@
 FROM golang:1.15-alpine AS development
 
 ENV GO111MODULE on
-WORKDIR /go/src/github.com/tidepool-org/shoreline
+WORKDIR /go/src/github.com/mdblp/shoreline
 RUN adduser -D tidepool && \
-    chown -R tidepool /go/src/github.com/tidepool-org/shoreline
+    chown -R tidepool /go/src/github.com/mdblp/shoreline
 RUN apk add --no-cache git
 USER tidepool
 COPY --chown=tidepool . .
@@ -19,5 +19,5 @@ RUN apk --no-cache update && \
     apk add --no-cache ca-certificates && \
     adduser -D tidepool
 USER tidepool
-COPY --from=development --chown=tidepool /go/src/github.com/tidepool-org/shoreline/dist/shoreline .
+COPY --from=development --chown=tidepool /go/src/github.com/mdblp/shoreline/dist/shoreline .
 CMD ["./shoreline"]
