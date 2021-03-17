@@ -40,6 +40,7 @@ pipeline {
             post {
                 always {
                     sh 'docker stop mongo4shoreline${RUN_ID} && docker network rm shorelinetest${RUN_ID}'
+                    junit 'test-report.xml'
                 }
             }
         }
