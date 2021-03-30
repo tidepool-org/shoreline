@@ -74,7 +74,26 @@ func getGinContext(testToken string) (*gin.Context, *httptest.ResponseRecorder) 
 	return c, w
 }
 
-func TestAuthMiddleware(t *testing.T) {
+func assertAuthMiddlewareResponse(t *testing.T, tknData *token.TokenData,
+	authorizeUnverified bool, auth *LocalAuth, c *gin.Context, w *httptest.ResponseRecorder) {
+	setUnpackSessionTokenAndVerify(tknData, nil)
+	middleware := auth.AuthMiddleware(authorizeUnverified)
+	middleware(c)
+	assert.Equal(t, 200, w.Code)
+	assert.Equal(t, c.GetString("userId"), tknData.UserId)
+	assert.Equal(t, c.GetBool("isPatient"), tknData.Role == "patient")
+	assert.Equal(t, c.GetBool("isCaregiver"), tknData.Role == "caregiver")
+	assert.Equal(t, c.GetBool("isHCP"), tknData.Role == "hcp")
+	assert.Equal(t, c.GetBool("isServer"), tknData.IsServer)
+}
+func assertAuthMiddlewareErrorResponse(t *testing.T, tknData *token.TokenData,
+	tknError error, authorizeUnverified bool, auth *LocalAuth, c *gin.Context, w *httptest.ResponseRecorder) {
+	setUnpackSessionTokenAndVerify(tknData, tknError)
+	middleware := auth.AuthMiddleware(authorizeUnverified)
+	middleware(c)
+	assert.Equal(t, 401, w.Code)
+}
+func TestAuthMiddleware_withUnverifiedToken(t *testing.T) {
 	auth, err := NewAuthService(&Config{
 		ServiceSecret: testServiceSecret,
 	})
@@ -88,55 +107,57 @@ func TestAuthMiddleware(t *testing.T) {
 		IsServer: false,
 	}
 
-	setUnpackSessionTokenAndVerify(&tknData, nil)
 	c, w := getGinContext(testToken)
-	middleware := auth.AuthMiddleware()
-	middleware(c)
-
-	assert.Equal(t, 200, w.Code)
-	assert.Equal(t, c.GetString("userId"), tknData.UserId)
-	assert.Equal(t, c.GetBool("isPatient"), true)
-	assert.Equal(t, c.GetBool("isCaregiver"), false)
-	assert.Equal(t, c.GetBool("isHCP"), false)
-	assert.Equal(t, c.GetBool("isServer"), false)
+	assertAuthMiddlewareResponse(t, &tknData, true, auth, c, w)
 
 	tknData.Role = "caregiver"
-	setUnpackSessionTokenAndVerify(&tknData, nil)
-	middleware = auth.AuthMiddleware()
-	middleware(c)
-	assert.Equal(t, 200, w.Code)
-	assert.Equal(t, c.GetString("userId"), tknData.UserId)
-	assert.Equal(t, c.GetBool("isPatient"), false)
-	assert.Equal(t, c.GetBool("isCaregiver"), true)
-	assert.Equal(t, c.GetBool("isHCP"), false)
-	assert.Equal(t, c.GetBool("isServer"), false)
+	assertAuthMiddlewareResponse(t, &tknData, true, auth, c, w)
 
 	tknData.Role = "hcp"
-	setUnpackSessionTokenAndVerify(&tknData, nil)
-	middleware = auth.AuthMiddleware()
-	middleware(c)
-	assert.Equal(t, 200, w.Code)
-	assert.Equal(t, c.GetString("userId"), tknData.UserId)
-	assert.Equal(t, c.GetBool("isPatient"), false)
-	assert.Equal(t, c.GetBool("isCaregiver"), false)
-	assert.Equal(t, c.GetBool("isHCP"), true)
-	assert.Equal(t, c.GetBool("isServer"), false)
+	assertAuthMiddlewareResponse(t, &tknData, true, auth, c, w)
 
 	tknData.Role = ""
 	tknData.IsServer = true
-	setUnpackSessionTokenAndVerify(&tknData, nil)
-	middleware = auth.AuthMiddleware()
-	middleware(c)
-	assert.Equal(t, 200, w.Code)
-	assert.Equal(t, c.GetString("userId"), tknData.UserId)
-	assert.Equal(t, c.GetBool("isPatient"), false)
-	assert.Equal(t, c.GetBool("isCaregiver"), false)
-	assert.Equal(t, c.GetBool("isHCP"), false)
-	assert.Equal(t, c.GetBool("isServer"), true)
+	assertAuthMiddlewareResponse(t, &tknData, true, auth, c, w)
 
-	setUnpackSessionTokenAndVerify(nil, errors.New(""))
-	middleware = auth.AuthMiddleware()
-	middleware(c)
-	assert.Equal(t, 401, w.Code)
+	tknData.Role = "unverified"
+	tknData.IsServer = false
+	assertAuthMiddlewareResponse(t, &tknData, true, auth, c, w)
 
+	assertAuthMiddlewareErrorResponse(t, nil, errors.New(""), true, auth, c, w)
+
+}
+
+func TestAuthMiddleware_withoutUnverifiedToken(t *testing.T) {
+	auth, err := NewAuthService(&Config{
+		ServiceSecret: testServiceSecret,
+	})
+	if err != nil {
+		t.Errorf("Failed creating service with error[%v]", err)
+	}
+	testToken := "1234"
+	tknData := token.TokenData{
+		UserId:   "1234",
+		Role:     "patient",
+		IsServer: false,
+	}
+
+	c, w := getGinContext(testToken)
+	assertAuthMiddlewareResponse(t, &tknData, false, auth, c, w)
+
+	tknData.Role = "caregiver"
+	assertAuthMiddlewareResponse(t, &tknData, false, auth, c, w)
+
+	tknData.Role = "hcp"
+	assertAuthMiddlewareResponse(t, &tknData, false, auth, c, w)
+
+	tknData.Role = ""
+	tknData.IsServer = true
+	assertAuthMiddlewareResponse(t, &tknData, false, auth, c, w)
+
+	tknData.Role = "unverified"
+	tknData.IsServer = false
+	assertAuthMiddlewareErrorResponse(t, &tknData, nil, false, auth, c, w)
+
+	assertAuthMiddlewareErrorResponse(t, nil, errors.New(""), false, auth, c, w)
 }

@@ -23,7 +23,7 @@ type Config struct {
 
 type AuthService interface {
 	Authenticate(sessionToken string) (*token.TokenData, error)
-	AuthMiddleware() gin.HandlerFunc
+	AuthMiddleware(authorizeUnverified bool) gin.HandlerFunc
 }
 
 // Client holds the state of the Auth Client
@@ -54,7 +54,7 @@ func (l *LocalAuth) Authenticate(sessionToken string) (*token.TokenData, error) 
 }
 
 // check tidepool session token and return a user struct if valid
-func (l *LocalAuth) AuthMiddleware() gin.HandlerFunc {
+func (l *LocalAuth) AuthMiddleware(authorizeUnverified bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		sessionToken := c.Request.Header.Get(token.TP_SESSION_TOKEN)
 		method := c.Request.Method
@@ -62,6 +62,8 @@ func (l *LocalAuth) AuthMiddleware() gin.HandlerFunc {
 
 		if token, err := l.Authenticate(sessionToken); err != nil {
 			c.AbortWithError(http.StatusUnauthorized, err)
+		} else if token.Role == "unverified" && !authorizeUnverified {
+			c.AbortWithError(http.StatusUnauthorized, errors.New("Unverified user is not authorized"))
 		} else {
 			log.Println("user ", token.UserId, " ", method, " on ", path)
 			c.Set("userId", token.UserId)
