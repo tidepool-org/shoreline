@@ -2,6 +2,10 @@
 
 Shoreline is the module that manages logins and user accounts.
 
+## UNRELEASED
+### Changed
+- YLP-674: Correct the value of zendesk organization in 3rd party token
+
 ## 1.3.1
 ### Engineering
 - Move light (jwt) authentication client from crew

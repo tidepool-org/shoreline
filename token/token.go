@@ -121,16 +121,13 @@ func CreateSessionToken(data *TokenData, config TokenConfig) (*SessionToken, err
 	// Add claims specific to our 3rd party services
 	if strings.ToUpper(data.Audience) == "ZENDESK" {
 		if data.Role == "patient" {
-			claims["organization"] = "patient"
-			claims["tags"] = "patient"
+			claims["organization"] = "Patient"
 		}
 		if data.Role == "hcp" {
-			claims["organization"] = "professional"
-			claims["tags"] = "professional"
+			claims["organization"] = "Health professional"
 		}
 		if data.Role == "caregiver" {
-			claims["organization"] = "patient"
-			claims["tags"] = "patient"
+			claims["organization"] = "Patient"
 		}
 		claims["aud"] = "zendesk"
 	} else {

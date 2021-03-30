@@ -120,11 +120,8 @@ func Test_GenerateSessionToken_Zendesk_Claims_Patient(t *testing.T) {
 	claims := jwtToken.Claims.(jwt.MapClaims)
 
 	// check zendesk claims
-	if claims["organization"] != "patient" {
+	if claims["organization"] != "Patient" {
 		t.Fatalf("the organization should have been set to 'Patient'")
-	}
-	if claims["tags"] != "patient" {
-		t.Fatalf("the tags should have been set to 'Patient'")
 	}
 	if claims["aud"] != "zendesk" {
 		t.Fatalf("the audience should have been set to 'zendesk'")
@@ -152,11 +149,8 @@ func Test_GenerateSessionToken_Zendesk_Claims_Caregiver(t *testing.T) {
 	claims := jwtToken.Claims.(jwt.MapClaims)
 
 	// check zendesk claims
-	if claims["organization"] != "patient" {
+	if claims["organization"] != "Patient" {
 		t.Fatalf("the organization should have been set to 'Patient'")
-	}
-	if claims["tags"] != "patient" {
-		t.Fatalf("the tags should have been set to 'Patient'")
 	}
 	if claims["aud"] != "zendesk" {
 		t.Fatalf("the audience should have been set to 'zendesk'")
@@ -184,11 +178,8 @@ func Test_GenerateSessionToken_Zendesk_Claims_Pro(t *testing.T) {
 	claims := jwtToken.Claims.(jwt.MapClaims)
 
 	// check zendesk claims
-	if claims["organization"] != "professional" {
-		t.Fatalf("the organization should have been set to 'professional'")
-	}
-	if claims["tags"] != "professional" {
-		t.Fatalf("the tags should have been set to 'professional'")
+	if claims["organization"] != "Health professional" {
+		t.Fatalf("the organization should have been set to 'Health professional'")
 	}
 	if claims["aud"] != "zendesk" {
 		t.Fatalf("the audience should have been set to 'zendesk'")
