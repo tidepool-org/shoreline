@@ -154,7 +154,7 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	consumer, err := events.NewSaramaCloudEventsConsumer(kafkaConfig)
+	consumer, err := events.NewFaultTolerantCloudEventsConsumer(kafkaConfig)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -195,10 +195,9 @@ func main() {
 
 	shutdown := make(chan string)
 
-	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
 		log.Println("Starting Kafka consumer")
-		if err := consumer.Start(ctx); err != nil {
+		if err := consumer.Start(); err != nil {
 			shutdown <- "Error while starting events consumer:" + err.Error()
 		}
 	}()
@@ -223,9 +222,10 @@ func main() {
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), defaultShutdownTimeout)
 	defer shutdownCancel()
-	defer cancel()
 	if err := server.Shutdown(shutdownCtx); err != nil {
-		log.Fatalf("Error while gracefully shutting down: %v", err)
+		log.Printf("Error while gracefully shutting down: %v", err)
 	}
-
+	if consumerErr := consumer.Stop(); consumerErr != nil {
+		log.Printf("Error while stopping the Kafka consumer: %v", err)
+	}
 }
