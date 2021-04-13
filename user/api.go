@@ -453,12 +453,26 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 	} else if !a.isAuthorized(tokenData, originalUser.Id) {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, "User does not have permissions")
 
-	} else if (updateUserDetails.Roles != nil || updateUserDetails.EmailVerified != nil) && !tokenData.IsServer {
+	} else if updateUserDetails.EmailVerified != nil && !tokenData.IsServer {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, "User does not have permissions")
-
 	} else {
 		updatedUser := originalUser.DeepClone()
 
+		// Check role
+		if updateUserDetails.Roles != nil {
+			if len(updateUserDetails.Roles) != 1 {
+				a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, errors.New("multiple roles were provided"))
+				return
+			}
+			if updateUserDetails.Roles[0] != originalUser.Roles[0] && (originalUser.Roles[0] == "patient" || originalUser.Roles[0] == "hcp") {
+				a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, errors.New("patients or HCPs cannot change role"))
+				return
+			}
+			if updateUserDetails.Roles[0] != originalUser.Roles[0] && updateUserDetails.Roles[0] != "hcp" {
+				a.sendError(res, http.StatusForbidden, STATUS_UNAUTHORIZED, errors.New("caregivers cannot change role for something else than hcp"))
+				return
+			}
+		}
 		// TODO: This all needs to be refactored so it can be more thoroughly tested
 
 		if updateUserDetails.Username != nil || updateUserDetails.Emails != nil {

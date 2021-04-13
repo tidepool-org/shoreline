@@ -2,6 +2,10 @@
 
 Shoreline is the module that manages logins and user accounts.
 
+## 1.5.0 - 2021-04-13
+### Changed
+- YLP-549: Authorize caregivers to change their role to "hcp"
+
 ## 1.4.0 - 2021-03-30
 ### Changed
 - YLP-674: Correct the value of zendesk organization in 3rd party token

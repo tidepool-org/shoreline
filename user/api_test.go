@@ -647,10 +647,10 @@ func Test_UpdateUser_Error_NoPermissions(t *testing.T) {
 	T_ExpectErrorResponse(t, response, 401, "Not authorized for requested operation")
 }
 
-func Test_UpdateUser_Error_UnauthorizedRoles_User(t *testing.T) {
+func Test_UpdateUser_Error_UnauthorizedRoles_Patient(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "1111111111", false, TOKEN_DURATION)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
-	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111", Roles: []string{"patient"}}, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"roles\": [\"hcp\"]}}"
@@ -658,6 +658,58 @@ func Test_UpdateUser_Error_UnauthorizedRoles_User(t *testing.T) {
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
 	T_ExpectErrorResponse(t, response, 401, "Not authorized for requested operation")
+}
+
+func Test_UpdateUser_Error_UnauthorizedRoles_Patient2(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "1111111111", false, TOKEN_DURATION)
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111", Roles: []string{"patient"}}, nil}}
+	defer T_ExpectResponsablesEmpty(t)
+
+	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"roles\": [\"caregiver\"]}}"
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
+	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
+	T_ExpectErrorResponse(t, response, 401, "Not authorized for requested operation")
+}
+
+func Test_UpdateUser_Error_UnauthorizedRoles_HCP(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "1111111111", false, TOKEN_DURATION)
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111", Roles: []string{"hcp"}}, nil}}
+	defer T_ExpectResponsablesEmpty(t)
+
+	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"roles\": [\"caregiver\"]}}"
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
+	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
+	T_ExpectErrorResponse(t, response, 401, "Not authorized for requested operation")
+}
+
+func Test_UpdateUser_Error_UnauthorizedRoles_HCP2(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "1111111111", false, TOKEN_DURATION)
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111", Roles: []string{"hcp"}}, nil}}
+	defer T_ExpectResponsablesEmpty(t)
+
+	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"roles\": [\"patient\"]}}"
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
+	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
+	T_ExpectErrorResponse(t, response, 401, "Not authorized for requested operation")
+}
+
+func Test_UpdateUser_Error_UnauthorizedRoles_Caregiver(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "1111111111", false, TOKEN_DURATION)
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111", Roles: []string{"caregiver"}}, nil}}
+	defer T_ExpectResponsablesEmpty(t)
+
+	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"roles\": [\"patient\"]}}"
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
+	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
+	T_ExpectErrorResponse(t, response, 403, "Not authorized for requested operation")
 }
 
 func Test_UpdateUser_Error_UnauthorizedEmailVerified_User(t *testing.T) {
@@ -724,10 +776,27 @@ func Test_UpdateUser_Success_UserFromToken(t *testing.T) {
 	T_ExpectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": false, "emails": []interface{}{"a@z.co"}, "username": "a@z.co", "termsAccepted": "2016-01-01T01:23:45-08:00"})
 }
 
+func Test_UpdateUser_Success_AuthorizedRoles_Caregiver(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "1111111111", false, TOKEN_DURATION)
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111", Roles: []string{"caregiver"}, TermsAccepted: "2016-01-01T01:23:45-08:00"}, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111"}}, nil}}
+	responsableStore.UpsertUserResponses = []error{nil}
+	defer T_ExpectResponsablesEmpty(t)
+
+	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"roles\": [\"hcp\"]}}"
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
+	response := T_PerformRequestBodyHeaders(t, "PUT", "/user", body, headers)
+	successResponse := T_ExpectSuccessResponseWithJSONMap(t, response, 200)
+	T_ExpectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
+	T_ExpectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": false, "emails": []interface{}{"a@z.co"}, "roles": []interface{}{"hcp"}, "username": "a@z.co", "termsAccepted": "2016-01-01T01:23:45-08:00"})
+}
+
 func Test_UpdateUser_Success_Server_WithoutPassword(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "0000000000", true, TOKEN_DURATION)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
-	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111", Roles: []string{"hcp"}}, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
 	responsableStore.UpsertUserResponses = []error{nil}
 	defer T_ExpectResponsablesEmpty(t)
@@ -744,7 +813,7 @@ func Test_UpdateUser_Success_Server_WithoutPassword(t *testing.T) {
 func Test_UpdateUser_Success_Server_WithPassword(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "0000000000", true, TOKEN_DURATION)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
-	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111", Roles: []string{"caregiver"}}, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
 	responsableStore.UpsertUserResponses = []error{nil}
 	defer T_ExpectResponsablesEmpty(t)
