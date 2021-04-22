@@ -788,6 +788,22 @@ func Test_CreateCustodialUser_Success_Known(t *testing.T) {
 	expectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": false, "emails": []interface{}{"a@z.co"}, "username": "a@z.co"})
 }
 
+func Test_CreateClinicCustodialUser_Success_Known(t *testing.T) {
+	sessionToken := createSessionToken(t, "clinic", true, tokenDuration)
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
+	responsableStore.UpsertUserResponses = []error{nil}
+	defer expectResponsablesEmpty(t)
+
+	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}"
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
+	response := performRequestBodyHeaders(t, "POST", "/v1/clinics/12345/users", body, headers)
+	successResponse := expectSuccessResponseWithJSONMap(t, response, 201)
+	expectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
+	expectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": false, "emails": []interface{}{"a@z.co"}, "passwordExists": false, "username": "a@z.co"})
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 func Test_UpdateUser_Error_MissingSessionToken(t *testing.T) {

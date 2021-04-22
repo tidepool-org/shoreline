@@ -123,6 +123,7 @@ func (a *Api) SetHandlers(prefix string, rtr *mux.Router) {
 	rtr.Handle("/user/{userid}", varsHandler(a.DeleteUser)).Methods("DELETE")
 
 	rtr.Handle("/user/{userid}/user", varsHandler(a.CreateCustodialUser)).Methods("POST")
+	rtr.Handle("/v1/clinics/{clinicId}/users", varsHandler(a.CreateClinicCustodialUser)).Methods("POST")
 
 	rtr.HandleFunc("/login", a.Login).Methods("POST")
 	rtr.HandleFunc("/login", a.RefreshSession).Methods("GET")
@@ -251,30 +252,14 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 // status: 409 STATUS_USR_ALREADY_EXISTS
 // status: 500 STATUS_ERR_GENERATING_TOKEN
 func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
-
 	sessionToken := req.Header.Get(TP_SESSION_TOKEN)
-
 	if tokenData, err := a.authenticateSessionToken(req.Context(), sessionToken); err != nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
-
 	} else if custodianUserID := vars["userid"]; !tokenData.IsServer && custodianUserID != tokenData.UserId {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, "Token user id must match custodian user id or server")
-
-	} else if newCustodialUserDetails, err := ParseNewCustodialUserDetails(req.Body); err != nil {
-		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, err)
-
-	} else if newCustodialUser, err := NewCustodialUser(newCustodialUserDetails, a.ApiConfig.Salt); err != nil {
-		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, err)
-
-	} else if existingCustodialUser, err := a.Store.WithContext(req.Context()).FindUsers(newCustodialUser); err != nil {
-		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
-
-	} else if len(existingCustodialUser) != 0 {
-		a.sendError(res, http.StatusConflict, STATUS_USR_ALREADY_EXISTS)
-
-	} else if err := a.Store.WithContext(req.Context()).UpsertUser(newCustodialUser); err != nil {
-		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
-
+	} else if newCustodialUser, err := a.createCustodialUserAccount(res, req); err != nil {
+		// response was already sent
+		return
 	} else {
 		permissions := clients.Permissions{"custodian": clients.Allowed, "view": clients.Allowed, "upload": clients.Allowed}
 		if _, err := a.perms.SetPermissions(custodianUserID, newCustodialUser.Id, permissions); err != nil {
@@ -283,6 +268,46 @@ func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, va
 			a.logMetricForUser(newCustodialUser.Id, "custodialusercreated", sessionToken, map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
 			a.sendUserWithStatus(res, newCustodialUser, http.StatusCreated, tokenData.IsServer)
 		}
+	}
+}
+
+// CreateCustodialUser creates a new custodial user where the custodian is a clinic
+// status: 201 User
+// status: 400 STATUS_MISSING_USR_DETAILS
+// status: 401 STATUS_UNAUTHORIZED
+// status: 409 STATUS_USR_ALREADY_EXISTS
+// status: 500 STATUS_ERR_GENERATING_TOKEN
+func (a *Api) CreateClinicCustodialUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
+	sessionToken := req.Header.Get(TP_SESSION_TOKEN)
+	if tokenData, err := a.authenticateSessionToken(req.Context(), sessionToken); err != nil {
+		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
+	} else if !tokenData.IsServer {
+		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, "Token user id must match custodian user id or server")
+	} else if newCustodialUser, err := a.createCustodialUserAccount(res, req); err != nil {
+		return
+	} else {
+		a.sendUserWithStatus(res, newCustodialUser, http.StatusCreated, tokenData.IsServer)
+	}
+}
+
+func (a *Api) createCustodialUserAccount(res http.ResponseWriter, req *http.Request) (*User, error){
+	if newCustodialUserDetails, err := ParseNewCustodialUserDetails(req.Body); err != nil {
+		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, err)
+		return nil, err
+	} else if newCustodialUser, err := NewCustodialUser(newCustodialUserDetails, a.ApiConfig.Salt); err != nil {
+		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, err)
+		return nil, err
+	} else if existingCustodialUser, err := a.Store.WithContext(req.Context()).FindUsers(newCustodialUser); err != nil {
+		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
+		return nil, err
+	} else if len(existingCustodialUser) != 0 {
+		a.sendError(res, http.StatusConflict, STATUS_USR_ALREADY_EXISTS)
+		return nil, errors.New(STATUS_USR_ALREADY_EXISTS)
+	} else if err := a.Store.WithContext(req.Context()).UpsertUser(newCustodialUser); err != nil {
+		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
+		return nil, err
+	} else {
+		return newCustodialUser, nil
 	}
 }
 
