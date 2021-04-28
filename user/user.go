@@ -19,9 +19,9 @@ type User struct {
 	PwHash         string                 `json:"-" bson:"pwhash,omitempty"`
 	Hash           string                 `json:"-" bson:"userhash,omitempty"`
 	Private        map[string]*IdHashPair `json:"-" bson:"private"`
-	CreatedTime    string                 `json:"createdTime,omitempty" bson:"createdTime,omitempty"`
+	CreatedTime    time.Time              `json:"createdTime,omitempty" bson:"createdTime,omitempty"`
 	CreatedUserID  string                 `json:"createdUserId,omitempty" bson:"createdUserId,omitempty"`
-	ModifiedTime   string                 `json:"modifiedTime,omitempty" bson:"modifiedTime,omitempty"`
+	ModifiedTime   time.Time              `json:"modifiedTime,omitempty" bson:"modifiedTime,omitempty"`
 	ModifiedUserID string                 `json:"modifiedUserId,omitempty" bson:"modifiedUserId,omitempty"`
 	DeletedTime    string                 `json:"deletedTime,omitempty" bson:"deletedTime,omitempty"`
 	DeletedUserID  string                 `json:"deletedUserId,omitempty" bson:"deletedUserId,omitempty"`
@@ -247,7 +247,8 @@ func NewUser(details *NewUserDetails, salt string) (user *User, err error) {
 		return nil, err
 	}
 
-	user = &User{Username: *details.Username, Emails: details.Emails, Roles: details.Roles}
+	now := time.Now()
+	user = &User{Username: *details.Username, Emails: details.Emails, Roles: details.Roles, CreatedTime: now, ModifiedTime: now}
 
 	if user.Id, err = generateUniqueHash([]string{*details.Username, *details.Password}, 10); err != nil {
 		return nil, errors.New("User: error generating id")
@@ -330,7 +331,8 @@ func NewCustodialUser(details *NewCustodialUserDetails, salt string) (user *User
 		username = *details.Username
 	}
 
-	user = &User{Username: username, Emails: details.Emails}
+	now := time.Now()
+	user = &User{Username: username, Emails: details.Emails, CreatedTime: now, ModifiedTime: now}
 
 	if user.Id, err = generateUniqueHash([]string{username}, 10); err != nil {
 		return nil, errors.New("User: error generating id")

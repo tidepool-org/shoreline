@@ -17,6 +17,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/tidepool-org/go-common/clients"
@@ -620,6 +621,11 @@ func Test_CreateUser_Success(t *testing.T) {
 	response := performRequestBody(t, "POST", "/user", body)
 	successResponse := expectSuccessResponseWithJSONMap(t, response, 201)
 	expectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
+
+	now := "^" + time.Now().Format("2006-01-02T15:04")
+	expectElementMatch(t, successResponse, "createdTime", now, true)
+	expectElementMatch(t, successResponse, "modifiedTime", now, true)
+
 	expectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": false, "emails": []interface{}{"a@z.co"}, "username": "a@z.co", "roles": []interface{}{"clinic"}})
 	if response.Header().Get(TP_SESSION_TOKEN) == "" {
 		t.Fatalf("Missing expected %s header", TP_SESSION_TOKEN)
@@ -750,6 +756,11 @@ func Test_CreateCustodialUser_Success_Anonymous(t *testing.T) {
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := performRequestBodyHeaders(t, "POST", "/user/abcdef1234/user", body, headers)
 	successResponse := expectSuccessResponseWithJSONMap(t, response, 201)
+
+	now := "^" + time.Now().Format("2006-01-02T15:04")
+	expectElementMatch(t, successResponse, "createdTime", now, true)
+	expectElementMatch(t, successResponse, "modifiedTime", now, true)
+
 	expectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
 	expectEqualsMap(t, successResponse, map[string]interface{}{})
 }
@@ -768,6 +779,11 @@ func Test_CreateCustodialUser_Success_Anonymous_Server(t *testing.T) {
 	response := performRequestBodyHeaders(t, "POST", "/user/0000000000/user", body, headers)
 	successResponse := expectSuccessResponseWithJSONMap(t, response, 201)
 	expectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
+
+	now := "^" + time.Now().Format("2006-01-02T15:04")
+	expectElementMatch(t, successResponse, "createdTime", now, true)
+	expectElementMatch(t, successResponse, "modifiedTime", now, true)
+
 	expectEqualsMap(t, successResponse, map[string]interface{}{"passwordExists": false})
 }
 
@@ -785,6 +801,11 @@ func Test_CreateCustodialUser_Success_Known(t *testing.T) {
 	response := performRequestBodyHeaders(t, "POST", "/user/abcdef1234/user", body, headers)
 	successResponse := expectSuccessResponseWithJSONMap(t, response, 201)
 	expectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
+
+	now := "^" + time.Now().Format("2006-01-02T15:04")
+	expectElementMatch(t, successResponse, "createdTime", now, true)
+	expectElementMatch(t, successResponse, "modifiedTime", now, true)
+
 	expectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": false, "emails": []interface{}{"a@z.co"}, "username": "a@z.co"})
 }
 
@@ -1054,6 +1075,10 @@ func Test_UpdateUser_Success_Custodian(t *testing.T) {
 	response := performRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
 	successResponse := expectSuccessResponseWithJSONMap(t, response, 200)
 	expectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
+
+	now := "^" + time.Now().Format("2006-01-02T15:04")
+	expectElementMatch(t, successResponse, "modifiedTime", now, true)
+
 	expectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": false, "emails": []interface{}{"a@z.co"}, "username": "a@z.co"})
 }
 
@@ -1075,6 +1100,10 @@ func Test_UpdateUser_Success_UserFromUrl(t *testing.T) {
 	response := performRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
 	successResponse := expectSuccessResponseWithJSONMap(t, response, 200)
 	expectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
+
+	now := "^" + time.Now().Format("2006-01-02T15:04")
+	expectElementMatch(t, successResponse, "modifiedTime", now, true)
+
 	expectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": false, "emails": []interface{}{"a@z.co"}, "username": "a@z.co", "termsAccepted": "2016-01-01T01:23:45-08:00"})
 }
 
@@ -1095,6 +1124,10 @@ func Test_UpdateUser_Success_UserFromToken(t *testing.T) {
 	response := performRequestBodyHeaders(t, "PUT", "/user", body, headers)
 	successResponse := expectSuccessResponseWithJSONMap(t, response, 200)
 	expectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
+
+	now := "^" + time.Now().Format("2006-01-02T15:04")
+	expectElementMatch(t, successResponse, "modifiedTime", now, true)
+
 	expectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": false, "emails": []interface{}{"a@z.co"}, "username": "a@z.co", "termsAccepted": "2016-01-01T01:23:45-08:00"})
 }
 
@@ -1113,6 +1146,10 @@ func Test_UpdateUser_Success_Server_WithoutPassword(t *testing.T) {
 	response := performRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
 	successResponse := expectSuccessResponseWithJSONMap(t, response, 200)
 	expectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
+
+	now := "^" + time.Now().Format("2006-01-02T15:04")
+	expectElementMatch(t, successResponse, "modifiedTime", now, true)
+
 	expectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": true, "emails": []interface{}{"a@z.co"}, "username": "a@z.co", "roles": []interface{}{"clinic"}, "termsAccepted": "2016-01-01T01:23:45-08:00", "passwordExists": false})
 }
 
@@ -1133,6 +1170,10 @@ func Test_UpdateUser_Success_Server_WithPassword(t *testing.T) {
 	response := performRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
 	successResponse := expectSuccessResponseWithJSONMap(t, response, 200)
 	expectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
+
+	now := "^" + time.Now().Format("2006-01-02T15:04")
+	expectElementMatch(t, successResponse, "modifiedTime", now, true)
+
 	expectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": true, "emails": []interface{}{"a@z.co"}, "username": "a@z.co", "roles": []interface{}{"clinic"}, "termsAccepted": "2016-01-01T01:23:45-08:00", "passwordExists": true})
 }
 

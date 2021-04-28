@@ -137,6 +137,12 @@ func (a *Api) asSerializableUser(user *User, isServerRequest bool) interface{} {
 	if len(user.Username) > 0 || len(user.Emails) > 0 {
 		serializable["emailVerified"] = user.EmailVerified
 	}
+	if !user.CreatedTime.IsZero() {
+		serializable["createdTime"] = user.CreatedTime
+	}
+	if !user.ModifiedTime.IsZero() {
+		serializable["modifiedTime"] = user.ModifiedTime
+	}
 	if isServerRequest {
 		serializable["passwordExists"] = (user.PwHash != "")
 	}
