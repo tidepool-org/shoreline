@@ -89,6 +89,7 @@ const (
 	STATUS_NO_QUERY              = "A query must be specified"
 	STATUS_PARAMETER_UNKNOWN     = "Unknown query parameter"
 	STATUS_ONE_QUERY_PARAM       = "Only one query parameter is allowed"
+	STATUS_INVALID_QUERY_PARAM   = "Invalid query parameter: "
 	STATUS_INVALID_ROLE          = "The role specified is invalid"
 )
 
@@ -177,13 +178,28 @@ func (a *Api) GetUsers(res http.ResponseWriter, req *http.Request) {
 	} else if userIds := strings.Split(req.URL.Query().Get("id"), ","); len(userIds[0]) > 0 && role != "" {
 		a.sendError(res, http.StatusBadRequest, STATUS_ONE_QUERY_PARAM)
 
+	} else if createdFrom := req.URL.Query().Get("createdFrom"); createdFrom != "" && !IsValidDate(createdFrom) {
+		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_QUERY_PARAM+"createdFrom")
+
+	} else if createdTo := req.URL.Query().Get("createdTo"); createdTo != "" && !IsValidDate(createdTo) {
+		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_QUERY_PARAM+"createdTo")
+
 	} else {
 		var users []*User
 		switch {
 		case role != "":
-			if users, err = a.Store.WithContext(req.Context()).FindUsersByRole(role); err != nil {
-				a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err.Error())
+
+			switch {
+			case createdFrom != "" || createdTo != "":
+				if users, err = a.Store.WithContext(req.Context()).FindUsersByRoleAndDate(role, createdFrom, createdTo); err != nil {
+					a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err.Error())
+				}
+			default:
+				if users, err = a.Store.WithContext(req.Context()).FindUsersByRole(role); err != nil {
+					a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err.Error())
+				}
 			}
+
 		case len(userIds[0]) > 0:
 			if users, err = a.Store.WithContext(req.Context()).FindUsersWithIds(userIds); err != nil {
 				a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err.Error())
