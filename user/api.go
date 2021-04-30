@@ -178,10 +178,10 @@ func (a *Api) GetUsers(res http.ResponseWriter, req *http.Request) {
 	} else if userIds := strings.Split(req.URL.Query().Get("id"), ","); len(userIds[0]) > 0 && role != "" {
 		a.sendError(res, http.StatusBadRequest, STATUS_ONE_QUERY_PARAM)
 
-	} else if createdFrom := req.URL.Query().Get("createdFrom"); createdFrom != "" && !IsValidDate(createdFrom) {
+	} else if createdFrom, dateErr := ParseAndValidateDateParam(req.URL.Query().Get("createdFrom")); dateErr != nil {
 		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_QUERY_PARAM+"createdFrom")
 
-	} else if createdTo := req.URL.Query().Get("createdTo"); createdTo != "" && !IsValidDate(createdTo) {
+	} else if createdTo, dateErr := ParseAndValidateDateParam(req.URL.Query().Get("createdTo")); dateErr != nil {
 		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_QUERY_PARAM+"createdTo")
 
 	} else {
@@ -190,7 +190,7 @@ func (a *Api) GetUsers(res http.ResponseWriter, req *http.Request) {
 		case role != "":
 
 			switch {
-			case createdFrom != "" || createdTo != "":
+			case !createdFrom.IsZero() || !createdTo.IsZero():
 				if users, err = a.Store.WithContext(req.Context()).FindUsersByRoleAndDate(role, createdFrom, createdTo); err != nil {
 					a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err.Error())
 				}

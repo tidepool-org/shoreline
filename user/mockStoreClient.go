@@ -3,6 +3,7 @@ package user
 import (
 	"context"
 	"errors"
+	"time"
 )
 
 type MockStoreClient struct {
@@ -72,7 +73,7 @@ func (d MockStoreClient) FindUsersByRole(role string) (found []*User, err error)
 	return nil, nil
 }
 
-func (d MockStoreClient) FindUsersByRoleAndDate(role string, from string, to string) (found []*User, err error) {
+func (d MockStoreClient) FindUsersByRoleAndDate(role string, createdFrom time.Time, createdTo time.Time) (found []*User, err error) {
 	if d.doBad {
 		return found, errors.New("FindUsersByRoleAndDate failure")
 	}

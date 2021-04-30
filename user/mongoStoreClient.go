@@ -221,28 +221,21 @@ func (msc *MongoStoreClient) FindUsersByRole(role string) (results []*User, err 
 	return results, nil
 }
 
-func (msc *MongoStoreClient) FindUsersByRoleAndDate(role string, createdFrom string, createdTo string) (results []*User, err error) {
+func (msc *MongoStoreClient) FindUsersByRoleAndDate(role string, createdFrom time.Time, createdTo time.Time) (results []*User, err error) {
 	opts := options.Find().SetCollation(usersCollation)
 
 	query := []bson.D{
 		bson.D{{Key: "roles", Value: role}},
 	}
 
-	if createdFrom != "" {
-		if timeFrom, err := time.Parse("2006-01-02", createdFrom); err != nil {
-			log.Println("Failed to parse time:", timeFrom)
-		} else {
-			fromObjectID := primitive.NewObjectIDFromTimestamp(timeFrom)
-			query = append(query, bson.D{{Key: "_id", Value: bson.M{"$gte": fromObjectID}}})
-		}
+	if !createdFrom.IsZero() {
+		fromObjectID := primitive.NewObjectIDFromTimestamp(createdFrom)
+		query = append(query, bson.D{{Key: "_id", Value: bson.M{"$gte": fromObjectID}}})
 	}
-	if createdTo != "" {
-		if timeTo, err := time.Parse("2006-01-02", createdTo); err != nil {
-			log.Println("Failed to parse time:", timeTo)
-		} else {
-			toObjectID := primitive.NewObjectIDFromTimestamp(timeTo)
-			query = append(query, bson.D{{Key: "_id", Value: bson.M{"$lte": toObjectID}}})
-		}
+
+	if !createdTo.IsZero() {
+		toObjectID := primitive.NewObjectIDFromTimestamp(createdTo)
+		query = append(query, bson.D{{Key: "_id", Value: bson.M{"$lte": toObjectID}}})
 	}
 
 	cursor, err := usersCollection(msc).Find(msc.context, bson.M{"$and": query}, opts)

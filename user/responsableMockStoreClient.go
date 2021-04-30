@@ -1,6 +1,9 @@
 package user
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 type FindUsersResponse struct {
 	Users []*User
@@ -121,7 +124,7 @@ func (r *ResponsableMockStoreClient) FindUsersByRole(role string) (found []*User
 	panic("FindUsersByRoleResponses unavailable")
 }
 
-func (r *ResponsableMockStoreClient) FindUsersByRoleAndDate(role string, from string, to string) (found []*User, err error) {
+func (r *ResponsableMockStoreClient) FindUsersByRoleAndDate(role string, createdFrom time.Time, createdTo time.Time) (found []*User, err error) {
 	if len(r.FindUsersByRoleAndDateResponses) > 0 {
 		var response FindUsersByRoleAndDateResponse
 		response, r.FindUsersByRoleAndDateResponses = r.FindUsersByRoleAndDateResponses[0], r.FindUsersByRoleAndDateResponses[1:]
