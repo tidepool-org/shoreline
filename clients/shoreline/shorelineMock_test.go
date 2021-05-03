@@ -48,8 +48,8 @@ func TestMock(t *testing.T) {
 	}
 
 	if usr, _ := client.GetUser("a.Clinic@howdy.org", tokenMock); usr != nil {
-		if !contains(usr.Roles, "clinic") {
-			t.Error("Should give us a clinic account")
+		if !contains(usr.Roles, "hcp") {
+			t.Error("Should give us an hcp account")
 		}
 	}
 

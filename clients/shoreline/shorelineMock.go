@@ -56,11 +56,13 @@ func (client *ShorelineMockClient) GetUser(userID, token string) (*schema.UserDa
 	if userID == "NotFound" {
 		return nil, nil
 	} else if userID == "WithoutPassword" {
-		return &schema.UserData{UserID: userID, Username: "From Mock", Emails: []string{userID}, PasswordExists: false}, nil
-	} else if strings.Contains(strings.ToLower(userID), "clinic") {
-		return &schema.UserData{UserID: userID, Username: "From Mock", Emails: []string{userID}, PasswordExists: false, Roles: []string{"clinic"}}, nil
+		return &schema.UserData{UserID: userID, Username: "From Mock", Emails: []string{userID}, PasswordExists: false, Roles: []string{"patient"}}, nil
+	} else if strings.Contains(strings.ToLower(userID), "clinic") || strings.Contains(strings.ToLower(userID), "hcp") {
+		return &schema.UserData{UserID: userID, Username: "From Mock", Emails: []string{userID}, PasswordExists: false, Roles: []string{"hcp"}}, nil
+	} else if strings.Contains(strings.ToLower(userID), "caregiver") {
+		return &schema.UserData{UserID: userID, Username: "From Mock", Emails: []string{userID}, PasswordExists: false, Roles: []string{"caregiver"}}, nil
 	} else {
-		return &schema.UserData{UserID: userID, Username: "From Mock", Emails: []string{userID}, PasswordExists: true}, nil
+		return &schema.UserData{UserID: userID, Username: "From Mock", Emails: []string{userID}, PasswordExists: true, Roles: []string{"patient"}}, nil
 	}
 }
 
