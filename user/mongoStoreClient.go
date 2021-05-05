@@ -222,7 +222,7 @@ func (msc *MongoStoreClient) FindUsersByRole(role string) (results []*User, err 
 }
 
 func (msc *MongoStoreClient) FindUsersByRoleAndDate(role string, createdFrom time.Time, createdTo time.Time) (results []*User, err error) {
-	opts := options.Find().SetCollation(usersCollation)
+	opts := options.Find().SetCollation(usersCollation).SetSort(bson.D{{Key: "_id", Value: -1}})
 
 	query := []bson.D{
 		bson.D{{Key: "roles", Value: role}},
