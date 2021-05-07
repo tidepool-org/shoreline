@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	api "github.com/tidepool-org/clinic/client"
 	"log"
 	"net/http"
 	"reflect"
@@ -37,6 +38,7 @@ type (
 	Api struct {
 		Store              Storage
 		ApiConfig          ApiConfig
+		clinic             api.ClientWithResponsesInterface
 		perms              clients.Gatekeeper
 		seagull            clients.Seagull
 		logger             *log.Logger
@@ -778,6 +780,15 @@ func (a *Api) tokenUserHasRequestedPermissions(tokenData *TokenData, groupId str
 	}
 }
 
+func (a *Api) removeCustodianPermissionsForUser(userId string) error {
+	if err := a.removeClinicCustodianPermissions(userId); err != nil {
+		return err
+	}
+	if err := a.removeUserPermissions(userId, clients.Permissions{"custodian": clients.Allowed}); err != nil {
+		return err
+	}
+}
+
 func (a *Api) removeUserPermissions(groupId string, removePermissions clients.Permissions) error {
 	originalUserPermissions, err := a.perms.UsersInGroup(groupId)
 	if err != nil {
@@ -793,6 +804,38 @@ func (a *Api) removeUserPermissions(groupId string, removePermissions clients.Pe
 		if len(finalPermissions) != len(originalPermissions) {
 			if _, err := a.perms.SetPermissions(userID, groupId, finalPermissions); err != nil {
 				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (a *Api) removeClinicCustodianPermissions(userId string) error {
+	ctx := context.Background()
+	id := api.UserId(userId)
+	limit := api.Limit(1000)
+	params := &api.ListClinicsForPatientParams{
+		Limit: &limit,
+	}
+
+	perms, err := a.clinic.ListClinicsForPatientWithResponse(ctx, id, params)
+	if err != nil {
+		return err
+	}
+	if perms.StatusCode() != http.StatusOK {
+		return fmt.Errorf("unexpected status code from clinic service: %v", perms.StatusCode())
+	}
+
+	for _, relationship := range *perms.JSON200 {
+		if relationship.Patient.Permissions.Custodian != nil {
+			clinicId := api.ClinicId(relationship.Clinic.Id)
+			patientId := api.PatientId(userId)
+			resp, err := a.clinic.DeletePatientPermissionWithResponse(ctx, clinicId, patientId, "custodian")
+			if err != nil {
+				return err
+			}
+			if resp.StatusCode() != http.StatusNoContent && resp.StatusCode() != http.StatusNotFound {
+				return fmt.Errorf("unexpected status code from clinic service when removing permission: %v", resp.StatusCode())
 			}
 		}
 	}
