@@ -814,7 +814,7 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 // @Failure 401 {string} string ""
 // @Router /login [get]
 func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
-
+	a.logger.Printf("refresh session with trace token %v", req.Header.Get(TP_TRACE_SESSION))
 	td, err := a.authenticateSessionToken(req.Context(), req.Header.Get(TP_SESSION_TOKEN))
 
 	if err != nil {
@@ -823,18 +823,35 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	//refresh
+	// retrieve User in Db for having last information (role)
+	user, errUser := a.Store.FindUser(req.Context(), &User{Id: td.UserId});
+	if errUser != nil {
+		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err)
+
+	} else if user == nil {
+		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, "User not found")
+	}
+
+	// Set Role
+	var role string
+	if user.Roles != nil && len(user.Roles) > 0 {
+		role = user.Roles[0]
+	}
+
+	//refresh token with update user information
+	newTokenData := token.TokenData{DurationSecs: extractTokenDuration(req), UserId: user.Id, IsServer: false, Role: role}
+	tokenConfig := token.TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: a.ApiConfig.Secret}
 	if sessionToken, err := CreateSessionTokenAndSave(
 		req.Context(),
-		td,
-		token.TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: a.ApiConfig.Secret},
+		&newTokenData,
+		tokenConfig,
 		a.Store,
 	); err != nil {
 		a.logger.Println(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN, err.Error())
 		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN), http.StatusInternalServerError)
 		return
 	} else {
-		a.logAudit(req, td, "RefreshSession")
+		a.logAudit(req, td, "Refresh session token with last user information")
 		res.Header().Set(TP_SESSION_TOKEN, sessionToken.ID)
 		sendModelAsRes(res, td)
 		return

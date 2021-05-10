@@ -2,9 +2,10 @@
 
 Shoreline is the module that manages logins and user accounts.
 
-## 1.5.1 - 2021-05-03
+## 1.5.2 - 2021-05-03
 ### Fixed
 - Correct client mock so it returns the correct role
+- YLP-702: tokens do not contain relevant role
 
 ## 1.5.0 - 2021-04-13
 ### Changed
