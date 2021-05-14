@@ -2,6 +2,10 @@
 
 Shoreline is the module that manages logins and user accounts.
 
+## 1.6.1 - 2021-05-14
+### Changed
+- YLP-: Remove mailchimp and marketo integration
+
 ## 1.6.0 - 2021-05-12
 ### Changed
 - YLP-713 Update password: hcp/caregivers must give current password

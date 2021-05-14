@@ -17,8 +17,6 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/mdblp/shoreline/token"
-	"github.com/mdblp/shoreline/user/mailchimp"
-	"github.com/mdblp/shoreline/user/marketo"
 	"github.com/tidepool-org/go-common/clients/status"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -27,10 +25,6 @@ import (
 )
 
 var (
-	failedMarketoUploadCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "failedMarketoUploadCounter",
-		Help: "The total number of failures to connect to marketo due to errors",
-	})
 	statusNoUsrDetailsCounter = promauto.NewCounter(prometheus.CounterOpts{
 		Name: "statusNoUsrDetailsCounter",
 		Help: "The total number of STATUS_NO_USR_DETAILS errors",
@@ -147,9 +141,7 @@ type (
 		ApiConfig        ApiConfig
 		logger           *log.Logger
 		auditLogger      *log.Logger
-		mailchimpManager mailchimp.Manager
 		loginLimiter     LoginLimiter
-		marketoManager   marketo.Manager
 	}
 	Secret struct {
 		Secret string `json:"secret"`
@@ -180,9 +172,6 @@ type (
 		BlockParallelLogin bool `json:"blockParallelLogin"`
 		//allows for the skipping of verification for testing
 		VerificationSecret string           `json:"verificationSecret"`
-		Mailchimp          mailchimp.Config `json:"mailchimp"`
-		// to create type/file
-		Marketo marketo.Config `json:"marketo"`
 	}
 	// LoginLimiter var needed to limit the max login attempt on an account
 	LoginLimiter struct {
@@ -235,13 +224,7 @@ const (
 	STATUS_NO_EXPECTED_PWD       = "No expected password is found"
 )
 
-func InitApi(cfg ApiConfig, logger *log.Logger, store Storage, auditLogger *log.Logger, manager marketo.Manager) *Api {
-
-	mailchimpManager, err := mailchimp.NewManager(logger, &http.Client{Timeout: 15 * time.Second}, &cfg.Mailchimp)
-	if err != nil {
-		logger.Println("WARNING: Mailchimp Manager not configured;", err)
-	}
-
+func InitApi(cfg ApiConfig, logger *log.Logger, store Storage, auditLogger *log.Logger) *Api {
 	// Server secrets retrieved from configuration are transformed into a hashtable for ease of access
 	// They are stored in a public property called ServerSecrets
 	cfg.ServerSecrets = make(map[string]string)
@@ -254,8 +237,6 @@ func InitApi(cfg ApiConfig, logger *log.Logger, store Storage, auditLogger *log.
 		ApiConfig:        cfg,
 		logger:           logger,
 		auditLogger:      auditLogger,
-		mailchimpManager: mailchimpManager,
-		marketoManager:   manager,
 	}
 
 	api.loginLimiter.usersInProgress = list.New()
@@ -540,24 +521,6 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 		if err := a.Store.UpsertUser(req.Context(), updatedUser); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_USR, err)
 		} else {
-			if updatedUser.EmailVerified && updatedUser.TermsAccepted != "" {
-				if a.mailchimpManager != nil {
-					if updateUserDetails.EmailVerified != nil || updateUserDetails.TermsAccepted != nil {
-						a.mailchimpManager.CreateListMembershipForUser(updatedUser)
-					} else {
-						a.mailchimpManager.UpdateListMembershipForUser(originalUser, updatedUser)
-					}
-				}
-				if a.marketoManager != nil && a.marketoManager.IsAvailable() {
-					if updateUserDetails.EmailVerified != nil || updateUserDetails.TermsAccepted != nil {
-						a.marketoManager.CreateListMembershipForUser(updatedUser)
-					} else {
-						a.marketoManager.UpdateListMembershipForUser(originalUser, updatedUser)
-					}
-				} else if a.marketoManager != nil {
-					failedMarketoUploadCounter.Inc()
-				}
-			}
 			a.logAudit(req, tokenData, "UpdateUser isClinic{%t}", updatedUser.IsClinic())
 			a.sendUser(res, updatedUser, tokenData.IsServer)
 		}

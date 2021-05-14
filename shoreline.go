@@ -18,34 +18,23 @@
 package main
 
 import (
-	"encoding/json"
 	"log"
 	"math/rand"
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 	"time"
 
 	"github.com/gorilla/mux"
 
 	"github.com/mdblp/shoreline/user"
-	"github.com/mdblp/shoreline/user/marketo"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
+
 	common "github.com/tidepool-org/go-common"
 	"github.com/tidepool-org/go-common/clients"
 	"github.com/tidepool-org/go-common/clients/disc"
 	"github.com/tidepool-org/go-common/clients/hakken"
 	"github.com/tidepool-org/go-common/clients/mongo"
-)
-
-var (
-	failedMarketoKeyConfigurationCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "failedMarketoKeyConfigurationCounter",
-		Help: "The total number of failures to connect to marketo due to key configuration issues. Can not be resolved via retry",
-	})
 )
 
 type (
@@ -97,11 +86,6 @@ func main() {
 		config.User.TokenSecrets["default"] = userSecret
 	}
 
-	mailchimpAPIKey, found := os.LookupEnv("MAILCHIMP_APIKEY")
-	if found {
-		config.User.Mailchimp.APIKey = mailchimpAPIKey
-	}
-
 	longTermKey, found := os.LookupEnv("LONG_TERM_KEY")
 	if found {
 		config.User.LongTermKey = longTermKey
@@ -110,45 +94,6 @@ func main() {
 	verificationSecret, found := os.LookupEnv("VERIFICATION_SECRET")
 	if found {
 		config.User.VerificationSecret = verificationSecret
-	}
-
-	clinicLists, found := os.LookupEnv("CLINIC_LISTS")
-	if found {
-		if err := json.Unmarshal([]byte(clinicLists), &config.User.Mailchimp.ClinicLists); err != nil {
-			log.Panic("Problem loading clinic lists", err)
-		}
-	}
-
-	personalLists, found := os.LookupEnv("PERSONAL_LISTS")
-	if found {
-		if err := json.Unmarshal([]byte(personalLists), &config.User.Mailchimp.PersonalLists); err != nil {
-			log.Panic("Problem loading personal lists", err)
-		}
-	}
-
-	config.User.Marketo.ID, _ = os.LookupEnv("MARKETO_ID")
-
-	config.User.Marketo.URL, _ = os.LookupEnv("MARKETO_URL")
-
-	config.User.Marketo.Secret, _ = os.LookupEnv("MARKETO_SECRET")
-
-	config.User.Marketo.ClinicRole, _ = os.LookupEnv("MARKETO_CLINIC_ROLE")
-
-	config.User.Marketo.PatientRole, _ = os.LookupEnv("MARKETO_PATIENT_ROLE")
-
-	unParsedTimeout, found := os.LookupEnv("MARKETO_TIMEOUT")
-	if found {
-		parsedTimeout64, err := strconv.ParseInt(unParsedTimeout, 10, 32)
-		parsedTimeout := uint(parsedTimeout64)
-		if err != nil {
-			logger.Println(err)
-		}
-		config.User.Marketo.Timeout = parsedTimeout
-	}
-
-	mailChimpURL, found := os.LookupEnv("MAILCHIMP_URL")
-	if found {
-		config.User.Mailchimp.URL = mailChimpURL
 	}
 
 	salt, found := os.LookupEnv("SALT")
@@ -179,19 +124,6 @@ func main() {
 	/*
 	 * User-Api setup
 	 */
-
-	var marketoManager marketo.Manager
-	if err := config.User.Marketo.Validate(); err != nil {
-		logger.Println("WARNING: Marketo config is invalid", err)
-		failedMarketoKeyConfigurationCounter.Inc()
-	} else {
-		logger.Print("initializing marketo manager")
-		marketoManager, err = marketo.NewManager(logger, config.User.Marketo)
-		if err != nil {
-			logger.Println("WARNING: Marketo Manager not configured;", err)
-		}
-	}
-
 	storage, err := user.NewStore(&config.Mongo, logger)
 	if err != nil {
 		logger.Fatal(err)
@@ -199,7 +131,7 @@ func main() {
 	defer storage.Close()
 	storage.Start()
 
-	userapi := user.InitApi(config.User, logger, storage, auditLogger, marketoManager)
+	userapi := user.InitApi(config.User, logger, storage, auditLogger)
 	logger.Print("installing handlers")
 	userapi.SetHandlers("", rtr)
 

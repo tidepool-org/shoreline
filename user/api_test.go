@@ -23,8 +23,6 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/mdblp/shoreline/token"
 	"github.com/tidepool-org/go-common/clients/version"
-
-	"github.com/mdblp/shoreline/user/marketo"
 )
 
 const (
@@ -32,7 +30,7 @@ const (
 	MAKE_IT_FAIL = true
 )
 
-func InitAPITest(cfg ApiConfig, logger *log.Logger, store Storage, marketoManager marketo.Manager) *Api {
+func InitAPITest(cfg ApiConfig, logger *log.Logger, store Storage) *Api {
 	cfg.ServerSecrets = make(map[string]string)
 	for _, sec := range cfg.Secrets {
 		cfg.ServerSecrets[sec.Secret] = sec.Pass
@@ -42,7 +40,6 @@ func InitAPITest(cfg ApiConfig, logger *log.Logger, store Storage, marketoManage
 		ApiConfig:      cfg,
 		logger:         logger,
 		auditLogger:    logger,
-		marketoManager: marketoManager,
 	}
 	api.loginLimiter.usersInProgress = list.New()
 	return &api
@@ -64,14 +61,6 @@ var (
 		DelayBeforeNextLoginAttempt: 10,
 		MaxConcurrentLogin:          100,
 		VerificationSecret:          "",
-		Marketo: marketo.Config{
-			ID:          "1234",
-			Secret:      "shhh! don't tell *3",
-			URL:         "https:xxx-xxx-xxx.mktorest.com",
-			ClinicRole:  "hcp",
-			PatientRole: "user",
-			Timeout:     10,
-		},
 	}
 	/*
 	 * users and tokens
@@ -89,18 +78,17 @@ var (
 	 */
 	logger             = log.New(os.Stdout, USER_API_PREFIX, log.LstdFlags|log.Lshortfile)
 	mockStore          = NewMockStoreClient(FAKE_CONFIG.Salt, false, false)
-	mockMarketoManager = NewTestManager()
-	shoreline          = InitAPITest(FAKE_CONFIG, logger, mockStore, mockMarketoManager)
+	shoreline          = InitAPITest(FAKE_CONFIG, logger, mockStore)
 	/*
 	 *
 	 */
 	mockNoDupsStore = NewMockStoreClient(FAKE_CONFIG.Salt, true, false)
-	shorelineNoDups = InitAPITest(FAKE_CONFIG, logger, mockNoDupsStore, mockMarketoManager)
+	shorelineNoDups = InitAPITest(FAKE_CONFIG, logger, mockNoDupsStore)
 	/*
 	 * failure path
 	 */
 	mockStoreFails = NewMockStoreClient(FAKE_CONFIG.Salt, false, MAKE_IT_FAIL)
-	shorelineFails = InitAPITest(FAKE_CONFIG, logger, mockStoreFails, mockMarketoManager)
+	shorelineFails = InitAPITest(FAKE_CONFIG, logger, mockStoreFails)
 
 	responsableStore     = NewResponsableMockStoreClient()
 	responsableShoreline = InitShoreline(FAKE_CONFIG, responsableStore)
@@ -108,30 +96,12 @@ var (
 
 func InitShoreline(config ApiConfig, store Storage) *Api {
 	config.TokenSecrets["zendesk"] = "zendeskSecret"
-	api := InitAPITest(config, logger, store, mockMarketoManager)
+	api := InitAPITest(config, logger, store)
 	return api
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// creating a mock Marketo Manager
-type MockManager struct {
-}
 
-func (U *MockManager) CreateListMembershipForUser(newUser marketo.User) {
-
-}
-func (U *MockManager) UpdateListMembershipForUser(oldUser marketo.User, newUser marketo.User) {
-
-}
-func (U *MockManager) IsAvailable() bool {
-	return false
-}
-func (U *MockManager) WaitGroup() *sync.WaitGroup {
-	return nil
-}
-func NewTestManager() marketo.Manager {
-	return &MockManager{}
-}
 
 func T_CreateAuthorization(t *testing.T, email string, password string) string {
 	return fmt.Sprintf("Basic %s", base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", email, password))))
