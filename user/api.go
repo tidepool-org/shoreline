@@ -322,7 +322,6 @@ func (a *Api) GetStatus(res http.ResponseWriter, req *http.Request) {
 		res.WriteHeader(s.Status.Code)
 		res.Write(jsonDetails)
 	}
-	return
 }
 
 // @Summary Get users
@@ -427,7 +426,8 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 // @Param user body user.UpdateUserDetails true "user update details"
 // @Security TidepoolAuth
 // @Success 200 {object} user.UpdateUserDetails
-// @Failure 500 {object} status.Status "message returned:\"Error updating user\" or \"Error finding user\" "
+// @Failure 304 {object} status.Status "message returned:\"Error updating user\" or \"Error finding user\" "
+// @Failure 500 {object} status.Status "message returned:\"Invalid user details were given\""
 // @Failure 409 {object} status.Status "message returned:\"User already exists\" "
 // @Failure 401 {object} status.Status "message returned:\"Not authorized for requested operation\" "
 // @Failure 400 {object} status.Status "message returned:\"Invalid user details were given\" "
@@ -444,6 +444,9 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 	} else if err := updateUserDetails.Validate(); err != nil {
 		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, err)
 
+	} else if updateUserDetails.nFields < 1 {
+		a.sendError(res, http.StatusNotModified, STATUS_INVALID_USER_DETAILS, "Empty payload")
+
 	} else if originalUser, err := a.Store.FindUser(req.Context(), &User{Id: firstStringNotEmpty(vars["userid"], tokenData.UserId)}); err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err)
 
@@ -455,8 +458,24 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 
 	} else if updateUserDetails.EmailVerified != nil && !tokenData.IsServer {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, "User does not have permissions")
+
 	} else {
-		updatedUser := originalUser.DeepClone()
+
+		// TODO: This all needs to be refactored so it can be more thoroughly tested
+
+		if updateUserDetails.Password != nil && !tokenData.IsServer && (originalUser.HasRole("hcp") || originalUser.HasRole("caregiver")) {
+			// Caregiver & hcp: Must provide their current password to change it
+			// Patient password change is done differently
+			// Server token: Can perform the change
+			if updateUserDetails.CurrentPassword == nil {
+				a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, "Missing current password")
+				return
+			}
+			if !originalUser.PasswordsMatch(*updateUserDetails.CurrentPassword, a.ApiConfig.Salt) {
+				a.sendError(res, http.StatusUnauthorized, STATUS_PW_WRONG, "User does not have permissions", fmt.Errorf("User '%s' passwords do not match", originalUser.Username))
+				return
+			}
+		}
 
 		// Check role
 		if updateUserDetails.Roles != nil {
@@ -473,8 +492,8 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 				return
 			}
 		}
-		// TODO: This all needs to be refactored so it can be more thoroughly tested
 
+		updatedUser := originalUser.DeepClone()
 		if updateUserDetails.Username != nil || updateUserDetails.Emails != nil {
 			dupCheck := &User{}
 			if updateUserDetails.Username != nil {
@@ -824,7 +843,7 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 	}
 
 	// retrieve User in Db for having last information (role)
-	user, errUser := a.Store.FindUser(req.Context(), &User{Id: td.UserId});
+	user, errUser := a.Store.FindUser(req.Context(), &User{Id: td.UserId})
 	if errUser != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err)
 

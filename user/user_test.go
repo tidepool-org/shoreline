@@ -799,7 +799,7 @@ func Test_UpdateUserDetails_ExtractFromJSON_InvalidPassword(t *testing.T) {
 	source := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"b@y.co\"], \"password\": true, \"roles\": [\"hcp\"], \"termsAccepted\": \"2016-01-01T12:00:00-08:00\", \"emailVerified\": true}}"
 	details := &UpdateUserDetails{}
 	err := details.ExtractFromJSON(strings.NewReader(source))
-	if err != User_error_password_invalid {
+	if err != User_error_new_password_invalid {
 		t.Fatalf("Unexpected error for invalid password: %#v", err)
 	}
 	if details.Username != nil || details.Emails != nil || details.Password != nil || details.Roles != nil || details.TermsAccepted != nil || details.EmailVerified != nil {
@@ -927,140 +927,81 @@ func Test_UpdateUserDetails_ExtractFromJSON_ValidEmailVerified(t *testing.T) {
 	}
 }
 
-func Test_UpdateUserDetails_Validate_Username_Missing(t *testing.T) {
-	password := "12345678"
-	termsAccepted := "2016-01-01T12:00:00-08:00"
-	emailVerified := true
-	details := &UpdateUserDetails{Emails: []string{"b@y.co", "c@x.co"}, Password: &password, Roles: []string{"hcp"}, TermsAccepted: &termsAccepted, EmailVerified: &emailVerified}
+func Test_UpdateUserDetails_Validate_No_Payload(t *testing.T) {
+	details := &UpdateUserDetails{}
 	err := details.Validate()
 	if err != nil {
-		t.Fatalf("Unexpected error for username missing: %#v", err)
+		t.Fatalf("Unexpected error for empty payload: %#v", err)
 	}
 }
 
 func Test_UpdateUserDetails_Validate_Username_Invalid(t *testing.T) {
 	username := "a"
-	password := "12345678"
-	termsAccepted := "2016-01-01T12:00:00-08:00"
-	emailVerified := true
-	details := &UpdateUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Password: &password, Roles: []string{"hcp"}, TermsAccepted: &termsAccepted, EmailVerified: &emailVerified}
+	details := &UpdateUserDetails{Username: &username}
 	err := details.Validate()
 	if err != User_error_username_invalid {
 		t.Fatalf("Unexpected error for username invalid: %#v", err)
 	}
 }
 
-func Test_UpdateUserDetails_Validate_Emails_Missing(t *testing.T) {
-	username := "a@z.co"
-	password := "12345678"
-	termsAccepted := "2016-01-01T12:00:00-08:00"
-	emailVerified := true
-	details := &UpdateUserDetails{Username: &username, Password: &password, Roles: []string{"hcp"}, TermsAccepted: &termsAccepted, EmailVerified: &emailVerified}
-	err := details.Validate()
-	if err != nil {
-		t.Fatalf("Unexpected error for emails missing: %#v", err)
-	}
-}
-
 func Test_UpdateUserDetails_Validate_Emails_Invalid(t *testing.T) {
-	username := "a@z.co"
-	password := "12345678"
-	termsAccepted := "2016-01-01T12:00:00-08:00"
-	emailVerified := true
-	details := &UpdateUserDetails{Username: &username, Emails: []string{"b@y.co", "c"}, Password: &password, Roles: []string{"hcp"}, TermsAccepted: &termsAccepted, EmailVerified: &emailVerified}
+	details := &UpdateUserDetails{Emails: []string{"b@y.co", "c"}}
 	err := details.Validate()
 	if err != User_error_emails_invalid {
 		t.Fatalf("Unexpected error for emails invalid: %#v", err)
 	}
 }
 
-func Test_UpdateUserDetails_Validate_Password_Missing(t *testing.T) {
-	username := "a@z.co"
-	termsAccepted := "2016-01-01T12:00:00-08:00"
-	emailVerified := true
-	details := &UpdateUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Roles: []string{"hcp"}, TermsAccepted: &termsAccepted, EmailVerified: &emailVerified}
-	err := details.Validate()
-	if err != nil {
-		t.Fatalf("Unexpected error for password missing: %#v", err)
-	}
-}
-
 func Test_UpdateUserDetails_Validate_Password_Invalid(t *testing.T) {
-	username := "a@z.co"
 	password := "1234567"
-	termsAccepted := "2016-01-01T12:00:00-08:00"
-	emailVerified := true
-	details := &UpdateUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Password: &password, Roles: []string{"hcp"}, TermsAccepted: &termsAccepted, EmailVerified: &emailVerified}
+	details := &UpdateUserDetails{Password: &password}
 	err := details.Validate()
-	if err != User_error_password_invalid {
+	if err != User_error_new_password_invalid {
 		t.Fatalf("Unexpected error for password invalid: %#v", err)
 	}
 }
 
-func Test_UpdateUserDetails_Validate_Roles_Missing(t *testing.T) {
-	username := "a@z.co"
-	password := "12345678"
-	termsAccepted := "2016-01-01T12:00:00-08:00"
-	emailVerified := true
-	details := &UpdateUserDetails{Username: &username, Password: &password, TermsAccepted: &termsAccepted, EmailVerified: &emailVerified}
+func Test_UpdateUserDetails_Validate_Password_Invalid_CurrentPassword(t *testing.T) {
+	currentPassword := "pwd"
+	details := &UpdateUserDetails{CurrentPassword: &currentPassword}
 	err := details.Validate()
-	if err != nil {
-		t.Fatalf("Unexpected error for roles missing: %#v", err)
+	if err != User_error_current_password_invalid {
+		t.Fatalf("Unexpected error for current password missing: %#v", err)
 	}
 }
 
 func Test_UpdateUserDetails_Validate_Roles_Invalid(t *testing.T) {
-	username := "a@z.co"
-	password := "12345678"
-	termsAccepted := "2016-01-01T12:00:00-08:00"
-	emailVerified := true
-	details := &UpdateUserDetails{Username: &username, Emails: []string{"b@y.co", "c"}, Password: &password, Roles: []string{"invalid"}, TermsAccepted: &termsAccepted, EmailVerified: &emailVerified}
+	details := &UpdateUserDetails{Roles: []string{"invalid"}}
 	err := details.Validate()
-	if err != User_error_emails_invalid {
+	if err != User_error_roles_invalid {
 		t.Fatalf("Unexpected error for roles invalid: %#v", err)
 	}
 }
 
-func Test_UpdateUserDetails_Validate_TermsAccepted_Missing(t *testing.T) {
-	username := "a@z.co"
-	password := "12345678"
-	emailVerified := true
-	details := &UpdateUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Password: &password, Roles: []string{"hcp"}, EmailVerified: &emailVerified}
-	err := details.Validate()
-	if err != nil {
-		t.Fatalf("Unexpected error for password missing: %#v", err)
-	}
-}
-
 func Test_UpdateUserDetails_Validate_TermsAccepted_Invalid(t *testing.T) {
-	username := "a@z.co"
-	password := "12345678"
 	termsAccepted := "2016-13-32T24:65:65-24:30"
-	emailVerified := true
-	details := &UpdateUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Password: &password, Roles: []string{"hcp"}, TermsAccepted: &termsAccepted, EmailVerified: &emailVerified}
+	details := &UpdateUserDetails{TermsAccepted: &termsAccepted}
 	err := details.Validate()
 	if err != User_error_terms_accepted_invalid {
 		t.Fatalf("Unexpected error for password invalid: %#v", err)
 	}
 }
 
-func Test_UpdateUserDetails_Validate_EmailVerified_Missing(t *testing.T) {
-	username := "a@z.co"
-	password := "12345678"
-	termsAccepted := "2016-01-01T12:00:00-08:00"
-	details := &UpdateUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Password: &password, Roles: []string{"hcp"}, TermsAccepted: &termsAccepted}
-	err := details.Validate()
-	if err != nil {
-		t.Fatalf("Unexpected error for password missing: %#v", err)
-	}
-}
-
 func Test_UpdateUserDetails_Validate_Valid(t *testing.T) {
 	username := "a@z.co"
 	password := "12345678"
+	currentPassword := "password"
 	termsAccepted := "2016-01-01T12:00:00-08:00"
 	emailVerified := true
-	details := &UpdateUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Password: &password, Roles: []string{"hcp"}, TermsAccepted: &termsAccepted, EmailVerified: &emailVerified}
+	details := &UpdateUserDetails{
+		Username:        &username,
+		Emails:          []string{"b@y.co", "c@x.co"},
+		Password:        &password,
+		CurrentPassword: &currentPassword,
+		Roles:           []string{"hcp"},
+		TermsAccepted:   &termsAccepted,
+		EmailVerified:   &emailVerified,
+	}
 	err := details.Validate()
 	if err != nil {
 		t.Fatalf("Unexpected error for valid: %#v", err)

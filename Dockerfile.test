@@ -1,0 +1,29 @@
+# Usage:
+# docker build -t shoreline:test -f Dockerfile.test .
+FROM mongo:4.2
+RUN apt-get update -y && \
+    apt-get install -y --no-install-recommends apt-utils && \
+    apt-get upgrade -y && \
+    apt-get install -y --no-install-recommends wget build-essential psmisc && \
+    apt-get clean -y
+WORKDIR /tmp
+# https://golang.org/dl/go1.16.3.linux-amd64.tar.gz
+ENV GO_ARCHIVE go1.16.3.linux-amd64.tar.gz
+ENV GOROOT /go
+RUN wget -nv https://golang.org/dl/$GO_ARCHIVE && \
+    tar zxf $GO_ARCHIVE && \
+    mv -v /tmp/go /go && \
+    rm -v /tmp/$GO_ARCHIVE
+WORKDIR /go/src/github.com/mdblp/shoreline
+# /usr/local/bin/docker-entrypoint.sh mongod
+COPY go.* ./
+RUN /go/bin/go mod download
+COPY . .
+RUN /bin/bash -c '/usr/local/bin/docker-entrypoint.sh mongod&' && \
+    sleep 1 && \
+    PATH=$PATH:/go/bin bash test.sh ; \
+    sleep 1 && \
+    kill "$(ps -C mongod -o pid=)" && \
+    sleep 1
+
+ENTRYPOINT ["/bin/true"]

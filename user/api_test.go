@@ -725,6 +725,87 @@ func Test_UpdateUser_Error_UnauthorizedEmailVerified_User(t *testing.T) {
 	T_ExpectErrorResponse(t, response, 401, "Not authorized for requested operation")
 }
 
+func Test_UpdateUser_Error_Clinic_NoCurrentPassword(t *testing.T) {
+	user := &User{
+		Id:            "abc",
+		Username:      "user@example.com",
+		Emails:        []string{"user@example.com"},
+		Roles:         []string{"caregiver"},
+		TermsAccepted: "2016-01-01T01:23:45-08:00",
+		EmailVerified: true,
+	}
+	if err := user.HashPassword("old-password", FAKE_CONFIG.Salt); err != nil {
+		t.Fatal("Failed to set user current password")
+	}
+	sessionToken := T_CreateSessionToken(t, user.Id, false, TOKEN_DURATION)
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{user, nil}}
+	defer T_ExpectResponsablesEmpty(t)
+
+	body := "{\"updates\": {\"password\": \"A-new-fancy-password\"}}"
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
+	response := T_PerformRequestBodyHeaders(t, "PUT", "/user", body, headers)
+	T_ExpectErrorResponse(t, response, http.StatusUnauthorized, "Not authorized for requested operation")
+}
+
+func Test_UpdateUser_Error_Clinic_InvalidCurrentPassword(t *testing.T) {
+	user := &User{
+		Id:            "abc",
+		Username:      "user@example.com",
+		Emails:        []string{"user@example.com"},
+		Roles:         []string{"hcp"},
+		TermsAccepted: "2016-01-01T01:23:45-08:00",
+		EmailVerified: true,
+	}
+	if err := user.HashPassword("old-password", FAKE_CONFIG.Salt); err != nil {
+		t.Fatal("Failed to set user current password")
+	}
+	sessionToken := T_CreateSessionToken(t, user.Id, false, TOKEN_DURATION)
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{user, nil}}
+	defer T_ExpectResponsablesEmpty(t)
+
+	body := "{\"updates\": {\"password\": \"A-new-fancy-password\", \"currentPassword\": \"I-don't-remember\"}}"
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
+	response := T_PerformRequestBodyHeaders(t, "PUT", "/user", body, headers)
+	T_ExpectErrorResponse(t, response, http.StatusUnauthorized, "Wrong password")
+}
+
+func Test_UpdateUser_Success_Clinic_Password(t *testing.T) {
+	user := &User{
+		Id:            "abcdef1234",
+		Username:      "user@example.com",
+		Emails:        []string{"user@example.com"},
+		Roles:         []string{"caregiver"},
+		TermsAccepted: "2016-01-01T01:23:45-08:00",
+		EmailVerified: true,
+	}
+	if err := user.HashPassword("old-password", FAKE_CONFIG.Salt); err != nil {
+		t.Fatal("Failed to set user current password")
+	}
+	sessionToken := T_CreateSessionToken(t, user.Id, false, TOKEN_DURATION)
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{user, nil}}
+	responsableStore.UpsertUserResponses = []error{nil}
+	defer T_ExpectResponsablesEmpty(t)
+
+	body := "{\"updates\": {\"password\": \"A-new-fancy-password\", \"currentPassword\": \"old-password\"}}"
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
+	response := T_PerformRequestBodyHeaders(t, "PUT", "/user", body, headers)
+	successResponse := T_ExpectSuccessResponseWithJSONMap(t, response, 200)
+	T_ExpectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
+	T_ExpectEqualsMap(t, successResponse, map[string]interface{}{
+		"emailVerified": user.EmailVerified,
+		"emails":        []interface{}{user.Username},
+		"username":      user.Username,
+		"termsAccepted": user.TermsAccepted,
+		"roles":         []interface{}{user.Roles[0]},
+	})
+}
+
 func Test_UpdateUser_Success_UserFromUrl(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "1111111111", false, TOKEN_DURATION)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
@@ -780,7 +861,7 @@ func Test_UpdateUser_Success_AuthorizedRoles_Caregiver(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "1111111111", false, TOKEN_DURATION)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111", Roles: []string{"caregiver"}, TermsAccepted: "2016-01-01T01:23:45-08:00"}, nil}}
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111"}}, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{{Id: "1111111111"}}, nil}}
 	responsableStore.UpsertUserResponses = []error{nil}
 	defer T_ExpectResponsablesEmpty(t)
 
@@ -812,8 +893,10 @@ func Test_UpdateUser_Success_Server_WithoutPassword(t *testing.T) {
 
 func Test_UpdateUser_Success_Server_WithPassword(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "0000000000", true, TOKEN_DURATION)
+	user := &User{Id: "1111111111", Roles: []string{"caregiver"}}
+	user.HashPassword("password", FAKE_CONFIG.Salt)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
-	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111", Roles: []string{"caregiver"}}, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{user, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
 	responsableStore.UpsertUserResponses = []error{nil}
 	defer T_ExpectResponsablesEmpty(t)
