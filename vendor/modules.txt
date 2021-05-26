@@ -70,6 +70,7 @@ github.com/globalsign/mgo/internal/scram
 # github.com/go-stack/stack v1.8.0
 github.com/go-stack/stack
 # github.com/golang/mock v1.5.0
+## explicit
 github.com/golang/mock/gomock
 # github.com/golang/protobuf v1.4.2
 github.com/golang/protobuf/proto
@@ -134,7 +135,7 @@ github.com/rcrowley/go-metrics
 github.com/russross/blackfriday/v2
 # github.com/shurcooL/sanitized_anchor_name v1.0.0
 github.com/shurcooL/sanitized_anchor_name
-# github.com/tidepool-org/clinic/client v0.0.0-20210507161016-ab41e051f3e9
+# github.com/tidepool-org/clinic/client v0.0.0-20210527110228-f07fc3572cd5
 ## explicit
 github.com/tidepool-org/clinic/client
 # github.com/tidepool-org/go-common v0.8.2

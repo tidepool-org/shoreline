@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/gorilla/mux"
+	clinicClient "github.com/tidepool-org/clinic/client"
 	"github.com/tidepool-org/go-common/clients"
 	"github.com/tidepool-org/go-common/clients/highwater"
 )
@@ -28,13 +29,14 @@ const (
 	makeItFail = true
 )
 
-func InitAPITest(cfg ApiConfig, logger *log.Logger, store Storage, userEventsNotifier EventsNotifier, seagull clients.Seagull) *Api {
+func InitAPITest(cfg ApiConfig, logger *log.Logger, store Storage, userEventsNotifier EventsNotifier, seagull clients.Seagull, clinic clinicClient.ClientWithResponsesInterface) *Api {
 	return &Api{
 		Store:              store,
 		ApiConfig:          cfg,
 		logger:             logger,
 		userEventsNotifier: userEventsNotifier,
 		seagull:            seagull,
+		clinic:             mockClinic,
 	}
 }
 
@@ -97,6 +99,9 @@ xwIDAQAB
 	user           = &User{Id: "123-99-100", Username: "test@new.bar", Emails: []string{"test@new.bar"}}
 	userToken, _   = CreateSessionToken(&TokenData{UserId: user.Id, IsServer: false, DurationSecs: tokenDuration}, fakeConfig.TokenConfigs[0])
 	serverToken, _ = CreateSessionToken(&TokenData{UserId: "shoreline", IsServer: true, DurationSecs: tokenDuration}, fakeConfig.TokenConfigs[0])
+
+	mockClinic = &clinicClient.MockClientWithResponsesInterface{}
+
 	/*
 	 * basics setup
 	 */
@@ -109,25 +114,26 @@ xwIDAQAB
 	mockStore    = NewMockStoreClient(fakeConfig.Salt, false, false)
 	mockMetrics  = highwater.NewMock()
 	mockSeagull  = clients.NewSeagullMock()
-	shoreline    = InitAPITest(fakeConfig, logger, mockStore, mockNotifier, mockSeagull)
+	shoreline    = InitAPITest(fakeConfig, logger, mockStore, mockNotifier, mockSeagull, mockClinic)
 	/*
 	 *
 	 */
 	mockNoDupsStore = NewMockStoreClient(fakeConfig.Salt, true, false)
-	shorelineNoDups = InitAPITest(fakeConfig, logger, mockNoDupsStore, mockNotifier, mockSeagull)
+	shorelineNoDups = InitAPITest(fakeConfig, logger, mockNoDupsStore, mockNotifier, mockSeagull, mockClinic)
 	/*
 	 * failure path
 	 */
 	mockStoreFails = NewMockStoreClient(fakeConfig.Salt, false, makeItFail)
-	shorelineFails = InitAPITest(fakeConfig, logger, mockStoreFails, mockNotifier, mockSeagull)
+	shorelineFails = InitAPITest(fakeConfig, logger, mockStoreFails, mockNotifier, mockSeagull, mockClinic)
 
 	responsableStore      = NewResponsableMockStoreClient()
 	responsableGatekeeper = NewResponsableMockGatekeeper()
 	responsableShoreline  = InitShoreline(fakeConfig, responsableStore, responsableGatekeeper, mockNotifier)
+
 )
 
 func InitShoreline(config ApiConfig, store Storage, perms clients.Gatekeeper, notifier EventsNotifier) *Api {
-	api := InitAPITest(config, logger, store, notifier, mockSeagull)
+	api := InitAPITest(config, logger, store, notifier, mockSeagull, mockClinic)
 	api.AttachPerms(perms)
 	return api
 }
@@ -789,6 +795,11 @@ func Test_CreateCustodialUser_Success_Known(t *testing.T) {
 }
 
 func Test_CreateClinicCustodialUser_Success_Known(t *testing.T) {
+	responsableShoreline.ApiConfig.ClinicServiceEnabled = true
+	defer func() {
+		responsableShoreline.ApiConfig.ClinicServiceEnabled = false
+	}()
+
 	sessionToken := createSessionToken(t, "clinic", true, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}

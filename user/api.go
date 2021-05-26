@@ -53,6 +53,7 @@ type (
 		Salt                 string        `json:"salt"`
 		VerificationSecret   string        `json:"verificationSecret"`
 		ClinicDemoUserID     string        `json:"clinicDemoUserId"`
+		ClinicServiceEnabled bool          `json:"clinicServiceEnabled"`
 	}
 	varsHandler func(http.ResponseWriter, *http.Request, map[string]string)
 )
@@ -280,6 +281,11 @@ func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, va
 // status: 409 STATUS_USR_ALREADY_EXISTS
 // status: 500 STATUS_ERR_GENERATING_TOKEN
 func (a *Api) CreateClinicCustodialUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
+	if !a.ApiConfig.ClinicServiceEnabled {
+		a.sendError(res, http.StatusNotFound, "Route not found")
+		return
+	}
+
 	sessionToken := req.Header.Get(TP_SESSION_TOKEN)
 	if tokenData, err := a.authenticateSessionToken(req.Context(), sessionToken); err != nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
@@ -292,7 +298,7 @@ func (a *Api) CreateClinicCustodialUser(res http.ResponseWriter, req *http.Reque
 	}
 }
 
-func (a *Api) createCustodialUserAccount(res http.ResponseWriter, req *http.Request) (*User, error){
+func (a *Api) createCustodialUserAccount(res http.ResponseWriter, req *http.Request) (*User, error) {
 	if newCustodialUserDetails, err := ParseNewCustodialUserDetails(req.Body); err != nil {
 		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, err)
 		return nil, err
@@ -397,7 +403,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_USR, err)
 		} else {
 			if len(originalUser.PwHash) == 0 && len(updatedUser.PwHash) != 0 {
-				if err := a.removeUserPermissions(updatedUser.Id, clients.Permissions{"custodian": clients.Allowed}); err != nil {
+				if err := a.removeCustodianPermissionsForUser(updatedUser.Id); err != nil {
 					a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_USR, err)
 				}
 			}
@@ -787,6 +793,7 @@ func (a *Api) removeCustodianPermissionsForUser(userId string) error {
 	if err := a.removeUserPermissions(userId, clients.Permissions{"custodian": clients.Allowed}); err != nil {
 		return err
 	}
+	return nil
 }
 
 func (a *Api) removeUserPermissions(groupId string, removePermissions clients.Permissions) error {
@@ -811,6 +818,10 @@ func (a *Api) removeUserPermissions(groupId string, removePermissions clients.Pe
 }
 
 func (a *Api) removeClinicCustodianPermissions(userId string) error {
+	if !a.ApiConfig.ClinicServiceEnabled {
+		return nil
+	}
+
 	ctx := context.Background()
 	id := api.UserId(userId)
 	limit := api.Limit(1000)

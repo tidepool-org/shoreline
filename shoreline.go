@@ -101,6 +101,11 @@ func main() {
 		config.User.Salt = salt
 	}
 
+	clinicServiceEnabled, found := os.LookupEnv("TIDEPOOL_CLINIC_SERVICE_ENABLED")
+	if found {
+		config.User.ClinicServiceEnabled = clinicServiceEnabled == "true"
+	}
+
 	config.Mongo.FromEnv()
 
 	/*
