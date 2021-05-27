@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	clinics "github.com/tidepool-org/clinic/client"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -105,6 +106,7 @@ func main() {
 	if found {
 		config.User.ClinicServiceEnabled = clinicServiceEnabled == "true"
 	}
+	clinicServiceAddress, _ := os.LookupEnv("TIDEPOOL_CLINIC_CLIENT_ADDRESS")
 
 	config.Mongo.FromEnv()
 
@@ -174,7 +176,22 @@ func main() {
 		WithHttpClient(httpClient).
 		Build()
 
-	userapi := user.InitApi(config.User, logger, clientStore, notifier, seagull)
+
+	opts := clinics.WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
+		token, err := user.GetServiceToken(config.User.TokenConfigs[0], clientStore)
+		if err != nil {
+			return err
+		}
+
+		req.Header.Add(user.TP_SESSION_TOKEN, token.ID)
+		return nil
+	})
+	clinic, err := clinics.NewClientWithResponses(clinicServiceAddress, opts)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	userapi := user.InitApi(config.User, logger, clientStore, notifier, seagull, clinic)
 	logger.Print("installing handlers")
 	userapi.SetHandlers("", rtr)
 

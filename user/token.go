@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	jwt "github.com/dgrijalva/jwt-go"
@@ -47,6 +48,8 @@ var (
 	SessionToken_error_no_userid        = errors.New("SessionToken: userId not set")
 	SessionToken_invalid                = errors.New("SessionToken: is invalid")
 	SessionToken_error_duration_not_set = errors.New("SessionToken: duration not set")
+	sessionToken *SessionToken
+	tokenMutex = &sync.Mutex{}
 )
 
 func CreateSessionToken(data *TokenData, config TokenConfig) (*SessionToken, error) {
@@ -241,4 +244,23 @@ func hasServerToken(tokenString string, tokenConfigs ...TokenConfig) bool {
 		return false
 	}
 	return td.IsServer
+}
+
+func GetServiceToken(cfg TokenConfig, store Storage) (*SessionToken, error) {
+	tokenMutex.Lock()
+	defer tokenMutex.Unlock()
+	if sessionToken != nil && sessionToken.ExpiresAt.After(time.Now().Add(time.Minute * 1)) {
+		return sessionToken, nil
+	}
+
+	token, err := CreateSessionTokenAndSave(
+		&TokenData{DurationSecs: 14400, UserId: "shoreline", IsServer: true},
+		cfg,
+		store,
+	)
+	if err != nil {
+		return nil, err
+	}
+	sessionToken = token
+	return sessionToken, nil
 }

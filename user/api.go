@@ -95,13 +95,14 @@ const (
 	STATUS_INVALID_ROLE          = "The role specified is invalid"
 )
 
-func InitApi(cfg ApiConfig, logger *log.Logger, store Storage, userEventsNotifier EventsNotifier, seagull clients.Seagull) *Api {
+func InitApi(cfg ApiConfig, logger *log.Logger, store Storage, userEventsNotifier EventsNotifier, seagull clients.Seagull, clinic api.ClientWithResponsesInterface) *Api {
 	return &Api{
 		Store:              store,
 		ApiConfig:          cfg,
 		logger:             logger,
 		userEventsNotifier: userEventsNotifier,
 		seagull:            seagull,
+		clinic:             clinic,
 	}
 }
 
