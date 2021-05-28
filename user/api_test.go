@@ -17,6 +17,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/gorilla/mux"
 	clinicClient "github.com/tidepool-org/clinic/client"
@@ -539,6 +540,22 @@ func Test_GetUsers_Error_FindUsersByRoleSuccess(t *testing.T) {
 	headers := http.Header{}
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := performRequestHeaders(t, "GET", "/users?role=clinic", headers)
+	successResponse := expectSuccessResponseWithJSONArray(t, response, 200)
+	expectEqualsArray(t, successResponse, []interface{}{map[string]interface{}{"userid": "0000000000", "passwordExists": false}, map[string]interface{}{"userid": "1111111111", "passwordExists": false}})
+}
+
+func Test_GetUsers_FindUsersByRoleAndDateSuccess(t *testing.T) {
+	sessionToken := createSessionToken(t, "abcdef1234", true, tokenDuration)
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
+	responsableStore.FindUsersByRoleAndDateResponses = []FindUsersByRoleAndDateResponse{{[]*User{{Id: "0000000000"}, {Id: "1111111111"}}, nil}}
+	defer expectResponsablesEmpty(t)
+
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
+
+	createdFromQuery := time.Now().Add(time.Hour * -5).Format("2006-01-02")
+	createdToQuery := time.Now().Format("2006-01-02")
+	response := performRequestHeaders(t, "GET", "/users?role=clinic&createdFrom="+createdFromQuery+"&createdTo="+createdToQuery, headers)
 	successResponse := expectSuccessResponseWithJSONArray(t, response, 200)
 	expectEqualsArray(t, successResponse, []interface{}{map[string]interface{}{"userid": "0000000000", "passwordExists": false}, map[string]interface{}{"userid": "1111111111", "passwordExists": false}})
 }

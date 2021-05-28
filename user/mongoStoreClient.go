@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"log"
 	"sort"
+	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
@@ -213,6 +215,40 @@ func (msc *MongoStoreClient) FindUsersByRole(role string) (results []*User, err 
 
 	if results == nil {
 		log.Printf("no users found: query: role: %v", role)
+		results = []*User{}
+	}
+
+	return results, nil
+}
+
+func (msc *MongoStoreClient) FindUsersByRoleAndDate(role string, createdFrom time.Time, createdTo time.Time) (results []*User, err error) {
+	opts := options.Find().SetCollation(usersCollation).SetSort(bson.D{{Key: "_id", Value: -1}})
+
+	query := []bson.D{
+		bson.D{{Key: "roles", Value: role}},
+	}
+
+	if !createdFrom.IsZero() {
+		fromObjectID := primitive.NewObjectIDFromTimestamp(createdFrom)
+		query = append(query, bson.D{{Key: "_id", Value: bson.M{"$gte": fromObjectID}}})
+	}
+
+	if !createdTo.IsZero() {
+		toObjectID := primitive.NewObjectIDFromTimestamp(createdTo)
+		query = append(query, bson.D{{Key: "_id", Value: bson.M{"$lte": toObjectID}}})
+	}
+
+	cursor, err := usersCollection(msc).Find(msc.context, bson.M{"$and": query}, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	if err = cursor.All(msc.context, &results); err != nil {
+		return results, err
+	}
+
+	if results == nil {
+		log.Printf("no users found: query: role: %v, from: %v, to: %v \n", role, createdFrom, createdTo)
 		results = []*User{}
 	}
 
