@@ -403,19 +403,26 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 		if err := a.Store.WithContext(req.Context()).UpsertUser(updatedUser); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_USR, err)
 		} else {
+			var errs []error
 			if len(originalUser.PwHash) == 0 && len(updatedUser.PwHash) != 0 {
-				if err := a.removeCustodianPermissionsForUser(updatedUser.Id); err != nil {
-					a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_USR, err)
+				if e := a.removeCustodianPermissionsForUser(updatedUser.Id); e != nil {
+					a.logger.Println(http.StatusInternalServerError, e.Error())
+					errs = append(errs, e)
 				}
 			}
 
 			a.logMetricForUser(updatedUser.Id, "userupdated", sessionToken, map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
-			if err := a.userEventsNotifier.NotifyUserUpdated(req.Context(), *originalUser, *updatedUser); err != nil {
-				a.logger.Println(http.StatusInternalServerError, err.Error())
+			if e := a.userEventsNotifier.NotifyUserUpdated(req.Context(), *originalUser, *updatedUser); e != nil {
+				a.logger.Println(http.StatusInternalServerError, e.Error())
+				errs = append(errs, e)
 				failedUserEventCount.Inc()
-				res.WriteHeader(http.StatusInternalServerError)
+			}
+
+			if len(errs) > 0 {
+				a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_USR, errs)
 				return
 			}
+
 			a.sendUser(res, updatedUser, tokenData.IsServer)
 		}
 	}
