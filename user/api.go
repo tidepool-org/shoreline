@@ -380,23 +380,29 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 		if updateUserDetails.Username != nil || updateUserDetails.Emails != nil {
 			dupCheck := &User{}
 			if updateUserDetails.Username != nil {
-				updatedUser.Username = *updateUserDetails.Username
 				dupCheck.Username = updatedUser.Username
 			}
 			if updateUserDetails.Emails != nil {
-				updatedUser.Emails = updateUserDetails.Emails
 				dupCheck.Emails = updatedUser.Emails
 			}
 
 			if results, err := a.Store.WithContext(req.Context()).FindUsers(dupCheck); err != nil {
 				a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err)
 				return
-			} else if len(results) > 0 {
+			} else if len(results) > 1 || (len(results) == 1 && results[0].Id != originalUser.Id) {
 				a.sendError(res, http.StatusConflict, STATUS_USR_ALREADY_EXISTS)
 				return
 			}
 		}
 
+		if updateUserDetails.Username != nil {
+			updatedUser.Username = *updateUserDetails.Username
+		}
+
+		if updateUserDetails.Emails != nil {
+			updatedUser.Emails = updateUserDetails.Emails
+
+		}
 		if updateUserDetails.Password != nil {
 			if err := updatedUser.HashPassword(*updateUserDetails.Password, a.ApiConfig.Salt); err != nil {
 				a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_USR, err)
