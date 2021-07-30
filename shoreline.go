@@ -27,6 +27,8 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/prometheus/client_golang/prometheus"
+	muxprom "gitlab.com/msvechla/mux-prometheus/pkg/middleware"
 
 	"github.com/mdblp/shoreline/user"
 
@@ -119,7 +121,13 @@ func main() {
 		logger.Print("skipping hakken service")
 	}
 
+	/*
+	* Instrumentation setup
+	*/
+	instrumentation := muxprom.NewCustomInstrumentation(true, "dblp", "shoreline", prometheus.DefBuckets, nil, prometheus.DefaultRegisterer)
+
 	rtr := mux.NewRouter()
+	rtr.Use(instrumentation.Middleware)
 
 	/*
 	 * User-Api setup

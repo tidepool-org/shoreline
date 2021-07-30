@@ -13,9 +13,10 @@ require (
 	github.com/gin-gonic/gin v1.6.3
 	github.com/go-playground/assert/v2 v2.0.1
 	github.com/google/uuid v1.1.2
-	github.com/gorilla/mux v1.7.3
-	github.com/prometheus/client_golang v1.4.1
+	github.com/gorilla/mux v1.8.0
+	github.com/prometheus/client_golang v1.11.0
 	github.com/swaggo/swag v1.6.9
 	github.com/tidepool-org/go-common v0.0.0-00010101000000-000000000000
+	gitlab.com/msvechla/mux-prometheus v0.0.2
 	go.mongodb.org/mongo-driver v1.4.0
 )

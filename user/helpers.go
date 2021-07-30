@@ -13,6 +13,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+
 	"github.com/mdblp/shoreline/token"
 )
 
@@ -168,6 +169,8 @@ func (a *Api) appendUserLoginInProgress(user *User) (code int, elem *list.Elemen
 
 	// Simple rate limiter
 	a.loginLimiter.totalInProgress++
+	inFligthLogin.Add(1)
+
 	if a.loginLimiter.totalInProgress > a.ApiConfig.MaxConcurrentLogin {
 		return http.StatusTooManyRequests, nil
 	}
@@ -187,6 +190,7 @@ func (a *Api) removeUserLoginInProgress(elem *list.Element) {
 	a.loginLimiter.mutex.Lock()
 
 	a.loginLimiter.totalInProgress--
+	inFligthLogin.Add(-1)
 
 	if elem != nil {
 		a.loginLimiter.usersInProgress.Remove(elem)
