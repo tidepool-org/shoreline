@@ -137,11 +137,11 @@ var (
 
 type (
 	Api struct {
-		Store            Storage
-		ApiConfig        ApiConfig
-		logger           *log.Logger
-		auditLogger      *log.Logger
-		loginLimiter     LoginLimiter
+		Store        Storage
+		ApiConfig    ApiConfig
+		logger       *log.Logger
+		auditLogger  *log.Logger
+		loginLimiter LoginLimiter
 	}
 	Secret struct {
 		Secret string `json:"secret"`
@@ -171,7 +171,7 @@ type (
 		// Block users to do multiple parallel logins (for load tests we desactivate this)
 		BlockParallelLogin bool `json:"blockParallelLogin"`
 		//allows for the skipping of verification for testing
-		VerificationSecret string           `json:"verificationSecret"`
+		VerificationSecret string `json:"verificationSecret"`
 	}
 	// LoginLimiter var needed to limit the max login attempt on an account
 	LoginLimiter struct {
@@ -233,10 +233,10 @@ func InitApi(cfg ApiConfig, logger *log.Logger, store Storage, auditLogger *log.
 	}
 
 	api := Api{
-		Store:            store,
-		ApiConfig:        cfg,
-		logger:           logger,
-		auditLogger:      auditLogger,
+		Store:       store,
+		ApiConfig:   cfg,
+		logger:      logger,
+		auditLogger: auditLogger,
 	}
 
 	api.loginLimiter.usersInProgress = list.New()
@@ -648,7 +648,11 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 // @Failure 400 {object} status.Status "message returned: \"Missing id and/or password\""
 // @Router /login [post]
 func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
-	user, password := unpackAuth(req.Header.Get("Authorization"))
+	user, password, err := unpackAuth(req.Header.Get("Authorization"))
+	if err != nil {
+		a.sendError(res, http.StatusBadRequest, STATUS_MISSING_ID_PW, err)
+		return
+	}
 	if user == nil {
 		a.sendError(res, http.StatusBadRequest, STATUS_MISSING_ID_PW)
 		return

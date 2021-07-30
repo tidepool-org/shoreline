@@ -5,11 +5,13 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/mdblp/shoreline/token"
 )
@@ -34,24 +36,50 @@ func getGivenDetail(req *http.Request) (d map[string]string) {
 	return d
 }
 
+// fromISO8859 is a workaround to accept strings not encoded in UT8 and containing non ascii characters
+//
+// Javascript & Java by default try to encode their base64 string using
+// UTF-16 or ISO-8859-1 if the Unicode code point value is less than 0xFF
+// ISO-8859-1 has the same codepoints than Unicode for 0x00 - 0xFF range
+//
+// Try to decode the bytes as if each byte is an Unicode code point.
+func fromISO8859(b []byte) string {
+	var u16s []rune = make([]rune, len(b))
+	for i, j := 0, len(b); i < j; i++ {
+		u16s[i] = rune(b[i])
+	}
+	return string(u16s)
+}
+
 // Extract the username and password from the authorization
 // line of an HTTP header. This function will handle the
 // parsing and decoding of the line.
-func unpackAuth(authLine string) (usr *User, pw string) {
+//
+// Return the user to pass to the mongo find function, the password
+// and an error or nil if there is no error
+func unpackAuth(authLine string) (user *User, passwd string, err error) {
+	var decodedPayload []byte
+	var strPayload string
 	if authLine != "" {
 		parts := strings.SplitN(authLine, " ", 2)
 		payload := parts[1]
-		if decodedPayload, err := base64.StdEncoding.DecodeString(payload); err != nil {
-			log.Print(USER_API_PREFIX, "Error unpacking authorization header [%s]", err.Error())
+		if decodedPayload, err = base64.StdEncoding.DecodeString(payload); err != nil {
+			return nil, "", err
+		}
+		if utf8.Valid(decodedPayload) {
+			strPayload = string(decodedPayload)
 		} else {
-			details := strings.SplitN(string(decodedPayload), ":", 2)
-			if details[0] != "" || details[1] != "" {
-				//Note the incoming `name` could infact be id, email or the username
-				return &User{Id: details[0], Username: details[0], Emails: []string{details[0]}}, details[1]
-			}
+			log.Printf("%s authorization: Invalid UTF-8 decoded string, trying with ISO-8859-1", USER_API_PREFIX)
+			strPayload = fromISO8859(decodedPayload)
+		}
+
+		details := strings.SplitN(strPayload, ":", 2)
+		if details[0] != "" || details[1] != "" {
+			//Note the incoming `name` could infact be id, email or the username
+			return &User{Id: details[0], Username: details[0], Emails: []string{details[0]}}, details[1], nil
 		}
 	}
-	return nil, ""
+	return nil, "", errors.New("Empty authorization line")
 }
 
 func sendModelAsRes(res http.ResponseWriter, model interface{}) {
