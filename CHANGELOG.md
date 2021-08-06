@@ -2,7 +2,7 @@
 
 Shoreline is the module that manages logins and user accounts.
 
-## UNRELEASED
+## 1.7.0 - 2021-08-06
 ### Changed
 - YLP-911: put in place metrics in shoreline
 - YLP-919 Yourloops do not encode correctly passwords with special characters
