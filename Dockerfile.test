@@ -1,5 +1,7 @@
 # Usage:
 # docker build -t shoreline:test -f Dockerfile.test .
+# To retreive the coverage report run:
+# docker run shoreline:test > coverReport.html
 FROM mongo:4.2
 RUN apt-get update -y && \
     apt-get install -y --no-install-recommends apt-utils && \
@@ -7,23 +9,27 @@ RUN apt-get update -y && \
     apt-get install -y --no-install-recommends wget build-essential psmisc && \
     apt-get clean -y
 WORKDIR /tmp
-# https://golang.org/dl/go1.16.3.linux-amd64.tar.gz
-ENV GO_ARCHIVE go1.16.3.linux-amd64.tar.gz
-ENV GOROOT /go
+ENV GO_ARCHIVE=go1.15.15.linux-amd64.tar.gz
+ENV GOROOT=/go
+ENV GOPATH=/root/go
 RUN wget -nv https://golang.org/dl/$GO_ARCHIVE && \
     tar zxf $GO_ARCHIVE && \
     mv -v /tmp/go /go && \
     rm -v /tmp/$GO_ARCHIVE
-WORKDIR /go/src/github.com/mdblp/shoreline
-# /usr/local/bin/docker-entrypoint.sh mongod
+WORKDIR /root/go/src/github.com/mdblp/shoreline
+
 COPY go.* ./
-RUN /go/bin/go mod download
+RUN \
+  /go/bin/go mod download && \
+  /go/bin/go env GOPATH && \
+  /go/bin/go get 'github.com/jstemmer/go-junit-report' && \
+  /go/bin/go get 'github.com/t-yuki/gocover-cobertura'
 COPY . .
-RUN /bin/bash -c '/usr/local/bin/docker-entrypoint.sh mongod&' && \
+RUN /bin/bash -c '/usr/local/bin/docker-entrypoint.sh mongod &' && \
     sleep 1 && \
-    PATH=$PATH:/go/bin bash test.sh ; \
+    PATH=$PATH:/go/bin:$(/go/bin/go env GOPATH)/bin bash test.sh && echo 'No Error !' ; \
     sleep 1 && \
     kill "$(ps -C mongod -o pid=)" && \
     sleep 1
 
-ENTRYPOINT ["/bin/true"]
+ENTRYPOINT ["/bin/cat", "coverReport.html"]

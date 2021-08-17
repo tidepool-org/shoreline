@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mdblp/go-common/clients/mongo"
 	"github.com/mdblp/shoreline/token"
-	"github.com/tidepool-org/go-common/clients/mongo"
 )
 
 func mgoTestSetup() (*Client, error) {

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -16,6 +17,28 @@ import (
 
 	"github.com/mdblp/shoreline/token"
 )
+
+// getIntFromEnvVar return an int from the os env var
+//
+// if you are not interested in minValue/maxValue, use: math.MinInt32 / math.MaxInt32
+func getIntFromEnvVar(name string, minValue int, maxValue int) (int, bool, error) {
+	var intValue int
+	var err error
+	strValue, found := os.LookupEnv(name)
+	if found && len(strValue) > 0 {
+		if intValue, err = strconv.Atoi(strValue); err != nil {
+			return 0, true, fmt.Errorf("Invalid value for %s: '%s'", name, strValue)
+		}
+		if intValue < minValue {
+			return 0, true, fmt.Errorf("Value too low for %s: '%s'", name, strValue)
+		}
+		if intValue > maxValue {
+			return 0, true, fmt.Errorf("Value too high for %s: '%s'", name, strValue)
+		}
+		return intValue, true, nil
+	}
+	return 0, false, nil
+}
 
 func firstStringNotEmpty(strs ...string) string {
 	for _, str := range strs {
@@ -213,7 +236,6 @@ func CreateSessionTokenAndSave(ctx context.Context, data *token.TokenData, confi
 }
 
 func extractTokenDuration(r *http.Request) int64 {
-
 	durString := r.Header.Get(token.TOKEN_DURATION_KEY)
 
 	if durString != "" {

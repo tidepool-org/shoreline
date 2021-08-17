@@ -1,7 +1,7 @@
 # Development
 FROM golang:1.15-alpine AS development
 ARG APP_VERSION
-ENV GO111MODULE on
+ENV GO111MODULE=on
 WORKDIR /go/src/github.com/mdblp/shoreline
 RUN adduser -D tidepool && \
     chown -R tidepool /go/src/github.com/mdblp/shoreline

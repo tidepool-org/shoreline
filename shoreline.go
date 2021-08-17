@@ -18,6 +18,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"math/rand"
 	"net/http"
@@ -32,156 +33,75 @@ import (
 
 	"github.com/mdblp/shoreline/user"
 
-	common "github.com/tidepool-org/go-common"
-	"github.com/tidepool-org/go-common/clients"
-	"github.com/tidepool-org/go-common/clients/disc"
-	"github.com/tidepool-org/go-common/clients/hakken"
-	"github.com/tidepool-org/go-common/clients/mongo"
-)
-
-type (
-	// Config is the Shoreline main configuration
-	Config struct {
-		clients.Config
-		Service disc.ServiceListing `json:"service"`
-		Mongo   mongo.Config        `json:"mongo"`
-		User    user.ApiConfig      `json:"user"`
-	}
+	"github.com/mdblp/go-common/clients/mongo"
 )
 
 func main() {
-	var config Config
 	logger := log.New(os.Stdout, user.USER_API_PREFIX, log.LstdFlags|log.Lshortfile)
 	auditLogger := log.New(os.Stdout, user.USER_API_PREFIX, log.LstdFlags)
 	// Init random number generator
 	rand.Seed(time.Now().UnixNano())
 
-	// Set some default config values
-	config.User.MaxFailedLogin = 5
-	config.User.DelayBeforeNextLoginAttempt = 10 // 10 minutes
-	config.User.MaxConcurrentLogin = 100
-	config.User.BlockParallelLogin = true
+	var mongoConfig mongo.Config
 
-	if err := common.LoadEnvironmentConfig([]string{"TIDEPOOL_SHORELINE_ENV", "TIDEPOOL_SHORELINE_SERVICE"}, &config); err != nil {
-		logger.Panic("Problem loading Shoreline config", err)
+	servicePort := os.Getenv("SHORELINE_PORT")
+	if servicePort == "" {
+		servicePort = "9107"
 	}
 
-	// server secret may be passed via a separate env variable to accomodate easy secrets injection via Kubernetes
-	// The server secret is the password any Tidepool service is supposed to know and pass to shoreline for authentication and for getting token
-	// With Mdblp, we consider we can have different server secrets
-	// These secrets are hosted in a map[string][string] instead of single string
-	// which 1st string represents Server/Service name and 2nd represents the actual secret
-	// here we consider this SERVER_SECRET that can be injected via Kubernetes is the one for the default server/service (any Tidepool service)
-	serverSecret, found := os.LookupEnv("SERVER_SECRET")
-	if found {
-		config.User.ServerSecrets["default"] = serverSecret
-	}
-	// extract the list of token secrets
-	config.User.TokenSecrets = make(map[string]string)
-	zdkSecret, found := os.LookupEnv("ZENDESK_SECRET")
-	if found {
-		config.User.TokenSecrets["zendesk"] = zdkSecret
-	}
-	userSecret, found := os.LookupEnv("API_SECRET")
-	if found {
-		config.User.Secret = userSecret
-		config.User.TokenSecrets["default"] = userSecret
-	}
-
-	longTermKey, found := os.LookupEnv("LONG_TERM_KEY")
-	if found {
-		config.User.LongTermKey = longTermKey
-	}
-
-	verificationSecret, found := os.LookupEnv("VERIFICATION_SECRET")
-	if found {
-		config.User.VerificationSecret = verificationSecret
-	}
-
-	salt, found := os.LookupEnv("SALT")
-	if found {
-		config.User.Salt = salt
-	}
-
-	config.Mongo.FromEnv()
-
-	/*
-	 * Hakken setup
-	 */
-	hakkenClient := hakken.NewHakkenBuilder().
-		WithConfig(&config.HakkenConfig).
-		Build()
-
-	if !config.HakkenConfig.SkipHakken {
-		if err := hakkenClient.Start(); err != nil {
-			logger.Fatal(err)
-		}
-		defer hakkenClient.Close()
-	} else {
-		logger.Print("skipping hakken service")
-	}
-
-	/*
-	* Instrumentation setup
-	*/
+	// Instrumentation setup
 	instrumentation := muxprom.NewCustomInstrumentation(true, "dblp", "shoreline", prometheus.DefBuckets, nil, prometheus.DefaultRegisterer)
 
+	shorelineConfig := user.NewConfigFromEnv(logger)
+	mongoConfig.FromEnv()
 	rtr := mux.NewRouter()
 	rtr.Use(instrumentation.Middleware)
 
 	/*
 	 * User-Api setup
 	 */
-	storage, err := user.NewStore(&config.Mongo, logger)
+	storage, err := user.NewStore(&mongoConfig, logger)
 	if err != nil {
 		logger.Fatal(err)
 	}
 	defer storage.Close()
 	storage.Start()
 
-	userapi := user.InitApi(config.User, logger, storage, auditLogger)
-	logger.Print("installing handlers")
+	userapi := user.New(shorelineConfig, logger, storage, auditLogger)
+	logger.Print("Installing handlers")
 	userapi.SetHandlers("", rtr)
 
 	/*
 	 * Serve it up and publish
 	 */
-	done := make(chan bool)
-	logger.Print("creating http server")
-	server := common.NewServer(&http.Server{
-		Addr:    config.Service.GetPort(),
+	logger.Printf("Creating http server on 0.0.0.0:%s", servicePort)
+	srv := &http.Server{
+		Addr:    ":" + servicePort,
 		Handler: rtr,
-	})
-
-	var start func() error
-	if config.Service.Scheme == "https" {
-		sslSpec := config.Service.GetSSLSpec()
-		start = func() error { return server.ListenAndServeTLS(sslSpec.CertFile, sslSpec.KeyFile) }
-	} else {
-		start = func() error { return server.ListenAndServe() }
 	}
 
-	logger.Print("starting http server")
-	if err := start(); err != nil {
-		logger.Fatal(err)
-	}
-
-	hakkenClient.Publish(&config.Service)
-
-	logger.Print("listenting for signals")
-
-	// Wait for SIGINT (Ctrl+C) or SIGTERM to stop the service
-	sigc := make(chan os.Signal, 1)
-	signal.Notify(sigc, syscall.SIGINT, syscall.SIGTERM)
+	// Initializing the server in a goroutine so that
+	// it won't block the graceful shutdown handling below
 	go func() {
-		for {
-			<-sigc
-			storage.Close()
-			server.Close()
-			done <- true
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Fatalf("listen: %s\n", err)
 		}
 	}()
 
-	<-done
+	// Wait for interrupt signal to gracefully shutdown the server with
+	// a timeout of 5 seconds.
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	logger.Println("Shutting down server...")
 
+	// The context is used to inform the server it has 5 seconds to finish
+	// the request it is currently handling
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		logger.Fatal("Server forced to shutdown:", err)
+	}
+
+	logger.Println("Server exiting")
 }

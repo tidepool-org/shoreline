@@ -7,8 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math"
 	"math/rand"
 	"net/http"
+	"os"
 	"runtime"
 	"strconv"
 	"strings"
@@ -16,8 +18,8 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/mdblp/go-common/clients/status"
 	"github.com/mdblp/shoreline/token"
-	"github.com/tidepool-org/go-common/clients/status"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -26,29 +28,30 @@ import (
 
 var (
 	exceededConcurrentLoginCounter = promauto.NewCounter(prometheus.CounterOpts{
-		Name: "concurrent_exceeded_login_total",
-		Help: "the total number of concurrent exceeded login",
+		Name:      "concurrent_exceeded_login_total",
+		Help:      "the total number of concurrent exceeded login",
 		Subsystem: "shoreline",
 		Namespace: "dblp",
 	})
 	httpErrorCounter = promauto.NewCounterVec(prometheus.CounterOpts{
-		Name: "http_errors_total",
-		Help: "The total number of http errors by type of errors",
+		Name:      "http_errors_total",
+		Help:      "The total number of http errors by type of errors",
 		Subsystem: "shoreline",
 		Namespace: "dblp",
 	}, []string{"error_type"})
 	inFligthLogin = promauto.NewGauge(prometheus.GaugeOpts{
-		Name: "in_flight_login_request",
-		Help: "the total number of concurrent login request",
+		Name:      "in_flight_login_request",
+		Help:      "the total number of concurrent login request",
 		Subsystem: "shoreline",
 		Namespace: "dblp",
 	})
 )
 
 type (
+	// Api struct used by shoreline server components
 	Api struct {
 		Store        Storage
-		ApiConfig    ApiConfig
+		ApiConfig    *ApiConfig
 		logger       *log.Logger
 		auditLogger  *log.Logger
 		loginLimiter LoginLimiter
@@ -57,12 +60,12 @@ type (
 		Secret string `json:"secret"`
 		Pass   string `json:"pass"`
 	}
+	// ApiConfig for shoreline
 	ApiConfig struct {
 		//used for services
-		Secrets              []Secret `json:"secrets"`
-		ServerSecrets        map[string]string
-		LongTermKey          string `json:"longTermKey"`
-		LongTermDaysDuration int    `json:"longTermDaysDuration"`
+		ServerSecrets     map[string]string
+		LongTermKey       string `json:"longTermKey"`
+		LongTermsDuration int64  `json:"longTermDuration"`
 		//so we can change the default lifetime of the token
 		//we use seconds, this also helps for testing as you can time it out easily
 		TokenDurationSecs int64 `json:"tokenDurationSecs"`
@@ -93,6 +96,7 @@ type (
 )
 
 const (
+	dayAsSecs = int64(1 * 24 * 60 * 60)
 	//api logging prefix
 	USER_API_PREFIX = "api/user "
 
@@ -134,14 +138,112 @@ const (
 	STATUS_NO_EXPECTED_PWD       = "No expected password is found"
 )
 
-func InitApi(cfg ApiConfig, logger *log.Logger, store Storage, auditLogger *log.Logger) *Api {
-	// Server secrets retrieved from configuration are transformed into a hashtable for ease of access
-	// They are stored in a public property called ServerSecrets
-	cfg.ServerSecrets = make(map[string]string)
-	for _, sec := range cfg.Secrets {
-		cfg.ServerSecrets[sec.Secret] = sec.Pass
+// NewConfigFromEnv create the configuration from environnement variables
+func NewConfigFromEnv(log *log.Logger) *ApiConfig {
+	var err error
+	var intValue int
+	var found bool
+	config := &ApiConfig{
+		MaxFailedLogin:              5,
+		DelayBeforeNextLoginAttempt: 10, // 10 Minutes
+		MaxConcurrentLogin:          100,
+		BlockParallelLogin:          true,
+		LongTermsDuration:           30 * dayAsSecs,
+		TokenDurationSecs:           dayAsSecs,
+		Salt:                        "ADihSEI7tOQQP9xfXMO9HfRpXKu1NpIJ",
+		ServerSecrets:               make(map[string]string),
+		TokenSecrets:                make(map[string]string),
+		Secret:                      "abcdefghijklmnopqrstuvwxyz",
+	}
+	config.ServerSecrets["default"] = config.Secret
+	config.TokenSecrets["default"] = config.Secret
+
+	intValue, found, err = getIntFromEnvVar("USER_MAX_FAILED_LOGIN", 1, math.MaxInt16)
+	if err != nil {
+		log.Fatal(err)
+	} else if found {
+		config.MaxFailedLogin = intValue
 	}
 
+	intValue, found, err = getIntFromEnvVar("USER_DELAY_NEXT_LOGIN", 1, math.MaxInt16)
+	if err != nil {
+		log.Fatal(err)
+	} else if found {
+		config.DelayBeforeNextLoginAttempt = int64(intValue)
+	}
+
+	intValue, found, err = getIntFromEnvVar("USER_MAX_CONCURRENT_LOGIN", 1, math.MaxInt8)
+	if err != nil {
+		log.Fatal(err)
+	} else if found {
+		config.MaxConcurrentLogin = intValue
+	}
+
+	blockConcurrentUserLogin, found := os.LookupEnv("USER_BLOCK_CONCURRENT_LOGIN")
+	if found && blockConcurrentUserLogin == "false" {
+		config.BlockParallelLogin = false
+	}
+
+	// server secret may be passed via a separate env variable to accomodate easy secrets injection via Kubernetes
+	// The server secret is the password any Tidepool service is supposed to know and pass to shoreline for authentication and for getting token
+	// With Mdblp, we consider we can have different server secrets
+	// These secrets are hosted in a map[string][string] instead of single string
+	// which 1st string represents Server/Service name and 2nd represents the actual secret
+	// here we consider this SERVER_SECRET that can be injected via Kubernetes is the one for the default server/service (any Tidepool service)
+	serverSecret, found := os.LookupEnv("SERVER_SECRET")
+	if found {
+		config.ServerSecrets["default"] = serverSecret
+	}
+	serverSecret, found = os.LookupEnv("AUTHENT_API_SECRET")
+	if found {
+		config.ServerSecrets["authent_api"] = serverSecret
+	}
+	// extract the list of token secrets
+	zdkSecret, found := os.LookupEnv("ZENDESK_SECRET")
+	if found {
+		config.TokenSecrets["zendesk"] = zdkSecret
+	}
+
+	userSecret, found := os.LookupEnv("API_SECRET")
+	if found {
+		config.Secret = userSecret
+		config.TokenSecrets["default"] = userSecret
+	}
+
+	verificationSecret, found := os.LookupEnv("VERIFICATION_SECRET")
+	if found {
+		config.VerificationSecret = verificationSecret
+	}
+
+	longTermKey, found := os.LookupEnv("LONG_TERM_KEY")
+	if found {
+		config.LongTermKey = longTermKey
+	}
+
+	intValue, found, err = getIntFromEnvVar("LONG_TERM_TOKEN_DURATION_DAYS", 1, 60)
+	if err != nil {
+		log.Fatal(err)
+	} else if found {
+		config.LongTermsDuration = int64(intValue) * dayAsSecs
+	}
+
+	intValue, found, err = getIntFromEnvVar("TOKEN_DURATION_SECS", 60, math.MaxInt32)
+	if err != nil {
+		log.Fatal(err)
+	} else if found {
+		config.TokenDurationSecs = int64(intValue)
+	}
+
+	salt, found := os.LookupEnv("SALT")
+	if found && len(salt) > 0 {
+		config.Salt = salt
+	}
+
+	return config
+}
+
+// New create a new shoreline API config
+func New(cfg *ApiConfig, logger *log.Logger, store Storage, auditLogger *log.Logger) *Api {
 	api := Api{
 		Store:       store,
 		ApiConfig:   cfg,
@@ -154,6 +256,7 @@ func InitApi(cfg ApiConfig, logger *log.Logger, store Storage, auditLogger *log.
 	return &api
 }
 
+// SetHandlers init the HTTP routes handlers
 func (a *Api) SetHandlers(prefix string, rtr *mux.Router) {
 	rtr.Handle("/metrics", promhttp.Handler())
 
@@ -772,20 +875,19 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 // Set the longeterm duration and then process as per Login
 // note: see Login for return codes
 func (a *Api) LongtermLogin(res http.ResponseWriter, req *http.Request, vars map[string]string) {
-
-	const day_as_secs = 1 * 24 * 60 * 60
-
-	duration := a.ApiConfig.LongTermDaysDuration * day_as_secs
+	duration := a.ApiConfig.LongTermsDuration
 	longtermkey := vars["longtermkey"]
 
 	if longtermkey == a.ApiConfig.LongTermKey {
 		a.logger.Println("token duration is ", fmt.Sprint(time.Duration(duration)*time.Second))
 		req.Header.Add(token.TOKEN_DURATION_KEY, strconv.FormatFloat(float64(duration), 'f', -1, 64))
 	} else {
-		//tell us there was no match
+		// tell us there was no match
 		a.logger.Println("tried to login using the longtermkey but it didn't match the stored key")
 	}
 
+	// FIXME: Everybody can request a token with an arbitrary duration
+	// since, the key check is not done in the login, nor the refresh token
 	a.Login(res, req)
 
 	// TODO: Does not actually add the TOKEN_DURATION_KEY to the response on success (as the old unittests would imply)

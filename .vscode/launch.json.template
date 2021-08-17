@@ -11,14 +11,12 @@
            "mode": "debug",
            "program": "${workspaceRoot}",
            "env": {
-                "TIDEPOOL_SHORELINE_ENV":"{\"gatekeeper\": {\"serviceSpec\": {\"type\": \"static\",\"hosts\": [\"http://localhost:9123\"]}},\"hakken\": {\"host\": \"fake-hakken\",\"skipHakken\": true}}",
-                "TIDEPOOL_SHORELINE_SERVICE":"{\"service\": {\"certFile\": \"config/cert.pem\",\"host\": \"localhost:9107\",\"keyFile\": \"config/key.pem\",\"protocol\": \"http\",\"service\": \"shoreline\"},\"user\": {\"longTermDaysDuration\": 30,\"tokenDurationSecs\": 2592000, \"secrets\": [{\"secret\": \"default\", \"pass\": \"${SERVER_SECRET}\"},{\"secret\": \"authent_api\", \"pass\": \"${AUTHENT_API_SECRET}\"}],\"maxFailedLogin\":5,\"delayBeforeNextLoginAttempt\":10,\"maxConcurrentLogin\":100,\"blockParallelLogin\": true",
-                "API_SECRET":"${SHORELINE_API_SECRET}"
+                "API_SECRET":"${SHORELINE_API_SECRET}",
+                "SERVER_SECRET: "${SHORELINE_API_SECRET}",
                 "ZENDESK_SECRET":"yourSharedSecret",
                 "VERIFICATION_SECRET": "+skip",
                 "SALT":"${SHORELINE_SALT}",
                 "LONG_TERM_KEY":"${SHORELINE_LONG_TERM_KEY}"
-                "DEMO_CLINIC_USER_ID":""
                 "TIDEPOOL_STORE_DATABASE":"user",
                 "TIDEPOOL_STORE_USERNAME":"${PERSONAL_ACCOUNT}",
                 "TIDEPOOL_STORE_PASSWORD":"${PERSONAL_PWD}",

@@ -2,6 +2,10 @@
 
 Shoreline is the module that manages logins and user accounts.
 
+## Unreleased
+### Engineering
+- YLP-924 Bump to go-common v1
+
 ## 1.7.0 - 2021-08-06
 ### Changed
 - YLP-911: put in place metrics in shoreline

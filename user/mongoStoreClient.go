@@ -7,8 +7,8 @@ import (
 	"regexp"
 	"sort"
 
+	goComMgo "github.com/mdblp/go-common/clients/mongo"
 	"github.com/mdblp/shoreline/token"
-	goComMgo "github.com/tidepool-org/go-common/clients/mongo"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"

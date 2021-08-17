@@ -6,3 +6,4 @@ vendor/
 *.exe
 artifact_go.sh
 docs/
+shoreline

@@ -1,0 +1,13 @@
+# Local (developper) docker image build for quick testing
+# Build command example:
+# docker build -t docker.ci.diabeloop.eu/shoreline:1.0.0 -f Dockerfile.local .
+FROM ubuntu:focal
+RUN apt-get -y update && \
+    apt-get -y install apt-utils && \
+    apt-get -y upgrade && \
+    apt-get -y clean
+RUN useradd -l -m dblp
+WORKDIR /home/dblp
+USER dblp
+COPY --chown=dblp shoreline /home/dblp
+ENTRYPOINT [ "/home/dblp/shoreline" ]

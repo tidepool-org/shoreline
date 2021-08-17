@@ -21,8 +21,8 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/mdblp/go-common/clients/version"
 	"github.com/mdblp/shoreline/token"
-	"github.com/tidepool-org/go-common/clients/version"
 )
 
 const (
@@ -30,16 +30,14 @@ const (
 	MAKE_IT_FAIL = true
 )
 
-func InitAPITest(cfg ApiConfig, logger *log.Logger, store Storage) *Api {
+func InitAPITest(cfg *ApiConfig, logger *log.Logger, store Storage) *Api {
 	cfg.ServerSecrets = make(map[string]string)
-	for _, sec := range cfg.Secrets {
-		cfg.ServerSecrets[sec.Secret] = sec.Pass
-	}
+	cfg.ServerSecrets["default"] = THE_SECRET
 	api := Api{
-		Store:          store,
-		ApiConfig:      cfg,
-		logger:         logger,
-		auditLogger:    logger,
+		Store:       store,
+		ApiConfig:   cfg,
+		logger:      logger,
+		auditLogger: logger,
 	}
 	api.loginLimiter.usersInProgress = list.New()
 	return &api
@@ -49,9 +47,7 @@ var (
 	NO_PARAMS      = map[string]string{}
 	TOKEN_DURATION = int64(3600)
 	tokenSecrets   = make(map[string]string)
-	FAKE_CONFIG    = ApiConfig{
-		Secrets: []Secret{Secret{Secret: "default", Pass: "This needs to be the same secret everywhere. YaHut75NsK1f9UKUXuWqxNN0RUwHFBCy"},
-			Secret{Secret: "product_website", Pass: "Not so secret"}},
+	FAKE_CONFIG    = &ApiConfig{
 		TokenSecrets:                tokenSecrets,
 		Secret:                      "This is a local API secret for everyone. BsscSHqSHiwrBMJsEGqbvXiuIUPAjQXU",
 		TokenDurationSecs:           TOKEN_DURATION,
@@ -76,9 +72,9 @@ var (
 	/*
 	 * expected path
 	 */
-	logger             = log.New(os.Stdout, USER_API_PREFIX, log.LstdFlags|log.Lshortfile)
-	mockStore          = NewMockStoreClient(FAKE_CONFIG.Salt, false, false)
-	shoreline          = InitAPITest(FAKE_CONFIG, logger, mockStore)
+	logger    = log.New(os.Stdout, USER_API_PREFIX, log.LstdFlags|log.Lshortfile)
+	mockStore = NewMockStoreClient(FAKE_CONFIG.Salt, false, false)
+	shoreline = InitAPITest(FAKE_CONFIG, logger, mockStore)
 	/*
 	 *
 	 */
@@ -94,14 +90,13 @@ var (
 	responsableShoreline = InitShoreline(FAKE_CONFIG, responsableStore)
 )
 
-func InitShoreline(config ApiConfig, store Storage) *Api {
+func InitShoreline(config *ApiConfig, store Storage) *Api {
 	config.TokenSecrets["zendesk"] = "zendeskSecret"
 	api := InitAPITest(config, logger, store)
 	return api
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
 
 func T_CreateAuthorization(t *testing.T, email string, password string) string {
 	return fmt.Sprintf("Basic %s", base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", email, password))))

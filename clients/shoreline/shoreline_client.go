@@ -13,11 +13,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/mdblp/go-common/clients/status"
+	"github.com/mdblp/go-common/errors"
+	"github.com/mdblp/go-common/jepson"
 	"github.com/mdblp/shoreline/schema"
 	"github.com/mdblp/shoreline/token"
-	"github.com/tidepool-org/go-common/clients/status"
-	"github.com/tidepool-org/go-common/errors"
-	"github.com/tidepool-org/go-common/jepson"
 )
 
 type (
