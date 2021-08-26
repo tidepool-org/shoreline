@@ -144,6 +144,8 @@ func IsValidRole(role string) bool {
 	switch role {
 	case "clinic":
 		return true
+	case "migrated_clinic":
+		return true
 	default:
 		return false
 	}
