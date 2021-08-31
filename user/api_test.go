@@ -50,7 +50,8 @@ var (
 	FAKE_CONFIG    = &ApiConfig{
 		TokenSecrets:                tokenSecrets,
 		Secret:                      "This is a local API secret for everyone. BsscSHqSHiwrBMJsEGqbvXiuIUPAjQXU",
-		TokenDurationSecs:           TOKEN_DURATION,
+		UserTokenDurationSecs:       TOKEN_DURATION,
+		ServerTokenDurationSecs:     TOKEN_DURATION,
 		LongTermKey:                 "thelongtermkey",
 		Salt:                        "a mineral substance composed primarily of sodium chloride",
 		MaxFailedLogin:              5,
@@ -61,7 +62,7 @@ var (
 	/*
 	 * users and tokens
 	 */
-	TOKEN_CONFIG  = token.TokenConfig{DurationSecs: FAKE_CONFIG.TokenDurationSecs, Secret: FAKE_CONFIG.Secret}
+	TOKEN_CONFIG  = token.TokenConfig{DurationSecs: TOKEN_DURATION, Secret: FAKE_CONFIG.Secret}
 	USR           = &User{Id: "123-99-100", Username: "test@new.bar", Emails: []string{"test@new.bar"}}
 	USR_TOKEN, _  = token.CreateSessionToken(&token.TokenData{UserId: USR.Id, IsServer: false, DurationSecs: TOKEN_DURATION}, TOKEN_CONFIG)
 	SRVR_TOKEN, _ = token.CreateSessionToken(&token.TokenData{UserId: "shoreline", IsServer: true, DurationSecs: TOKEN_DURATION}, TOKEN_CONFIG)

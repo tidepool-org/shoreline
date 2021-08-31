@@ -66,9 +66,10 @@ type (
 		ServerSecrets     map[string]string
 		LongTermKey       string `json:"longTermKey"`
 		LongTermsDuration int64  `json:"longTermDuration"`
-		//so we can change the default lifetime of the token
-		//we use seconds, this also helps for testing as you can time it out easily
-		TokenDurationSecs int64 `json:"tokenDurationSecs"`
+		// UserTokenDuration is the token duration for user token
+		UserTokenDurationSecs int64
+		// ServerTokenDuration is the token duration for server tokens
+		ServerTokenDurationSecs int64
 		//used for pw
 		Salt string `json:"salt"`
 		//used for token
@@ -149,7 +150,8 @@ func NewConfigFromEnv(log *log.Logger) *ApiConfig {
 		MaxConcurrentLogin:          100,
 		BlockParallelLogin:          true,
 		LongTermsDuration:           30 * dayAsSecs,
-		TokenDurationSecs:           dayAsSecs,
+		UserTokenDurationSecs:       60 * 60,
+		ServerTokenDurationSecs:     dayAsSecs,
 		Salt:                        "ADihSEI7tOQQP9xfXMO9HfRpXKu1NpIJ",
 		ServerSecrets:               make(map[string]string),
 		TokenSecrets:                make(map[string]string),
@@ -184,7 +186,7 @@ func NewConfigFromEnv(log *log.Logger) *ApiConfig {
 		config.BlockParallelLogin = false
 	}
 
-	// server secret may be passed via a separate env variable to accomodate easy secrets injection via Kubernetes
+	// server secret may be passed via a separate env variable to accommodate easy secrets injection via Kubernetes
 	// The server secret is the password any Tidepool service is supposed to know and pass to shoreline for authentication and for getting token
 	// With Mdblp, we consider we can have different server secrets
 	// These secrets are hosted in a map[string][string] instead of single string
@@ -227,12 +229,21 @@ func NewConfigFromEnv(log *log.Logger) *ApiConfig {
 		config.LongTermsDuration = int64(intValue) * dayAsSecs
 	}
 
-	intValue, found, err = getIntFromEnvVar("TOKEN_DURATION_SECS", 60, math.MaxInt32)
+	intValue, found, err = getIntFromEnvVar("USER_TOKEN_DURATION_SECS", 60, math.MaxInt32)
 	if err != nil {
 		log.Fatal(err)
 	} else if found {
-		config.TokenDurationSecs = int64(intValue)
+		config.UserTokenDurationSecs = int64(intValue)
 	}
+	log.Printf("User token duration: %v", time.Duration(config.UserTokenDurationSecs)*time.Second)
+
+	intValue, found, err = getIntFromEnvVar("SERVER_TOKEN_DURATION_SECS", 60, math.MaxInt32)
+	if err != nil {
+		log.Fatal(err)
+	} else if found {
+		config.ServerTokenDurationSecs = int64(intValue)
+	}
+	log.Printf("Server token duration: %v", time.Duration(config.ServerTokenDurationSecs)*time.Second)
 
 	salt, found := os.LookupEnv("SALT")
 	if found && len(salt) > 0 {
@@ -400,7 +411,7 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 
 	} else {
 		tokenData := token.TokenData{DurationSecs: extractTokenDuration(req), UserId: newUser.Id, IsServer: false, Role: "unverified"}
-		tokenConfig := token.TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: a.ApiConfig.Secret}
+		tokenConfig := token.TokenConfig{DurationSecs: a.ApiConfig.UserTokenDurationSecs, Secret: a.ApiConfig.Secret}
 		if sessionToken, err := CreateSessionTokenAndSave(req.Context(), &tokenData, tokenConfig, a.Store); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN, err)
 		} else {
@@ -712,7 +723,7 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 			role = result.Roles[0]
 		}
 		tokenData := &token.TokenData{DurationSecs: extractTokenDuration(req), UserId: result.Id, Email: result.Username, Name: result.Username, Role: role}
-		tokenConfig := token.TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: a.ApiConfig.Secret}
+		tokenConfig := token.TokenConfig{DurationSecs: a.ApiConfig.UserTokenDurationSecs, Secret: a.ApiConfig.Secret}
 		if sessionToken, err := CreateSessionTokenAndSave(req.Context(), tokenData, tokenConfig, a.Store); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_TOKEN, err)
 
@@ -780,7 +791,7 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 		if sessionToken, err := CreateSessionTokenAndSave(
 			req.Context(),
 			&token.TokenData{DurationSecs: extractTokenDuration(req), UserId: server, IsServer: true},
-			token.TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: a.ApiConfig.Secret},
+			token.TokenConfig{DurationSecs: a.ApiConfig.ServerTokenDurationSecs, Secret: a.ApiConfig.Secret},
 			a.Store,
 		); err != nil {
 			// Error generating the token
@@ -840,7 +851,7 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 
 	//refresh token with update user information
 	newTokenData := token.TokenData{DurationSecs: extractTokenDuration(req), UserId: user.Id, IsServer: false, Role: role}
-	tokenConfig := token.TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: a.ApiConfig.Secret}
+	tokenConfig := token.TokenConfig{DurationSecs: a.ApiConfig.UserTokenDurationSecs, Secret: a.ApiConfig.Secret}
 	if sessionToken, err := CreateSessionTokenAndSave(
 		req.Context(),
 		&newTokenData,
@@ -996,7 +1007,7 @@ func (a *Api) Get3rdPartyToken(res http.ResponseWriter, req *http.Request, vars 
 	//refresh
 	if sessionToken, err := token.CreateSessionToken(
 		td,
-		token.TokenConfig{DurationSecs: a.ApiConfig.TokenDurationSecs, Secret: secret},
+		token.TokenConfig{DurationSecs: a.ApiConfig.UserTokenDurationSecs, Secret: secret},
 	); err != nil {
 		a.logger.Println(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN, err.Error())
 		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN), http.StatusInternalServerError)
