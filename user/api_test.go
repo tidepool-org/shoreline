@@ -2438,3 +2438,31 @@ func Test_RemoveUserPermissions_Success(t *testing.T) {
 		t.Fatalf("Unexpected error: %#v", err)
 	}
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+func Test_DeleteUserSessions_Error_User(t *testing.T) {
+	shorelineFails.SetHandlers("", rtr)
+	req, _ := http.NewRequest("DELETE", fmt.Sprintf("/user/%v/sessions", userToken.UserID), nil)
+	req.Header.Set(TP_SESSION_TOKEN, userToken.ID)
+	resp := httptest.NewRecorder()
+
+	shoreline.DeleteUserSessions(resp, req, map[string]string{"userid": userToken.UserID})
+
+	if resp.Code != http.StatusUnauthorized {
+		t.Fatalf("Expected [%v] and got [%v]", http.StatusUnauthorized, resp.Code)
+	}
+}
+
+func Test_DeleteUserSessions_Success(t *testing.T) {
+	shorelineFails.SetHandlers("", rtr)
+	req, _ := http.NewRequest("DELETE", fmt.Sprintf("/user/%v/sessions", userToken.UserID), nil)
+	req.Header.Set(TP_SESSION_TOKEN, serverToken.ID)
+	resp := httptest.NewRecorder()
+
+	shoreline.DeleteUserSessions(resp, req, map[string]string{"userid": userToken.UserID})
+
+	if resp.Code != http.StatusNoContent {
+		t.Fatalf("Expected [%v] and got [%v]", http.StatusNoContent, resp.Code)
+	}
+}

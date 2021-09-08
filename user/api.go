@@ -126,6 +126,7 @@ func (a *Api) SetHandlers(prefix string, rtr *mux.Router) {
 	rtr.Handle("/user", varsHandler(a.UpdateUser)).Methods("PUT")
 	rtr.Handle("/user/{userid}", varsHandler(a.UpdateUser)).Methods("PUT")
 	rtr.Handle("/user/{userid}", varsHandler(a.DeleteUser)).Methods("DELETE")
+	rtr.Handle("/user/{userid}/sessions", varsHandler(a.DeleteUserSessions)).Methods("DELETE")
 
 	rtr.Handle("/user/{userid}/user", varsHandler(a.CreateCustodialUser)).Methods("POST")
 	rtr.Handle("/v1/clinics/{clinicId}/users", varsHandler(a.CreateClinicCustodialUser)).Methods("POST")
@@ -755,6 +756,28 @@ func (a *Api) Logout(res http.ResponseWriter, req *http.Request) {
 	}
 	//otherwise all good
 	res.WriteHeader(http.StatusOK)
+	return
+}
+
+// status: 200
+func (a *Api) DeleteUserSessions(res http.ResponseWriter, req *http.Request, vars map[string]string) {
+	ctx := req.Context()
+	userId := vars["userid"]
+	token := req.Header.Get(TP_SESSION_TOKEN)
+
+	if td, err := a.authenticateSessionToken(ctx, token); err != nil || !td.IsServer {
+		a.logger.Println(http.StatusUnauthorized, STATUS_NO_TOKEN, err)
+		sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_TOKEN), http.StatusUnauthorized)
+		return
+	}
+
+	if err := a.Store.RemoveTokensForUser(userId); err != nil {
+		a.logger.Println(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN, err.Error())
+		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN), http.StatusInternalServerError)
+		return
+	}
+
+	res.WriteHeader(http.StatusNoContent)
 	return
 }
 
