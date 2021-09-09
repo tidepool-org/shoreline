@@ -142,7 +142,10 @@ func ExtractStringMap(data map[string]interface{}, key string) (map[string]inter
 }
 
 func IsValidEmail(email string) bool {
-	ok, _ := regexp.MatchString(`\A(?i)([^@\s]+)@((?:[-a-z0-9]+\.)+[a-z]{2,})\z`, email)
+	if len(email) > 254 {
+		return false
+	}
+	ok, _ := regexp.MatchString(`\A(?i)([^@\s\x60'"<>]+)@((?:[-a-z0-9]+\.)+[a-z]{2,})\z`, email)
 	return ok
 }
 

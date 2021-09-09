@@ -127,11 +127,19 @@ func Test_ExtractStringMap_Present_NotStringMap(t *testing.T) {
 }
 
 func Test_IsValidEmail_Invalid(t *testing.T) {
-	invalidEmails := []string{"", "a", "a@", "a@z", "a@z.", "a@z.c", ".co", "z.co", "@z.co", "a@b@z.co", "a b@z.co", "a@z$z.co", "a@x#z.co"}
+	invalidEmails := []string{"", "a", "a@", "a@z", "a@z.", "a@z.c", ".co", "z.co", "@z.co", "a@b@z.co", "a b@z.co", "a@z$z.co", "a@x#z.co", "a't@ici.com", "a<!aaa>@b.com", "a`vv@c.com"}
 	for _, invalidEmail := range invalidEmails {
 		if IsValidEmail(invalidEmail) {
 			t.Fatalf("Invalid email %s is unexpectedly valid", invalidEmail)
 		}
+	}
+	aRealyLongEmail := "a.realy-long-local-name-for-an-email@"
+	for i := 0; i < 10; i++ {
+		aRealyLongEmail = aRealyLongEmail + "azertyuiopqsdfghjklmwxcvbn."
+	}
+	aRealyLongEmail = aRealyLongEmail + "com"
+	if IsValidEmail(aRealyLongEmail) {
+		t.Fatalf("Invalid email %s is unexpectedly valid", aRealyLongEmail)
 	}
 }
 
