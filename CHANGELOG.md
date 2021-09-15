@@ -1,15 +1,13 @@
 # Shoreline
 
-Shoreline is the module that manages logins and user accounts.
+Shoreline is the module that manages user accounts and authentication.
 
-## 1.8.0-rc0
+## 1.8.0 - 2021-09-15
 ### Changed
-- YLP-943 add basic checks on user email address
-
+- YLP-943: Add basic checks on user email address
+- YLP-937: Split configuration of user and server token duration
 ### Engineering
-- YLP-924 Bump to go-common v1
-### Changed
-- YLP-937 Split configuration of user and server token duration
+- YLP-924: Upgrade to go-common v1
 
 ## 1.7.0 - 2021-08-06
 ### Changed
