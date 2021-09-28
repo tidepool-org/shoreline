@@ -2,6 +2,10 @@
 
 Shoreline is the module that manages user accounts and authentication.
 
+## 1.8.1 - 2021-09-28
+### Fixed
+- YLP-1026: Shoreline cannot start with 200 concurrent users
+
 ## 1.8.0 - 2021-09-15
 ### Changed
 - YLP-943: Add basic checks on user email address

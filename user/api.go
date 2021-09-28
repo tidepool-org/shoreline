@@ -174,7 +174,7 @@ func NewConfigFromEnv(log *log.Logger) *ApiConfig {
 		config.DelayBeforeNextLoginAttempt = int64(intValue)
 	}
 
-	intValue, found, err = getIntFromEnvVar("USER_MAX_CONCURRENT_LOGIN", 1, math.MaxInt8)
+	intValue, found, err = getIntFromEnvVar("USER_MAX_CONCURRENT_LOGIN", 1, math.MaxInt16)
 	if err != nil {
 		log.Fatal(err)
 	} else if found {
