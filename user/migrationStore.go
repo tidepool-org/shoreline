@@ -86,7 +86,7 @@ func (m *MigrationStore) UpdateUser(user *User, details *UpdateUserDetails) (*Us
 	if details.Username != nil {
 		emails = append(emails, *details.Username)
 	}
-	if err := m.assertEmailsUnique(emails); err != nil {
+	if err := m.assertEmailsUnique(user.Id, emails); err != nil {
 		return nil, err
 	}
 
@@ -97,7 +97,7 @@ func (m *MigrationStore) UpdateUser(user *User, details *UpdateUserDetails) (*Us
 	return m.fallback.UpdateUser(user, details)
 }
 
-func (m *MigrationStore) assertEmailsUnique(emails []string) error {
+func (m *MigrationStore) assertEmailsUnique(userId string, emails []string) error {
 	for _, email := range emails {
 		users, err := m.fallback.FindUsers(&User{
 			Username: email,
@@ -106,8 +106,10 @@ func (m *MigrationStore) assertEmailsUnique(emails []string) error {
 		if err != nil {
 			return err
 		}
-		if len(users) > 0 {
-			return ErrEmailConflict
+		for _, user := range users {
+			if user.Id != userId {
+				return ErrEmailConflict
+			}
 		}
 	}
 
@@ -116,7 +118,7 @@ func (m *MigrationStore) assertEmailsUnique(emails []string) error {
 		if err != nil {
 			return err
 		}
-		if user != nil {
+		if user != nil && user.ID != userId {
 			return ErrEmailConflict
 		}
 	}
