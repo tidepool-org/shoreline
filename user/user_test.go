@@ -171,7 +171,7 @@ func Test_IsValidRole_Valid(t *testing.T) {
 }
 
 func Test_IsValidPassword_Invalid(t *testing.T) {
-	invalidPasswords := []string{"", "1", "1234567", "123  678", "1234567890123456789012345678901234  789012345678901234567890123456789012", "1234567890123456789012345678901234567890123456789012345678901234567890123"}
+	invalidPasswords := []string{"", "1", "1234567", "12 678", "1234567890123456789012345678901234	789012345678901234567890123456789012", "1234567890123456789012345678901234567890123456789012345678901234567890123"}
 	for _, invalidPassword := range invalidPasswords {
 		if IsValidPassword(invalidPassword) {
 			t.Fatalf("Invalid password %s is unexpectedly valid", invalidPassword)
@@ -180,7 +180,7 @@ func Test_IsValidPassword_Invalid(t *testing.T) {
 }
 
 func Test_IsValidPassword_Valid(t *testing.T) {
-	validPasswords := []string{"12345678", "123456789012345678901234567890123456789012345678901234567890123456789012"}
+	validPasswords := []string{"12345678", "12345 678", "123456789012345678901234567890123456789012345678901234567890123456789012"}
 	for _, validPassword := range validPasswords {
 		if !IsValidPassword(validPassword) {
 			t.Fatalf("Valid password %s is unexpectedly invalid", validPassword)

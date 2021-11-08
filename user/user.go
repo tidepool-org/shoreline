@@ -150,7 +150,7 @@ func IsValidEmail(email string) bool {
 }
 
 func IsValidPassword(password string) bool {
-	ok, _ := regexp.MatchString(`\A\S{8,72}\z`, password)
+	ok, _ := regexp.MatchString(`\A[\S ]{8,72}\z`, password)
 	return ok
 }
 
