@@ -1205,6 +1205,43 @@ func Test_Login_Success_Password_Complex(t *testing.T) {
 	}
 }
 
+func Test_Login_Caregiver_From_PrivateApi(t *testing.T) {
+	authorization := T_CreateAuthorization(t, "a@b.co", "password")
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{{Id: "1111111111", Username: "a@z.co", Emails: []string{"a@z.co"}, Roles: []string{"caregiver"}, TermsAccepted: "2016-01-01T01:23:45-08:00", PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5", EmailVerified: true}}, nil}}
+	responsableStore.AddTokenResponses = []error{nil}
+	responsableStore.UpsertUserResponses = []error{nil}
+	defer T_ExpectResponsablesEmpty(t)
+
+	headers := http.Header{}
+	headers.Add("Authorization", authorization)
+	headers.Add(HEADER_REQUEST_SOURCE, "private")
+	response := T_PerformRequestHeaders(t, "POST", "/login", headers)
+	successResponse := T_ExpectSuccessResponseWithJSONMap(t, response, 200)
+	T_ExpectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
+	T_ExpectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": true, "roles": []interface{}{"patient", "caregiver"}, "emails": []interface{}{"a@z.co"}, "username": "a@z.co", "termsAccepted": "2016-01-01T01:23:45-08:00"})
+	if response.Header().Get(TP_SESSION_TOKEN) == "" {
+		t.Fatalf("Missing expected %s header", TP_SESSION_TOKEN)
+	}
+}
+
+func Test_Login_Caregiver_From_PublicApi(t *testing.T) {
+	authorization := T_CreateAuthorization(t, "a@b.co", "password")
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{{Id: "1111111111", Username: "a@z.co", Emails: []string{"a@z.co"}, Roles: []string{"caregiver"}, TermsAccepted: "2016-01-01T01:23:45-08:00", PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5", EmailVerified: true}}, nil}}
+	responsableStore.AddTokenResponses = []error{nil}
+	defer T_ExpectResponsablesEmpty(t)
+
+	headers := http.Header{}
+	headers.Add("Authorization", authorization)
+	headers.Add(HEADER_REQUEST_SOURCE, "public")
+	response := T_PerformRequestHeaders(t, "POST", "/login", headers)
+	successResponse := T_ExpectSuccessResponseWithJSONMap(t, response, 200)
+	T_ExpectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
+	T_ExpectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": true, "roles": []interface{}{"caregiver"}, "emails": []interface{}{"a@z.co"}, "username": "a@z.co", "termsAccepted": "2016-01-01T01:23:45-08:00"})
+	if response.Header().Get(TP_SESSION_TOKEN) == "" {
+		t.Fatalf("Missing expected %s header", TP_SESSION_TOKEN)
+	}
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 func TestServerLogin_StatusBadRequest_WhenNoNameOrSecret(t *testing.T) {

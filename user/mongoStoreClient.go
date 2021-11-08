@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"regexp"
-	"sort"
 
 	goComMgo "github.com/mdblp/go-common/clients/mongo"
 	"github.com/mdblp/shoreline/token"
@@ -42,9 +41,6 @@ func mgoTokensCollection(c *Client) *mongo.Collection {
 }
 
 func (c *Client) UpsertUser(ctx context.Context, user *User) error {
-	if user.Roles != nil {
-		sort.Strings(user.Roles)
-	}
 	options := options.Update().SetUpsert(true)
 	update := bson.M{"$set": user}
 	// if the user already exists we update otherwise we add

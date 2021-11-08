@@ -106,7 +106,8 @@ const (
 	TP_SESSION_TOKEN  = "x-tidepool-session-token"
 	EXT_SESSION_TOKEN = "x-external-session-token"
 	// TP_TRACE_SESSION Session trace: uuid v4
-	TP_TRACE_SESSION = "x-tidepool-trace-session"
+	TP_TRACE_SESSION      = "x-tidepool-trace-session"
+	HEADER_REQUEST_SOURCE = "x-backloops-source"
 
 	STATUS_NO_USR_DETAILS        = "No user details were given"
 	STATUS_INVALID_USER_DETAILS  = "Invalid user details were given"
@@ -672,6 +673,7 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 // @Failure 400 {object} status.Status "message returned: \"Missing id and/or password\""
 // @Router /login [post]
 func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
+	requestSource := req.Header.Get(HEADER_REQUEST_SOURCE)
 	user, password, err := unpackAuth(req.Header.Get("Authorization"))
 	if err != nil {
 		a.sendError(res, http.StatusBadRequest, STATUS_MISSING_ID_PW, err)
@@ -717,7 +719,17 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 		a.sendError(res, http.StatusForbidden, STATUS_NOT_VERIFIED)
 
 	} else {
-		// TODO: replace this workaround, there should be only one role when the data is cleaned up
+		// Login succeed:
+		// FIXME, YLP-1065
+		if requestSource == "private" && result.Roles[0] != "patient" {
+			a.logger.Printf("Adding patient role to user %v", result.Id)
+			// Let's add the role patient:
+			result.Roles = []string{"patient", result.Roles[0]}
+			if err := a.Store.UpsertUser(req.Context(), result); err != nil {
+				a.logger.Printf("Login of a non patient user from our private endpoint. Error while adding the role patient: %s", err)
+			}
+		}
+		// FIXME: replace this workaround, we should support multi roles
 		role := "patient"
 		if result.Roles != nil && len(result.Roles) > 0 {
 			role = result.Roles[0]

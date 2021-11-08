@@ -6,7 +6,6 @@ import (
 	"os"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/mdblp/go-common/clients/mongo"
 	"github.com/mdblp/shoreline/token"
@@ -14,11 +13,12 @@ import (
 
 func mgoTestSetup() (*Client, error) {
 	// testing against mongodb://127.0.0.1/user_test
-	var testingConfig = &mongo.Config{
-		Database:               "user_test",
-		Timeout:                2 * time.Second,
-		WaitConnectionInterval: 5 * time.Second,
-		MaxConnectionAttempts:  0,
+	var testingConfig = &mongo.Config{}
+	testingConfig.FromEnv()
+	if testingConfig.Database == "" {
+		os.Setenv("TIDEPOOL_STORE_ADDRESSES", "localhost:27018")
+		os.Setenv("TIDEPOOL_STORE_DATABASE", "user_test")
+		testingConfig.FromEnv()
 	}
 	if _, exist := os.LookupEnv("TIDEPOOL_STORE_ADDRESSES"); exist {
 		// if mongo connexion information is provided via env var
@@ -196,8 +196,8 @@ func TestMongoStore_FindUsersByRole(t *testing.T) {
 	/*
 	 * THE TESTS
 	 */
+	user_one_detail.Roles = []string{"hcp"}
 	userOne, _ := NewUser(user_one_detail, tests_fake_salt)
-	userOne.Roles = append(userOne.Roles, "clinic")
 
 	userTwo, _ := NewUser(user_two_detail, tests_fake_salt)
 
@@ -208,10 +208,10 @@ func TestMongoStore_FindUsersByRole(t *testing.T) {
 		t.Fatalf("we could not create the user %v", err)
 	}
 
-	if found, err := mc.FindUsersByRole(ctx, "clinic"); err != nil {
+	if found, err := mc.FindUsersByRole(ctx, "hcp"); err != nil {
 		t.Fatalf("error finding users by role %s", err.Error())
-	} else if len(found) != 1 || found[0].Roles[0] != "clinic" {
-		t.Fatalf("should only find clinic users but found %v", found)
+	} else if len(found) != 1 || found[0].Roles[0] != "hcp" {
+		t.Fatalf("should only find hcp users but found %v", found)
 	}
 
 }
