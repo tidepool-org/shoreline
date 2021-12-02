@@ -57,7 +57,7 @@ func (d MockStoreClient) FindUsers(ctx context.Context, user *User) (found []*Us
 	}
 
 	if user.Username != "" {
-		found, err := NewUser(&NewUserDetails{Username: &user.Username, Password: &password, Emails: []string{}}, d.salt)
+		found, err := NewUser(&NewUserDetails{Username: &user.Username, Password: &password, Emails: []string{}}, d.salt, "public")
 		if err != nil {
 			return []*User{}, err
 		}
@@ -111,7 +111,7 @@ func (d MockStoreClient) FindUser(ctx context.Context, user *User) (found *User,
 	password := "123youknoWm3"
 
 	if d.returnDifferent {
-		other, err := NewUser(&NewUserDetails{Username: &username, Password: &password, Emails: []string{}}, d.salt)
+		other, err := NewUser(&NewUserDetails{Username: &username, Password: &password, Emails: []string{}}, d.salt, "public")
 		if err != nil {
 			return nil, err
 		}
@@ -120,7 +120,7 @@ func (d MockStoreClient) FindUser(ctx context.Context, user *User) (found *User,
 	}
 
 	if user.Username != "" {
-		found, err := NewUser(&NewUserDetails{Username: &user.Username, Password: &password, Emails: []string{}}, d.salt)
+		found, err := NewUser(&NewUserDetails{Username: &user.Username, Password: &password, Emails: []string{}}, d.salt, "public")
 		if err != nil {
 			return nil, err
 		}

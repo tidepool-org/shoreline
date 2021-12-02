@@ -16,7 +16,10 @@ RUN wget -nv https://golang.org/dl/$GO_ARCHIVE && \
     tar zxf $GO_ARCHIVE && \
     mv -v /tmp/go /go && \
     rm -v /tmp/$GO_ARCHIVE
+
 WORKDIR /root/go/src/github.com/mdblp/shoreline
+ENV TIDEPOOL_STORE_ADDRESSES=localhost:27017
+ENV TIDEPOOL_STORE_DATABASE=test-shoreline
 
 COPY go.* ./
 RUN \
@@ -27,7 +30,7 @@ RUN \
 COPY . .
 RUN /bin/bash -c '/usr/local/bin/docker-entrypoint.sh mongod &' && \
     sleep 1 && \
-    PATH=$PATH:/go/bin:$(/go/bin/go env GOPATH)/bin bash test.sh && echo 'No Error !' ; \
+    PATH=$PATH:/go/bin:$(/go/bin/go env GOPATH)/bin bash test.sh ; \
     sleep 1 && \
     kill "$(ps -C mongod -o pid=)" && \
     sleep 1

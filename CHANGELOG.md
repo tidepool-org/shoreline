@@ -2,6 +2,10 @@
 
 Shoreline is the module that manages user accounts and authentication.
 
+## 1.8.3
+### Fixed
+- YLP-1104 Shoreline should not create an account without any role
+
 ## 1.8.2
 ### Changed
 - YLP-1065: Automatically add the role "patient" for login requests coming from private api.

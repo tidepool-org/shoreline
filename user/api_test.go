@@ -487,20 +487,50 @@ func Test_CreateUser_Error_InvalidUserDetails(t *testing.T) {
 	T_ExpectErrorResponse(t, response, 400, "Invalid user details were given")
 }
 
+func Test_CreateUser_Error_Empty_Role_Public(t *testing.T) {
+	defer T_ExpectResponsablesEmpty(t)
+
+	headers := http.Header{}
+	headers.Add(HEADER_REQUEST_SOURCE, "public")
+	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\", \"roles\": []}"
+	response := T_PerformRequestBodyHeaders(t, "POST", "/user", body, headers)
+	T_ExpectErrorResponse(t, response, 400, "Invalid user details were given")
+}
+
+func Test_CreateUser_Error_No_Role_Public(t *testing.T) {
+	defer T_ExpectResponsablesEmpty(t)
+
+	headers := http.Header{}
+	headers.Add(HEADER_REQUEST_SOURCE, "public")
+	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\"}"
+	response := T_PerformRequestBodyHeaders(t, "POST", "/user", body, headers)
+	T_ExpectErrorResponse(t, response, 400, "Invalid user details were given")
+}
+
+func Test_CreateUser_Error_Invalid_Role(t *testing.T) {
+	defer T_ExpectResponsablesEmpty(t)
+
+	headers := http.Header{}
+	headers.Add(HEADER_REQUEST_SOURCE, "public")
+	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\", \"roles\": [\"admin\"]}"
+	response := T_PerformRequestBodyHeaders(t, "POST", "/user", body, headers)
+	T_ExpectErrorResponse(t, response, 400, "Invalid user details were given")
+}
+
 func Test_CreateUser_Error_ErrorFindingUsers(t *testing.T) {
 	responsableStore.FindUsersResponses = []FindUsersResponse{{nil, errors.New("ERROR")}}
 	defer T_ExpectResponsablesEmpty(t)
 
-	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\"}"
+	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\", \"roles\":[\"caregiver\"]}}"
 	response := T_PerformRequestBody(t, "POST", "/user", body)
 	T_ExpectErrorResponse(t, response, 500, "Error creating the user")
 }
 
 func Test_CreateUser_Error_ConflictingEmail(t *testing.T) {
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{}}, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{{}}, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
-	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\"}"
+	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\", \"roles\":[\"caregiver\"]}"
 	response := T_PerformRequestBody(t, "POST", "/user", body)
 	T_ExpectErrorResponse(t, response, 409, "Error creating the user")
 }
@@ -510,7 +540,7 @@ func Test_CreateUser_Error_ErrorUpsertingUser(t *testing.T) {
 	responsableStore.UpsertUserResponses = []error{errors.New("ERROR")}
 	defer T_ExpectResponsablesEmpty(t)
 
-	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\"}"
+	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\", \"roles\":[\"hcp\"]}"
 	response := T_PerformRequestBody(t, "POST", "/user", body)
 	T_ExpectErrorResponse(t, response, 500, "Error creating the user")
 }
@@ -521,9 +551,45 @@ func Test_CreateUser_Error_ErrorAddingToken(t *testing.T) {
 	responsableStore.AddTokenResponses = []error{errors.New("ERROR")}
 	defer T_ExpectResponsablesEmpty(t)
 
-	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\"}"
+	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\", \"roles\":[\"hcp\"]}"
 	response := T_PerformRequestBody(t, "POST", "/user", body)
 	T_ExpectErrorResponse(t, response, 500, "Error generating the token")
+}
+
+func Test_CreateUser_Success_Empty_Role_Private(t *testing.T) {
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
+	responsableStore.UpsertUserResponses = []error{nil}
+	responsableStore.AddTokenResponses = []error{nil}
+	defer T_ExpectResponsablesEmpty(t)
+
+	headers := http.Header{}
+	headers.Add(HEADER_REQUEST_SOURCE, "private")
+	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\", \"roles\": []}"
+	response := T_PerformRequestBodyHeaders(t, "POST", "/user", body, headers)
+	successResponse := T_ExpectSuccessResponseWithJSONMap(t, response, 201)
+	T_ExpectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
+	T_ExpectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": false, "emails": []interface{}{"a@z.co"}, "username": "a@z.co", "roles": []interface{}{"patient"}})
+	if response.Header().Get(TP_SESSION_TOKEN) == "" {
+		t.Fatalf("Missing expected %s header", TP_SESSION_TOKEN)
+	}
+}
+
+func Test_CreateUser_Success_No_Role_Private(t *testing.T) {
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
+	responsableStore.UpsertUserResponses = []error{nil}
+	responsableStore.AddTokenResponses = []error{nil}
+	defer T_ExpectResponsablesEmpty(t)
+
+	headers := http.Header{}
+	headers.Add(HEADER_REQUEST_SOURCE, "private")
+	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\"}"
+	response := T_PerformRequestBodyHeaders(t, "POST", "/user", body, headers)
+	successResponse := T_ExpectSuccessResponseWithJSONMap(t, response, 201)
+	T_ExpectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
+	T_ExpectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": false, "emails": []interface{}{"a@z.co"}, "username": "a@z.co", "roles": []interface{}{"patient"}})
+	if response.Header().Get(TP_SESSION_TOKEN) == "" {
+		t.Fatalf("Missing expected %s header", TP_SESSION_TOKEN)
+	}
 }
 
 func Test_CreateUser_Success(t *testing.T) {
@@ -1161,19 +1227,20 @@ func Test_Login_Error_EmailNotVerified(t *testing.T) {
 
 func Test_Login_Error_ErrorCreatingToken(t *testing.T) {
 	authorization := T_CreateAuthorization(t, "a@b.co", "password")
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5", EmailVerified: true}}, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{{Id: "1111111111", PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5", EmailVerified: true}}, nil}}
 	responsableStore.AddTokenResponses = []error{errors.New("ERROR")}
 	defer T_ExpectResponsablesEmpty(t)
 
 	headers := http.Header{}
 	headers.Add("Authorization", authorization)
+	headers.Add(HEADER_REQUEST_SOURCE, "public")
 	response := T_PerformRequestHeaders(t, "POST", "/login", headers)
 	T_ExpectErrorResponse(t, response, 500, "Error updating token")
 }
 
 func Test_Login_Success(t *testing.T) {
 	authorization := T_CreateAuthorization(t, "a@b.co", "password")
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5", EmailVerified: true}}, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{{Id: "1111111111", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5", EmailVerified: true}}, nil}}
 	responsableStore.AddTokenResponses = []error{nil}
 	defer T_ExpectResponsablesEmpty(t)
 
@@ -1182,7 +1249,7 @@ func Test_Login_Success(t *testing.T) {
 	response := T_PerformRequestHeaders(t, "POST", "/login", headers)
 	successResponse := T_ExpectSuccessResponseWithJSONMap(t, response, 200)
 	T_ExpectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
-	T_ExpectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": true, "emails": []interface{}{"a@z.co"}, "username": "a@z.co", "termsAccepted": "2016-01-01T01:23:45-08:00"})
+	T_ExpectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": true, "emails": []interface{}{"a@z.co"}, "username": "a@z.co", "termsAccepted": "2016-01-01T01:23:45-08:00", "roles": []interface{}{"patient"}})
 	if response.Header().Get(TP_SESSION_TOKEN) == "" {
 		t.Fatalf("Missing expected %s header", TP_SESSION_TOKEN)
 	}
@@ -1190,16 +1257,17 @@ func Test_Login_Success(t *testing.T) {
 
 func Test_Login_Success_Password_Complex(t *testing.T) {
 	authorization := T_CreateAuthorization(t, "a@b.co", "`-=[]\\;',./~!@#$%^&*)(_+}{|\":<>?`¡™£¢∞§¶•ª–≠‘“æ…÷≥”’")
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", PwHash: "80464ae775ca97187d29bc4b3e391e959947138a", EmailVerified: true}}, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{{Id: "1111111111", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", PwHash: "80464ae775ca97187d29bc4b3e391e959947138a", EmailVerified: true}}, nil}}
 	responsableStore.AddTokenResponses = []error{nil}
 	defer T_ExpectResponsablesEmpty(t)
 
 	headers := http.Header{}
+	headers.Add(HEADER_REQUEST_SOURCE, "private")
 	headers.Add("Authorization", authorization)
 	response := T_PerformRequestHeaders(t, "POST", "/login", headers)
 	successResponse := T_ExpectSuccessResponseWithJSONMap(t, response, 200)
 	T_ExpectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
-	T_ExpectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": true, "emails": []interface{}{"a@z.co"}, "username": "a@z.co", "termsAccepted": "2016-01-01T01:23:45-08:00"})
+	T_ExpectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": true, "emails": []interface{}{"a@z.co"}, "username": "a@z.co", "termsAccepted": "2016-01-01T01:23:45-08:00", "roles": []interface{}{"patient"}})
 	if response.Header().Get(TP_SESSION_TOKEN) == "" {
 		t.Fatalf("Missing expected %s header", TP_SESSION_TOKEN)
 	}
@@ -1541,16 +1609,26 @@ func Test_LongTermLogin_Error_ErrorCreatingToken(t *testing.T) {
 
 func Test_LongTermLogin_Success(t *testing.T) {
 	authorization := T_CreateAuthorization(t, "a@b.co", "password")
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5", EmailVerified: true}}, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{
+		{[]*User{{
+			Id:            "1111111111",
+			Username:      "a@z.co",
+			Emails:        []string{"a@z.co"},
+			TermsAccepted: "2016-01-01T01:23:45-08:00",
+			PwHash:        "d1fef52139b0d120100726bcb43d5cc13d41e4b5",
+			EmailVerified: true,
+		}}, nil},
+	}
 	responsableStore.AddTokenResponses = []error{nil}
 	defer T_ExpectResponsablesEmpty(t)
 
 	headers := http.Header{}
 	headers.Add("Authorization", authorization)
+	headers.Add(HEADER_REQUEST_SOURCE, "private")
 	response := T_PerformRequestHeaders(t, "POST", "/login/thelongtermkey", headers)
 	successResponse := T_ExpectSuccessResponseWithJSONMap(t, response, 200)
 	T_ExpectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
-	T_ExpectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": true, "emails": []interface{}{"a@z.co"}, "username": "a@z.co", "termsAccepted": "2016-01-01T01:23:45-08:00"})
+	T_ExpectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": true, "emails": []interface{}{"a@z.co"}, "username": "a@z.co", "termsAccepted": "2016-01-01T01:23:45-08:00", "roles": []interface{}{"patient"}})
 	if response.Header().Get(TP_SESSION_TOKEN) == "" {
 		t.Fatalf("Missing expected %s header", TP_SESSION_TOKEN)
 	}

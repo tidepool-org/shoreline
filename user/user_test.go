@@ -347,7 +347,7 @@ func Test_NewUserDetails_ExtractFromJSON_ValidRoles(t *testing.T) {
 func Test_NewUserDetails_Validate_Username_Missing(t *testing.T) {
 	password := "12345678"
 	details := &NewUserDetails{Emails: []string{"b@y.co", "c@x.co"}, Password: &password}
-	err := details.Validate()
+	err := details.Validate("private")
 	if err != User_error_username_missing {
 		t.Fatalf("Unexpected error for username missing: %#v", err)
 	}
@@ -357,7 +357,7 @@ func Test_NewUserDetails_Validate_Username_Invalid(t *testing.T) {
 	username := "a"
 	password := "12345678"
 	details := &NewUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Password: &password}
-	err := details.Validate()
+	err := details.Validate("private")
 	if err != User_error_username_invalid {
 		t.Fatalf("Unexpected error for username invalid: %#v", err)
 	}
@@ -367,7 +367,7 @@ func Test_NewUserDetails_Validate_Emails_Missing(t *testing.T) {
 	username := "a@z.co"
 	password := "12345678"
 	details := &NewUserDetails{Username: &username, Password: &password}
-	err := details.Validate()
+	err := details.Validate("private")
 	if err != User_error_emails_missing {
 		t.Fatalf("Unexpected error for emails missing: %#v", err)
 	}
@@ -377,7 +377,7 @@ func Test_NewUserDetails_Validate_Emails_Invalid(t *testing.T) {
 	username := "a@z.co"
 	password := "12345678"
 	details := &NewUserDetails{Username: &username, Emails: []string{"b@y.co", "c"}, Password: &password}
-	err := details.Validate()
+	err := details.Validate("private")
 	if err != User_error_emails_invalid {
 		t.Fatalf("Unexpected error for emails invalid: %#v", err)
 	}
@@ -386,7 +386,7 @@ func Test_NewUserDetails_Validate_Emails_Invalid(t *testing.T) {
 func Test_NewUserDetails_Validate_Password_Missing(t *testing.T) {
 	username := "a@z.co"
 	details := &NewUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}}
-	err := details.Validate()
+	err := details.Validate("private")
 	if err != User_error_password_missing {
 		t.Fatalf("Unexpected error for password missing: %#v", err)
 	}
@@ -396,7 +396,7 @@ func Test_NewUserDetails_Validate_Password_Invalid(t *testing.T) {
 	username := "a@z.co"
 	password := "1234567"
 	details := &NewUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Password: &password}
-	err := details.Validate()
+	err := details.Validate("private")
 	if err != User_error_password_invalid {
 		t.Fatalf("Unexpected error for password invalid: %#v", err)
 	}
@@ -406,8 +406,18 @@ func Test_NewUserDetails_Validate_Roles_Invalid(t *testing.T) {
 	username := "a@z.co"
 	password := "12345678"
 	details := &NewUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Password: &password, Roles: []string{"invalid"}}
-	err := details.Validate()
+	err := details.Validate("private")
 	if err != User_error_roles_invalid {
+		t.Fatalf("Unexpected error for roles invalid: %#v", err)
+	}
+}
+
+func Test_NewUserDetails_Validate_Roles_Missing(t *testing.T) {
+	username := "a@z.co"
+	password := "12345678"
+	details := &NewUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Password: &password}
+	err := details.Validate("public")
+	if err != User_error_roles_missing {
 		t.Fatalf("Unexpected error for roles invalid: %#v", err)
 	}
 }
@@ -416,7 +426,7 @@ func Test_NewUserDetails_Validate_Valid(t *testing.T) {
 	username := "a@z.co"
 	password := "12345678"
 	details := &NewUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Password: &password, Roles: []string{"hcp"}}
-	err := details.Validate()
+	err := details.Validate("public")
 	if err != nil {
 		t.Fatalf("Unexpected error for valid: %#v", err)
 	}
@@ -449,7 +459,7 @@ func Test_ParseNewUserDetails_ValidAll(t *testing.T) {
 
 func Test_NewUser_MissingDetails(t *testing.T) {
 	salt := "abc"
-	user, err := NewUser(nil, salt)
+	user, err := NewUser(nil, salt, "")
 	if err == nil {
 		t.Fatalf("Unexpected success for missing details")
 	}
@@ -462,7 +472,7 @@ func Test_NewUser_InvalidDetails(t *testing.T) {
 	username := "a"
 	details := &NewUserDetails{Username: &username}
 	salt := "abc"
-	user, err := NewUser(details, salt)
+	user, err := NewUser(details, salt, "")
 	if err == nil {
 		t.Fatalf("Unexpected success for invalid details")
 	}
@@ -475,7 +485,7 @@ func Test_NewUser_MissingSalt(t *testing.T) {
 	username := "a@z.co"
 	password := "12345678"
 	details := &NewUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Password: &password}
-	user, err := NewUser(details, "")
+	user, err := NewUser(details, "", "")
 	if err == nil {
 		t.Fatalf("Unexpected success for missing salt")
 	}
@@ -489,7 +499,7 @@ func Test_NewUser_Valid(t *testing.T) {
 	password := "12345678"
 	details := &NewUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Password: &password, Roles: []string{"hcp"}}
 	salt := "abc"
-	user, err := NewUser(details, salt)
+	user, err := NewUser(details, salt, "public")
 	if err != nil {
 		t.Fatalf("Unexpected error for valid: %#v", err)
 	}
@@ -1194,14 +1204,16 @@ func Test_User_PasswordsMatch_NoMatch_MissingSalt(t *testing.T) {
 func Test_User_IsVerified(t *testing.T) {
 	usernameWithSecret := "one@abc.com"
 	passwordWithSecret := "3th3Hardw0y"
-	userWithSecret, err := NewUser(&NewUserDetails{Username: &usernameWithSecret, Password: &passwordWithSecret, Emails: []string{"test+secret@foo.bar"}}, "some salt")
+	newUser := &NewUserDetails{Username: &usernameWithSecret, Password: &passwordWithSecret, Emails: []string{"test+secret@foo.bar"}}
+	userWithSecret, err := NewUser(newUser, "some salt", "private")
 	if err != nil {
 		t.Fatalf("Failure creating user with secret: %#v", err)
 	}
 
 	username := "two@abc.com"
 	password := "3th3Hardw0y"
-	user, err := NewUser(&NewUserDetails{Username: &username, Password: &password, Emails: []string{"test@foo.bar"}}, "some salt")
+	newUser = &NewUserDetails{Username: &username, Password: &password, Emails: []string{"test@foo.bar"}}
+	user, err := NewUser(newUser, "some salt", "private")
 	if err != nil {
 		t.Fatalf("Failure creating user: %#v", err)
 	}
@@ -1235,7 +1247,7 @@ func Test_User_DeepClone(t *testing.T) {
 		EmailVerified: true,
 		PwHash:        "this-is-the-password-hash",
 		Hash:          "this-is-the-hash",
-		Private:       map[string]*IdHashPair{"a": &IdHashPair{"1", "2"}, "b": &IdHashPair{"3", "4"}},
+		Private:       map[string]*IdHashPair{"a": {"1", "2"}, "b": {"3", "4"}},
 	}
 	clonedUser := user.DeepClone()
 	if !reflect.DeepEqual(user, clonedUser) {

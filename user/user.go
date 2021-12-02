@@ -75,6 +75,7 @@ var (
 	User_error_current_password_invalid = errors.New("Current password is invalid")
 	User_error_new_password_invalid     = errors.New("New password is invalid")
 	User_error_roles_invalid            = errors.New("Roles are invalid")
+	User_error_roles_missing            = errors.New("Role is missing")
 	User_error_terms_accepted_invalid   = errors.New("Terms accepted is invalid")
 	User_error_email_verified_invalid   = errors.New("Email verified is invalid")
 )
@@ -215,7 +216,7 @@ func (details *NewUserDetails) ExtractFromJSON(reader io.Reader) error {
 	return nil
 }
 
-func (details *NewUserDetails) Validate() error {
+func (details *NewUserDetails) Validate(requestSource string) error {
 	if details.Username == nil {
 		return User_error_username_missing
 	} else if !IsValidEmail(*details.Username) {
@@ -238,16 +239,24 @@ func (details *NewUserDetails) Validate() error {
 		return User_error_password_invalid
 	}
 
-	if details.Roles != nil {
-		// Should we reject when more than 1 role are provided?
+	if len(details.Roles) > 0 {
+		// TODO multiroles: should checks the compatibles roles:
+		// - 2 roles max (?)
+		// - patient is compatible with caregiver/hcp
+		// - hcp is compatible with patient
+		// - caregiver is compatible with patient
+		// - caregiver and hcp are incompatible
 		for _, role := range details.Roles {
 			if !IsValidRole(role) {
 				return User_error_roles_invalid
 			}
 		}
-	} else {
+	} else if requestSource == "private" {
 		// Defaults to patient if no role is provided
+		// on private route only
 		details.Roles = []string{"patient"}
+	} else {
+		return User_error_roles_missing
 	}
 
 	return nil
@@ -257,15 +266,14 @@ func ParseNewUserDetails(reader io.Reader) (*NewUserDetails, error) {
 	details := &NewUserDetails{}
 	if err := details.ExtractFromJSON(reader); err != nil {
 		return nil, err
-	} else {
-		return details, nil
 	}
+	return details, nil
 }
 
-func NewUser(details *NewUserDetails, salt string) (user *User, err error) {
+func NewUser(details *NewUserDetails, salt string, requestSource string) (user *User, err error) {
 	if details == nil {
 		return nil, errors.New("New user details is nil")
-	} else if err := details.Validate(); err != nil {
+	} else if err := details.Validate(requestSource); err != nil {
 		return nil, err
 	}
 
@@ -445,7 +453,7 @@ func (details *UpdateUserDetails) Validate() error {
 		return User_error_current_password_invalid
 	}
 
-	if details.Roles != nil {
+	if len(details.Roles) > 0 {
 		for _, role := range details.Roles {
 			if !IsValidRole(role) {
 				return User_error_roles_invalid

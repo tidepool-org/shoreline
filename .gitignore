@@ -7,3 +7,5 @@ vendor/
 artifact_go.sh
 docs/
 shoreline
+coverage.out
+coverReport.html

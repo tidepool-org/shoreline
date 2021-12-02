@@ -392,14 +392,16 @@ func (a *Api) GetUsers(res http.ResponseWriter, req *http.Request) {
 // @Failure 400 {object} status.Status "message returned:\"Invalid user details were given\" "
 // @Router /user [post]
 func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
+	requestSource := req.Header.Get(HEADER_REQUEST_SOURCE)
+
 	// Random sleep to avoid guessing accounts user.
 	time.Sleep(time.Millisecond * time.Duration(rand.Int63n(300)))
 
 	if newUserDetails, err := ParseNewUserDetails(req.Body); err != nil {
 		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, err)
-	} else if err := newUserDetails.Validate(); err != nil { // TODO: Fix this duplicate work!
+	} else if err := newUserDetails.Validate(requestSource); err != nil { // TODO: Fix this duplicate work!
 		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, err)
-	} else if newUser, err := NewUser(newUserDetails, a.ApiConfig.Salt); err != nil {
+	} else if newUser, err := NewUser(newUserDetails, a.ApiConfig.Salt, requestSource); err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
 	} else if existingUser, err := a.Store.FindUsers(req.Context(), newUser); err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
@@ -721,19 +723,24 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 	} else {
 		// Login succeed:
 		// FIXME, YLP-1065
-		if requestSource == "private" && result.Roles[0] != "patient" {
-			a.logger.Printf("Adding patient role to user %v", result.Id)
+		role := "patient"
+		if len(result.Roles) == 0 {
+			// Default role to patient, if no role is found
+			// FIXME Dirty quirk
+			result.Roles = []string{"patient"}
+		}
+		if requestSource == "private" && !result.HasRole("patient") {
+			a.logger.Printf("Private route login: Adding patient role to user %v", result.Id)
 			// Let's add the role patient:
-			result.Roles = []string{"patient", result.Roles[0]}
+			result.Roles = append([]string{"patient"}, result.Roles...)
 			if err := a.Store.UpsertUser(req.Context(), result); err != nil {
 				a.logger.Printf("Login of a non patient user from our private endpoint. Error while adding the role patient: %s", err)
 			}
-		}
-		// FIXME: replace this workaround, we should support multi roles
-		role := "patient"
-		if result.Roles != nil && len(result.Roles) > 0 {
+		} else if len(result.Roles) > 0 {
+			// FIXME: replace this workaround, we should support multi roles
 			role = result.Roles[0]
 		}
+
 		tokenData := &token.TokenData{DurationSecs: extractTokenDuration(req), UserId: result.Id, Email: result.Username, Name: result.Username, Role: role}
 		tokenConfig := token.TokenConfig{DurationSecs: a.ApiConfig.UserTokenDurationSecs, Secret: a.ApiConfig.Secret}
 		if sessionToken, err := CreateSessionTokenAndSave(req.Context(), tokenData, tokenConfig, a.Store); err != nil {
