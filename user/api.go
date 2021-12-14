@@ -2,9 +2,11 @@ package user
 
 import (
 	"context"
+	"errors"
 	"encoding/json"
 	"fmt"
 	"github.com/tidepool-org/shoreline/keycloak"
+	api "github.com/tidepool-org/clinic/client"
 	"log"
 	"net/http"
 	"reflect"
@@ -16,7 +18,6 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/tidepool-org/go-common/clients"
-	"github.com/tidepool-org/go-common/clients/highwater"
 	"github.com/tidepool-org/go-common/clients/status"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -35,7 +36,7 @@ type (
 	Api struct {
 		Store              Storage
 		ApiConfig          ApiConfig
-		metrics            highwater.Client
+		clinic             api.ClientWithResponsesInterface
 		perms              clients.Gatekeeper
 		logger             *log.Logger
 		keycloakClient     keycloak.Client
@@ -54,6 +55,7 @@ type (
 		ClinicDemoUserID     string           `json:"clinicDemoUserId"`
 		MigrationSecret      string           `json:"migrationSecret"`
 		TokenCacheConfig     TokenCacheConfig `json:"tokenCacheConfig"`
+		ClinicServiceEnabled bool          `json:"clinicServiceEnabled"`
 	}
 	varsHandler func(http.ResponseWriter, *http.Request, map[string]string)
 )
@@ -92,10 +94,11 @@ const (
 	STATUS_NO_QUERY              = "A query must be specified"
 	STATUS_PARAMETER_UNKNOWN     = "Unknown query parameter"
 	STATUS_ONE_QUERY_PARAM       = "Only one query parameter is allowed"
+	STATUS_INVALID_QUERY_PARAM   = "Invalid query parameter: "
 	STATUS_INVALID_ROLE          = "The role specified is invalid"
 )
 
-func InitApi(cfg ApiConfig, logger *log.Logger, store Storage, keycloakClient keycloak.Client, userEventsNotifier EventsNotifier, seagull clients.Seagull) *Api {
+func InitApi(cfg ApiConfig, logger *log.Logger, store Storage, keycloakClient keycloak.Client, userEventsNotifier EventsNotifier, seagull clients.Seagull, clinic api.ClientWithResponsesInterface) *Api {
 	tokenAuthenticator := NewTokenAuthenticator(keycloakClient, store, cfg.TokenConfigs)
 	if cfg.TokenCacheConfig.Enabled {
 		tokenAuthenticator = NewCachingTokenAuthenticator(&cfg.TokenCacheConfig, tokenAuthenticator)
@@ -108,6 +111,7 @@ func InitApi(cfg ApiConfig, logger *log.Logger, store Storage, keycloakClient ke
 		keycloakClient:     keycloakClient,
 		userEventsNotifier: userEventsNotifier,
 		seagull:            seagull,
+		clinic:             clinic,
 		tokenAuthenticator: tokenAuthenticator,
 	}
 }
@@ -131,8 +135,10 @@ func (a *Api) SetHandlers(prefix string, rtr *mux.Router) {
 	rtr.Handle("/user", varsHandler(a.UpdateUser)).Methods("PUT")
 	rtr.Handle("/user/{userid}", varsHandler(a.UpdateUser)).Methods("PUT")
 	rtr.Handle("/user/{userid}", varsHandler(a.DeleteUser)).Methods("DELETE")
+	rtr.Handle("/user/{userid}/sessions", varsHandler(a.DeleteUserSessions)).Methods("DELETE")
 
 	rtr.Handle("/user/{userid}/user", varsHandler(a.CreateCustodialUser)).Methods("POST")
+	rtr.Handle("/v1/clinics/{clinicId}/users", varsHandler(a.CreateClinicCustodialUser)).Methods("POST")
 
 	rtr.HandleFunc("/login", a.Login).Methods("POST")
 	rtr.HandleFunc("/login", a.RefreshSession).Methods("GET")
@@ -190,13 +196,28 @@ func (a *Api) GetUsers(res http.ResponseWriter, req *http.Request) {
 	} else if userIds := strings.Split(req.URL.Query().Get("id"), ","); len(userIds[0]) > 0 && role != "" {
 		a.sendError(res, http.StatusBadRequest, STATUS_ONE_QUERY_PARAM)
 
+	} else if createdFrom, dateErr := ParseAndValidateDateParam(req.URL.Query().Get("createdFrom")); dateErr != nil {
+		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_QUERY_PARAM+"createdFrom")
+
+	} else if createdTo, dateErr := ParseAndValidateDateParam(req.URL.Query().Get("createdTo")); dateErr != nil {
+		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_QUERY_PARAM+"createdTo")
+
 	} else {
 		var users []*User
 		switch {
 		case role != "":
-			if users, err = a.Store.WithContext(req.Context()).FindUsersByRole(role); err != nil {
-				a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err.Error())
+
+			switch {
+			case !createdFrom.IsZero() || !createdTo.IsZero():
+				if users, err = a.Store.WithContext(req.Context()).FindUsersByRoleAndDate(role, createdFrom, createdTo); err != nil {
+					a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err.Error())
+				}
+			default:
+				if users, err = a.Store.WithContext(req.Context()).FindUsersByRole(role); err != nil {
+					a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err.Error())
+				}
 			}
+
 		case len(userIds[0]) > 0:
 			if users, err = a.Store.WithContext(req.Context()).FindUsersWithIds(userIds); err != nil {
 				a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err.Error())
@@ -278,36 +299,66 @@ func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, va
 	token := req.Header.Get(TP_SESSION_TOKEN)
 	if tokenData, err := a.tokenAuthenticator.Authenticate(req.Context(), token); err != nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
-
 	} else if custodianUserID := vars["userid"]; !tokenData.IsServer && custodianUserID != tokenData.UserId {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, "Token user id must match custodian user id or server")
-
-	} else if newCustodialUserDetails, err := ParseNewCustodialUserDetails(req.Body); err != nil {
-		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, err)
-
-	} else if err := newCustodialUserDetails.Validate(); err != nil {
-		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, err)
-
-	} else if newUserDetails, err := NewUserDetailsFromCustodialUserDetails(newCustodialUserDetails); err != nil {
-		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, err)
-
-	} else if existingCustodialUser, err := a.Store.WithContext(req.Context()).FindUser(&User{Emails: newUserDetails.Emails}); err != nil {
-		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
-
-	} else if existingCustodialUser != nil {
-		a.sendError(res, http.StatusConflict, STATUS_USR_ALREADY_EXISTS)
-
-	} else if user, err := a.Store.WithContext(req.Context()).CreateUser(newUserDetails); err != nil {
-		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
-
+	} else if newCustodialUser, err := a.createCustodialUserAccount(res, req); err != nil {
+		// response was already sent
+		return
 	} else {
 		permissions := clients.Permissions{"custodian": clients.Allowed, "view": clients.Allowed, "upload": clients.Allowed}
-		if _, err := a.perms.SetPermissions(custodianUserID, user.Id, permissions); err != nil {
+		if _, err := a.perms.SetPermissions(custodianUserID, newCustodialUser.Id, permissions); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
 		} else {
-			a.logMetricForUser(user.Id, "custodialusercreated", token, map[string]string{"server": strconv.FormatBool(tokenData.IsServer)})
-			a.sendUserWithStatus(res, user, http.StatusCreated, tokenData.IsServer)
+			a.sendUserWithStatus(res, newCustodialUser, http.StatusCreated, tokenData.IsServer)
 		}
+	}
+}
+
+// CreateCustodialUser creates a new custodial user where the custodian is a clinic
+// status: 201 User
+// status: 400 STATUS_MISSING_USR_DETAILS
+// status: 401 STATUS_UNAUTHORIZED
+// status: 409 STATUS_USR_ALREADY_EXISTS
+// status: 500 STATUS_ERR_GENERATING_TOKEN
+func (a *Api) CreateClinicCustodialUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
+	if !a.ApiConfig.ClinicServiceEnabled {
+		a.sendError(res, http.StatusNotFound, "Route not found")
+		return
+	}
+
+	token := req.Header.Get(TP_SESSION_TOKEN)
+	if tokenData, err := a.tokenAuthenticator.Authenticate(req.Context(), token); err != nil {
+		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
+	} else if !tokenData.IsServer {
+		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, "Token user id must match custodian user id or server")
+	} else if newCustodialUser, err := a.createCustodialUserAccount(res, req); err != nil {
+		return
+	} else {
+		a.sendUserWithStatus(res, newCustodialUser, http.StatusCreated, tokenData.IsServer)
+	}
+}
+
+func (a *Api) createCustodialUserAccount(res http.ResponseWriter, req *http.Request) (*User, error) {
+	if newCustodialUserDetails, err := ParseNewCustodialUserDetails(req.Body); err != nil {
+		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, err)
+		return nil, err
+	} else if err := newCustodialUserDetails.Validate(); err != nil {
+		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, err)
+		return nil, err
+	} else if newUserDetails, err := NewUserDetailsFromCustodialUserDetails(newCustodialUserDetails); err != nil {
+		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, err)
+		return nil, err
+	} else if existingCustodialUser, err := a.Store.WithContext(req.Context()).FindUser(&User{Emails: newCustodialUserDetails.Emails}); err != nil {
+		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
+		return nil, err
+	} else if existingCustodialUser != nil {
+		a.sendError(res, http.StatusConflict, STATUS_USR_ALREADY_EXISTS)
+		return nil, errors.New(STATUS_USR_ALREADY_EXISTS)
+	} else if user, err := a.Store.WithContext(req.Context()).CreateUser(newUserDetails); err != nil {
+		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
+		return nil, err
+	} else {
+		return user, nil
 	}
 }
 
@@ -363,17 +414,24 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 				a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_USR, err)
 			}
 		} else {
+			var errs []error
 			if len(originalUser.PwHash) == 0 && len(updatedUser.PwHash) != 0 {
-				if err := a.removeUserPermissions(updatedUser.Id, clients.Permissions{"custodian": clients.Allowed}); err != nil {
-					a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_USR, err)
+				if e := a.removeCustodianPermissionsForUser(updatedUser.Id); e != nil {
+					a.logger.Println(http.StatusInternalServerError, e.Error())
+					errs = append(errs, e)
 				}
 			}
 
-			if err := a.userEventsNotifier.NotifyUserUpdated(req.Context(), *originalUser, *updatedUser); err != nil {
-				a.logger.Println(http.StatusInternalServerError, err.Error())
-				res.WriteHeader(http.StatusInternalServerError)
+			if e := a.userEventsNotifier.NotifyUserUpdated(req.Context(), *originalUser, *updatedUser); e != nil {
+				a.logger.Println(http.StatusInternalServerError, e.Error())
+				errs = append(errs, e)
+			}
+
+			if len(errs) > 0 {
+				a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_USR, errs)
 				return
 			}
+
 			a.sendUser(res, updatedUser, tokenData.IsServer)
 		}
 	}
@@ -730,6 +788,27 @@ func (a *Api) Logout(res http.ResponseWriter, req *http.Request) {
 	return
 }
 
+// status: 200
+func (a *Api) DeleteUserSessions(res http.ResponseWriter, req *http.Request, vars map[string]string) {
+	userId := vars["userid"]
+	token := req.Header.Get(TP_SESSION_TOKEN)
+
+	if td, err := a.tokenAuthenticator.Authenticate(req.Context(), token); err != nil || !td.IsServer {
+		a.logger.Println(http.StatusUnauthorized, STATUS_NO_TOKEN, err)
+		sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_TOKEN), http.StatusUnauthorized)
+		return
+	}
+
+	if err := a.Store.RemoveTokensForUser(userId); err != nil {
+		a.logger.Println(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN, err.Error())
+		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN), http.StatusInternalServerError)
+		return
+	}
+
+	res.WriteHeader(http.StatusNoContent)
+	return
+}
+
 // status: 200 AnonIdHashPair
 func (a *Api) AnonymousIdHashPair(res http.ResponseWriter, req *http.Request) {
 	idHashPair := NewAnonIdHashPair([]string{a.ApiConfig.Salt}, req.URL.Query())
@@ -841,6 +920,16 @@ func (a *Api) tokenUserHasRequestedPermissions(tokenData *TokenData, groupId str
 	}
 }
 
+func (a *Api) removeCustodianPermissionsForUser(userId string) error {
+	if err := a.removeClinicCustodianPermissions(userId); err != nil {
+		return err
+	}
+	if err := a.removeUserPermissions(userId, clients.Permissions{"custodian": clients.Allowed}); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (a *Api) removeUserPermissions(groupId string, removePermissions clients.Permissions) error {
 	originalUserPermissions, err := a.perms.UsersInGroup(groupId)
 	if err != nil {
@@ -856,6 +945,42 @@ func (a *Api) removeUserPermissions(groupId string, removePermissions clients.Pe
 		if len(finalPermissions) != len(originalPermissions) {
 			if _, err := a.perms.SetPermissions(userID, groupId, finalPermissions); err != nil {
 				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (a *Api) removeClinicCustodianPermissions(userId string) error {
+	if !a.ApiConfig.ClinicServiceEnabled {
+		return nil
+	}
+
+	ctx := context.Background()
+	id := api.UserId(userId)
+	limit := api.Limit(1000)
+	params := &api.ListClinicsForPatientParams{
+		Limit: &limit,
+	}
+
+	perms, err := a.clinic.ListClinicsForPatientWithResponse(ctx, id, params)
+	if err != nil {
+		return err
+	}
+	if perms.StatusCode() != http.StatusOK {
+		return fmt.Errorf("unexpected status code from clinic service: %v", perms.StatusCode())
+	}
+
+	for _, relationship := range *perms.JSON200 {
+		if relationship.Patient.Permissions.Custodian != nil {
+			clinicId := api.ClinicId(relationship.Clinic.Id)
+			patientId := api.PatientId(userId)
+			resp, err := a.clinic.DeletePatientPermissionWithResponse(ctx, clinicId, patientId, "custodian")
+			if err != nil {
+				return err
+			}
+			if resp.StatusCode() != http.StatusNoContent && resp.StatusCode() != http.StatusNotFound {
+				return fmt.Errorf("unexpected status code from clinic service when removing permission: %v", resp.StatusCode())
 			}
 		}
 	}

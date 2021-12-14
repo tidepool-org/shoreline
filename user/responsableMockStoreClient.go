@@ -1,6 +1,9 @@
 package user
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 type FindUsersResponse struct {
 	Users []*User
@@ -8,6 +11,11 @@ type FindUsersResponse struct {
 }
 
 type FindUsersByRoleResponse struct {
+	Users []*User
+	Error error
+}
+
+type FindUsersByRoleAndDateResponse struct {
 	Users []*User
 	Error error
 }
@@ -41,6 +49,7 @@ type ResponsableMockStoreClient struct {
 	PingResponses                []error
 	FindUsersResponses           []FindUsersResponse
 	FindUsersByRoleResponses     []FindUsersByRoleResponse
+	FindUsersByRoleAndDateResponses []FindUsersByRoleAndDateResponse
 	FindUsersWithIdsResponses    []FindUsersWithIdsResponse
 	FindUserResponses            []FindUserResponse
 	RemoveUserResponses          []error
@@ -60,6 +69,7 @@ func (r *ResponsableMockStoreClient) HasResponses() bool {
 	return len(r.PingResponses) > 0 ||
 		len(r.FindUsersResponses) > 0 ||
 		len(r.FindUsersByRoleResponses) > 0 ||
+		len(r.FindUsersByRoleAndDateResponses) > 0 ||
 		len(r.FindUsersWithIdsResponses) > 0 ||
 		len(r.FindUserResponses) > 0 ||
 		len(r.RemoveUserResponses) > 0 ||
@@ -74,6 +84,7 @@ func (r *ResponsableMockStoreClient) Reset() {
 	r.PingResponses = nil
 	r.FindUsersResponses = nil
 	r.FindUsersByRoleResponses = nil
+	r.FindUsersByRoleAndDateResponses = nil
 	r.FindUsersWithIdsResponses = nil
 	r.FindUserResponses = nil
 	r.RemoveUserResponses = nil
@@ -134,6 +145,15 @@ func (r *ResponsableMockStoreClient) FindUsersByRole(role string) (found []*User
 		return response.Users, response.Error
 	}
 	panic("FindUsersByRoleResponses unavailable")
+}
+
+func (r *ResponsableMockStoreClient) FindUsersByRoleAndDate(role string, createdFrom time.Time, createdTo time.Time) (found []*User, err error) {
+	if len(r.FindUsersByRoleAndDateResponses) > 0 {
+		var response FindUsersByRoleAndDateResponse
+		response, r.FindUsersByRoleAndDateResponses = r.FindUsersByRoleAndDateResponses[0], r.FindUsersByRoleAndDateResponses[1:]
+		return response.Users, response.Error
+	}
+	panic("FindUsersByRoleAndDateResponses unavailable")
 }
 
 func (r *ResponsableMockStoreClient) FindUsersWithIds(ids []string) (found []*User, err error) {

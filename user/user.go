@@ -161,6 +161,8 @@ func IsValidRole(role string) bool {
 	switch role {
 	case "clinic":
 		return true
+	case "migrated_clinic":
+		return true
 	default:
 		return false
 	}
@@ -169,6 +171,14 @@ func IsValidRole(role string) bool {
 func IsValidDate(date string) bool {
 	_, err := time.Parse("2006-01-02", date)
 	return err == nil
+}
+
+func ParseAndValidateDateParam(date string) (time.Time, error) {
+	if date == "" {
+		return time.Time{}, nil
+	}
+
+	return time.Parse("2006-01-02", date)
 }
 
 func IsValidTimestamp(timestamp string) bool {

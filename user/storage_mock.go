@@ -6,76 +6,50 @@ package user
 
 import (
 	context "context"
-	gomock "github.com/golang/mock/gomock"
 	reflect "reflect"
+	time "time"
+
+	gomock "github.com/golang/mock/gomock"
 )
 
-// MockStorage is a mock of Storage interface
+// MockStorage is a mock of Storage interface.
 type MockStorage struct {
 	ctrl     *gomock.Controller
 	recorder *MockStorageMockRecorder
 }
 
-// MockStorageMockRecorder is the mock recorder for MockStorage
+// MockStorageMockRecorder is the mock recorder for MockStorage.
 type MockStorageMockRecorder struct {
 	mock *MockStorage
 }
 
-// NewMockStorage creates a new mock instance
+// NewMockStorage creates a new mock instance.
 func NewMockStorage(ctrl *gomock.Controller) *MockStorage {
 	mock := &MockStorage{ctrl: ctrl}
 	mock.recorder = &MockStorageMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockStorage) EXPECT() *MockStorageMockRecorder {
 	return m.recorder
 }
 
-// Ping mocks base method
-func (m *MockStorage) Ping() error {
+// AddToken mocks base method.
+func (m *MockStorage) AddToken(token *SessionToken) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Ping")
+	ret := m.ctrl.Call(m, "AddToken", token)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Ping indicates an expected call of Ping
-func (mr *MockStorageMockRecorder) Ping() *gomock.Call {
+// AddToken indicates an expected call of AddToken.
+func (mr *MockStorageMockRecorder) AddToken(token interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Ping", reflect.TypeOf((*MockStorage)(nil).Ping))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddToken", reflect.TypeOf((*MockStorage)(nil).AddToken), token)
 }
 
-// WithContext mocks base method
-func (m *MockStorage) WithContext(ctx context.Context) Storage {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WithContext", ctx)
-	ret0, _ := ret[0].(Storage)
-	return ret0
-}
-
-// WithContext indicates an expected call of WithContext
-func (mr *MockStorageMockRecorder) WithContext(ctx interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WithContext", reflect.TypeOf((*MockStorage)(nil).WithContext), ctx)
-}
-
-// EnsureIndexes mocks base method
-func (m *MockStorage) EnsureIndexes() error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "EnsureIndexes")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// EnsureIndexes indicates an expected call of EnsureIndexes
-func (mr *MockStorageMockRecorder) EnsureIndexes() *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnsureIndexes", reflect.TypeOf((*MockStorage)(nil).EnsureIndexes))
-}
-
-// CreateUser mocks base method
+// CreateUser mocks base method.
 func (m *MockStorage) CreateUser(details *NewUserDetails) (*User, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateUser", details)
@@ -84,130 +58,27 @@ func (m *MockStorage) CreateUser(details *NewUserDetails) (*User, error) {
 	return ret0, ret1
 }
 
-// CreateUser indicates an expected call of CreateUser
+// CreateUser indicates an expected call of CreateUser.
 func (mr *MockStorageMockRecorder) CreateUser(details interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateUser", reflect.TypeOf((*MockStorage)(nil).CreateUser), details)
 }
 
-// UpdateUser mocks base method
-func (m *MockStorage) UpdateUser(user *User, details *UpdateUserDetails) (*User, error) {
+// EnsureIndexes mocks base method.
+func (m *MockStorage) EnsureIndexes() error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateUser", user, details)
-	ret0, _ := ret[0].(*User)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// UpdateUser indicates an expected call of UpdateUser
-func (mr *MockStorageMockRecorder) UpdateUser(user, details interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUser", reflect.TypeOf((*MockStorage)(nil).UpdateUser), user, details)
-}
-
-// UpsertUser mocks base method
-func (m *MockStorage) UpsertUser(user *User) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertUser", user)
+	ret := m.ctrl.Call(m, "EnsureIndexes")
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// UpsertUser indicates an expected call of UpsertUser
-func (mr *MockStorageMockRecorder) UpsertUser(user interface{}) *gomock.Call {
+// EnsureIndexes indicates an expected call of EnsureIndexes.
+func (mr *MockStorageMockRecorder) EnsureIndexes() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertUser", reflect.TypeOf((*MockStorage)(nil).UpsertUser), user)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnsureIndexes", reflect.TypeOf((*MockStorage)(nil).EnsureIndexes))
 }
 
-// FindUser mocks base method
-func (m *MockStorage) FindUser(user *User) (*User, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindUser", user)
-	ret0, _ := ret[0].(*User)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// FindUser indicates an expected call of FindUser
-func (mr *MockStorageMockRecorder) FindUser(user interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindUser", reflect.TypeOf((*MockStorage)(nil).FindUser), user)
-}
-
-// FindUsers mocks base method
-func (m *MockStorage) FindUsers(user *User) ([]*User, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindUsers", user)
-	ret0, _ := ret[0].([]*User)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// FindUsers indicates an expected call of FindUsers
-func (mr *MockStorageMockRecorder) FindUsers(user interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindUsers", reflect.TypeOf((*MockStorage)(nil).FindUsers), user)
-}
-
-// FindUsersByRole mocks base method
-func (m *MockStorage) FindUsersByRole(role string) ([]*User, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindUsersByRole", role)
-	ret0, _ := ret[0].([]*User)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// FindUsersByRole indicates an expected call of FindUsersByRole
-func (mr *MockStorageMockRecorder) FindUsersByRole(role interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindUsersByRole", reflect.TypeOf((*MockStorage)(nil).FindUsersByRole), role)
-}
-
-// FindUsersWithIds mocks base method
-func (m *MockStorage) FindUsersWithIds(role []string) ([]*User, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindUsersWithIds", role)
-	ret0, _ := ret[0].([]*User)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// FindUsersWithIds indicates an expected call of FindUsersWithIds
-func (mr *MockStorageMockRecorder) FindUsersWithIds(role interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindUsersWithIds", reflect.TypeOf((*MockStorage)(nil).FindUsersWithIds), role)
-}
-
-// RemoveUser mocks base method
-func (m *MockStorage) RemoveUser(user *User) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RemoveUser", user)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// RemoveUser indicates an expected call of RemoveUser
-func (mr *MockStorageMockRecorder) RemoveUser(user interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveUser", reflect.TypeOf((*MockStorage)(nil).RemoveUser), user)
-}
-
-// AddToken mocks base method
-func (m *MockStorage) AddToken(token *SessionToken) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AddToken", token)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// AddToken indicates an expected call of AddToken
-func (mr *MockStorageMockRecorder) AddToken(token interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddToken", reflect.TypeOf((*MockStorage)(nil).AddToken), token)
-}
-
-// FindTokenByID mocks base method
+// FindTokenByID mocks base method.
 func (m *MockStorage) FindTokenByID(id string) (*SessionToken, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FindTokenByID", id)
@@ -216,13 +87,102 @@ func (m *MockStorage) FindTokenByID(id string) (*SessionToken, error) {
 	return ret0, ret1
 }
 
-// FindTokenByID indicates an expected call of FindTokenByID
+// FindTokenByID indicates an expected call of FindTokenByID.
 func (mr *MockStorageMockRecorder) FindTokenByID(id interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindTokenByID", reflect.TypeOf((*MockStorage)(nil).FindTokenByID), id)
 }
 
-// RemoveTokenByID mocks base method
+// FindUser mocks base method.
+func (m *MockStorage) FindUser(user *User) (*User, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindUser", user)
+	ret0, _ := ret[0].(*User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindUser indicates an expected call of FindUser.
+func (mr *MockStorageMockRecorder) FindUser(user interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindUser", reflect.TypeOf((*MockStorage)(nil).FindUser), user)
+}
+
+// FindUsers mocks base method.
+func (m *MockStorage) FindUsers(user *User) ([]*User, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindUsers", user)
+	ret0, _ := ret[0].([]*User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindUsers indicates an expected call of FindUsers.
+func (mr *MockStorageMockRecorder) FindUsers(user interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindUsers", reflect.TypeOf((*MockStorage)(nil).FindUsers), user)
+}
+
+// FindUsersByRole mocks base method.
+func (m *MockStorage) FindUsersByRole(role string) ([]*User, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindUsersByRole", role)
+	ret0, _ := ret[0].([]*User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindUsersByRole indicates an expected call of FindUsersByRole.
+func (mr *MockStorageMockRecorder) FindUsersByRole(role interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindUsersByRole", reflect.TypeOf((*MockStorage)(nil).FindUsersByRole), role)
+}
+
+// FindUsersByRoleAndDate mocks base method.
+func (m *MockStorage) FindUsersByRoleAndDate(role string, from, to time.Time) ([]*User, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindUsersByRoleAndDate", role, from, to)
+	ret0, _ := ret[0].([]*User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindUsersByRoleAndDate indicates an expected call of FindUsersByRoleAndDate.
+func (mr *MockStorageMockRecorder) FindUsersByRoleAndDate(role, from, to interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindUsersByRoleAndDate", reflect.TypeOf((*MockStorage)(nil).FindUsersByRoleAndDate), role, from, to)
+}
+
+// FindUsersWithIds mocks base method.
+func (m *MockStorage) FindUsersWithIds(role []string) ([]*User, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindUsersWithIds", role)
+	ret0, _ := ret[0].([]*User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindUsersWithIds indicates an expected call of FindUsersWithIds.
+func (mr *MockStorageMockRecorder) FindUsersWithIds(role interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindUsersWithIds", reflect.TypeOf((*MockStorage)(nil).FindUsersWithIds), role)
+}
+
+// Ping mocks base method.
+func (m *MockStorage) Ping() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Ping")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Ping indicates an expected call of Ping.
+func (mr *MockStorageMockRecorder) Ping() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Ping", reflect.TypeOf((*MockStorage)(nil).Ping))
+}
+
+// RemoveTokenByID mocks base method.
 func (m *MockStorage) RemoveTokenByID(id string) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RemoveTokenByID", id)
@@ -230,13 +190,13 @@ func (m *MockStorage) RemoveTokenByID(id string) error {
 	return ret0
 }
 
-// RemoveTokenByID indicates an expected call of RemoveTokenByID
+// RemoveTokenByID indicates an expected call of RemoveTokenByID.
 func (mr *MockStorageMockRecorder) RemoveTokenByID(id interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveTokenByID", reflect.TypeOf((*MockStorage)(nil).RemoveTokenByID), id)
 }
 
-// RemoveTokensForUser mocks base method
+// RemoveTokensForUser mocks base method.
 func (m *MockStorage) RemoveTokensForUser(userId string) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RemoveTokensForUser", userId)
@@ -244,8 +204,51 @@ func (m *MockStorage) RemoveTokensForUser(userId string) error {
 	return ret0
 }
 
-// RemoveTokensForUser indicates an expected call of RemoveTokensForUser
+// RemoveTokensForUser indicates an expected call of RemoveTokensForUser.
 func (mr *MockStorageMockRecorder) RemoveTokensForUser(userId interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveTokensForUser", reflect.TypeOf((*MockStorage)(nil).RemoveTokensForUser), userId)
+}
+
+// RemoveUser mocks base method.
+func (m *MockStorage) RemoveUser(user *User) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemoveUser", user)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RemoveUser indicates an expected call of RemoveUser.
+func (mr *MockStorageMockRecorder) RemoveUser(user interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveUser", reflect.TypeOf((*MockStorage)(nil).RemoveUser), user)
+}
+
+// UpdateUser mocks base method.
+func (m *MockStorage) UpdateUser(user *User, details *UpdateUserDetails) (*User, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateUser", user, details)
+	ret0, _ := ret[0].(*User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateUser indicates an expected call of UpdateUser.
+func (mr *MockStorageMockRecorder) UpdateUser(user, details interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUser", reflect.TypeOf((*MockStorage)(nil).UpdateUser), user, details)
+}
+
+// WithContext mocks base method.
+func (m *MockStorage) WithContext(ctx context.Context) Storage {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WithContext", ctx)
+	ret0, _ := ret[0].(Storage)
+	return ret0
+}
+
+// WithContext indicates an expected call of WithContext.
+func (mr *MockStorageMockRecorder) WithContext(ctx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WithContext", reflect.TypeOf((*MockStorage)(nil).WithContext), ctx)
 }

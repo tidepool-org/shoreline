@@ -22,6 +22,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	clinicClient "github.com/tidepool-org/clinic/client"
 )
 
 const (
@@ -29,7 +31,7 @@ const (
 	makeItFail = true
 )
 
-func InitAPITest(cfg ApiConfig, logger *log.Logger, store Storage, keycloakClient keycloak.Client, userEventsNotifier EventsNotifier, seagull clients.Seagull) *Api {
+func InitAPITest(cfg ApiConfig, logger *log.Logger, store Storage, keycloakClient keycloak.Client, userEventsNotifier EventsNotifier, seagull clients.Seagull, clinic clinicClient.ClientWithResponsesInterface) *Api {
 	return &Api{
 		Store:              store,
 		ApiConfig:          cfg,
@@ -38,6 +40,7 @@ func InitAPITest(cfg ApiConfig, logger *log.Logger, store Storage, keycloakClien
 		userEventsNotifier: userEventsNotifier,
 		seagull:            seagull,
 		tokenAuthenticator: NewTokenAuthenticator(keycloakClient, store, cfg.TokenConfigs),
+		clinic:             clinic,
 	}
 }
 
@@ -100,6 +103,9 @@ xwIDAQAB
 	user           = &User{Id: "123-99-100", Username: "test@new.bar", Emails: []string{"test@new.bar"}}
 	userToken, _   = CreateSessionToken(&TokenData{UserId: user.Id, IsServer: false, DurationSecs: tokenDuration}, fakeConfig.TokenConfigs[0])
 	serverToken, _ = CreateSessionToken(&TokenData{UserId: "shoreline", IsServer: true, DurationSecs: tokenDuration}, fakeConfig.TokenConfigs[0])
+
+	mockClinic = &clinicClient.MockClientWithResponsesInterface{}
+
 	/*
 	 * basics setup
 	 */
@@ -112,21 +118,22 @@ xwIDAQAB
 	mockStore          = NewMockStoreClient(fakeConfig.Salt, false, false)
 	mockKeycloakClient = &keycloak.MockClient{}
 	mockSeagull        = clients.NewSeagullMock()
-	shoreline          = InitAPITest(fakeConfig, logger, mockStore, mockKeycloakClient, mockNotifier, mockSeagull)
+	shoreline          = InitAPITest(fakeConfig, logger, mockStore, mockKeycloakClient, mockNotifier, mockSeagull, mockClinic)
 
 	/*
 	 * failure path
 	 */
 	mockStoreFails = NewMockStoreClient(fakeConfig.Salt, false, makeItFail)
-	shorelineFails = InitAPITest(fakeConfig, logger, mockStoreFails, mockKeycloakClient, mockNotifier, mockSeagull)
+	shorelineFails = InitAPITest(fakeConfig, logger, mockStoreFails, mockKeycloakClient, mockNotifier, mockSeagull, mockClinic)
 
 	responsableStore      = NewResponsableMockStoreClient()
 	responsableGatekeeper = NewResponsableMockGatekeeper()
 	responsableShoreline  = InitShoreline(fakeConfig, responsableStore, responsableGatekeeper, mockNotifier)
+
 )
 
 func InitShoreline(config ApiConfig, store Storage, perms clients.Gatekeeper, notifier EventsNotifier) *Api {
-	api := InitAPITest(config, logger, store, mockKeycloakClient, notifier, mockSeagull)
+	api := InitAPITest(config, logger, store, mockKeycloakClient, notifier, mockSeagull, mockClinic)
 	api.AttachPerms(perms)
 	return api
 }
@@ -533,6 +540,22 @@ func Test_GetUsers_Error_FindUsersByRoleSuccess(t *testing.T) {
 	expectEqualsArray(t, successResponse, []interface{}{map[string]interface{}{"userid": "0000000000", "passwordExists": false}, map[string]interface{}{"userid": "1111111111", "passwordExists": false}})
 }
 
+func Test_GetUsers_FindUsersByRoleAndDateSuccess(t *testing.T) {
+	sessionToken := createSessionToken(t, "abcdef1234", true, tokenDuration)
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
+	responsableStore.FindUsersByRoleAndDateResponses = []FindUsersByRoleAndDateResponse{{[]*User{{Id: "0000000000"}, {Id: "1111111111"}}, nil}}
+	defer expectResponsablesEmpty(t)
+
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
+
+	createdFromQuery := time.Now().Add(time.Hour * -5).Format("2006-01-02")
+	createdToQuery := time.Now().Format("2006-01-02")
+	response := performRequestHeaders(t, "GET", "/users?role=clinic&createdFrom="+createdFromQuery+"&createdTo="+createdToQuery, headers)
+	successResponse := expectSuccessResponseWithJSONArray(t, response, 200)
+	expectEqualsArray(t, successResponse, []interface{}{map[string]interface{}{"userid": "0000000000", "passwordExists": false}, map[string]interface{}{"userid": "1111111111", "passwordExists": false}})
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 func Test_CreateUser_Error_MissingBody(t *testing.T) {
@@ -776,6 +799,27 @@ func Test_CreateCustodialUser_Success_Known(t *testing.T) {
 	successResponse := expectSuccessResponseWithJSONMap(t, response, 201)
 	expectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
 	expectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": false, "emails": []interface{}{"a@z.co"}, "username": "a@z.co"})
+}
+
+func Test_CreateClinicCustodialUser_Success_Known(t *testing.T) {
+	responsableShoreline.ApiConfig.ClinicServiceEnabled = true
+	defer func() {
+		responsableShoreline.ApiConfig.ClinicServiceEnabled = false
+	}()
+
+	sessionToken := createSessionToken(t, "clinic", true, tokenDuration)
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{nil, nil}}
+	responsableStore.CreateUserResponses = []CreateUserResponse{{&User{Id: "1234567890", Username: "a@z.co", Emails: []string{"a@z.co"}}, nil}}
+	defer expectResponsablesEmpty(t)
+
+	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}"
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
+	response := performRequestBodyHeaders(t, "POST", "/v1/clinics/12345/users", body, headers)
+	successResponse := expectSuccessResponseWithJSONMap(t, response, 201)
+	expectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
+	expectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": false, "emails": []interface{}{"a@z.co"}, "passwordExists": false, "username": "a@z.co"})
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2233,5 +2277,33 @@ func Test_RemoveUserPermissions_Success(t *testing.T) {
 	err := responsableShoreline.removeUserPermissions("1", clients.Permissions{"a": clients.Allowed})
 	if err != nil {
 		t.Fatalf("Unexpected error: %#v", err)
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+func Test_DeleteUserSessions_Error_User(t *testing.T) {
+	shorelineFails.SetHandlers("", rtr)
+	req, _ := http.NewRequest("DELETE", fmt.Sprintf("/user/%v/sessions", userToken.UserID), nil)
+	req.Header.Set(TP_SESSION_TOKEN, userToken.ID)
+	resp := httptest.NewRecorder()
+
+	shoreline.DeleteUserSessions(resp, req, map[string]string{"userid": userToken.UserID})
+
+	if resp.Code != http.StatusUnauthorized {
+		t.Fatalf("Expected [%v] and got [%v]", http.StatusUnauthorized, resp.Code)
+	}
+}
+
+func Test_DeleteUserSessions_Success(t *testing.T) {
+	shorelineFails.SetHandlers("", rtr)
+	req, _ := http.NewRequest("DELETE", fmt.Sprintf("/user/%v/sessions", userToken.UserID), nil)
+	req.Header.Set(TP_SESSION_TOKEN, serverToken.ID)
+	resp := httptest.NewRecorder()
+
+	shoreline.DeleteUserSessions(resp, req, map[string]string{"userid": userToken.UserID})
+
+	if resp.Code != http.StatusNoContent {
+		t.Fatalf("Expected [%v] and got [%v]", http.StatusNoContent, resp.Code)
 	}
 }

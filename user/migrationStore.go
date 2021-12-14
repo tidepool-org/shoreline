@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/tidepool-org/shoreline/keycloak"
+	"time"
 )
 
 var ErrUserConflict = errors.New("user already exists")
@@ -201,6 +202,10 @@ func (m *MigrationStore) FindUsersByRole(role string) ([]*User, error) {
 	return m.fallback.FindUsersByRole(role)
 }
 
+func (m *MigrationStore) FindUsersByRoleAndDate(role string, from time.Time, to time.Time) ([]*User, error) {
+	return m.fallback.FindUsersByRoleAndDate(role, from, to)
+}
+
 func (m *MigrationStore) FindUsersWithIds(ids []string) (users []*User, err error) {
 	keycloakUsers, err := m.keycloakClient.FindUsersWithIds(m.ctx, ids)
 	if err != nil {
@@ -249,7 +254,10 @@ func (m *MigrationStore) RemoveTokenByID(id string) error {
 }
 
 func (m *MigrationStore) RemoveTokensForUser(userId string) error {
-	return m.fallback.RemoveTokensForUser(userId)
+	if err := m.fallback.RemoveTokensForUser(userId); err != nil {
+		return err
+	}
+	return  m.keycloakClient.DeleteUserSessions(m.ctx, userId)
 }
 
 var _ Storage = &MigrationStore{}

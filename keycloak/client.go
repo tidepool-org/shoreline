@@ -37,6 +37,7 @@ type Client interface {
 	CreateUser(ctx context.Context, user *User) (*User, error)
 	FindUsersWithIds(ctx context.Context, ids []string) ([]*User, error)
 	DeleteUser(ctx context.Context, id string) error
+	DeleteUserSessions(ctx context.Context, id string) error
 }
 
 type User struct {
@@ -423,6 +424,21 @@ func (c *client) DeleteUser(ctx context.Context, id string) error {
 			return nil
 		}
 	}
+	return err
+}
+
+func (c *client) DeleteUserSessions(ctx context.Context, id string) error {
+	token, err := c.getAdminToken(ctx)
+	if err != nil {
+		return err
+	}
+
+	if err := c.keycloak.LogoutAllSessions(ctx, token.AccessToken, c.cfg.Realm, id); err != nil {
+		if aErr, ok := err.(*gocloak.APIError); ok && aErr.Code == http.StatusNotFound {
+			return nil
+		}
+	}
+
 	return err
 }
 

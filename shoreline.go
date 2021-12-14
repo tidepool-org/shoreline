@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	clinics "github.com/tidepool-org/clinic/client"
 	"github.com/tidepool-org/shoreline/keycloak"
 	"io/ioutil"
 	"log"
@@ -10,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/Shopify/sarama"
 
@@ -48,6 +50,15 @@ func main() {
 	serverSecret, found := os.LookupEnv("SERVER_SECRET")
 	if found {
 		config.User.ServerSecret = serverSecret
+	}
+
+	var defaultShutdownTimeout = 5 * time.Second
+	shutdownTimeout, found := os.LookupEnv("SHUTDOWN_TIMEOUT")
+	if found {
+		shutdownDuration, err := time.ParseDuration(shutdownTimeout)
+		if err != nil {
+			defaultShutdownTimeout = shutdownDuration
+		}
 	}
 
 	config.User.TokenConfigs = make([]user.TokenConfig, 1)
@@ -161,7 +172,7 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	consumer, err := events.NewSaramaCloudEventsConsumer(kafkaConfig)
+	consumer, err := events.NewFaultTolerantCloudEventsConsumer(kafkaConfig)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -170,13 +181,39 @@ func main() {
 	// Stop logging kafka connection debug info
 	sarama.Logger = log.New(ioutil.Discard, "[Sarama] ", log.LstdFlags)
 
+	var clinic clinics.ClientWithResponsesInterface
+	clinicServiceEnabled, found := os.LookupEnv("TIDEPOOL_CLINIC_SERVICE_ENABLED")
+	if found {
+		config.User.ClinicServiceEnabled = clinicServiceEnabled == "true"
+		clinicServiceAddress, addressFound := os.LookupEnv("TIDEPOOL_CLINIC_CLIENT_ADDRESS")
+		if config.User.ClinicServiceEnabled {
+			if !addressFound {
+				logger.Fatalln("Clinic service enabled in config, but service address is not set")
+			}
+
+			opts := clinics.WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
+				token, err := user.GetServiceToken(config.User.TokenConfigs[0], clientStore)
+				if err != nil {
+					return err
+				}
+
+				req.Header.Add(user.TP_SESSION_TOKEN, token.ID)
+				return nil
+			})
+			clinic, err = clinics.NewClientWithResponses(clinicServiceAddress, opts)
+			if err != nil {
+				log.Fatalln(err)
+			}
+		}
+	}
+
 	logger.Print("creating seagull client")
 	seagull := clients.NewSeagullClientBuilder().
 		WithHostGetter(disc.NewStaticHostGetterFromString("http://seagull:9120")).
 		WithHttpClient(httpClient).
 		Build()
 
-	userapi := user.InitApi(config.User, logger, migrationStore, keycloakClient, notifier, seagull)
+	userapi := user.InitApi(config.User, logger, migrationStore, keycloakClient, notifier, seagull, clinic)
 	logger.Print("installing handlers")
 	userapi.SetHandlers("", rtr)
 
@@ -195,34 +232,44 @@ func main() {
 	 * Serve it up
 	 */
 	logger.Print("creating http server")
-	server := common.NewServer(&http.Server{
+	server := &http.Server{
 		Addr:    config.Service.GetPort(),
 		Handler: rtr,
-	})
-
-	logger.Print("starting http server")
-	if err := server.ListenAndServe(); err != nil {
-		logger.Fatal(err)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	shutdown := make(chan string)
 
-	logger.Print("listening for signals")
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
-		for {
-			sig := <-signals
-			logger.Printf("Got signal [%s], terminating ...", sig)
-			if err := server.Close(); err != nil {
-				log.Printf("Error while stopping http server: %v", err)
-			}
-			cancel()
+		log.Println("Starting Kafka consumer")
+		if err := consumer.Start(); err != nil {
+			shutdown <- "Error while starting events consumer:" + err.Error()
 		}
 	}()
 
-	// blocks until context is canceled right after server.Close()
-	if err := consumer.Start(ctx); err != nil {
-		log.Printf("Error while starting events consumer: %v", err)
+	go func() {
+		logger.Print("starting http server")
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			shutdown <- "Error while starting server:" + err.Error()
+		}
+	}()
+
+	go func() {
+		logger.Print("listening for signals")
+		signals := make(chan os.Signal, 1)
+		signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
+		sig := <-signals
+		shutdown <- "Received signal " + sig.String()
+	}()
+
+	shutdownReason := <-shutdown
+	log.Printf("Shutting the server down: %s", shutdownReason)
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), defaultShutdownTimeout)
+	defer shutdownCancel()
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		log.Printf("Error while gracefully shutting down: %v", err)
+	}
+	if consumerErr := consumer.Stop(); consumerErr != nil {
+		log.Printf("Error while stopping the Kafka consumer: %v", err)
 	}
 }
