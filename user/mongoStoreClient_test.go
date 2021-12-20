@@ -2,10 +2,11 @@ package user
 
 import (
 	"context"
-	"log"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/sirupsen/logrus/hooks/test"
 
 	"github.com/mdblp/go-common/clients/mongo"
 	"github.com/mdblp/shoreline/token"
@@ -24,7 +25,7 @@ func mgoTestSetup() (*Client, error) {
 		// if mongo connexion information is provided via env var
 		testingConfig.FromEnv()
 	}
-	var logger = log.New(os.Stdout, "mongo-test ", log.LstdFlags|log.LUTC|log.Lshortfile)
+	var logger, _ = test.NewNullLogger()
 
 	mc, _ := NewStore(testingConfig, logger)
 	mc.Start()

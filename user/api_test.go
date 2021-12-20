@@ -9,16 +9,17 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"reflect"
 	"regexp"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus/hooks/test"
 
 	"github.com/gorilla/mux"
 	"github.com/mdblp/go-common/clients/version"
@@ -73,14 +74,10 @@ var (
 	/*
 	 * expected path
 	 */
-	logger    = log.New(os.Stdout, USER_API_PREFIX, log.LstdFlags|log.Lshortfile)
+	logger, _ = test.NewNullLogger()
 	mockStore = NewMockStoreClient(FAKE_CONFIG.Salt, false, false)
 	shoreline = InitAPITest(FAKE_CONFIG, logger, mockStore)
-	/*
-	 *
-	 */
-	mockNoDupsStore = NewMockStoreClient(FAKE_CONFIG.Salt, true, false)
-	shorelineNoDups = InitAPITest(FAKE_CONFIG, logger, mockNoDupsStore)
+
 	/*
 	 * failure path
 	 */
@@ -148,7 +145,7 @@ func T_ExpectErrorResponse(t *testing.T, response *httptest.ResponseRecorder, ex
 		t.Fatalf("Unexpected response status code: %d", response.Code)
 	}
 
-	if contentType := response.HeaderMap["Content-Type"][0]; contentType != "application/json" {
+	if contentType := response.Result().Header["Content-Type"][0]; contentType != "application/json" {
 		t.Fatalf("Unexpected response content type: %s", contentType)
 	}
 
@@ -188,7 +185,7 @@ func T_ExpectSuccessResponseWithJSON(t *testing.T, response *httptest.ResponseRe
 		t.Fatalf("Unexpected response status code: %d", response.Code)
 	}
 
-	if contentTypes := response.HeaderMap["Content-Type"]; len(contentTypes) == 0 {
+	if contentTypes := response.Result().Header["Content-Type"]; len(contentTypes) == 0 {
 		t.Fatalf("Unexpected response without content type")
 	} else if contentType := contentTypes[0]; contentType != "application/json" {
 		t.Fatalf("Unexpected response content type: %s", contentType)
@@ -318,7 +315,7 @@ func TestGetStatus_StatusInternalServerError(t *testing.T) {
 
 	body, _ := ioutil.ReadAll(response.Body)
 
-	if string(body) != "{\"status\":{\"code\":500,\"reason\":\"Session failure\"},\"version\":\"1.2.3+e0c73b95646559e9a3696d41711e918398d557fb\"}" {
+	if string(body) != "{\"status\":{\"code\":500,\"reason\":\"session failure\"},\"version\":\"1.2.3+e0c73b95646559e9a3696d41711e918398d557fb\"}" {
 		t.Fatalf("Message given [%s] expected [%s] ", string(body), "{\"status\":{\"code\":500,\"reason\":\"Session failure\"},\"version\":\"1.2.3+e0c73b95646559e9a3696d41711e918398d557fb\"}")
 	}
 
@@ -859,7 +856,7 @@ func Test_UpdateUser_Success_UserWithUnchangedUsername(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "1111111111", false, TOKEN_DURATION)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111"}}, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{{Id: "1111111111"}}, nil}}
 	responsableStore.UpsertUserResponses = []error{nil}
 	defer T_ExpectResponsablesEmpty(t)
 
@@ -988,7 +985,7 @@ func Test_GetUserInfo_Error_FindUsersNil(t *testing.T) {
 func Test_GetUserInfo_Error_NoPermissions(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111"}}, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{{Id: "1111111111"}}, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
 	headers := http.Header{}
@@ -1000,7 +997,7 @@ func Test_GetUserInfo_Error_NoPermissions(t *testing.T) {
 func Test_GetUserInfo_Success_User(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "1111111111", false, TOKEN_DURATION)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", EmailVerified: true, PwHash: "xyz", Hash: "123"}}, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{{Id: "1111111111", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", EmailVerified: true, PwHash: "xyz", Hash: "123"}}, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
 	headers := http.Header{}
@@ -1014,7 +1011,7 @@ func Test_GetUserInfo_Success_User(t *testing.T) {
 func Test_GetUserInfo_Success_Server(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "0000000000", true, TOKEN_DURATION)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", EmailVerified: true, PwHash: "xyz", Hash: "123"}}, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{{Id: "1111111111", Username: "a@z.co", Emails: []string{"a@z.co"}, TermsAccepted: "2016-01-01T01:23:45-08:00", EmailVerified: true, PwHash: "xyz", Hash: "123"}}, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
 	headers := http.Header{}
@@ -1171,7 +1168,7 @@ func Test_Login_Error_FindUsersNil(t *testing.T) {
 
 func Test_Login_Error_NoPassword(t *testing.T) {
 	authorization := T_CreateAuthorization(t, "a@b.co", "password")
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111"}}, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{{Id: "1111111111"}}, nil}}
 	responsableStore.UpsertUserResponses = []error{nil}
 	defer T_ExpectResponsablesEmpty(t)
 
@@ -1183,7 +1180,7 @@ func Test_Login_Error_NoPassword(t *testing.T) {
 
 func Test_Login_Error_PasswordMismatch(t *testing.T) {
 	authorization := T_CreateAuthorization(t, "a@b.co", "MISMATCH")
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5"}}, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{{Id: "1111111111", PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5"}}, nil}}
 	responsableStore.UpsertUserResponses = []error{nil}
 	defer T_ExpectResponsablesEmpty(t)
 
@@ -1216,7 +1213,7 @@ func Test_Login_Error_AccountLock(t *testing.T) {
 
 func Test_Login_Error_EmailNotVerified(t *testing.T) {
 	authorization := T_CreateAuthorization(t, "a@b.co", "password")
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5"}}, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{{Id: "1111111111", PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5"}}, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
 	headers := http.Header{}
@@ -1562,7 +1559,7 @@ func Test_LongTermLogin_Error_FindUsersNil(t *testing.T) {
 
 func Test_LongTermLogin_Error_NoPassword(t *testing.T) {
 	authorization := T_CreateAuthorization(t, "a@b.co", "password")
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111"}}, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{{Id: "1111111111"}}, nil}}
 	responsableStore.UpsertUserResponses = []error{nil}
 	defer T_ExpectResponsablesEmpty(t)
 
@@ -1574,7 +1571,7 @@ func Test_LongTermLogin_Error_NoPassword(t *testing.T) {
 
 func Test_LongTermLogin_Error_PasswordMismatch(t *testing.T) {
 	authorization := T_CreateAuthorization(t, "a@b.co", "MISMATCH")
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5"}}, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{{Id: "1111111111", PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5"}}, nil}}
 	responsableStore.UpsertUserResponses = []error{nil}
 	defer T_ExpectResponsablesEmpty(t)
 
@@ -1586,7 +1583,7 @@ func Test_LongTermLogin_Error_PasswordMismatch(t *testing.T) {
 
 func Test_LongTermLogin_Error_EmailNotVerified(t *testing.T) {
 	authorization := T_CreateAuthorization(t, "a@b.co", "password")
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5"}}, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{{Id: "1111111111", PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5"}}, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
 	headers := http.Header{}
@@ -1597,7 +1594,7 @@ func Test_LongTermLogin_Error_EmailNotVerified(t *testing.T) {
 
 func Test_LongTermLogin_Error_ErrorCreatingToken(t *testing.T) {
 	authorization := T_CreateAuthorization(t, "a@b.co", "password")
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{Id: "1111111111", PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5", EmailVerified: true}}, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{{Id: "1111111111", PwHash: "d1fef52139b0d120100726bcb43d5cc13d41e4b5", EmailVerified: true}}, nil}}
 	responsableStore.AddTokenResponses = []error{errors.New("ERROR")}
 	defer T_ExpectResponsablesEmpty(t)
 
@@ -1909,7 +1906,7 @@ func Test_AuthenticateSessionToken_Missing(t *testing.T) {
 	if err == nil {
 		t.Fatalf("Unexpected success")
 	}
-	if err.Error() != "Session token is empty" {
+	if err.Error() != "session token is empty" {
 		t.Fatalf("Unexpected error: %s", err.Error())
 	}
 	if tokenData != nil {

@@ -19,13 +19,14 @@ package main
 
 import (
 	"context"
-	"log"
 	"math/rand"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus"
@@ -34,11 +35,33 @@ import (
 	"github.com/mdblp/shoreline/user"
 
 	"github.com/mdblp/go-common/clients/mongo"
+	"github.com/mdblp/go-common/clients/version"
 )
 
 func main() {
-	logger := log.New(os.Stdout, user.USER_API_PREFIX, log.LstdFlags|log.Lshortfile)
-	auditLogger := log.New(os.Stdout, user.USER_API_PREFIX, log.LstdFlags)
+	logger := log.New()
+	logger.Out = os.Stdout
+	logger.SetFormatter(&log.TextFormatter{
+		DisableColors: false,
+		FullTimestamp: true,
+	})
+	logger.SetReportCaller(true)
+	envLogLevel := os.Getenv("LOG_LEVEL")
+	logLevel, err := log.ParseLevel(envLogLevel)
+	if err != nil {
+		logLevel = log.WarnLevel
+	}
+	logger.SetLevel(logLevel)
+	logger.Printf("Starting shoreline service %v\n", version.GetVersion().String())
+
+	auditLogger := log.New()
+	auditLogger.Out = os.Stdout
+	auditLogger.SetFormatter(&log.TextFormatter{
+		DisableColors: false,
+		FullTimestamp: true,
+	})
+	auditLogger.SetReportCaller(true)
+	auditLogger.SetLevel(logLevel)
 	// Init random number generator
 	rand.Seed(time.Now().UnixNano())
 

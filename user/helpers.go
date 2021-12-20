@@ -14,9 +14,29 @@ import (
 	"strings"
 	"unicode/utf8"
 
-
 	"github.com/mdblp/shoreline/token"
 )
+
+// Input Sanitizer
+func sanitize(el string) string {
+	return bmPolicy.Sanitize(el)
+}
+
+func sanitizeRequestParam(req *http.Request, paramName string) string {
+	return sanitize(req.URL.Query().Get(paramName))
+}
+
+func sanitizeRequestHeader(req *http.Request, headerName string) string {
+	return sanitize(req.Header.Get(headerName))
+}
+
+func sanitizeSessionToken(req *http.Request) string {
+	return sanitizeRequestHeader(req, TP_SESSION_TOKEN)
+}
+
+func sanitizeSessionTrace(req *http.Request) string {
+	return sanitizeRequestHeader(req, TP_TRACE_SESSION)
+}
 
 // getIntFromEnvVar return an int from the os env var
 //
@@ -27,13 +47,13 @@ func getIntFromEnvVar(name string, minValue int, maxValue int) (int, bool, error
 	strValue, found := os.LookupEnv(name)
 	if found && len(strValue) > 0 {
 		if intValue, err = strconv.Atoi(strValue); err != nil {
-			return 0, true, fmt.Errorf("Invalid value for %s: '%s'", name, strValue)
+			return 0, true, fmt.Errorf("invalid value for %s: '%s'", name, strValue)
 		}
 		if intValue < minValue {
-			return 0, true, fmt.Errorf("Value too low for %s: '%s'", name, strValue)
+			return 0, true, fmt.Errorf("value too low for %s: '%s'", name, strValue)
 		}
 		if intValue > maxValue {
-			return 0, true, fmt.Errorf("Value too high for %s: '%s'", name, strValue)
+			return 0, true, fmt.Errorf("value too high for %s: '%s'", name, strValue)
 		}
 		return intValue, true, nil
 	}
@@ -103,7 +123,7 @@ func unpackAuth(authLine string) (user *User, passwd string, err error) {
 			return &User{Id: details[0], Username: details[0], Emails: []string{details[0]}}, details[1], nil
 		}
 	}
-	return nil, "", errors.New("Empty authorization line")
+	return nil, "", errors.New("empty authorization line")
 }
 
 func sendModelAsRes(res http.ResponseWriter, model interface{}) {
@@ -129,7 +149,7 @@ func (a *Api) logAudit(req *http.Request, tokenData *token.TokenData, format str
 		prefix = fmt.Sprintf("remoteAddr{%s}, ", req.RemoteAddr)
 	}
 
-	traceSession := req.Header.Get(TP_TRACE_SESSION)
+	traceSession := sanitizeSessionTrace(req)
 	if traceSession != "" {
 		prefix += fmt.Sprintf("trace{%s}, ", traceSession)
 	}
@@ -152,10 +172,8 @@ func (a *Api) sendUserWithStatus(res http.ResponseWriter, user *User, statusCode
 
 func (a *Api) sendUsers(res http.ResponseWriter, users []*User, isServerRequest bool) {
 	serializables := make([]interface{}, len(users))
-	if users != nil {
-		for index, user := range users {
-			serializables[index] = a.asSerializableUser(user, isServerRequest)
-		}
+	for index, user := range users {
+		serializables[index] = a.asSerializableUser(user, isServerRequest)
 	}
 	sendModelAsRes(res, serializables)
 }

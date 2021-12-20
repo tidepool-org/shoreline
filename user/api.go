@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"math"
 	"math/rand"
 	"net/http"
@@ -16,6 +15,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/microcosm-cc/bluemonday"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gorilla/mux"
 	"github.com/mdblp/go-common/clients/status"
@@ -45,6 +47,7 @@ var (
 		Subsystem: "shoreline",
 		Namespace: "dblp",
 	})
+	bmPolicy = bluemonday.StrictPolicy()
 )
 
 type (
@@ -344,7 +347,7 @@ func (a *Api) GetStatus(res http.ResponseWriter, req *http.Request) {
 // @Failure 401 {object} status.Status "message returned:\"Not authorized for requested operation\" "
 // @Router /users [get]
 func (a *Api) GetUsers(res http.ResponseWriter, req *http.Request) {
-	sessionToken := req.Header.Get(TP_SESSION_TOKEN)
+	sessionToken := sanitizeSessionToken(req)
 	if tokenData, err := a.authenticateSessionToken(req.Context(), sessionToken); err != nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
 
@@ -353,11 +356,10 @@ func (a *Api) GetUsers(res http.ResponseWriter, req *http.Request) {
 
 	} else if len(req.URL.Query()) == 0 {
 		a.sendError(res, http.StatusBadRequest, STATUS_NO_QUERY)
-
-	} else if role := req.URL.Query().Get("role"); role != "" && !IsValidRole(role) {
+	} else if role := sanitizeRequestParam(req, "role"); role != "" && !IsValidRole(role) {
 		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_ROLE)
 
-	} else if userIds := strings.Split(req.URL.Query().Get("id"), ","); len(userIds[0]) > 0 && role != "" {
+	} else if userIds := strings.Split(sanitizeRequestParam(req, "id"), ","); len(userIds[0]) > 0 && role != "" {
 		a.sendError(res, http.StatusBadRequest, STATUS_ONE_QUERY_PARAM)
 
 	} else {
@@ -442,7 +444,7 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 // @Router /user/{userid} [put]
 func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 	a.logger.Printf("UpdateUser %v", req)
-	sessionToken := req.Header.Get(TP_SESSION_TOKEN)
+	sessionToken := sanitizeSessionToken(req)
 	if tokenData, err := a.authenticateSessionToken(req.Context(), sessionToken); err != nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
 
@@ -567,7 +569,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 // @Failure 401 {object} status.Status "message returned:\"Not authorized for requested operation\" "
 // @Router /user/{userid} [get]
 func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[string]string) {
-	sessionToken := req.Header.Get(TP_SESSION_TOKEN)
+	sessionToken := sanitizeSessionToken(req)
 	if tokenData, err := a.authenticateSessionToken(req.Context(), sessionToken); err != nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
 	} else {
@@ -615,7 +617,7 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 // @Router /user/{userid} [delete]
 func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 
-	td, err := a.authenticateSessionToken(req.Context(), req.Header.Get(TP_SESSION_TOKEN))
+	td, err := a.authenticateSessionToken(req.Context(), sanitizeSessionToken(req))
 
 	if err != nil {
 		a.logger.Println(http.StatusUnauthorized, err.Error())
@@ -624,7 +626,7 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 	}
 
 	var id string
-	if td.IsServer == true {
+	if td.IsServer {
 		id = vars["userid"]
 		a.logger.Println("operating as server")
 	} else {
@@ -643,8 +645,8 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 
 				a.logAudit(req, td, "DeleteUser")
 				//cleanup if any
-				if td.IsServer == false {
-					a.Store.RemoveTokenByID(req.Context(), req.Header.Get(TP_SESSION_TOKEN))
+				if !td.IsServer {
+					a.Store.RemoveTokenByID(req.Context(), sanitizeSessionToken(req))
 				}
 				//all good
 				res.WriteHeader(http.StatusAccepted)
@@ -657,7 +659,6 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 	}
 	a.logger.Println(http.StatusForbidden, STATUS_MISSING_ID_PW)
 	sendModelAsResWithStatus(res, status.NewStatus(http.StatusForbidden, STATUS_MISSING_ID_PW), http.StatusForbidden)
-	return
 }
 
 // @Summary Login user
@@ -676,7 +677,7 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 // @Router /login [post]
 func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 	requestSource := req.Header.Get(HEADER_REQUEST_SOURCE)
-	user, password, err := unpackAuth(req.Header.Get("Authorization"))
+	user, password, err := unpackAuth(sanitizeRequestHeader(req, "Authorization"))
 	if err != nil {
 		a.sendError(res, http.StatusBadRequest, STATUS_MISSING_ID_PW, err)
 		return
@@ -827,7 +828,6 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 	// If the password given at the door is wrong, we cannot generate the token
 	a.logger.Println(http.StatusUnauthorized, STATUS_PW_WRONG)
 	sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_PW_WRONG), http.StatusUnauthorized)
-	return
 }
 
 // @Summary Refresh session
@@ -844,8 +844,8 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 // @Failure 401 {string} string ""
 // @Router /login [get]
 func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
-	a.logger.Printf("refresh session with trace token %v", req.Header.Get(TP_TRACE_SESSION))
-	td, err := a.authenticateSessionToken(req.Context(), req.Header.Get(TP_SESSION_TOKEN))
+	a.logger.Printf("refresh session with trace token %v", sanitizeSessionTrace(req))
+	td, err := a.authenticateSessionToken(req.Context(), sanitizeSessionToken(req))
 
 	if err != nil {
 		a.logger.Println(http.StatusUnauthorized, err.Error())
@@ -947,9 +947,8 @@ func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars 
 		return
 	}
 	a.logger.Println(http.StatusUnauthorized, STATUS_NO_TOKEN)
-	a.logger.Printf("header session token: %v", req.Header.Get(TP_SESSION_TOKEN))
+	a.logger.Printf("header session token: %v", sanitizeSessionToken(req))
 	sendModelAsResWithStatus(res, status.NewStatus(http.StatusUnauthorized, STATUS_NO_TOKEN), http.StatusUnauthorized)
-	return
 }
 
 // @Summary Logout
@@ -961,7 +960,7 @@ func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars 
 // @Success 200 {string} string ""
 // @Router /logout [post]
 func (a *Api) Logout(res http.ResponseWriter, req *http.Request) {
-	if id := req.Header.Get(TP_SESSION_TOKEN); id != "" {
+	if id := sanitizeSessionToken(req); id != "" {
 		if err := a.Store.RemoveTokenByID(req.Context(), id); err != nil {
 			//silently fail but still log it
 			a.logger.Println("Logout was unable to delete token", err.Error())
@@ -970,7 +969,6 @@ func (a *Api) Logout(res http.ResponseWriter, req *http.Request) {
 	// otherwise all good
 	a.logAudit(req, nil, "Logout")
 	res.WriteHeader(http.StatusOK)
-	return
 }
 
 // @Summary AnonymousIdHashPair ?
@@ -983,7 +981,6 @@ func (a *Api) Logout(res http.ResponseWriter, req *http.Request) {
 func (a *Api) AnonymousIdHashPair(res http.ResponseWriter, req *http.Request) {
 	idHashPair := NewAnonIdHashPair([]string{a.ApiConfig.Salt}, req.URL.Query())
 	sendModelAsRes(res, idHashPair)
-	return
 }
 
 // @Summary Generate a 3rd party JWT
@@ -1015,7 +1012,7 @@ func (a *Api) Get3rdPartyToken(res http.ResponseWriter, req *http.Request, vars 
 		return
 	}
 
-	td, err := a.authenticateSessionToken(req.Context(), req.Header.Get(TP_SESSION_TOKEN))
+	td, err := a.authenticateSessionToken(req.Context(), sanitizeSessionToken(req))
 
 	if err != nil {
 		a.logger.Println(http.StatusUnauthorized, err.Error())
@@ -1143,7 +1140,7 @@ func (a *Api) sendError(res http.ResponseWriter, statusCode int, reason string, 
 
 func (a *Api) authenticateSessionToken(ctx context.Context, sessionToken string) (*token.TokenData, error) {
 	if sessionToken == "" {
-		return nil, errors.New("Session token is empty")
+		return nil, errors.New("session token is empty")
 	} else if tokenData, err := token.UnpackSessionTokenAndVerify(sessionToken, a.ApiConfig.Secret); err != nil {
 		return nil, err
 	} else if _, err := a.Store.FindTokenByID(ctx, sessionToken); err != nil {

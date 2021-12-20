@@ -23,7 +23,7 @@ func (d *MockStoreClient) Close() error {
 }
 func (d MockStoreClient) Ping() error {
 	if d.doBad {
-		return errors.New("Session failure")
+		return errors.New("session failure")
 	}
 	return nil
 }

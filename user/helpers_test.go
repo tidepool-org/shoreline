@@ -156,8 +156,8 @@ func Test_appendUserLoginInProgress_UserAlreadyLoginIn(t *testing.T) {
 	user := &User{Username: "test@test.com"}
 	resetLoginLimitConfig()
 	shoreline.loginLimiter.usersInProgress.Init()
+	_, _ = shoreline.appendUserLoginInProgress(user)
 	code, _ := shoreline.appendUserLoginInProgress(user)
-	code, _ = shoreline.appendUserLoginInProgress(user)
 	if code != http.StatusTooManyRequests {
 		t.Fatalf("appendUserLoginInProgress should return an http too many requests error when the user is in the in progress list")
 	}

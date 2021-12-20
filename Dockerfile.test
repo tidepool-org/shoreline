@@ -9,7 +9,7 @@ RUN apt-get update -y && \
     apt-get install -y --no-install-recommends wget build-essential psmisc && \
     apt-get clean -y
 WORKDIR /tmp
-ENV GO_ARCHIVE=go1.15.15.linux-amd64.tar.gz
+ENV GO_ARCHIVE=go1.17.5.linux-amd64.tar.gz
 ENV GOROOT=/go
 ENV GOPATH=/root/go
 RUN wget -nv https://golang.org/dl/$GO_ARCHIVE && \

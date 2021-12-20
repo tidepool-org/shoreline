@@ -65,19 +65,19 @@ type UpdateUserDetails struct {
 }
 
 var (
-	User_error_details_missing          = errors.New("User details are missing")
-	User_error_username_missing         = errors.New("Username is missing")
-	User_error_username_invalid         = errors.New("Username is invalid")
-	User_error_emails_missing           = errors.New("Emails are missing")
-	User_error_emails_invalid           = errors.New("Emails are invalid")
-	User_error_password_missing         = errors.New("Password is missing")
-	User_error_password_invalid         = errors.New("Password is invalid")
-	User_error_current_password_invalid = errors.New("Current password is invalid")
-	User_error_new_password_invalid     = errors.New("New password is invalid")
-	User_error_roles_invalid            = errors.New("Roles are invalid")
-	User_error_roles_missing            = errors.New("Role is missing")
-	User_error_terms_accepted_invalid   = errors.New("Terms accepted is invalid")
-	User_error_email_verified_invalid   = errors.New("Email verified is invalid")
+	ErrUserDetailsMissing         = errors.New("user details are missing")
+	ErrUserUsernameMissing        = errors.New("username is missing")
+	ErrUserUsernameInvalid        = errors.New("username is invalid")
+	ErrUserEmailsMissing          = errors.New("emails are missing")
+	ErrUserEmailsInvalid          = errors.New("emails are invalid")
+	ErrUserPasswordMissing        = errors.New("password is missing")
+	ErrUserPasswordInvalid        = errors.New("password is invalid")
+	ErrUserCurrentPasswordInvalid = errors.New("current password is invalid")
+	ErrUserNewPasswordInvalid     = errors.New("new password is invalid")
+	ErrUserRolesInvalid           = errors.New("roles are invalid")
+	ErrUserRolesMissing           = errors.New("role is missing")
+	ErrUserTermsAcceptedInvalid   = errors.New("terms accepted is invalid")
+	ErrUserEmailVerifiedInvalid   = errors.New("email verified is invalid")
 )
 
 func ExtractBool(data map[string]interface{}, key string) (*bool, bool) {
@@ -96,6 +96,7 @@ func ExtractString(data map[string]interface{}, key string) (*string, bool) {
 	} else if extractedString, ok := raw.(string); !ok {
 		return nil, false
 	} else {
+		extractedString = sanitize(extractedString)
 		return &extractedString, true
 	}
 }
@@ -123,6 +124,7 @@ func ExtractStringArray(data map[string]interface{}, key string) ([]string, bool
 			if extractedString, ok := raw.(string); !ok {
 				return nil, false
 			} else {
+				extractedString = sanitize(extractedString)
 				extractedStringArray = append(extractedStringArray, extractedString)
 			}
 		}
@@ -180,7 +182,7 @@ func IsValidTimestamp(timestamp string) bool {
 
 func (details *NewUserDetails) ExtractFromJSON(reader io.Reader) error {
 	if reader == nil {
-		return User_error_details_missing
+		return ErrUserDetailsMissing
 	}
 
 	var decoded map[string]interface{}
@@ -197,16 +199,16 @@ func (details *NewUserDetails) ExtractFromJSON(reader io.Reader) error {
 	)
 
 	if username, ok = ExtractString(decoded, "username"); !ok {
-		return User_error_username_invalid
+		return ErrUserUsernameInvalid
 	}
 	if emails, ok = ExtractStringArray(decoded, "emails"); !ok {
-		return User_error_emails_invalid
+		return ErrUserEmailsInvalid
 	}
 	if password, ok = ExtractString(decoded, "password"); !ok {
-		return User_error_password_invalid
+		return ErrUserPasswordInvalid
 	}
 	if roles, ok = ExtractStringArray(decoded, "roles"); !ok {
-		return User_error_roles_invalid
+		return ErrUserRolesInvalid
 	}
 
 	details.Username = username
@@ -218,25 +220,25 @@ func (details *NewUserDetails) ExtractFromJSON(reader io.Reader) error {
 
 func (details *NewUserDetails) Validate(requestSource string) error {
 	if details.Username == nil {
-		return User_error_username_missing
+		return ErrUserUsernameMissing
 	} else if !IsValidEmail(*details.Username) {
-		return User_error_username_invalid
+		return ErrUserUsernameInvalid
 	}
 
 	if len(details.Emails) == 0 {
-		return User_error_emails_missing
+		return ErrUserEmailsMissing
 	} else {
 		for _, email := range details.Emails {
 			if !IsValidEmail(email) {
-				return User_error_emails_invalid
+				return ErrUserEmailsInvalid
 			}
 		}
 	}
 
 	if details.Password == nil {
-		return User_error_password_missing
+		return ErrUserPasswordMissing
 	} else if !IsValidPassword(*details.Password) {
-		return User_error_password_invalid
+		return ErrUserPasswordInvalid
 	}
 
 	if len(details.Roles) > 0 {
@@ -248,7 +250,7 @@ func (details *NewUserDetails) Validate(requestSource string) error {
 		// - caregiver and hcp are incompatible
 		for _, role := range details.Roles {
 			if !IsValidRole(role) {
-				return User_error_roles_invalid
+				return ErrUserRolesInvalid
 			}
 		}
 	} else if requestSource == "private" {
@@ -256,7 +258,7 @@ func (details *NewUserDetails) Validate(requestSource string) error {
 		// on private route only
 		details.Roles = []string{"patient"}
 	} else {
-		return User_error_roles_missing
+		return ErrUserRolesMissing
 	}
 
 	return nil
@@ -295,7 +297,7 @@ func NewUser(details *NewUserDetails, salt string, requestSource string) (user *
 
 func (details *NewCustodialUserDetails) ExtractFromJSON(reader io.Reader) error {
 	if reader == nil {
-		return User_error_details_missing
+		return ErrUserDetailsMissing
 	}
 
 	var decoded map[string]interface{}
@@ -310,10 +312,10 @@ func (details *NewCustodialUserDetails) ExtractFromJSON(reader io.Reader) error 
 	)
 
 	if username, ok = ExtractString(decoded, "username"); !ok {
-		return User_error_username_invalid
+		return ErrUserUsernameInvalid
 	}
 	if emails, ok = ExtractStringArray(decoded, "emails"); !ok {
-		return User_error_emails_invalid
+		return ErrUserEmailsInvalid
 	}
 
 	details.Username = username
@@ -324,14 +326,14 @@ func (details *NewCustodialUserDetails) ExtractFromJSON(reader io.Reader) error 
 func (details *NewCustodialUserDetails) Validate() error {
 	if details.Username != nil {
 		if !IsValidEmail(*details.Username) {
-			return User_error_username_invalid
+			return ErrUserUsernameInvalid
 		}
 	}
 
 	if details.Emails != nil {
 		for _, email := range details.Emails {
 			if !IsValidEmail(email) {
-				return User_error_emails_invalid
+				return ErrUserEmailsInvalid
 			}
 		}
 	}
@@ -374,7 +376,7 @@ func NewCustodialUser(details *NewCustodialUserDetails, salt string) (user *User
 
 func (details *UpdateUserDetails) ExtractFromJSON(reader io.Reader) error {
 	if reader == nil {
-		return User_error_details_missing
+		return ErrUserDetailsMissing
 	}
 
 	var decoded map[string]interface{}
@@ -395,29 +397,29 @@ func (details *UpdateUserDetails) ExtractFromJSON(reader io.Reader) error {
 
 	decoded, ok = ExtractStringMap(decoded, "updates")
 	if !ok || decoded == nil {
-		return User_error_details_missing
+		return ErrUserDetailsMissing
 	}
 
 	if username, ok = ExtractString(decoded, "username"); !ok {
-		return User_error_username_invalid
+		return ErrUserUsernameInvalid
 	}
 	if emails, ok = ExtractStringArray(decoded, "emails"); !ok {
-		return User_error_emails_invalid
+		return ErrUserEmailsInvalid
 	}
 	if password, ok = ExtractString(decoded, "password"); !ok {
-		return User_error_new_password_invalid
+		return ErrUserNewPasswordInvalid
 	}
 	if currentPassword, ok = ExtractString(decoded, "currentPassword"); !ok {
-		return User_error_current_password_invalid
+		return ErrUserCurrentPasswordInvalid
 	}
 	if roles, ok = ExtractStringArray(decoded, "roles"); !ok {
-		return User_error_roles_invalid
+		return ErrUserRolesInvalid
 	}
 	if termsAccepted, ok = ExtractString(decoded, "termsAccepted"); !ok {
-		return User_error_terms_accepted_invalid
+		return ErrUserTermsAcceptedInvalid
 	}
 	if emailVerified, ok = ExtractBool(decoded, "emailVerified"); !ok {
-		return User_error_email_verified_invalid
+		return ErrUserEmailVerifiedInvalid
 	}
 
 	details.Username = username
@@ -433,37 +435,37 @@ func (details *UpdateUserDetails) ExtractFromJSON(reader io.Reader) error {
 func (details *UpdateUserDetails) Validate() error {
 	if details.Username != nil {
 		if !IsValidEmail(*details.Username) {
-			return User_error_username_invalid
+			return ErrUserUsernameInvalid
 		}
 	}
 
 	if details.Emails != nil {
 		for _, email := range details.Emails {
 			if !IsValidEmail(email) {
-				return User_error_emails_invalid
+				return ErrUserEmailsInvalid
 			}
 		}
 	}
 
 	if details.Password != nil && !IsValidPassword(*details.Password) {
-		return User_error_new_password_invalid
+		return ErrUserNewPasswordInvalid
 	}
 
 	if details.CurrentPassword != nil && !IsValidPassword(*details.CurrentPassword) {
-		return User_error_current_password_invalid
+		return ErrUserCurrentPasswordInvalid
 	}
 
 	if len(details.Roles) > 0 {
 		for _, role := range details.Roles {
 			if !IsValidRole(role) {
-				return User_error_roles_invalid
+				return ErrUserRolesInvalid
 			}
 		}
 	}
 
 	if details.TermsAccepted != nil {
 		if !IsValidTimestamp(*details.TermsAccepted) {
-			return User_error_terms_accepted_invalid
+			return ErrUserTermsAcceptedInvalid
 		}
 	}
 
@@ -603,9 +605,5 @@ func (u *User) CanPerformALogin(maxFailedLogin int) bool {
 	}
 
 	now := time.Now().Format(time.RFC3339)
-	if u.FailedLogin.NextLoginAttemptTime < now {
-		return true
-	}
-
-	return false
+	return u.FailedLogin.NextLoginAttemptTime < now
 }

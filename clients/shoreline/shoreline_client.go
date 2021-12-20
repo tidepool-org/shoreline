@@ -388,7 +388,7 @@ func (client *Client) CheckToken(tkn string) *token.TokenData {
 	case 404:
 		return nil
 	default:
-		log.Printf("Unknown response code[%d] from service[%s]", res.StatusCode, req.URL)
+		log.Printf("Unknown response code[%d] from service[%s]", res.StatusCode, host.String())
 		return nil
 	}
 }
