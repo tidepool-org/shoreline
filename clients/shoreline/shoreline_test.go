@@ -162,5 +162,4 @@ func TestSignup(t *testing.T) {
 	if ud.UserID != "1234abc" || ud.Username != "new me" || len(ud.Emails) != 1 || ud.Emails[0] != "new.me@1234.abc" {
 		t.Errorf("Bad userData object[%+v]", ud)
 	}
-
 }

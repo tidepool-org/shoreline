@@ -13,6 +13,7 @@ type Storage interface {
 	FindUser(ctx context.Context, user *User) (*User, error)
 	FindUsers(ctx context.Context, user *User) ([]*User, error)
 	FindUsersByRole(ctx context.Context, role string) ([]*User, error)
+	FindUsersByEmailVerified(ctx context.Context, auth bool) ([]*User, error)
 	FindUsersWithIds(ctx context.Context, role []string) ([]*User, error)
 	RemoveUser(ctx context.Context, user *User) error
 	AddToken(ctx context.Context, token *token.SessionToken) error

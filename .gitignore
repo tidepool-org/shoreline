@@ -9,3 +9,6 @@ docs/
 shoreline
 coverage.out
 coverReport.html
+
+test-report.xml
+testresults.txt

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -168,6 +169,11 @@ func IsValidRole(role string) bool {
 	default:
 		return false
 	}
+}
+
+func IsValidBoolean(val string) bool {
+	_, err := strconv.ParseBool(val)
+	return err == nil
 }
 
 func IsValidDate(date string) bool {

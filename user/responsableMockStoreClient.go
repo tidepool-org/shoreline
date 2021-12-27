@@ -17,6 +17,11 @@ type FindUsersByRoleResponse struct {
 	Error error
 }
 
+type FindUsersByEmailVerifiedResponse struct {
+	Users []*User
+	Error error
+}
+
 type FindUsersWithIdsResponse struct {
 	Users []*User
 	Error error
@@ -33,16 +38,17 @@ type FindTokenByIDResponse struct {
 }
 
 type ResponsableMockStoreClient struct {
-	PingResponses             []error
-	UpsertUserResponses       []error
-	FindUsersResponses        []FindUsersResponse
-	FindUsersByRoleResponses  []FindUsersByRoleResponse
-	FindUsersWithIdsResponses []FindUsersWithIdsResponse
-	FindUserResponses         []FindUserResponse
-	RemoveUserResponses       []error
-	AddTokenResponses         []error
-	FindTokenByIDResponses    []FindTokenByIDResponse
-	RemoveTokenByIDResponses  []error
+	PingResponses                     []error
+	UpsertUserResponses               []error
+	FindUsersResponses                []FindUsersResponse
+	FindUsersByRoleResponses          []FindUsersByRoleResponse
+	FindUsersByEmailVerifiedResponses []FindUsersByEmailVerifiedResponse
+	FindUsersWithIdsResponses         []FindUsersWithIdsResponse
+	FindUserResponses                 []FindUserResponse
+	RemoveUserResponses               []error
+	AddTokenResponses                 []error
+	FindTokenByIDResponses            []FindTokenByIDResponse
+	RemoveTokenByIDResponses          []error
 }
 
 func NewResponsableMockStoreClient() *ResponsableMockStoreClient {
@@ -54,6 +60,7 @@ func (r *ResponsableMockStoreClient) HasResponses() bool {
 		len(r.UpsertUserResponses) > 0 ||
 		len(r.FindUsersResponses) > 0 ||
 		len(r.FindUsersByRoleResponses) > 0 ||
+		len(r.FindUsersByEmailVerifiedResponses) > 0 ||
 		len(r.FindUsersWithIdsResponses) > 0 ||
 		len(r.FindUserResponses) > 0 ||
 		len(r.RemoveUserResponses) > 0 ||
@@ -67,6 +74,7 @@ func (r *ResponsableMockStoreClient) Reset() {
 	r.UpsertUserResponses = nil
 	r.FindUsersResponses = nil
 	r.FindUsersByRoleResponses = nil
+	r.FindUsersByEmailVerifiedResponses = nil
 	r.FindUsersWithIdsResponses = nil
 	r.FindUserResponses = nil
 	r.RemoveUserResponses = nil
@@ -128,6 +136,15 @@ func (r *ResponsableMockStoreClient) FindUsersByRole(ctx context.Context, role s
 		return response.Users, response.Error
 	}
 	panic("FindUsersByRoleResponses unavailable")
+}
+
+func (r *ResponsableMockStoreClient) FindUsersByEmailVerified(ctx context.Context, emailVerif bool) (found []*User, err error) {
+	if len(r.FindUsersByEmailVerifiedResponses) > 0 {
+		var response FindUsersByEmailVerifiedResponse
+		response, r.FindUsersByEmailVerifiedResponses = r.FindUsersByEmailVerifiedResponses[0], r.FindUsersByEmailVerifiedResponses[1:]
+		return response.Users, response.Error
+	}
+	panic("FindUsersByEmailVerifiedResponses unavailable")
 }
 
 func (r *ResponsableMockStoreClient) FindUsersWithIds(ctx context.Context, ids []string) (found []*User, err error) {

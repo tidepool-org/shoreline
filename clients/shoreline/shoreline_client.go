@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -18,6 +17,7 @@ import (
 	"github.com/mdblp/go-common/jepson"
 	"github.com/mdblp/shoreline/schema"
 	"github.com/mdblp/shoreline/token"
+	log "github.com/sirupsen/logrus"
 )
 
 type (
@@ -30,6 +30,8 @@ type (
 		TokenProvide() string
 		GetUser(userID, token string) (*schema.UserData, error)
 		UpdateUser(userID string, userUpdate schema.UserUpdate, token string) error
+		GetUnverifiedUsers() ([]schema.UserData, error)
+		DeleteUser(userID string) error
 	}
 
 	Client struct {
@@ -287,6 +289,14 @@ func extractUserData(r io.Reader) (*schema.UserData, error) {
 	return &ud, nil
 }
 
+func extractUsersData(r io.Reader) ([]schema.UserData, error) {
+	var ud []schema.UserData
+	if err := json.NewDecoder(r).Decode(&ud); err != nil {
+		return nil, err
+	}
+	return ud, nil
+}
+
 // Signs up a new platfrom user
 // Returns a UserData object if successful
 func (client *Client) Signup(username, password, email string) (*schema.UserData, error) {
@@ -400,6 +410,43 @@ func (client *Client) TokenProvide() string {
 	return client.serverToken
 }
 
+// Get users with unverified email
+func (client *Client) GetUnverifiedUsers() ([]schema.UserData, error) {
+	host, err := client.getHost()
+	if err != nil {
+		return nil, errors.New("no known user-api hosts.")
+	}
+
+	host.Path = path.Join(host.Path, "users")
+	q := host.Query()
+	q.Add("emailVerified", "false")
+	host.RawQuery = q.Encode()
+
+	req, _ := http.NewRequest("GET", host.String(), nil)
+	req.Header.Add("x-tidepool-session-token", client.serverToken)
+
+	res, err := client.httpClient.Do(req)
+	if err != nil {
+		return nil, errors.Wrap(err, "failure to get unverified users")
+	}
+	defer res.Body.Close()
+
+	switch res.StatusCode {
+	case http.StatusOK:
+		ud, err := extractUsersData(res.Body)
+		if err != nil {
+			return nil, err
+		}
+		return ud, nil
+	case http.StatusNoContent:
+		return []schema.UserData{}, nil
+	default:
+		return nil, &status.StatusError{
+			Status: status.NewStatusf(res.StatusCode, "unknown response code from service[%s]", req.URL),
+		}
+	}
+}
+
 // Get user details for the given user
 // In this case the userID could be the actual ID or an email address
 func (client *Client) GetUser(userID, token string) (*schema.UserData, error) {
@@ -467,6 +514,34 @@ func (client *Client) UpdateUser(userID string, userUpdate schema.UserUpdate, to
 
 	switch res.StatusCode {
 	case http.StatusOK:
+		return nil
+	default:
+		return &status.StatusError{
+			Status: status.NewStatusf(res.StatusCode, "Unknown response code from service[%s]", req.URL),
+		}
+	}
+}
+
+// Delete user
+func (client *Client) DeleteUser(userID string) error {
+	host, err := client.getHost()
+	if err != nil {
+		return errors.New("No known user-api hosts.")
+	}
+
+	host.Path = path.Join(host.Path, "user", userID)
+
+	req, _ := http.NewRequest("DELETE", host.String(), nil)
+	req.Header.Add("x-tidepool-session-token", client.serverToken)
+
+	res, err := client.httpClient.Do(req)
+	if err != nil {
+		return errors.Wrap(err, "Failure to delete user")
+	}
+	defer res.Body.Close()
+
+	switch res.StatusCode {
+	case http.StatusAccepted:
 		return nil
 	default:
 		return &status.StatusError{

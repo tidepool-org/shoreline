@@ -24,10 +24,6 @@ func TestMock(t *testing.T) {
 		t.Errorf("Failed start with error[%v]", err)
 	}
 
-	if tok := client.TokenProvide(); tok != tokenMock {
-		t.Errorf("Unexpected token[%s]", tok)
-	}
-
 	if usr, token, err := client.Login("billy", "howdy"); err != nil {
 		t.Errorf("Failed start with error[%v]", err)
 	} else {

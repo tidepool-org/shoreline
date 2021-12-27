@@ -106,6 +106,11 @@ func (c *Client) FindUsersByRole(ctx context.Context, role string) (results []*U
 	return c.findUsers(ctx, bson.M{"roles": role}, noUserMessage)
 }
 
+func (c *Client) FindUsersByEmailVerified(ctx context.Context, emailVerified bool) ([]*User, error) {
+	noUserMessage := fmt.Sprintf("no users found: query: emailVerified: %v", emailVerified)
+	return c.findUsers(ctx, bson.M{"authenticated": emailVerified}, noUserMessage)
+}
+
 func (c *Client) FindUsersWithIds(ctx context.Context, ids []string) (results []*User, err error) {
 	noUserMessage := fmt.Sprintf("no users found: query: id: %v", ids)
 	return c.findUsers(ctx, bson.M{"userid": bson.M{"$in": ids}}, noUserMessage)

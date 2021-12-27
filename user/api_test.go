@@ -361,6 +361,17 @@ func Test_GetUsers_Error_InvalidRole(t *testing.T) {
 	T_ExpectErrorResponse(t, response, 400, "The role specified is invalid")
 }
 
+func Test_GetUsers_Error_InvalidEmailVerified(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "abcdef1234", true, TOKEN_DURATION)
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
+	defer T_ExpectResponsablesEmpty(t)
+
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
+	response := T_PerformRequestHeaders(t, "GET", "/users?emailVerified=invalid", headers)
+	T_ExpectErrorResponse(t, response, 400, STATUS_INVALID_EMAIL_VERIF_BOOL_PARAM)
+}
+
 func Test_GetUsers_Error_NoQuery(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "abcdef1234", true, TOKEN_DURATION)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
@@ -449,6 +460,18 @@ func Test_GetUsers_Error_FindUsersByRoleError(t *testing.T) {
 	T_ExpectErrorResponse(t, response, 500, "Error finding user")
 }
 
+func Test_GetUsers_Error_FindUsersByEmailVerifiedError(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "abcdef1234", true, TOKEN_DURATION)
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
+	responsableStore.FindUsersByEmailVerifiedResponses = []FindUsersByEmailVerifiedResponse{{[]*User{}, errors.New("ERROR")}}
+	defer T_ExpectResponsablesEmpty(t)
+
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
+	response := T_PerformRequestHeaders(t, "GET", "/users?emailVerified=false", headers)
+	T_ExpectErrorResponse(t, response, 500, "Error finding user")
+}
+
 func Test_GetUsers_Error_FindUsersByRoleSuccess(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "abcdef1234", true, TOKEN_DURATION)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
@@ -460,6 +483,19 @@ func Test_GetUsers_Error_FindUsersByRoleSuccess(t *testing.T) {
 	response := T_PerformRequestHeaders(t, "GET", "/users?role=hcp", headers)
 	successResponse := T_ExpectSuccessResponseWithJSONArray(t, response, 200)
 	T_ExpectEqualsArray(t, successResponse, []interface{}{map[string]interface{}{"userid": "0000000000", "passwordExists": false}, map[string]interface{}{"userid": "1111111111", "passwordExists": false}})
+}
+
+func Test_GetUsers_FindUsersByEmailVerifiedSuccess(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "abcdef1234", true, TOKEN_DURATION)
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
+	responsableStore.FindUsersByEmailVerifiedResponses = []FindUsersByEmailVerifiedResponse{{[]*User{{Id: "0000000004", Emails: []string{"test@diabeloop.fr"}, EmailVerified: false}, {Id: "1111111114", Emails: []string{"test@diabeloop.fr"}, EmailVerified: false}}, nil}}
+	defer T_ExpectResponsablesEmpty(t)
+
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
+	response := T_PerformRequestHeaders(t, "GET", "/users?emailVerified=false", headers)
+	successResponse := T_ExpectSuccessResponseWithJSONArray(t, response, 200)
+	T_ExpectEqualsArray(t, successResponse, []interface{}{map[string]interface{}{"userid": "0000000004", "passwordExists": false, "emailVerified": false, "emails": []interface{}{"test@diabeloop.fr"}}, map[string]interface{}{"userid": "1111111114", "passwordExists": false, "emailVerified": false, "emails": []interface{}{"test@diabeloop.fr"}}})
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1041,6 +1077,23 @@ func TestDeleteUser_StatusForbidden_WhenNoPw(t *testing.T) {
 
 	if string(body) != `{"code":403,"reason":"Missing id and/or password"}` {
 		t.Fatalf("Message given [%s] expected [%s] ", string(body), STATUS_MISSING_ID_PW)
+	}
+}
+
+func TestDeleteUser_StatusOk_WhenNoPw_ButSrvToken(t *testing.T) {
+	params := map[string]string{
+		"userid": USR.Id,
+	}
+	request, _ := http.NewRequest("DELETE", "/", nil)
+	request.Header.Set(TP_SESSION_TOKEN, SRVR_TOKEN.ID)
+	response := httptest.NewRecorder()
+
+	shoreline.SetHandlers("", rtr)
+
+	shoreline.DeleteUser(response, request, params)
+
+	if response.Code != http.StatusAccepted {
+		t.Fatalf("Non-expected status code %v:\n\tbody: %v", http.StatusAccepted, response.Code)
 	}
 }
 

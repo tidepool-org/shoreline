@@ -5,8 +5,8 @@ mkdir dist
 export GO111MODULE=on
 
 # generate version number
-if [ -n "${TRAVIS_TAG:-}" ]; then
-    VERSION_BASE=${TRAVIS_TAG}
+if [ -n "${APP_VERSION:-}" ]; then
+    VERSION_BASE=${APP_VERSION}
 else
     VERSION_BASE=$(git describe --abbrev=0 --tags 2> /dev/null || echo 'dblp.0.0.0')
 fi

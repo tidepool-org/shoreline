@@ -2,11 +2,11 @@ package auth
 
 import (
 	"errors"
-	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mdblp/shoreline/token"
+	log "github.com/sirupsen/logrus"
 )
 
 const (

@@ -78,6 +78,13 @@ func (d MockStoreClient) FindUsersByRole(ctx context.Context, role string) (foun
 	return nil, nil
 }
 
+func (d MockStoreClient) FindUsersByEmailVerified(ctx context.Context, auth bool) (found []*User, err error) {
+	if d.doBad {
+		return found, errors.New("FindUsersByEmailVerified failure")
+	}
+	return nil, nil
+}
+
 func (d MockStoreClient) FindUsersWithIds(ctx context.Context, ids []string) (found []*User, err error) {
 	if d.doBad {
 		return found, errors.New("FindUsersWithIds failure")

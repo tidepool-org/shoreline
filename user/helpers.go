@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -15,6 +14,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/mdblp/shoreline/token"
+	log "github.com/sirupsen/logrus"
 )
 
 // Input Sanitizer
