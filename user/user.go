@@ -660,11 +660,13 @@ func NewUserFromKeycloakUser(keycloakUser *keycloak.User) *User {
 }
 
 var keycloakToTidepoolRolesMap = map[string]string{
-	"clinician": "clinic",
+	"clinician":      "clinic",
+	"migrated_clinic": "migrated_clinic",
 }
 
 var tidepoolToKeycloakRolesMap = map[string]string{
-	"clinic": "clinician",
+	"clinic":         "clinician",
+	"migrated_clinic": "migrated_clinic",
 }
 
 func KeycloakRolesToTidepoolRoles(keycloakRoles []string) []string {
