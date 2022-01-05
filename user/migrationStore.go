@@ -147,6 +147,9 @@ func (m *MigrationStore) updateKeycloakUser(user *User, details *UpdateUserDetai
 			keycloakUser.Attributes.TermsAcceptedDate = []string{ts}
 		}
 	}
+	if details.Roles != nil {
+		keycloakUser.Roles = details.Roles
+	}
 
 	err := m.keycloakClient.UpdateUser(m.ctx, keycloakUser)
 	if err != nil {

@@ -283,7 +283,13 @@ func (c *client) UpdateUser(ctx context.Context, user *User) error {
 		"terms_and_conditions": user.Attributes.TermsAcceptedDate,
 	}
 
-	return c.keycloak.UpdateUser(ctx, token.AccessToken, c.cfg.Realm, gocloakUser)
+	if err := c.keycloak.UpdateUser(ctx, token.AccessToken, c.cfg.Realm, gocloakUser); err != nil {
+		return err
+	}
+	if err := c.updateRolesForUser(ctx, user); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (c *client) UpdateUserPassword(ctx context.Context, id, password string) error {
@@ -308,7 +314,7 @@ func (c *client) CreateUser(ctx context.Context, user *User) (*User, error) {
 		return nil, err
 	}
 
-	id, err := c.keycloak.CreateUser(ctx, token.AccessToken, c.cfg.Realm, gocloak.User{
+	user.ID, err = c.keycloak.CreateUser(ctx, token.AccessToken, c.cfg.Realm, gocloak.User{
 		Username:   &user.Username,
 		Email:      &user.Email,
 		Enabled:    &user.Enabled,
@@ -321,27 +327,11 @@ func (c *client) CreateUser(ctx context.Context, user *User) (*User, error) {
 		return nil, err
 	}
 
-	if user.Roles != nil && len(user.Roles) > 0 {
-		roles, err := c.keycloak.GetRealmRoles(ctx, token.AccessToken, c.cfg.Realm)
-		if err != nil {
-			return nil, err
-		}
-		var rolesForUser []gocloak.Role
-		for _, userRole := range user.Roles {
-			for _, realmRole := range roles {
-				if realmRole.Name != nil && *realmRole.Name == userRole {
-					rolesForUser = append(rolesForUser, *realmRole)
-				}
-			}
-		}
-		if len(rolesForUser) > 0 {
-			if err = c.keycloak.AddRealmRoleToUser(ctx, token.AccessToken, c.cfg.Realm, id, rolesForUser); err != nil {
-				return nil, err
-			}
-		}
+	if err := c.updateRolesForUser(ctx, user); err != nil {
+		return nil, err
 	}
 
-	return c.GetUserById(ctx, id)
+	return c.GetUserById(ctx, user.ID)
 }
 
 func (c *client) FindUsersWithIds(ctx context.Context, ids []string) (users []*User, err error) {
@@ -474,4 +464,34 @@ func (c *client) loginAsAdmin(ctx context.Context) error {
 
 func (c *client) adminTokenIsExpired() bool {
 	return c.adminToken == nil || time.Now().After(c.adminTokenRefreshExpires)
+}
+
+func (c *client) updateRolesForUser(ctx context.Context, user *User) error {
+	token, err := c.getAdminToken(ctx)
+	if err != nil {
+		return err
+	}
+
+	if user.Roles != nil && len(user.Roles) > 0 {
+		roles, err := c.keycloak.GetRealmRoles(ctx, token.AccessToken, c.cfg.Realm)
+		if err != nil {
+			return err
+		}
+
+		var rolesForUser []gocloak.Role
+		for _, userRole := range user.Roles {
+			for _, realmRole := range roles {
+				if realmRole.Name != nil && *realmRole.Name == userRole {
+					rolesForUser = append(rolesForUser, *realmRole)
+				}
+			}
+		}
+		if len(rolesForUser) > 0 {
+			if err = c.keycloak.AddRealmRoleToUser(ctx, token.AccessToken, c.cfg.Realm, user.ID, rolesForUser); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
