@@ -97,6 +97,16 @@ func ExtractString(data map[string]interface{}, key string) (*string, bool) {
 	} else if extractedString, ok := raw.(string); !ok {
 		return nil, false
 	} else {
+		return &extractedString, true
+	}
+}
+
+func ExtractSanitizedString(data map[string]interface{}, key string) (*string, bool) {
+	if raw, ok := data[key]; !ok {
+		return nil, true
+	} else if extractedString, ok := raw.(string); !ok {
+		return nil, false
+	} else {
 		extractedString = sanitize(extractedString)
 		return &extractedString, true
 	}
@@ -204,7 +214,7 @@ func (details *NewUserDetails) ExtractFromJSON(reader io.Reader) error {
 		ok       bool
 	)
 
-	if username, ok = ExtractString(decoded, "username"); !ok {
+	if username, ok = ExtractSanitizedString(decoded, "username"); !ok {
 		return ErrUserUsernameInvalid
 	}
 	if emails, ok = ExtractStringArray(decoded, "emails"); !ok {
@@ -317,7 +327,7 @@ func (details *NewCustodialUserDetails) ExtractFromJSON(reader io.Reader) error 
 		ok       bool
 	)
 
-	if username, ok = ExtractString(decoded, "username"); !ok {
+	if username, ok = ExtractSanitizedString(decoded, "username"); !ok {
 		return ErrUserUsernameInvalid
 	}
 	if emails, ok = ExtractStringArray(decoded, "emails"); !ok {
@@ -406,7 +416,7 @@ func (details *UpdateUserDetails) ExtractFromJSON(reader io.Reader) error {
 		return ErrUserDetailsMissing
 	}
 
-	if username, ok = ExtractString(decoded, "username"); !ok {
+	if username, ok = ExtractSanitizedString(decoded, "username"); !ok {
 		return ErrUserUsernameInvalid
 	}
 	if emails, ok = ExtractStringArray(decoded, "emails"); !ok {
@@ -421,7 +431,7 @@ func (details *UpdateUserDetails) ExtractFromJSON(reader io.Reader) error {
 	if roles, ok = ExtractStringArray(decoded, "roles"); !ok {
 		return ErrUserRolesInvalid
 	}
-	if termsAccepted, ok = ExtractString(decoded, "termsAccepted"); !ok {
+	if termsAccepted, ok = ExtractSanitizedString(decoded, "termsAccepted"); !ok {
 		return ErrUserTermsAcceptedInvalid
 	}
 	if emailVerified, ok = ExtractBool(decoded, "emailVerified"); !ok {

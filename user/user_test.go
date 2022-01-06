@@ -285,13 +285,13 @@ func Test_NewUserDetails_ExtractFromJSON_InvalidRoles(t *testing.T) {
 }
 
 func Test_NewUserDetails_ExtractFromJSON_ValidAll(t *testing.T) {
-	source := "{\"username\": \"a@z.co\", \"emails\": [\"b@y.co\"], \"password\": \"12345678\", \"roles\": [\"hcp\"], \"ignored\": true}"
+	source := `{"username": "a@z.co", "emails": ["b@y.co"], "password": "123456\"7", "roles": ["hcp"], "ignored": true}`
 	details := &NewUserDetails{}
 	err := details.ExtractFromJSON(strings.NewReader(source))
 	if err != nil {
 		t.Fatalf("Unexpected error for valid with all: %#v", err)
 	}
-	if *details.Username != "a@z.co" || !reflect.DeepEqual(details.Emails, []string{"b@y.co"}) || *details.Password != "12345678" || !reflect.DeepEqual(details.Roles, []string{"hcp"}) {
+	if *details.Username != "a@z.co" || !reflect.DeepEqual(details.Emails, []string{"b@y.co"}) || *details.Password != "123456\"7" || !reflect.DeepEqual(details.Roles, []string{"hcp"}) {
 		t.Fatalf("Missing fields that should be present on success with all")
 	}
 }
@@ -321,13 +321,13 @@ func Test_NewUserDetails_ExtractFromJSON_ValidEmails(t *testing.T) {
 }
 
 func Test_NewUserDetails_ExtractFromJSON_ValidPassword(t *testing.T) {
-	source := "{\"password\": \"12345678\", \"ignored\": true}"
+	source := `{"password": "123456\"7", "ignored": true}`
 	details := &NewUserDetails{}
 	err := details.ExtractFromJSON(strings.NewReader(source))
 	if err != nil {
 		t.Fatalf("Unexpected error for valid with password: %#v", err)
 	}
-	if details.Username != nil || details.Emails != nil || *details.Password != "12345678" || details.Roles != nil {
+	if details.Username != nil || details.Emails != nil || *details.Password != "123456\"7" || details.Roles != nil {
 		t.Fatalf("Missing fields that should be present on success with password")
 	}
 }
