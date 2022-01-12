@@ -345,15 +345,18 @@ func (a *Api) createCustodialUserAccount(res http.ResponseWriter, req *http.Requ
 	} else if err := newCustodialUserDetails.Validate(); err != nil {
 		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, err)
 		return nil, err
+	} else if newCustodialUser, err := NewCustodialUser(newCustodialUserDetails, a.ApiConfig.Salt); err != nil {
+		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, err)
+		return nil, err
+	} else if existingUsers, err := a.Store.WithContext(req.Context()).FindUsers(newCustodialUser); err != nil {
+		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
+		return nil, err
+	} else if len(existingUsers) > 0 {
+		a.sendError(res, http.StatusConflict, STATUS_USR_ALREADY_EXISTS)
+		return nil, errors.New(STATUS_USR_ALREADY_EXISTS)
 	} else if newUserDetails, err := NewUserDetailsFromCustodialUserDetails(newCustodialUserDetails); err != nil {
 		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, err)
 		return nil, err
-	} else if existingCustodialUser, err := a.Store.WithContext(req.Context()).FindUser(&User{Emails: newCustodialUserDetails.Emails}); err != nil {
-		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
-		return nil, err
-	} else if existingCustodialUser != nil {
-		a.sendError(res, http.StatusConflict, STATUS_USR_ALREADY_EXISTS)
-		return nil, errors.New(STATUS_USR_ALREADY_EXISTS)
 	} else if user, err := a.Store.WithContext(req.Context()).CreateUser(newUserDetails); err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
 		return nil, err
