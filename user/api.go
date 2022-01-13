@@ -381,10 +381,10 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 		if updateUserDetails.Username != nil || updateUserDetails.Emails != nil {
 			dupCheck := &User{}
 			if updateUserDetails.Username != nil {
-				dupCheck.Username = updatedUser.Username
+				dupCheck.Username = *updateUserDetails.Username
 			}
 			if updateUserDetails.Emails != nil {
-				dupCheck.Emails = updatedUser.Emails
+				dupCheck.Emails = updateUserDetails.Emails
 			}
 
 			if results, err := a.Store.WithContext(req.Context()).FindUsers(dupCheck); err != nil {
