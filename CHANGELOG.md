@@ -2,6 +2,10 @@
 
 Shoreline is the module that manages user accounts and authentication.
 
+## 1.8.7 - 2021-01-10 
+### Engineering 
+- YLP-1166 enhance logging
+
 ## 1.8.6 - 2022-01-06
 ### Fix
 - YLP-1162: Do Not sanitize passwords during user creation or update

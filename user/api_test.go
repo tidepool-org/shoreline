@@ -24,6 +24,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/mdblp/go-common/clients/version"
 	"github.com/mdblp/shoreline/token"
+	"github.com/mdblp/shoreline/user/middlewares"
 )
 
 const (
@@ -121,6 +122,7 @@ func T_PerformRequestHeaders(t *testing.T, method string, url string, headers ht
 }
 
 func T_PerformRequestBodyHeaders(t *testing.T, method string, url string, body string, headers http.Header) *httptest.ResponseRecorder {
+	
 	request, err := http.NewRequest(method, url, strings.NewReader(body))
 	if err != nil {
 		t.Fatalf("Failed to create new request with error %#v", err)
@@ -136,6 +138,8 @@ func T_PerformRequestBodyHeaders(t *testing.T, method string, url string, body s
 	response := httptest.NewRecorder()
 	router := mux.NewRouter()
 	responsableShoreline.SetHandlers("", router)
+	h := middlewares.New(log.NewEntry(logger))
+	router.Use(h.LoggingMiddleware)
 	router.ServeHTTP(response, request)
 	return response
 }
@@ -407,15 +411,19 @@ func Test_GetUsers_Error_FindUsersWithIdsError(t *testing.T) {
 }
 
 func FindUsersWithIds(t *testing.T, userIds []string) {
-	rr := httptest.NewRecorder()
-
-	r, err := http.NewRequest("GET", "/users?id="+strings.Join(userIds, ","), nil)
-	r.Header.Set(TP_SESSION_TOKEN, SRVR_TOKEN.ID)
-	if err != nil {
-		t.Fatal(err)
+	sessionToken := T_CreateSessionToken(t, "abcdef1234", true, TOKEN_DURATION)
+	var mockUsers []*User = make([]*User, len(userIds))
+	for index, user := range userIds {
+		mockUsers[index] = &User{Id: user, Username: "test@new.bar", Emails: []string{"test@new.bar"}}
 	}
-
-	shoreline.GetUsers(rr, r)
+	
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
+	responsableStore.FindUsersWithIdsResponses = []FindUsersWithIdsResponse{{mockUsers, nil}}
+	defer T_ExpectResponsablesEmpty(t)
+	
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
+	rr := T_PerformRequestHeaders(t, "GET", "/users?id="+strings.Join(userIds, ","), headers)
 
 	rs := rr.Result()
 
@@ -437,7 +445,7 @@ func FindUsersWithIds(t *testing.T, userIds []string) {
 
 	for index, user := range userIds {
 		if user != users[index].Id {
-			t.Fatalf("Expected user with ID '%s'. Got %#v", user, users[index])
+			t.Fatalf("Expected user with ID '%s'. Got %#v", user, users[index].Id)
 		}
 	}
 }

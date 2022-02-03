@@ -65,7 +65,7 @@ func (l *LocalAuth) AuthMiddleware(authorizeUnverified bool) gin.HandlerFunc {
 		} else if token.Role == "unverified" && !authorizeUnverified {
 			c.AbortWithError(http.StatusUnauthorized, errors.New("Unverified user is not authorized"))
 		} else {
-			log.Println("user ", token.UserId, " ", method, " on ", path)
+			log.Debug("user ", token.UserId, " ", method, " on ", path)
 			c.Set("userId", token.UserId)
 			c.Set("isPatient", token.Role == "patient")
 			c.Set("isCaregiver", token.Role == "caregiver")

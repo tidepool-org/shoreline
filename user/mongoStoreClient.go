@@ -8,6 +8,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	goComMgo "github.com/mdblp/go-common/clients/mongo"
+	"github.com/mdblp/shoreline/common/logging"
 	"github.com/mdblp/shoreline/token"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -62,6 +63,7 @@ func (c *Client) FindUser(ctx context.Context, user *User) (result *User, err er
 }
 
 func (c *Client) findUsers(ctx context.Context, filter interface{}, noResultMessage string) (results []*User, err error) {
+	log := logging.FromContext(ctx)
 	cursor, err := mgoUsersCollection(c).Find(ctx, filter)
 	if err != nil {
 		return results, err
@@ -72,7 +74,7 @@ func (c *Client) findUsers(ctx context.Context, filter interface{}, noResultMess
 		return results, err
 	}
 	if results == nil {
-		log.Print(noResultMessage)
+		log.Info(noResultMessage)
 		results = []*User{}
 	}
 

@@ -14,6 +14,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/mdblp/shoreline/token"
+	"github.com/mdblp/shoreline/user/middlewares"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -73,7 +74,7 @@ func firstStringNotEmpty(strs ...string) string {
 func getGivenDetail(req *http.Request) (d map[string]string) {
 	if req.ContentLength > 0 {
 		if err := json.NewDecoder(req.Body).Decode(&d); err != nil {
-			log.Print(USER_API_PREFIX, "error trying to decode user detail ", err)
+			log.Error(USER_API_PREFIX, "error trying to decode user detail ", err)
 			return nil
 		}
 	}
@@ -113,7 +114,7 @@ func unpackAuth(authLine string) (user *User, passwd string, err error) {
 		if utf8.Valid(decodedPayload) {
 			strPayload = string(decodedPayload)
 		} else {
-			log.Printf("%s authorization: Invalid UTF-8 decoded string, trying with ISO-8859-1", USER_API_PREFIX)
+			log.Debugf("%s authorization: Invalid UTF-8 decoded string, trying with ISO-8859-1", USER_API_PREFIX)
 			strPayload = fromISO8859(decodedPayload)
 		}
 
@@ -135,7 +136,7 @@ func sendModelAsResWithStatus(res http.ResponseWriter, model interface{}, status
 	res.WriteHeader(statusCode)
 
 	if jsonDetails, err := json.Marshal(model); err != nil {
-		log.Println(USER_API_PREFIX, err.Error())
+		log.Error(USER_API_PREFIX, err.Error())
 	} else {
 		res.Write(jsonDetails)
 	}
@@ -144,6 +145,7 @@ func sendModelAsResWithStatus(res http.ResponseWriter, model interface{}, status
 // logAudit Variatic log for audit trails
 func (a *Api) logAudit(req *http.Request, tokenData *token.TokenData, format string, args ...interface{}) {
 	var prefix string
+	log := middlewares.GetLogReq(req)
 
 	if req.RemoteAddr != "" {
 		prefix = fmt.Sprintf("remoteAddr{%s}, ", req.RemoteAddr)
@@ -159,7 +161,7 @@ func (a *Api) logAudit(req *http.Request, tokenData *token.TokenData, format str
 	}
 
 	s := fmt.Sprintf(format, args...)
-	a.auditLogger.Printf("%s%s", prefix, s)
+	log.Infof("%s%s", prefix, s)
 }
 
 func (a *Api) sendUser(res http.ResponseWriter, user *User, isServerRequest bool) {
