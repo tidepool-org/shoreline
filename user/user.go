@@ -13,6 +13,7 @@ import (
 type User struct {
 	Id             string                 `json:"userid,omitempty" bson:"userid,omitempty"` // map userid to id
 	Username       string                 `json:"username,omitempty" bson:"username,omitempty"`
+	FrProId        string                 `json:"frProId,omitempty" bson:"frProId,omitempty"`
 	Emails         []string               `json:"emails,omitempty" bson:"emails,omitempty"`
 	Roles          []string               `json:"roles,omitempty" bson:"roles,omitempty"`
 	TermsAccepted  string                 `json:"termsAccepted,omitempty" bson:"termsAccepted,omitempty"`
