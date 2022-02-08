@@ -2,6 +2,10 @@
 
 Shoreline is the module that manages user accounts and authentication.
 
+## UNRELEASED
+### Added
+- YLP-1212: Add required routes in shoreline to integrate with the French health platform (cps) using oidc
+
 ## 1.8.6 - 2022-01-06
 ### Fix
 - YLP-1162: Do Not sanitize passwords during user creation or update
