@@ -16,6 +16,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/caos/oidc/pkg/client/rp"
+	"github.com/caos/oidc/pkg/oidc"
+	"github.com/golang-jwt/jwt"
+	"github.com/google/uuid"
 	"github.com/microcosm-cc/bluemonday"
 	log "github.com/sirupsen/logrus"
 
@@ -48,6 +52,7 @@ var (
 		Namespace: "dblp",
 	})
 	bmPolicy = bluemonday.StrictPolicy()
+	state    = func() string { return uuid.New().String() }
 )
 
 type (
@@ -58,13 +63,23 @@ type (
 		logger       *log.Logger
 		auditLogger  *log.Logger
 		loginLimiter LoginLimiter
+		provider     rp.RelyingParty
 	}
 	Secret struct {
 		Secret string `json:"secret"`
 		Pass   string `json:"pass"`
 	}
+	OAuthConfig struct {
+		IssuerUri string `json:"issuer"`
+		Secret    string `json:"secret"`
+		ClientId  string `json:"clientid"`
+	}
 	// ApiConfig for shoreline
 	ApiConfig struct {
+		//base url which (publicly) exposes shoreline service
+		PublicApiURl string
+		//base url of front-end, used for oidc login redirect
+		FrontUrl string
 		//used for services
 		ServerSecrets     map[string]string
 		LongTermKey       string `json:"longTermKey"`
@@ -78,6 +93,8 @@ type (
 		//used for token
 		Secret       string `json:"apiSecret"`
 		TokenSecrets map[string]string
+		//used to delegate auth to OAuth/OIDC server
+		OAuthAppConfig OAuthConfig
 		// Maximum number of consecutive failed login before a delay is set
 		MaxFailedLogin int `json:"maxFailedLogin"`
 		// Delay in minutes the user must wait 10min before attempting a new login if the number of
@@ -119,6 +136,7 @@ const (
 	STATUS_ERR_CREATING_USR               = "Error creating the user"
 	STATUS_ERR_UPDATING_USR               = "Error updating user"
 	STATUS_USR_ALREADY_EXISTS             = "User already exists"
+	STATUS_ID_ALREADY_USED                = "OIDC Id is already assigned to another user"
 	STATUS_ERR_GENERATING_TOKEN           = "Error generating the token"
 	STATUS_ERR_UPDATING_TOKEN             = "Error updating token"
 	STATUS_MISSING_USR_DETAILS            = "Not all required details were given"
@@ -150,6 +168,8 @@ func NewConfigFromEnv(log *log.Logger) *ApiConfig {
 	var intValue int
 	var found bool
 	config := &ApiConfig{
+		PublicApiURl:                "http://localhost:9107",
+		FrontUrl:                    "http://localhost:3001",
 		MaxFailedLogin:              5,
 		DelayBeforeNextLoginAttempt: 10, // 10 Minutes
 		MaxConcurrentLogin:          100,
@@ -161,9 +181,35 @@ func NewConfigFromEnv(log *log.Logger) *ApiConfig {
 		ServerSecrets:               make(map[string]string),
 		TokenSecrets:                make(map[string]string),
 		Secret:                      "abcdefghijklmnopqrstuvwxyz",
+		OAuthAppConfig: OAuthConfig{
+			IssuerUri: "https://auth.bas.esw.esante.gouv.fr/auth/realms/esante-wallet",
+			ClientId:  "diabeloop-yourloops-bas",
+			Secret:    "642e492b-0ce6-4f17-b0c2-81286e02f478",
+		},
 	}
 	config.ServerSecrets["default"] = config.Secret
 	config.TokenSecrets["default"] = config.Secret
+
+	baseUrl, found := os.LookupEnv("AUTH_BASE_URL")
+	if found {
+		config.PublicApiURl = baseUrl
+	}
+	frontUrl, found := os.LookupEnv("FRONT_BASE_URL")
+	if found {
+		config.FrontUrl = frontUrl
+	}
+	oidcUri, found := os.LookupEnv("OIDC_ISSUER_URI")
+	if found {
+		config.OAuthAppConfig.IssuerUri = oidcUri
+	}
+	oidcClientId, found := os.LookupEnv("OIDC_CLIENT_ID")
+	if found {
+		config.OAuthAppConfig.ClientId = oidcClientId
+	}
+	oidcSecret, found := os.LookupEnv("OIDC_SECRET")
+	if found {
+		config.OAuthAppConfig.Secret = oidcSecret
+	}
 
 	intValue, found, err = getIntFromEnvVar("USER_MAX_FAILED_LOGIN", 1, math.MaxInt16)
 	if err != nil {
@@ -260,11 +306,14 @@ func NewConfigFromEnv(log *log.Logger) *ApiConfig {
 
 // New create a new shoreline API config
 func New(cfg *ApiConfig, logger *log.Logger, store Storage, auditLogger *log.Logger) *Api {
+
+	provider := createOidcProvider(logger, cfg, strings.Join([]string{cfg.PublicApiURl, "oauth/callback"}, "/"))
 	api := Api{
 		Store:       store,
 		ApiConfig:   cfg,
 		logger:      logger,
 		auditLogger: auditLogger,
+		provider:    provider,
 	}
 
 	api.loginLimiter.usersInProgress = list.New()
@@ -291,6 +340,9 @@ func (a *Api) SetHandlers(prefix string, rtr *mux.Router) {
 	rtr.HandleFunc("/login", a.Login).Methods("POST")
 	rtr.HandleFunc("/login", a.RefreshSession).Methods("GET")
 	rtr.Handle("/login/{longtermkey}", varsHandler(a.LongtermLogin)).Methods("POST")
+	rtr.HandleFunc("/oauth/login", rp.AuthURLHandler(state, a.provider))
+	rtr.HandleFunc("/oauth/callback", a.DelegatedLoginCallback)
+	rtr.HandleFunc("/oauth/merge", a.UpdateUserWithOauth).Methods("POST")
 
 	rtr.HandleFunc("/serverlogin", a.ServerLogin).Methods("POST")
 
@@ -674,6 +726,162 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 	sendModelAsResWithStatus(res, status.NewStatus(http.StatusForbidden, STATUS_MISSING_ID_PW), http.StatusForbidden)
 }
 
+// @Summary Update an HCP user with an external OAuth ID
+// @Description Merge an external oauth uid with a yourloops user
+// @ID shoreline-user-api-updateOauth
+// @Accept  json
+// @Produce  json
+// @Security TidepoolAuth
+// @Security OIDC cookie
+// @Success 202 "User updated"
+// @Failure 500 {string} string ""
+// @Failure 401 {string} string ""
+// @Router /oauth/merge [post]
+func (a *Api) UpdateUserWithOauth(res http.ResponseWriter, req *http.Request) {
+	a.logger.Printf("Merge user with an external provider id %v", req)
+	sessionToken := sanitizeSessionToken(req)
+	user := &User{}
+	if tokenData, err := a.authenticateSessionToken(req.Context(), sessionToken); err != nil {
+		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
+		return
+	} else {
+		user.Id = tokenData.UserId
+	}
+
+	// Retrieve OAuth token from cookie
+	oAuthTokens := OidcTokens{}
+	if oAuthCookieVal, err := a.provider.CookieHandler().CheckCookie(req, "ecps-oidc"); err != nil {
+		a.sendError(res, http.StatusUnauthorized, "Oauth cookie not provided", err)
+		return
+	} else if oAuthTokens.Decode(oAuthCookieVal) != nil {
+		a.sendError(res, http.StatusInternalServerError, "Error while decoding Oauth cookie", err)
+		return
+	} else if jwtToken, _ := jwt.Parse(oAuthTokens.AuthToken, nil); jwtToken == nil {
+		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, STATUS_USER_NOT_FOUND, err)
+		return
+	} else {
+		claims := jwtToken.Claims.(jwt.MapClaims)
+		user.FrProId = claims["sub"].(string)
+	}
+
+	a.logger.Infof("Will merge account %v with idNat %v", user.Id, user.FrProId)
+
+	if originalUser, err := a.Store.FindUser(req.Context(), &User{Id: user.Id}); err != nil {
+		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err)
+
+	} else if originalUser == nil {
+		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, "User not found")
+
+	} else if dupUsers, err := a.Store.FindUsers(req.Context(), &User{FrProId: user.FrProId}); err != nil {
+		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err)
+
+	} else if len(dupUsers) == 1 && dupUsers[0].Id != user.Id {
+		//only throw an error if there is a user with a different id but with the same oidc external id
+		a.sendError(res, http.StatusConflict, STATUS_ID_ALREADY_USED)
+
+	} else if len(dupUsers) > 1 {
+		a.sendError(res, http.StatusConflict, STATUS_ID_ALREADY_USED)
+
+	} else {
+		// Everything is fine, update the user
+		updatedUser := originalUser.DeepClone()
+		updatedUser.FrProId = user.FrProId
+		if err := a.Store.UpsertUser(req.Context(), updatedUser); err != nil {
+			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_USR, err)
+		} else {
+			a.sendUserWithStatus(res, updatedUser, http.StatusAccepted, false)
+		}
+	}
+}
+
+// OIDC callback method
+func (a *Api) DelegatedLoginCallback(res http.ResponseWriter, req *http.Request) {
+	rp.CodeExchangeHandler(a.processDelegatedLogin, a.provider)(res, req)
+}
+
+func (a *Api) redirectToBlipError(res http.ResponseWriter, errorMsg string) {
+	a.logger.Print(errorMsg)
+	res.Header().Set("location", a.ApiConfig.FrontUrl+"/professional/certify?source=psc&error="+errorMsg)
+	res.WriteHeader(http.StatusFound)
+}
+
+// Callback method used to process response from OIDC provider
+// Will redirect to blip /merge page if the user does not have the oidc subject id already set.
+// Will redirect to blip root / if the user is found
+// Will redirect to blip /error page if something goes wrong
+// Always return HTTP 302
+func (a *Api) processDelegatedLogin(res http.ResponseWriter, req *http.Request, tokens *oidc.Tokens, state string, rp rp.RelyingParty) {
+	// Extract user info from token
+	jwtToken, err := jwt.Parse(tokens.IDToken, nil)
+	if jwtToken == nil {
+		a.logger.Error("Error while parsing JWT token received from OIDC provider.", err)
+		a.redirectToBlipError(res, "Internal server error")
+		return
+	}
+	user := &User{}
+	claims := jwtToken.Claims.(jwt.MapClaims)
+	user.FrProId = claims["sub"].(string)
+
+	// Prepare oidc cookie
+	oidcTokens := OidcTokens{
+		AuthToken:    tokens.AccessToken,
+		RefreshToken: tokens.RefreshToken,
+	}
+	if cookieVal, err := oidcTokens.Encode(); err != nil {
+		a.logger.Error("Error while encoding JWT token before sending to Blip.", err)
+		a.redirectToBlipError(res, "Internal server error")
+		return
+	} else {
+		rp.CookieHandler().SetCookie(res, "ecps-oidc", cookieVal)
+	}
+
+	// Try to match the user in our system using the external subject id
+	if results, err := a.Store.FindUsers(req.Context(), user); err != nil {
+		a.logger.Error("Mongo DB error while looking for a user.", err)
+		a.redirectToBlipError(res, "Internal server error")
+		return
+
+	} else if len(results) == 0 {
+		// User is not already linked to an OIDC account, let's redirect to the merge page
+		res.Header().Set("location", a.ApiConfig.FrontUrl+"/professional/certify?source=psc&frproid="+claims["preferred_username"].(string))
+	} else if result := results[0]; result == nil {
+		a.logger.Errorf("Mongo DB error while looking for a user. User %s is nil", user.FrProId)
+		a.redirectToBlipError(res, "Internal server error")
+
+	} else if result.IsDeleted() {
+		a.logger.Errorf("User %s is marked deleted", user.FrProId)
+		a.redirectToBlipError(res, "User is marked as deleted")
+
+	} else if !result.CanPerformALogin(a.ApiConfig.MaxFailedLogin) {
+		a.logger.Infof("User '%s' can't perform a login yet", user.FrProId)
+		a.redirectToBlipError(res, "User cannot perform a login yet, re-try later")
+
+	} else if !result.IsEmailVerified(a.ApiConfig.VerificationSecret) {
+		a.logger.Infof("User '%s' has not validated their account", user.FrProId)
+		a.redirectToBlipError(res, "User cannot perform a login yet, re-try later")
+
+	} else {
+
+		// Login succeed:
+		if len(result.Roles) == 0 {
+			result.Roles = []string{"hcp"}
+		}
+		tokenData := &token.TokenData{DurationSecs: extractTokenDuration(req), UserId: result.Id, Email: result.Username, Name: result.Username, Role: result.Roles[0]}
+		tokenConfig := token.TokenConfig{DurationSecs: a.ApiConfig.UserTokenDurationSecs, Secret: a.ApiConfig.Secret}
+		if sessionToken, err := CreateSessionTokenAndSave(req.Context(), tokenData, tokenConfig, a.Store); err != nil {
+			a.logger.Errorf("%s, err: %s", STATUS_ERR_UPDATING_TOKEN, err.Error())
+			a.redirectToBlipError(res, "Internal server error")
+
+		} else {
+			a.logAudit(req, tokenData, "eCPS Login")
+			a.logger.Info(sessionToken)
+			res.Header().Set("location", a.ApiConfig.FrontUrl)
+		}
+	}
+	a.logger.Info("blip redirect")
+	res.WriteHeader(http.StatusFound)
+}
+
 // @Summary Login user
 // @Description Login user
 // @ID shoreline-user-api-login
@@ -737,7 +945,6 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 	} else {
 		// Login succeed:
 		// FIXME, YLP-1065
-		role := "patient"
 		if len(result.Roles) == 0 {
 			// Default role to patient, if no role is found
 			// FIXME Dirty quirk
@@ -750,12 +957,9 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 			if err := a.Store.UpsertUser(req.Context(), result); err != nil {
 				a.logger.Printf("Login of a non patient user from our private endpoint. Error while adding the role patient: %s", err)
 			}
-		} else if len(result.Roles) > 0 {
-			// FIXME: replace this workaround, we should support multi roles
-			role = result.Roles[0]
 		}
 
-		tokenData := &token.TokenData{DurationSecs: extractTokenDuration(req), UserId: result.Id, Email: result.Username, Name: result.Username, Role: role}
+		tokenData := &token.TokenData{DurationSecs: extractTokenDuration(req), UserId: result.Id, Email: result.Username, Name: result.Username, Role: result.Roles[0]}
 		tokenConfig := token.TokenConfig{DurationSecs: a.ApiConfig.UserTokenDurationSecs, Secret: a.ApiConfig.Secret}
 		if sessionToken, err := CreateSessionTokenAndSave(req.Context(), tokenData, tokenConfig, a.Store); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_TOKEN, err)
@@ -1155,8 +1359,6 @@ func (a *Api) authenticateSessionToken(ctx context.Context, sessionToken string)
 	if sessionToken == "" {
 		return nil, errors.New("session token is empty")
 	} else if tokenData, err := token.UnpackSessionTokenAndVerify(sessionToken, a.ApiConfig.Secret); err != nil {
-		return nil, err
-	} else if _, err := a.Store.FindTokenByID(ctx, sessionToken); err != nil {
 		return nil, err
 	} else {
 		return tokenData, nil
