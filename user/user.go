@@ -607,8 +607,8 @@ func (u *User) DeepClone() *User {
 func (u *User) ToKeycloakUser() *keycloak.User {
 	keycloakUser := &keycloak.User{
 		ID:            u.Id,
-		Username:      u.Username,
-		Email:         u.Email(),
+		Username:      strings.ToLower(u.Username),
+		Email:         strings.ToLower(u.Email()),
 		Enabled:       !u.IsDeleted(),
 		EmailVerified: u.EmailVerified,
 		Roles:         u.Roles,
