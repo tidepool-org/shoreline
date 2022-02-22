@@ -2,7 +2,11 @@
 
 Shoreline is the module that manages user accounts and authentication.
 
-## 1.8.7 - 2021-01-10 
+## Unreleased
+### Engineering 
+- Build multi-architecture docker images
+
+## 1.8.7 - 2022-01-10 
 ### Engineering 
 - YLP-1166 enhance logging
 
@@ -19,11 +23,11 @@ Shoreline is the module that manages user accounts and authentication.
 ### Engineering
 - YLP-957 Migrate shoreline to logrus
 
-## 1.8.3
+## 1.8.3  - 2021-11-15
 ### Fixed
 - YLP-1104 Shoreline should not create an account without any role
 
-## 1.8.2
+## 1.8.2 - 2021-10-15
 ### Changed
 - YLP-1065: Automatically add the role "patient" for login requests coming from private api.
 - YLP-1057: Allow usage of all characters in passwords, including unicode and whitespace.
@@ -70,13 +74,13 @@ Shoreline is the module that manages user accounts and authentication.
 ### Fixed
 - YLP-587 Auth clients should check the Shoreline token with email verified
 
-## 1.3.1
+## 1.3.1 - 2021-03-30
 ### Engineering
 - Move light (jwt) authentication client from crew
 - Move full shoreline client from go-common 
 - Travis to Jenkins pipeline
 
-## 1.3.0
+## 1.3.0 - 2021-03-30
 ### Added
 - YLP-505 Add patient, hcp and caregiver roles to our user token (used for teams permissions)
 
@@ -173,11 +177,3 @@ Shoreline is the module that manages user accounts and authentication.
 - Add support to MongoDb Authentication
 - Enable travis CI build 
 
-# Tidepool Changelog
-## HEAD
-
-## v0.15.0
-
-* Add `id` query parameter to `/users` endpoint. Fixes [BACK-145](https://tidepool.atlassian.net/browse/BACK-145)
-* Change to go modules. Still vendor dependencies.
-* Update to Go 1.12.7

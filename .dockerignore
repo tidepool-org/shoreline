@@ -1,6 +1,7 @@
 .github
 .vscode
 
+docs/
 shoreline
 coverage.out
 coverReport.html

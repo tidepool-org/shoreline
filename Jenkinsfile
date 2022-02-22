@@ -71,4 +71,11 @@ pipeline {
             }
         }
     }
+    post {
+        always {
+            script {
+                utils.closePipeline()
+            }
+        }
+    }
 }

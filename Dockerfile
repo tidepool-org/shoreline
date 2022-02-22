@@ -1,5 +1,5 @@
 # Development
-FROM golang:1.17-alpine AS development
+FROM --platform=$BUILDPLATFORM golang:1.17-alpine AS development
 ARG APP_VERSION
 ENV GO111MODULE=on
 WORKDIR /go/src/github.com/mdblp/shoreline
@@ -8,11 +8,13 @@ RUN adduser -D tidepool && \
 RUN apk add --no-cache git gcc musl-dev
 USER tidepool
 COPY --chown=tidepool . .
-RUN ./build.sh
+ARG TARGETPLATFORM
+ARG BUILDPLATFORM
+RUN ./build.sh $TARGETPLATFORM
 CMD ["./dist/shoreline"]
 
 # Production
-FROM alpine:latest AS production
+FROM --platform=$BUILDPLATFORM alpine:latest AS production
 WORKDIR /home/tidepool
 RUN apk --no-cache update && \
     apk --no-cache upgrade && \
