@@ -10,6 +10,7 @@ type (
 		Roles          []string `json:"roles,omitempty" bson:"roles,omitempty"`
 		TermsAccepted  string   `json:"termsAccepted,omitempty" bson:"termsAccepted,omitempty"`
 		EmailVerified  bool     `json:"emailVerified" bson:"authenticated"` //tag is name `authenticated` for historical reasons
+		IdVerified     bool     `json:"idVerified"`
 	}
 
 	// UserUpdate is the data structure for updating of a users details

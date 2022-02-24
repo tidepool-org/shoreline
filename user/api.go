@@ -16,9 +16,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/caos/oidc/pkg/client/rp"
+	"github.com/google/uuid"
+	"github.com/gorilla/mux"
 	"github.com/microcosm-cc/bluemonday"
 	log "github.com/sirupsen/logrus"
-	"github.com/gorilla/mux"
 
 	"github.com/mdblp/go-common/clients/status"
 	"github.com/mdblp/shoreline/token"
@@ -49,6 +51,7 @@ var (
 		Namespace: "dblp",
 	})
 	bmPolicy = bluemonday.StrictPolicy()
+	state    = func() string { return uuid.New().String() }
 )
 
 type (
@@ -59,13 +62,25 @@ type (
 		logger       *log.Logger
 		auditLogger  *log.Logger
 		loginLimiter LoginLimiter
+		provider     rp.RelyingParty
 	}
 	Secret struct {
 		Secret string `json:"secret"`
 		Pass   string `json:"pass"`
 	}
+	OAuthConfig struct {
+		DiscoveryUrl string `json:"discoveryUrl"`
+		IssuerUri    string `json:"issuer"`
+		Secret       string `json:"secret"`
+		ClientId     string `json:"clientid"`
+		Key          string `json:"key"`
+	}
 	// ApiConfig for shoreline
 	ApiConfig struct {
+		//base url which (publicly) exposes shoreline service
+		PublicApiURl string
+		//base url of front-end, used for oidc login redirect
+		FrontUrl string
 		//used for services
 		ServerSecrets     map[string]string
 		LongTermKey       string `json:"longTermKey"`
@@ -79,6 +94,8 @@ type (
 		//used for token
 		Secret       string `json:"apiSecret"`
 		TokenSecrets map[string]string
+		//used to delegate auth to OAuth/OIDC server
+		OAuthAppConfig OAuthConfig
 		// Maximum number of consecutive failed login before a delay is set
 		MaxFailedLogin int `json:"maxFailedLogin"`
 		// Delay in minutes the user must wait 10min before attempting a new login if the number of
@@ -120,6 +137,7 @@ const (
 	STATUS_ERR_CREATING_USR               = "Error creating the user"
 	STATUS_ERR_UPDATING_USR               = "Error updating user"
 	STATUS_USR_ALREADY_EXISTS             = "User already exists"
+	STATUS_ID_ALREADY_USED                = "OIDC Id is already assigned to another user"
 	STATUS_ERR_GENERATING_TOKEN           = "Error generating the token"
 	STATUS_ERR_UPDATING_TOKEN             = "Error updating token"
 	STATUS_MISSING_USR_DETAILS            = "Not all required details were given"
@@ -151,6 +169,8 @@ func NewConfigFromEnv(log *log.Logger) *ApiConfig {
 	var intValue int
 	var found bool
 	config := &ApiConfig{
+		PublicApiURl:                "http://localhost:9107",
+		FrontUrl:                    "http://localhost:3001",
 		MaxFailedLogin:              5,
 		DelayBeforeNextLoginAttempt: 10, // 10 Minutes
 		MaxConcurrentLogin:          100,
@@ -162,9 +182,43 @@ func NewConfigFromEnv(log *log.Logger) *ApiConfig {
 		ServerSecrets:               make(map[string]string),
 		TokenSecrets:                make(map[string]string),
 		Secret:                      "abcdefghijklmnopqrstuvwxyz",
+		OAuthAppConfig:              OAuthConfig{},
 	}
 	config.ServerSecrets["default"] = config.Secret
 	config.TokenSecrets["default"] = config.Secret
+
+	baseUrl, found := os.LookupEnv("AUTH_BASE_URL")
+	if found {
+		config.PublicApiURl = baseUrl
+	}
+	frontUrl, found := os.LookupEnv("FRONT_BASE_URL")
+	if found {
+		config.FrontUrl = frontUrl
+	}
+	oidcDiscoveryUrl, found := os.LookupEnv("OIDC_DISCOVERY_URL")
+	if found {
+		config.OAuthAppConfig.DiscoveryUrl = oidcDiscoveryUrl
+	} else {
+		log.Fatal("Env var OIDC_DISCOVERY_URL must be provided")
+	}
+	oidcIssueUrl, found := os.LookupEnv("OIDC_ISSUER_URL")
+	if found {
+		config.OAuthAppConfig.IssuerUri = oidcIssueUrl
+	} else {
+		config.OAuthAppConfig.IssuerUri = strings.Split(oidcDiscoveryUrl, "/.")[0]
+	}
+	oidcClientId, found := os.LookupEnv("OIDC_CLIENT_ID")
+	if found {
+		config.OAuthAppConfig.ClientId = oidcClientId
+	}
+	oidcSecret, found := os.LookupEnv("OIDC_CLIENT_SECRET")
+	if found {
+		config.OAuthAppConfig.Secret = oidcSecret
+	}
+	cookieKey, found := os.LookupEnv("COOKIE_ENCRYPT_KEY")
+	if found {
+		config.OAuthAppConfig.Key = cookieKey
+	}
 
 	intValue, found, err = getIntFromEnvVar("USER_MAX_FAILED_LOGIN", 1, math.MaxInt16)
 	if err != nil {
@@ -261,11 +315,14 @@ func NewConfigFromEnv(log *log.Logger) *ApiConfig {
 
 // New create a new shoreline API config
 func New(cfg *ApiConfig, logger *log.Logger, store Storage, auditLogger *log.Logger) *Api {
+
+	provider := createOidcProvider(logger, cfg, strings.Join([]string{cfg.PublicApiURl, "oauth/callback"}, "/"))
 	api := Api{
 		Store:       store,
 		ApiConfig:   cfg,
 		logger:      logger,
 		auditLogger: auditLogger,
+		provider:    provider,
 	}
 
 	api.loginLimiter.usersInProgress = list.New()
@@ -292,6 +349,9 @@ func (a *Api) SetHandlers(prefix string, rtr *mux.Router) {
 	rtr.HandleFunc("/login", a.Login).Methods("POST")
 	rtr.HandleFunc("/login", a.RefreshSession).Methods("GET")
 	rtr.Handle("/login/{longtermkey}", varsHandler(a.LongtermLogin)).Methods("POST")
+	rtr.HandleFunc("/oauth/login", rp.AuthURLHandler(state, a.provider))
+	rtr.HandleFunc("/oauth/callback", a.DelegatedLoginCallback)
+	rtr.HandleFunc("/oauth/merge", a.UpdateUserWithOauth).Methods("POST")
 
 	rtr.HandleFunc("/serverlogin", a.ServerLogin).Methods("POST")
 
@@ -466,7 +526,7 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 	log := middlewares.GetLogReq(req)
 	log.Info("processing a update user request")
-	
+
 	sessionToken := sanitizeSessionToken(req)
 	if tokenData, err := a.authenticateSessionToken(req.Context(), sessionToken); err != nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, log, err)
@@ -758,7 +818,6 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 	} else {
 		// Login succeed:
 		// FIXME, YLP-1065
-		role := "patient"
 		if len(result.Roles) == 0 {
 			// Default role to patient, if no role is found
 			// FIXME Dirty quirk
@@ -772,12 +831,9 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 			if err := a.Store.UpsertUser(req.Context(), result); err != nil {
 				log.Debugf("Login of a non patient user from our private endpoint. Error while adding the role patient: %s", err)
 			}
-		} else if len(result.Roles) > 0 {
-			// FIXME: replace this workaround, we should support multi roles
-			role = result.Roles[0]
 		}
 
-		tokenData := &token.TokenData{DurationSecs: extractTokenDuration(req), UserId: result.Id, Email: result.Username, Name: result.Username, Role: role}
+		tokenData := &token.TokenData{DurationSecs: extractTokenDuration(req), UserId: result.Id, Email: result.Username, Name: result.Username, Role: result.Roles[0]}
 		tokenConfig := token.TokenConfig{DurationSecs: a.ApiConfig.UserTokenDurationSecs, Secret: a.ApiConfig.Secret}
 		if sessionToken, err := CreateSessionTokenAndSave(req.Context(), tokenData, tokenConfig, a.Store); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_TOKEN, log, err)

@@ -2,9 +2,11 @@
 
 Shoreline is the module that manages user accounts and authentication.
 
-## Unreleased
+## 1.9.0 - 2022-02-17
 ### Engineering 
 - Build multi-architecture docker images
+### Added
+- YLP-1212: Add required routes in shoreline to integrate with the French health platform (cps) using oidc
 
 ## 1.8.7 - 2022-01-10 
 ### Engineering 

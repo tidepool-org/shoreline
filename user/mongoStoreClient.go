@@ -88,6 +88,9 @@ func (c *Client) FindUsers(ctx context.Context, user *User) (results []*User, er
 	if user.Id != "" {
 		fieldsToMatch = append(fieldsToMatch, bson.M{"userid": user.Id})
 	}
+	if user.FrProId != "" {
+		fieldsToMatch = append(fieldsToMatch, bson.M{"frProId": user.FrProId})
+	}
 	if user.Username != "" {
 		regexFilter := primitive.Regex{Pattern: fmt.Sprintf(`^%s$`, regexp.QuoteMeta(user.Username)), Options: "i"}
 		fieldsToMatch = append(fieldsToMatch, bson.M{"username": bson.M{"$regex": regexFilter}})

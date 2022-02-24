@@ -11,20 +11,25 @@
            "mode": "debug",
            "program": "${workspaceRoot}",
            "env": {
-                "API_SECRET":"${SHORELINE_API_SECRET}",
-                "SERVER_SECRET: "${SHORELINE_API_SECRET}",
-                "ZENDESK_SECRET":"yourSharedSecret",
+                "APP_ENV": "development",
+                "AUTH_BASE_URL": "http://localhost:8080",
+                "FRONT_BASE_URL": "http://localhost:3001",
+                "TIDEPOOL_SHORELINE_ENV":"{\"gatekeeper\": {\"serviceSpec\": {\"type\": \"static\",\"hosts\": [\"http://localhost:9123\"]}},\"hakken\": {\"host\": \"fake-hakken\",\"skipHakken\": true}}",
+                "TIDEPOOL_SHORELINE_SERVICE":"{\"service\": {\"certFile\": \"config/cert.pem\",\"host\": \"localhost:3000\",\"keyFile\": \"config/key.pem\",\"protocol\": \"http\",\"service\": \"shoreline\"},\"user\": {\"longTermDaysDuration\": 30,\"tokenDurationSecs\": 2592000, \"secrets\": [{\"secret\": \"default\", \"pass\": \"${SERVER_SECRET}\"},{\"secret\": \"authent_api\", \"pass\": \"${AUTHENT_API_SECRET}\"}],\"maxFailedLogin\":5,\"delayBeforeNextLoginAttempt\":10,\"maxConcurrentLogin\":100,\"blockParallelLogin\": true,\"mailchimp\": {\"url\": \"${MAILCHIMP_URL}\",\"apiKey\": \"${MAILCHIMP_API_KEY}\",\"personalLists\": [],\"clinicLists\" : []}}}",
+                "API_SECRET":"This is a local API secret for everyone. BsscSHqSHiwrBMJsEGqbvXiuIUPAjQXU",
+                "ZENDESK_SECRET":"BsscSHqSHiwrBMJsEGqbvXiuIUPAjQXT",
                 "VERIFICATION_SECRET": "+skip",
-                "SALT":"${SHORELINE_SALT}",
-                "LONG_TERM_KEY":"${SHORELINE_LONG_TERM_KEY}"
-                "TIDEPOOL_STORE_DATABASE":"user",
-                "TIDEPOOL_STORE_USERNAME":"${PERSONAL_ACCOUNT}",
-                "TIDEPOOL_STORE_PASSWORD":"${PERSONAL_PWD}",
-                "TIDEPOOL_STORE_ADDRESSES":"localhost",
-                "TIDEPOOL_STORE_OPT_PARAMS":"authSource=admin",
+                "SALT":"This secret is used to salt the user password stored in the DB for shoreline",
+                "LONG_TERM_KEY":"abcdefghijklmnopqrstuvwxyz",
                 "TIDEPOOL_STORE_DEFAULT_TIMEOUT":"2",
                 "TIDEPOOL_STORE_WAIT_CONNECTION_INTERVAL":"5",
-                "TIDEPOOL_STORE_MAX_CONNECTION_ATTEMPTS":"0"
+                "TIDEPOOL_STORE_MAX_CONNECTION_ATTEMPTS":"0",
+                "TIDEPOOL_STORE_ADDRESSES":"localhost:27017",
+                "TIDEPOOL_STORE_DATABASE":"user",
+                "TIDEPOOL_STORE_USERNAME":"personal",
+                "TIDEPOOL_STORE_PASSWORD":"password",
+                "TIDEPOOL_STORE_OPT_PARAMS":"authSource=admin&ssl=false",
+                "SHORELINE_PORT": "8080"
            },
            "args": []
        }

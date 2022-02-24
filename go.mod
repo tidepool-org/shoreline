@@ -3,10 +3,11 @@ module github.com/mdblp/shoreline
 go 1.17
 
 require (
+	github.com/caos/oidc v1.1.0
 	github.com/gin-gonic/gin v1.7.2
 	github.com/go-playground/assert/v2 v2.0.1
 	github.com/golang-jwt/jwt v3.2.2+incompatible
-	github.com/google/uuid v1.1.2
+	github.com/google/uuid v1.3.0
 	github.com/gorilla/mux v1.8.0
 	github.com/mdblp/go-common v1.2.0
 	github.com/microcosm-cc/bluemonday v1.0.16
@@ -56,11 +57,13 @@ require (
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/gorilla/schema v1.2.0 // indirect
+	github.com/gorilla/securecookie v1.1.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
-	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/stretchr/objx v0.1.1 // indirect
-	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
-	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
+	golang.org/x/oauth2 v0.0.0-20200902213428-5d25da1a8d43 // indirect
+	google.golang.org/appengine v1.6.6 // indirect
+	gopkg.in/square/go-jose.v2 v2.6.0 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20200615113413-eeeca48fe776 // indirect
 )

@@ -49,6 +49,12 @@ func TestMock(t *testing.T) {
 		}
 	}
 
+	if usr, _ := client.GetUser("a.ClinicCertified@howdy.org", tokenMock); usr != nil {
+		if !usr.IdVerified {
+			t.Error("Should return a certified account")
+		}
+	}
+
 	username := "name"
 	password := "myN3wPw"
 	user := schema.UserUpdate{Username: &username, Emails: &[]string{"an@email.org"}, Password: &password}
