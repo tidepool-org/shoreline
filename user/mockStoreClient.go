@@ -43,6 +43,13 @@ func (d MockStoreClient) UpsertUser(ctx context.Context, user *User) error {
 	return nil
 }
 
+func (d MockStoreClient) ExistDirtyUser(ctx context.Context, username string) (res bool) {
+	if username == "dirtyUser" {
+		return true
+	}
+	return false
+}
+
 func (d MockStoreClient) FindUsers(ctx context.Context, user *User) (found []*User, err error) {
 	//`find` a pretend one we just made
 

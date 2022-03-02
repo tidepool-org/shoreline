@@ -2,6 +2,10 @@
 
 Shoreline is the module that manages user accounts and authentication.
 
+## 1.9.1 - 2022-03-02
+### Added
+- YLP-1310 Unbrick handset created with invalid email address
+
 ## 1.9.0 - 2022-02-17
 ### Engineering 
 - Build multi-architecture docker images

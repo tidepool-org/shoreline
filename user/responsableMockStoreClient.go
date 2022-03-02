@@ -32,6 +32,10 @@ type FindUserResponse struct {
 	Error error
 }
 
+type ExistDirtyUserReponse struct {
+	Exist bool
+}
+
 type FindTokenByIDResponse struct {
 	SessionToken *token.SessionToken
 	Error        error
@@ -45,6 +49,7 @@ type ResponsableMockStoreClient struct {
 	FindUsersByEmailVerifiedResponses []FindUsersByEmailVerifiedResponse
 	FindUsersWithIdsResponses         []FindUsersWithIdsResponse
 	FindUserResponses                 []FindUserResponse
+	ExistDirtyUserReponses            []ExistDirtyUserReponse
 	RemoveUserResponses               []error
 	AddTokenResponses                 []error
 	FindTokenByIDResponses            []FindTokenByIDResponse
@@ -63,6 +68,7 @@ func (r *ResponsableMockStoreClient) HasResponses() bool {
 		len(r.FindUsersByEmailVerifiedResponses) > 0 ||
 		len(r.FindUsersWithIdsResponses) > 0 ||
 		len(r.FindUserResponses) > 0 ||
+		len(r.ExistDirtyUserReponses) > 0 ||
 		len(r.RemoveUserResponses) > 0 ||
 		len(r.AddTokenResponses) > 0 ||
 		len(r.FindTokenByIDResponses) > 0 ||
@@ -77,6 +83,7 @@ func (r *ResponsableMockStoreClient) Reset() {
 	r.FindUsersByEmailVerifiedResponses = nil
 	r.FindUsersWithIdsResponses = nil
 	r.FindUserResponses = nil
+	r.ExistDirtyUserReponses = nil
 	r.RemoveUserResponses = nil
 	r.AddTokenResponses = nil
 	r.FindTokenByIDResponses = nil
@@ -163,6 +170,15 @@ func (r *ResponsableMockStoreClient) FindUser(ctx context.Context, user *User) (
 		return response.User, response.Error
 	}
 	panic("FindUserResponses unavailable")
+}
+
+func (r *ResponsableMockStoreClient) ExistDirtyUser(ctx context.Context, username string) bool {
+	if len(r.ExistDirtyUserReponses) > 0 {
+		var response ExistDirtyUserReponse
+		response, r.ExistDirtyUserReponses = r.ExistDirtyUserReponses[0], r.ExistDirtyUserReponses[1:]
+		return response.Exist
+	}
+	panic("ExistDirtyUserResponses unavailable")
 }
 
 func (r *ResponsableMockStoreClient) RemoveUser(ctx context.Context, user *User) (err error) {

@@ -11,6 +11,7 @@ type Storage interface {
 	goComMgo.Storage
 	UpsertUser(ctx context.Context, user *User) error
 	FindUser(ctx context.Context, user *User) (*User, error)
+	ExistDirtyUser(ctx context.Context, username string) bool
 	FindUsers(ctx context.Context, user *User) ([]*User, error)
 	FindUsersByRole(ctx context.Context, role string) ([]*User, error)
 	FindUsersByEmailVerified(ctx context.Context, auth bool) ([]*User, error)

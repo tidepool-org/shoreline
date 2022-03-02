@@ -19,6 +19,7 @@ import (
 const (
 	USERS_COLLECTION  = "users"
 	TOKENS_COLLECTION = "tokens"
+	DIRTY_COLLECTION  = "dirty"
 )
 
 // Client struct
@@ -42,6 +43,10 @@ func mgoTokensCollection(c *Client) *mongo.Collection {
 	return c.Collection(TOKENS_COLLECTION)
 }
 
+func mgoDirtyCollection(c *Client) *mongo.Collection {
+	return c.Collection(DIRTY_COLLECTION)
+}
+
 func (c *Client) UpsertUser(ctx context.Context, user *User) error {
 	options := options.Update().SetUpsert(true)
 	update := bson.M{"$set": user}
@@ -62,6 +67,33 @@ func (c *Client) FindUser(ctx context.Context, user *User) (result *User, err er
 	return result, nil
 }
 
+func (c *Client) findDirtyUser(ctx context.Context, filter interface{}, resultMessage string) (found bool) {
+	var results []*User
+	log := logging.FromContext(ctx)
+	cursor, err := mgoDirtyCollection(c).Find(ctx, filter)
+	if err != nil {
+		return false
+	}
+	defer cursor.Close(ctx)
+	if err = cursor.All(ctx, &results); err != nil {
+		log.Info(resultMessage)
+		return true
+	}
+	if results == nil {
+		log.Infof("no %v", resultMessage)
+		return false
+	}
+	return true
+}
+
+func (c *Client) UpsertDirty(ctx context.Context, username string) error {
+	options := options.Update().SetUpsert(true)
+	update := bson.M{"$set": bson.M{"username": username}}
+	// if the user already exists we update otherwise we add
+	_, err := mgoDirtyCollection(c).UpdateOne(ctx, bson.M{"username": username}, update, options)
+	return err
+}
+
 func (c *Client) findUsers(ctx context.Context, filter interface{}, noResultMessage string) (results []*User, err error) {
 	log := logging.FromContext(ctx)
 	cursor, err := mgoUsersCollection(c).Find(ctx, filter)
@@ -79,6 +111,22 @@ func (c *Client) findUsers(ctx context.Context, filter interface{}, noResultMess
 	}
 
 	return results, nil
+}
+
+func (c *Client) ExistDirtyUser(ctx context.Context, username string) (res bool) {
+
+	fieldsToMatch := []bson.M{}
+
+	if username != "" {
+		regexFilter := primitive.Regex{Pattern: fmt.Sprintf(`^%s$`, regexp.QuoteMeta(username)), Options: "i"}
+		fieldsToMatch = append(fieldsToMatch, bson.M{"username": bson.M{"$regex": regexFilter}})
+	}
+
+	if len(fieldsToMatch) == 0 {
+		return false
+	}
+	userMessage := fmt.Sprintf("user found: query: (Name ~= %v)", username)
+	return c.findDirtyUser(ctx, bson.M{"$or": fieldsToMatch}, userMessage)
 }
 
 func (c *Client) FindUsers(ctx context.Context, user *User) (results []*User, err error) {

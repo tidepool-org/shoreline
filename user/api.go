@@ -482,7 +482,17 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 	if newUserDetails, err := ParseNewUserDetails(req.Body); err != nil {
 		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, log, err)
 	} else if err := newUserDetails.Validate(requestSource); err != nil { // TODO: Fix this duplicate work!
-		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, log, err)
+		// fallback before returning an error
+		status := http.StatusBadRequest
+		if err == ErrUserUsernameInvalid {
+			if exist := a.Store.ExistDirtyUser(req.Context(), *newUserDetails.Username); exist {
+				log.Infof("username dirty: %s", *newUserDetails.Username)
+				status = http.StatusConflict
+			} else {
+				log.Warnf("invalid username not managed: %s", *newUserDetails.Username)
+			}
+		}
+		a.sendError(res, status, STATUS_INVALID_USER_DETAILS, log, err)
 	} else if newUser, err := NewUser(newUserDetails, a.ApiConfig.Salt, requestSource); err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, log, err)
 	} else if existingUser, err := a.Store.FindUsers(req.Context(), newUser); err != nil {

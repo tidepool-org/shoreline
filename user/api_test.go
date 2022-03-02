@@ -122,7 +122,7 @@ func T_PerformRequestHeaders(t *testing.T, method string, url string, headers ht
 }
 
 func T_PerformRequestBodyHeaders(t *testing.T, method string, url string, body string, headers http.Header) *httptest.ResponseRecorder {
-	
+
 	request, err := http.NewRequest(method, url, strings.NewReader(body))
 	if err != nil {
 		t.Fatalf("Failed to create new request with error %#v", err)
@@ -416,11 +416,11 @@ func FindUsersWithIds(t *testing.T, userIds []string) {
 	for index, user := range userIds {
 		mockUsers[index] = &User{Id: user, Username: "test@new.bar", Emails: []string{"test@new.bar"}}
 	}
-	
+
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUsersWithIdsResponses = []FindUsersWithIdsResponse{{mockUsers, nil}}
 	defer T_ExpectResponsablesEmpty(t)
-	
+
 	headers := http.Header{}
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	rr := T_PerformRequestHeaders(t, "GET", "/users?id="+strings.Join(userIds, ","), headers)
@@ -524,8 +524,15 @@ func Test_CreateUser_Error_MissingUserDetails(t *testing.T) {
 }
 
 func Test_CreateUser_Error_InvalidUserDetails(t *testing.T) {
+	responsableStore.ExistDirtyUserReponses = []ExistDirtyUserReponse{{false}}
 	response := T_PerformRequestBody(t, "POST", "/user", "{\"username\": \"a\"}")
 	T_ExpectErrorResponse(t, response, 400, "Invalid user details were given")
+}
+
+func Test_CreateUser_Error_InvalidUserDetailsWithDirty(t *testing.T) {
+	responsableStore.ExistDirtyUserReponses = []ExistDirtyUserReponse{{true}}
+	response := T_PerformRequestBody(t, "POST", "/user", "{\"username\": \"dirty.account@dirty\"}")
+	T_ExpectErrorResponse(t, response, 409, "Invalid user details were given")
 }
 
 func Test_CreateUser_Error_Empty_Role_Public(t *testing.T) {
