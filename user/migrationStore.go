@@ -49,6 +49,11 @@ func (m *MigrationStore) CreateUser(details *NewUserDetails) (*User, error) {
 		Enabled:       true,
 		EmailVerified: false,
 	}
+	// Users without roles should be treated as patients to prevent keycloak from displaying
+	// the role selection dialog
+	if len(details.Roles) == 0 {
+		details.Roles = []string{"patient"}
+	}
 	if details.Username != nil {
 		user.Username = *details.Username
 	}
@@ -56,7 +61,7 @@ func (m *MigrationStore) CreateUser(details *NewUserDetails) (*User, error) {
 		user.Email = details.Emails[0]
 	}
 	if !details.IsCustodial {
-		user.Roles = TidepoolRolesToKeycloakRoles(details.Roles)
+		user.Roles = details.Roles
 	}
 
 	user, err := m.keycloakClient.CreateUser(m.ctx, user)

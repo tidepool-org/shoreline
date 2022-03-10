@@ -472,24 +472,62 @@ func (c *client) updateRolesForUser(ctx context.Context, user *User) error {
 		return err
 	}
 
-	if user.Roles != nil && len(user.Roles) > 0 {
-		roles, err := c.keycloak.GetRealmRoles(ctx, token.AccessToken, c.cfg.Realm)
-		if err != nil {
+	realmRoles, err := c.keycloak.GetRealmRoles(ctx, token.AccessToken, c.cfg.Realm)
+	if err != nil {
+		return err
+	}
+	currentUserRoles, err := c.keycloak.GetRealmRolesByUserID(ctx, token.AccessToken, c.cfg.Realm, user.ID)
+	if err != nil {
+		return err
+	}
+
+	var rolesToAdd []gocloak.Role
+	var rolesToDelete []gocloak.Role
+
+	targetRoles := make(map[string]struct{})
+	if len(user.Roles) > 0 {
+		for _, targetRoleName := range user.Roles {
+			targetRoles[targetRoleName] = struct{}{}
+		}
+	}
+
+	for targetRoleName, _ := range targetRoles {
+		realmRole := getRealmRoleByName(realmRoles, targetRoleName)
+		if realmRole != nil {
+			rolesToAdd = append(rolesToAdd, *realmRole)
+		}
+	}
+
+	if len(currentUserRoles) > 0 {
+		for _, currentRole := range currentUserRoles {
+			if currentRole == nil || currentRole.Name == nil || *currentRole.Name == "" {
+				continue
+			}
+
+			if _, ok := targetRoles[*currentRole.Name]; !ok {
+					rolesToDelete = append(rolesToDelete, *currentRole)
+			}
+		}
+	}
+
+	if len(rolesToAdd) > 0 {
+		if err = c.keycloak.AddRealmRoleToUser(ctx, token.AccessToken, c.cfg.Realm, user.ID, rolesToAdd); err != nil {
 			return err
 		}
-
-		var rolesForUser []gocloak.Role
-		for _, userRole := range user.Roles {
-			for _, realmRole := range roles {
-				if realmRole.Name != nil && *realmRole.Name == userRole {
-					rolesForUser = append(rolesForUser, *realmRole)
-				}
-			}
+	}
+	if len(rolesToDelete) > 0 {
+		if err = c.keycloak.DeleteRealmRoleFromUser(ctx, token.AccessToken, c.cfg.Realm, user.ID, rolesToAdd); err != nil {
+			return err
 		}
-		if len(rolesForUser) > 0 {
-			if err = c.keycloak.AddRealmRoleToUser(ctx, token.AccessToken, c.cfg.Realm, user.ID, rolesForUser); err != nil {
-				return err
-			}
+	}
+
+	return nil
+}
+
+func getRealmRoleByName(realmRoles []*gocloak.Role, name string) *gocloak.Role {
+	for _, realmRole := range realmRoles {
+		if realmRole.Name != nil && *realmRole.Name == name {
+			return realmRole
 		}
 	}
 

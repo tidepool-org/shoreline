@@ -163,6 +163,10 @@ func IsValidRole(role string) bool {
 		return true
 	case "migrated_clinic":
 		return true
+	case "clinician":
+		return true
+	case "patient":
+		return true
 	default:
 		return false
 	}
@@ -614,6 +618,9 @@ func (u *User) ToKeycloakUser() *keycloak.User {
 		Roles:         u.Roles,
 		Attributes:    keycloak.UserAttributes{},
 	}
+	if len(keycloakUser.Roles) == 0 {
+		keycloakUser.Roles = []string{"patient"}
+	}
 	if termsAccepted, err := TimestampToUnixString(u.TermsAccepted); err == nil {
 		keycloakUser.Attributes.TermsAcceptedDate = []string{termsAccepted}
 	}
@@ -641,7 +648,7 @@ func NewUserFromKeycloakUser(keycloakUser *keycloak.User) *User {
 		Id:            keycloakUser.ID,
 		Username:      keycloakUser.Username,
 		Emails:        []string{keycloakUser.Email},
-		Roles:         KeycloakRolesToTidepoolRoles(keycloakUser.Roles),
+		Roles:         keycloakUser.Roles,
 		TermsAccepted: termsAcceptedDate,
 		EmailVerified: keycloakUser.EmailVerified,
 		IsMigrated:    true,
@@ -657,32 +664,4 @@ func NewUserFromKeycloakUser(keycloakUser *keycloak.User) *User {
 	}
 
 	return user
-}
-
-var keycloakToTidepoolRolesMap = map[string]string{
-	"clinician":      "clinic",
-	"migrated_clinic": "migrated_clinic",
-}
-
-var tidepoolToKeycloakRolesMap = map[string]string{
-	"clinic":         "clinician",
-	"migrated_clinic": "migrated_clinic",
-}
-
-func KeycloakRolesToTidepoolRoles(keycloakRoles []string) []string {
-	return mapRoles(keycloakRoles, keycloakToTidepoolRolesMap)
-}
-
-func TidepoolRolesToKeycloakRoles(tidepoolRoles []string) []string {
-	return mapRoles(tidepoolRoles, tidepoolToKeycloakRolesMap)
-}
-
-func mapRoles(roles []string, m map[string]string) []string {
-	var mapped []string
-	for _, role := range roles {
-		if val, ok := m[role]; ok {
-			mapped = append(mapped, val)
-		}
-	}
-	return mapped
 }
