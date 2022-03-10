@@ -146,6 +146,8 @@ func IsValidRole(role string) bool {
 		return true
 	case "migrated_clinic":
 		return true
+	case "clinician":
+		return true
 	default:
 		return false
 	}
