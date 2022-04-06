@@ -83,6 +83,7 @@ func assertAuthMiddlewareResponse(t *testing.T, tknData *token.TokenData,
 	assert.Equal(t, c.GetString("userId"), tknData.UserId)
 	assert.Equal(t, c.GetBool("isPatient"), tknData.Role == "patient")
 	assert.Equal(t, c.GetBool("isCaregiver"), tknData.Role == "caregiver")
+	assert.Equal(t, c.GetBool("isAdmin"), tknData.Role == "admin")
 	assert.Equal(t, c.GetBool("isHCP"), tknData.Role == "hcp")
 	assert.Equal(t, c.GetBool("isServer"), tknData.IsServer)
 }
@@ -111,6 +112,9 @@ func TestAuthMiddleware_withUnverifiedToken(t *testing.T) {
 	assertAuthMiddlewareResponse(t, &tknData, true, auth, c, w)
 
 	tknData.Role = "caregiver"
+	assertAuthMiddlewareResponse(t, &tknData, true, auth, c, w)
+
+	tknData.Role = "admin"
 	assertAuthMiddlewareResponse(t, &tknData, true, auth, c, w)
 
 	tknData.Role = "hcp"
@@ -150,6 +154,9 @@ func TestAuthMiddleware_withoutUnverifiedToken(t *testing.T) {
 
 	tknData.Role = "hcp"
 	assertAuthMiddlewareResponse(t, &tknData, false, auth, c, w)
+
+	tknData.Role = "admin"
+	assertAuthMiddlewareResponse(t, &tknData, true, auth, c, w)
 
 	tknData.Role = ""
 	tknData.IsServer = true

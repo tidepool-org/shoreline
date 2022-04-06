@@ -69,6 +69,7 @@ func (l *LocalAuth) AuthMiddleware(authorizeUnverified bool) gin.HandlerFunc {
 			c.Set("userId", token.UserId)
 			c.Set("isPatient", token.Role == "patient")
 			c.Set("isCaregiver", token.Role == "caregiver")
+			c.Set("isAdmin", token.Role == "admin")
 			c.Set("isHCP", token.Role == "hcp")
 			c.Set("isServer", token.IsServer)
 		}
