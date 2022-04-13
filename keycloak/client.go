@@ -516,7 +516,7 @@ func (c *client) updateRolesForUser(ctx context.Context, user *User) error {
 		}
 	}
 	if len(rolesToDelete) > 0 {
-		if err = c.keycloak.DeleteRealmRoleFromUser(ctx, token.AccessToken, c.cfg.Realm, user.ID, rolesToAdd); err != nil {
+		if err = c.keycloak.DeleteRealmRoleFromUser(ctx, token.AccessToken, c.cfg.Realm, user.ID, rolesToDelete); err != nil {
 			return err
 		}
 	}
