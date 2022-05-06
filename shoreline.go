@@ -182,29 +182,23 @@ func main() {
 	sarama.Logger = log.New(ioutil.Discard, "[Sarama] ", log.LstdFlags)
 
 	var clinic clinics.ClientWithResponsesInterface
-	clinicServiceEnabled, found := os.LookupEnv("TIDEPOOL_CLINIC_SERVICE_ENABLED")
-	if found {
-		config.User.ClinicServiceEnabled = clinicServiceEnabled == "true"
-		clinicServiceAddress, addressFound := os.LookupEnv("TIDEPOOL_CLINIC_CLIENT_ADDRESS")
-		if config.User.ClinicServiceEnabled {
-			if !addressFound {
-				logger.Fatalln("Clinic service enabled in config, but service address is not set")
-			}
+	clinicServiceAddress, addressFound := os.LookupEnv("TIDEPOOL_CLINIC_CLIENT_ADDRESS")
+	if !addressFound {
+		logger.Fatalln("Clinic service address is not set")
+	}
 
-			opts := clinics.WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
-				token, err := user.GetServiceToken(config.User.TokenConfigs[0], clientStore)
-				if err != nil {
-					return err
-				}
-
-				req.Header.Add(user.TP_SESSION_TOKEN, token.ID)
-				return nil
-			})
-			clinic, err = clinics.NewClientWithResponses(clinicServiceAddress, opts)
-			if err != nil {
-				log.Fatalln(err)
-			}
+	opts := clinics.WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
+		token, err := user.GetServiceToken(config.User.TokenConfigs[0], clientStore)
+		if err != nil {
+			return err
 		}
+
+		req.Header.Add(user.TP_SESSION_TOKEN, token.ID)
+		return nil
+	})
+	clinic, err = clinics.NewClientWithResponses(clinicServiceAddress, opts)
+	if err != nil {
+		log.Fatalln(err)
 	}
 
 	logger.Print("creating seagull client")
