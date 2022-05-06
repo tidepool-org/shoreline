@@ -137,7 +137,7 @@ func (a *Api) SetHandlers(prefix string, rtr *mux.Router) {
 	rtr.Handle("/user/{userid}/sessions", varsHandler(a.DeleteUserSessions)).Methods("DELETE")
 
 	rtr.Handle("/user/{userid}/user", varsHandler(a.CreateCustodialUser)).Methods("POST")
-	rtr.Handle("/v1/clinics/{clinicId}/users", varsHandler(a.CreateClinicCustodialUser)).Methods("POST")
+	rtr.Handle("/v1/clinics/{clinicid}/users", varsHandler(a.CreateClinicCustodialUser)).Methods("POST")
 
 	rtr.HandleFunc("/login", a.Login).Methods("POST")
 	rtr.HandleFunc("/login", a.RefreshSession).Methods("GET")
