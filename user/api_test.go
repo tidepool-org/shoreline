@@ -129,7 +129,6 @@ xwIDAQAB
 	responsableStore      = NewResponsableMockStoreClient()
 	responsableGatekeeper = NewResponsableMockGatekeeper()
 	responsableShoreline  = InitShoreline(fakeConfig, responsableStore, responsableGatekeeper, mockNotifier)
-
 )
 
 func InitShoreline(config ApiConfig, store Storage, perms clients.Gatekeeper, notifier EventsNotifier) *Api {
@@ -802,11 +801,6 @@ func Test_CreateCustodialUser_Success_Known(t *testing.T) {
 }
 
 func Test_CreateClinicCustodialUser_Success_Known(t *testing.T) {
-	responsableShoreline.ApiConfig.ClinicServiceEnabled = true
-	defer func() {
-		responsableShoreline.ApiConfig.ClinicServiceEnabled = false
-	}()
-
 	sessionToken := createSessionToken(t, "clinic", true, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{nil, nil}}
