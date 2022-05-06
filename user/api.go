@@ -2,11 +2,11 @@ package user
 
 import (
 	"context"
-	"errors"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"github.com/tidepool-org/shoreline/keycloak"
 	api "github.com/tidepool-org/clinic/client"
+	"github.com/tidepool-org/shoreline/keycloak"
 	"log"
 	"net/http"
 	"reflect"
@@ -55,7 +55,6 @@ type (
 		ClinicDemoUserID     string           `json:"clinicDemoUserId"`
 		MigrationSecret      string           `json:"migrationSecret"`
 		TokenCacheConfig     TokenCacheConfig `json:"tokenCacheConfig"`
-		ClinicServiceEnabled bool          `json:"clinicServiceEnabled"`
 	}
 	varsHandler func(http.ResponseWriter, *http.Request, map[string]string)
 )
@@ -321,11 +320,6 @@ func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, va
 // status: 409 STATUS_USR_ALREADY_EXISTS
 // status: 500 STATUS_ERR_GENERATING_TOKEN
 func (a *Api) CreateClinicCustodialUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
-	if !a.ApiConfig.ClinicServiceEnabled {
-		a.sendError(res, http.StatusNotFound, "Route not found")
-		return
-	}
-
 	token := req.Header.Get(TP_SESSION_TOKEN)
 	if tokenData, err := a.tokenAuthenticator.Authenticate(req.Context(), token); err != nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, err)
@@ -955,10 +949,6 @@ func (a *Api) removeUserPermissions(groupId string, removePermissions clients.Pe
 }
 
 func (a *Api) removeClinicCustodianPermissions(userId string) error {
-	if !a.ApiConfig.ClinicServiceEnabled {
-		return nil
-	}
-
 	ctx := context.Background()
 	id := api.UserId(userId)
 	limit := api.Limit(1000)
