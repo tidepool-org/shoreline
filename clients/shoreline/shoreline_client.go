@@ -30,8 +30,8 @@ type (
 		TokenProvide() string
 		GetUser(userID, token string) (*schema.UserData, error)
 		UpdateUser(userID string, userUpdate schema.UserUpdate, token string) error
-		GetUnverifiedUsers() ([]schema.UserData, error)
-		DeleteUser(userID string) error
+		GetUnverifiedUsers(token string) ([]schema.UserData, error)
+		DeleteUser(userID string, token string) error
 	}
 
 	Client struct {
@@ -115,12 +115,6 @@ func (b *ClientBuilder) Build() *Client {
 	if b.host == "" {
 		panic("OpaClient requires a hostGetter to be set")
 	}
-	if b.config.Name == "" {
-		panic("shorelineClient requires a name to be set")
-	}
-	if b.config.Secret == "" {
-		panic("shorelineClient requires a secret to be set")
-	}
 	if b.httpClient == nil {
 		b.httpClient = http.DefaultClient
 	}
@@ -168,6 +162,15 @@ func (client *Client) getHost() (*url.URL, error) {
 // that requires a server token
 func (client *Client) Start() error {
 	var err error
+	if client.config.Name == "" {
+		panic("shorelineClient requires a name to be set")
+	}
+	if client.config.Secret == "" {
+		panic("shorelineClient requires a secret to be set")
+	}
+	if err != nil {
+		return errors.New("No known user-api hosts")
+	}
 	if err = client.serverLogin(); err != nil {
 		log.Printf("Error on initial server token acquisition, [%v]", err)
 		go client.serverLoginLoop(true)
@@ -251,6 +254,12 @@ func (client *Client) Close() {
 // successful, it stores the returned token in ServerToken.
 func (client *Client) serverLogin() error {
 	host, err := client.getHost()
+	if client.config.Name == "" {
+		panic("shorelineClient requires a name to be set")
+	}
+	if client.config.Secret == "" {
+		panic("shorelineClient requires a secret to be set")
+	}
 	if err != nil {
 		return errors.New("No known user-api hosts")
 	}
@@ -297,7 +306,7 @@ func extractUsersData(r io.Reader) ([]schema.UserData, error) {
 	return ud, nil
 }
 
-// Signs up a new platfrom user
+// Signs up a new user
 // Returns a UserData object if successful
 func (client *Client) Signup(username, password, email string) (*schema.UserData, error) {
 	host, err := client.getHost()
@@ -411,7 +420,7 @@ func (client *Client) TokenProvide() string {
 }
 
 // Get users with unverified email
-func (client *Client) GetUnverifiedUsers() ([]schema.UserData, error) {
+func (client *Client) GetUnverifiedUsers(token string) ([]schema.UserData, error) {
 	host, err := client.getHost()
 	if err != nil {
 		return nil, errors.New("no known user-api hosts.")
@@ -423,7 +432,7 @@ func (client *Client) GetUnverifiedUsers() ([]schema.UserData, error) {
 	host.RawQuery = q.Encode()
 
 	req, _ := http.NewRequest("GET", host.String(), nil)
-	req.Header.Add("x-tidepool-session-token", client.serverToken)
+	req.Header.Add("x-tidepool-session-token", token)
 
 	res, err := client.httpClient.Do(req)
 	if err != nil {
@@ -523,7 +532,7 @@ func (client *Client) UpdateUser(userID string, userUpdate schema.UserUpdate, to
 }
 
 // Delete user
-func (client *Client) DeleteUser(userID string) error {
+func (client *Client) DeleteUser(userID string, token string) error {
 	host, err := client.getHost()
 	if err != nil {
 		return errors.New("No known user-api hosts.")
@@ -532,7 +541,7 @@ func (client *Client) DeleteUser(userID string) error {
 	host.Path = path.Join(host.Path, "user", userID)
 
 	req, _ := http.NewRequest("DELETE", host.String(), nil)
-	req.Header.Add("x-tidepool-session-token", client.serverToken)
+	req.Header.Add("x-tidepool-session-token", token)
 
 	res, err := client.httpClient.Do(req)
 	if err != nil {

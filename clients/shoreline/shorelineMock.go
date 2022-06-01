@@ -79,12 +79,12 @@ func (client *ShorelineMockClient) TokenProvide() string {
 	return args.Get(0).(string)
 }
 
-func (client *ShorelineMockClient) GetUnverifiedUsers() ([]schema.UserData, error) {
+func (client *ShorelineMockClient) GetUnverifiedUsers(token string) ([]schema.UserData, error) {
 	args := client.Called()
 	return args.Get(0).([]schema.UserData), args.Error(1)
 }
 
-func (client *ShorelineMockClient) DeleteUser(userId string) error {
+func (client *ShorelineMockClient) DeleteUser(userId string, token string) error {
 	client.Called(userId)
 	return nil
 }
