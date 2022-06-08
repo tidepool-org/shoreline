@@ -214,7 +214,7 @@ func UnixStringToTimestamp(unixString string) (timestamp string, err error) {
 }
 
 func IsValidUserID(id string) bool {
-	ok, _ := regexp.MatchString(`([a-fA-F0-9]{10})|([a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12})`, id)
+	ok, _ := regexp.MatchString(`^([a-fA-F0-9]{10})$|^([a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12})$`, id)
 	return ok
 }
 
