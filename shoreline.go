@@ -32,6 +32,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	muxprom "gitlab.com/msvechla/mux-prometheus/pkg/middleware"
 
+	"github.com/mdblp/shoreline/auth0"
 	"github.com/mdblp/shoreline/user"
 	"github.com/mdblp/shoreline/user/middlewares"
 
@@ -93,6 +94,11 @@ func main() {
 	rtr.Use(h.LoggingMiddleware)
 	rtr.Use(instrumentation.Middleware)
 
+	// Auth0 client
+	auth0Client := auth0.NewAuth0Client(logger)
+	defer auth0Client.Close()
+	auth0Client.Start()
+
 	/*
 	 * User-Api setup
 	 */
@@ -103,7 +109,7 @@ func main() {
 	defer storage.Close()
 	storage.Start()
 
-	userapi := user.New(shorelineConfig, logger, storage, auditLogger)
+	userapi := user.New(shorelineConfig, logger, storage, auditLogger, auth0Client)
 	logger.Debug("Installing handlers")
 	userapi.SetHandlers("", rtr)
 
