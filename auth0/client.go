@@ -28,6 +28,7 @@ type auth0User struct {
 	Metadata      *userMetaData `json:"user_metadata,omitempty"`
 	Password      string        `json:"password,omitempty"`
 	Connection    string        `json:"connection,omitempty"`
+	Subject       string        `json:"sub,omitempty"`
 }
 
 // http body content received from auth0 when requesting an access token (/oauth/token)
@@ -48,6 +49,7 @@ type Auth0Client struct {
 	closed          chan chan bool // Channel to communicate that the object has been closed
 	acquiringToken  bool           // flag set when the serverLoginLoop is running
 	refreshInterval time.Duration  // token refresh period in nanoseconds
+	baseUrl         string
 	userUrl         string
 	tokenUrl        string
 	audience        string
@@ -75,6 +77,7 @@ func NewAuth0Client(logger *log.Logger) *Auth0Client {
 		clientId:        auth0ClientId,
 		logger:          logger,
 		refreshInterval: interval,
+		baseUrl:         auth0Url,
 		userUrl:         usrUrl.String(),
 		tokenUrl:        tokenUrl.String(),
 		audience:        audience.String(),
@@ -296,4 +299,37 @@ func (client *Auth0Client) UpdateUser(id string, user *schema.UserUpdate) error 
 		return errors.New("Error while updating Auth0: " + res.Status)
 	}
 	return nil
+}
+
+// Retrieve user information from auth0 based on its access token
+func (client *Auth0Client) GetUserInfo(authHeader string) (*schema.UserData, error) {
+
+	url, _ := url.Parse(client.baseUrl + "/userinfo")
+	req, _ := http.NewRequest("GET", url.String(), nil)
+	req.Header.Add("authorization", authHeader)
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, errors.Wrap(err, "Failure to get a user")
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, errors.New("Error while requesting Auth0 userInfo: " + res.Status)
+	}
+	var user auth0User
+	if err := json.NewDecoder(res.Body).Decode(&user); err != nil {
+		return nil, err
+	}
+	if user.Subject != "" {
+		user.Subject = strings.Split(user.Subject, "|")[1]
+	}
+
+	resUser := &schema.UserData{
+		UserID:        user.Subject,
+		Username:      user.Email,
+		EmailVerified: user.EmailVerified,
+		Emails:        []string{user.Email},
+	}
+	return resUser, nil
 }
