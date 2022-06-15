@@ -2,6 +2,10 @@
 
 Shoreline is the module that manages user accounts and authentication.
 
+## 1.9.6 - 2022-06-15
+### Fixed
+- YLP-1610: get a tidepool session token from auth0 token, usefull during migration
+
 ## 1.9.5 - 2022-06-14
 ### Added
 - YLP-1610: get a tidepool session token from auth0 token, usefull during migration
