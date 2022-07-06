@@ -472,7 +472,7 @@ func (u *User) HasRole(role string) bool {
 }
 
 func (u *User) IsClinic() bool {
-	return u.HasRole("clinic")
+	return u.HasRole("clinic") || u.HasRole("clinician")
 }
 
 func (u *User) HashPassword(pw, salt string) error {
