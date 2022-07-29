@@ -230,8 +230,9 @@ func (client *Auth0Client) GetUser(email string) (*schema.UserData, error) {
 	if len(users) == 0 {
 		return nil, nil
 	}
+	userId := parseAuth0Sub(users[0].UserId)
 	user := &schema.UserData{
-		UserID:        users[0].UserId,
+		UserID:        userId,
 		Username:      users[0].Email,
 		EmailVerified: users[0].EmailVerified,
 		Emails:        []string{users[0].Email},
@@ -255,16 +256,17 @@ func (client *Auth0Client) GetUserById(id string) (*schema.UserData, error) {
 	if res.StatusCode != http.StatusOK {
 		return nil, errors.New("Error while requesting Auth0: " + res.Status)
 	}
-	var users auth0User
-	if err := json.NewDecoder(res.Body).Decode(&users); err != nil {
+	var auth0User auth0User
+	if err := json.NewDecoder(res.Body).Decode(&auth0User); err != nil {
 		return nil, err
 	}
+	userId := parseAuth0Sub(auth0User.UserId)
 	user := &schema.UserData{
-		UserID:        users.UserId,
-		Username:      users.Email,
-		EmailVerified: users.EmailVerified,
-		Emails:        []string{users.Email},
-		Roles:         []string{users.Metadata.Role},
+		UserID:        userId,
+		Username:      auth0User.Email,
+		EmailVerified: auth0User.EmailVerified,
+		Emails:        []string{auth0User.Email},
+		Roles:         []string{auth0User.Metadata.Role},
 	}
 	return user, nil
 }
@@ -332,4 +334,14 @@ func (client *Auth0Client) GetUserInfo(authHeader string) (*schema.UserData, err
 		Emails:        []string{user.Email},
 	}
 	return resUser, nil
+}
+
+// Extract the user id from the sub field which follows pattern auth0|userid
+func parseAuth0Sub(userId string) string {
+	sub := strings.Split(userId, "|")
+
+	if len(sub) == 2 {
+		userId = sub[1]
+	}
+	return userId
 }
