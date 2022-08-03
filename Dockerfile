@@ -1,13 +1,14 @@
 # Development
-FROM golang:1.15-alpine AS development
+FROM golang:1.16-alpine AS development
 WORKDIR /go/src/github.com/tidepool-org/shoreline
 RUN adduser -D tidepool && \
     apk add --no-cache git gcc musl-dev && \
     chown -R tidepool /go/src/github.com/tidepool-org/shoreline
 USER tidepool
+RUN go install github.com/cosmtrek/air@latest
 COPY --chown=tidepool . .
 RUN ./build.sh
-CMD ["./dist/shoreline"]
+CMD ["air"]
 
 # Production
 FROM alpine:latest AS production
