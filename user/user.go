@@ -146,6 +146,8 @@ func IsValidRole(role string) bool {
 		return true
 	case "migrated_clinic":
 		return true
+	case "clinician":
+		return true
 	default:
 		return false
 	}
@@ -469,8 +471,14 @@ func (u *User) HasRole(role string) bool {
 	return false
 }
 
+// IsClinic returns true if the user is legacy clinic Account
 func (u *User) IsClinic() bool {
 	return u.HasRole("clinic")
+}
+
+// IsClinician returns true if the user is a clinician
+func (u *User) IsClinician() bool {
+	return u.HasRole("clinician")
 }
 
 func (u *User) HashPassword(pw, salt string) error {

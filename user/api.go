@@ -527,7 +527,7 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 		return
 	}
 
-	if user.IsClinic() {
+	if user.IsClinic() || user.IsClinician() {
 		res.WriteHeader(http.StatusUnauthorized)
 		return
 	}
