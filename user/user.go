@@ -64,7 +64,6 @@ type NewUserDetails struct {
 	Emails        []string
 	Password      *string
 	Roles         []string
-	IsCustodial   bool
 	EmailVerified bool
 }
 
@@ -420,10 +419,9 @@ func NewUserDetailsFromCustodialUserDetails(details *NewCustodialUserDetails) (*
 	}
 
 	return &NewUserDetails{
-		Username:    &email,
-		Emails:      []string{email},
-		Roles:       custodialAccountRoles,
-		IsCustodial: true,
+		Username: &email,
+		Emails:   []string{email},
+		Roles:    custodialAccountRoles,
 	}, nil
 }
 
@@ -675,7 +673,7 @@ func NewUserFromKeycloakUser(keycloakUser *keycloak.User) *User {
 	// When users are serialized by this service, the payload contains a flag `passwordExists` that
 	// is computed based on the presence of a password hash in the user struct. This flag is used by
 	// other services (e.g. hydrophone) to determine whether the user is custodial or not.
-	if user.IsCustodialAccount() {
+	if !user.IsCustodialAccount() {
 		user.PwHash = "true"
 	}
 

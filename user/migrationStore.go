@@ -52,7 +52,7 @@ func (m *MigrationStore) CreateUser(details *NewUserDetails) (*User, error) {
 	// Users without roles should be treated as patients to prevent keycloak from displaying
 	// the role selection dialog
 	if len(details.Roles) == 0 {
-		details.Roles = []string{"patient"}
+		details.Roles = []string{RolePatient}
 	}
 	if details.Username != nil {
 		keycloakUser.Username = *details.Username
