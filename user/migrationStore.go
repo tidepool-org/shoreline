@@ -45,7 +45,7 @@ func (m *MigrationStore) EnsureIndexes() error {
 }
 
 func (m *MigrationStore) CreateUser(details *NewUserDetails) (*User, error) {
-	user := &keycloak.User{
+	keycloakUser := &keycloak.User{
 		Enabled:       true,
 		EmailVerified: false,
 	}
@@ -55,16 +55,14 @@ func (m *MigrationStore) CreateUser(details *NewUserDetails) (*User, error) {
 		details.Roles = []string{"patient"}
 	}
 	if details.Username != nil {
-		user.Username = *details.Username
+		keycloakUser.Username = *details.Username
 	}
 	if len(details.Emails) > 0 {
-		user.Email = details.Emails[0]
+		keycloakUser.Email = details.Emails[0]
 	}
-	if !details.IsCustodial {
-		user.Roles = details.Roles
-	}
+	keycloakUser.Roles = details.Roles
 
-	user, err := m.keycloakClient.CreateUser(m.ctx, user)
+	keycloakUser, err := m.keycloakClient.CreateUser(m.ctx, keycloakUser)
 	if err == keycloak.ErrUserConflict {
 		return nil, ErrUserConflict
 	}
@@ -72,19 +70,16 @@ func (m *MigrationStore) CreateUser(details *NewUserDetails) (*User, error) {
 		return nil, err
 	}
 
+	user := NewUserFromKeycloakUser(keycloakUser)
+
 	// Unclaimed custodial account should not be allowed to have a password
-	if !details.IsCustodial && details.Password != nil {
-		if err = m.keycloakClient.UpdateUserPassword(m.ctx, user.ID, *details.Password); err != nil {
-			return nil, err
-		}
-		// Setting the pass sets the custodial flag so we need to fetch the user again
-		user, err = m.keycloakClient.GetUserById(m.ctx, user.ID)
-		if err != nil {
+	if !user.IsCustodialAccount() {
+		if err = m.keycloakClient.UpdateUserPassword(m.ctx, keycloakUser.ID, *details.Password); err != nil {
 			return nil, err
 		}
 	}
 
-	return NewUserFromKeycloakUser(user), nil
+	return user, nil
 }
 
 func (m *MigrationStore) UpdateUser(user *User, details *UpdateUserDetails) (*User, error) {
@@ -133,10 +128,21 @@ func (m *MigrationStore) assertEmailsUnique(userId string, emails []string) erro
 
 func (m *MigrationStore) updateKeycloakUser(user *User, details *UpdateUserDetails) (*User, error) {
 	keycloakUser := user.ToKeycloakUser()
+	if details.Roles != nil {
+		keycloakUser.Roles = details.Roles
+	}
 	if details.Password != nil && len(*details.Password) > 0 {
 		if err := m.keycloakClient.UpdateUserPassword(m.ctx, user.Id, *details.Password); err != nil {
 			return nil, err
 		}
+		// Remove the custodial role after the password has been set
+		newRoles := make([]string, 0)
+		for _, role := range keycloakUser.Roles {
+			if role != RoleCustodialAccount {
+				newRoles = append(newRoles, role)
+			}
+		}
+		keycloakUser.Roles = newRoles
 	}
 	if details.Username != nil {
 		keycloakUser.Username = *details.Username
@@ -151,9 +157,6 @@ func (m *MigrationStore) updateKeycloakUser(user *User, details *UpdateUserDetai
 		if ts, err := TimestampToUnixString(*details.TermsAccepted); err == nil {
 			keycloakUser.Attributes.TermsAcceptedDate = []string{ts}
 		}
-	}
-	if details.Roles != nil {
-		keycloakUser.Roles = details.Roles
 	}
 
 	err := m.keycloakClient.UpdateUser(m.ctx, keycloakUser)
@@ -265,7 +268,7 @@ func (m *MigrationStore) RemoveTokensForUser(userId string) error {
 	if err := m.fallback.RemoveTokensForUser(userId); err != nil {
 		return err
 	}
-	return  m.keycloakClient.DeleteUserSessions(m.ctx, userId)
+	return m.keycloakClient.DeleteUserSessions(m.ctx, userId)
 }
 
 var _ Storage = &MigrationStore{}

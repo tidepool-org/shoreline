@@ -50,7 +50,6 @@ type User struct {
 	EmailVerified bool           `json:"emailVerified,omitempty"`
 	Roles         []string       `json:"roles,omitempty"`
 	Attributes    UserAttributes `json:"attributes"`
-	IsCustodial   *bool          `json:"-"`
 }
 
 type UserAttributes struct {
@@ -69,20 +68,10 @@ func NewKeycloakUser(gocloakUser *gocloak.User) *User {
 		Email:         safePStr(gocloakUser.Email),
 		EmailVerified: safePBool(gocloakUser.EmailVerified),
 		Enabled:       safePBool(gocloakUser.Enabled),
-		IsCustodial:   gocloak.BoolP(true),
 	}
 	if gocloakUser.Attributes != nil {
 		if ts, ok := (*gocloakUser.Attributes)["terms_and_conditions"]; ok {
 			user.Attributes.TermsAcceptedDate = ts
-		}
-	}
-
-	if gocloakUser.Credentials != nil {
-		for _, c := range *gocloakUser.Credentials {
-			if c.Type != nil && *c.Type == "password" {
-				user.IsCustodial = gocloak.BoolP(false)
-				break
-			}
 		}
 	}
 
@@ -505,7 +494,7 @@ func (c *client) updateRolesForUser(ctx context.Context, user *User) error {
 			}
 
 			if _, ok := targetRoles[*currentRole.Name]; !ok {
-					rolesToDelete = append(rolesToDelete, *currentRole)
+				rolesToDelete = append(rolesToDelete, *currentRole)
 			}
 		}
 	}

@@ -16,9 +16,24 @@ import (
 const (
 	TimestampFormat      = "2006-01-02T15:04:05-07:00"
 	custodialEmailFormat = "unclaimed-custodial-automation+%020d@tidepool.org"
+	RoleClinic           = "clinic"
+	RoleClinician        = "clinician"
+	RoleCustodialAccount = "custodial_account"
+	RoleMigratedClinic   = "migrated_clinic"
+	RolePatient          = "patient"
 )
 
 var custodialAccountRegexp = regexp.MustCompile("unclaimed-custodial-automation\\+\\d+@tidepool\\.org")
+
+var validRoles = map[string]struct{}{
+	RoleClinic:           {},
+	RoleClinician:        {},
+	RoleCustodialAccount: {},
+	RoleMigratedClinic:   {},
+	RolePatient:          {},
+}
+
+var custodialAccountRoles = []string{RoleCustodialAccount, RolePatient}
 
 type User struct {
 	Id                   string                 `json:"userid,omitempty" bson:"userid,omitempty"` // map userid to id
@@ -158,18 +173,8 @@ func IsValidPassword(password string) bool {
 }
 
 func IsValidRole(role string) bool {
-	switch role {
-	case "clinic":
-		return true
-	case "migrated_clinic":
-		return true
-	case "clinician":
-		return true
-	case "patient":
-		return true
-	default:
-		return false
-	}
+	_, ok := validRoles[role]
+	return ok
 }
 
 func IsValidDate(date string) bool {
@@ -389,7 +394,10 @@ func NewCustodialUser(details *NewCustodialUserDetails, salt string) (user *User
 		username = *details.Username
 	}
 
-	user = &User{Username: username, Emails: details.Emails}
+	user = &User{
+		Username: username,
+		Emails:   details.Emails,
+	}
 
 	if user.Id, err = generateUniqueHash([]string{username}, 10); err != nil {
 		return nil, errors.New("User: error generating id")
@@ -414,6 +422,7 @@ func NewUserDetailsFromCustodialUserDetails(details *NewCustodialUserDetails) (*
 	return &NewUserDetails{
 		Username:    &email,
 		Emails:      []string{email},
+		Roles:       custodialAccountRoles,
 		IsCustodial: true,
 	}, nil
 }
@@ -545,7 +554,11 @@ func (u *User) HasRole(role string) bool {
 }
 
 func (u *User) IsClinic() bool {
-	return u.HasRole("clinic")
+	return u.HasRole(RoleClinic)
+}
+
+func (u *User) IsCustodialAccount() bool {
+	return u.HasRole(RoleCustodialAccount)
 }
 
 func (u *User) HashPassword(pw, salt string) error {
@@ -619,7 +632,10 @@ func (u *User) ToKeycloakUser() *keycloak.User {
 		Attributes:    keycloak.UserAttributes{},
 	}
 	if len(keycloakUser.Roles) == 0 {
-		keycloakUser.Roles = []string{"patient"}
+		keycloakUser.Roles = []string{RolePatient}
+	}
+	if u.PwHash != "" && !u.HasRole(RoleCustodialAccount) {
+		keycloakUser.Roles = append(keycloakUser.Roles, RoleCustodialAccount)
 	}
 	if termsAccepted, err := TimestampToUnixString(u.TermsAccepted); err == nil {
 		keycloakUser.Attributes.TermsAcceptedDate = []string{termsAccepted}
@@ -659,7 +675,7 @@ func NewUserFromKeycloakUser(keycloakUser *keycloak.User) *User {
 	// When users are serialized by this service, the payload contains a flag `passwordExists` that
 	// is computed based on the presence of a password hash in the user struct. This flag is used by
 	// other services (e.g. hydrophone) to determine whether the user is custodial or not.
-	if keycloakUser.IsCustodial != nil && *keycloakUser.IsCustodial == false {
+	if user.IsCustodialAccount() {
 		user.PwHash = "true"
 	}
 
