@@ -7,6 +7,7 @@ import (
 	"fmt"
 	api "github.com/tidepool-org/clinic/client"
 	"github.com/tidepool-org/shoreline/keycloak"
+	"golang.org/x/oauth2"
 	"log"
 	"net/http"
 	"reflect"
@@ -95,6 +96,8 @@ const (
 	STATUS_ONE_QUERY_PARAM       = "Only one query parameter is allowed"
 	STATUS_INVALID_QUERY_PARAM   = "Invalid query parameter: "
 	STATUS_INVALID_ROLE          = "The role specified is invalid"
+
+	TIDEPOOL_MOBILE_USER_AGENT = "axios/0.19.0"
 )
 
 func InitApi(cfg ApiConfig, logger *log.Logger, store Storage, keycloakClient keycloak.Client, userEventsNotifier EventsNotifier, seagull clients.Seagull, clinic api.ClientWithResponsesInterface) *Api {
@@ -566,9 +569,26 @@ func (a *Api) getUserProfile(ctx context.Context, userID string) (*Profile, erro
 // status: 403 STATUS_NOT_VERIFIED
 // status: 500 STATUS_ERR_FINDING_USR, STATUS_ERR_UPDATING_TOKEN
 func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
-	if user, password := unpackAuth(req.Header.Get("Authorization")); user == nil {
+	user, password := unpackAuth(req.Header.Get("Authorization"))
+	if user == nil {
 		a.sendError(res, http.StatusBadRequest, STATUS_MISSING_ID_PW)
-	} else if token, err := a.keycloakClient.Login(req.Context(), user.Username, password); err != nil {
+		return
+	}
+
+	var err error
+	var token *oauth2.Token
+
+	var userAgent string
+	userAgent = req.Header.Get("user-agent")
+	if userAgent == TIDEPOOL_MOBILE_USER_AGENT {
+		// Issue long-lived tokens to Tidepool mobile
+		// This is a temporary measure until we have native Keycloak support
+		token, err = a.keycloakClient.LoginLongLived(req.Context(), user.Username, password)
+	} else {
+		token, err = a.keycloakClient.Login(req.Context(), user.Username, password)
+	}
+
+	if err != nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_NO_MATCH, err)
 	} else if tidepoolSessionToken, err := keycloak.CreateBackwardCompatibleToken(token); err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_TOKEN, err)

@@ -2,9 +2,9 @@ package keycloak
 
 import (
 	"context"
+	"github.com/kelseyhightower/envconfig"
 	"golang.org/x/oauth2"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -26,6 +26,7 @@ var ErrUserConflict = errors.New("user already exists")
 //go:generate mockgen -source=./client.go -destination=./client_mock.go -package keycloak Client
 type Client interface {
 	Login(ctx context.Context, username, password string) (*oauth2.Token, error)
+	LoginLongLived(ctx context.Context, username, password string) (*oauth2.Token, error)
 	GetBackendServiceToken(ctx context.Context) (*oauth2.Token, error)
 	IntrospectToken(ctx context.Context, token oauth2.Token) (*TokenIntrospectionResult, error)
 	RefreshToken(ctx context.Context, token oauth2.Token) (*oauth2.Token, error)
@@ -107,41 +108,20 @@ func (t *TokenIntrospectionResult) IsServerToken() bool {
 }
 
 type Config struct {
-	ClientID            string `json:"clientId"`
-	ClientSecret        string `json:"clientSecret"`
-	BackendClientID     string `json:"backendClientId"`
-	BackendClientSecret string `json:"backendClientSecret"`
-	BaseUrl             string `json:"baseUrl"`
-	Realm               string `json:"realm"`
-	AdminUsername       string `json:"adminUsername"`
-	AdminPassword       string `json:"adminPassword"`
+	ClientID                  string `envconfig:"TIDEPOOL_KEYCLOAK_CLIENT_ID" required:"true"`
+	ClientSecret              string `envconfig:"TIDEPOOL_KEYCLOAK_CLIENT_SECRET" required:"true"`
+	LongTermLivedClientID     string `envconfig:"TIDEPOOL_KEYCLOAK_LONG_LIVED_CLIENT_ID" required:"true"`
+	LongTermLivedClientSecret string `envconfig:"TIDEPOOL_KEYCLOAK_LONG_LIVED_CLIENT_SECRET" required:"true"`
+	BackendClientID           string `envconfig:"TIDEPOOL_KEYCLOAK_BACKEND_CLIENT_ID" required:"true"`
+	BackendClientSecret       string `envconfig:"TIDEPOOL_KEYCLOAK_BACKEND_CLIENT_SECRET" required:"true"`
+	BaseUrl                   string `envconfig:"TIDEPOOL_KEYCLOAK_BASE_URL" required:"true"`
+	Realm                     string `envconfig:"TIDEPOOL_KEYCLOAK_REALM" required:"true"`
+	AdminUsername             string `envconfig:"TIDEPOOL_KEYCLOAK_ADMIN_USERNAME" required:"true"`
+	AdminPassword             string `envconfig:"TIDEPOOL_KEYCLOAK_ADMIN_PASSWORD" required:"true"`
 }
 
-func (c *Config) FromEnv() {
-	if clientId, ok := os.LookupEnv("TIDEPOOL_KEYCLOAK_CLIENT_ID"); ok {
-		c.ClientID = clientId
-	}
-	if clientSecret, ok := os.LookupEnv("TIDEPOOL_KEYCLOAK_CLIENT_SECRET"); ok {
-		c.ClientSecret = clientSecret
-	}
-	if backendClientId, ok := os.LookupEnv("TIDEPOOL_KEYCLOAK_BACKEND_CLIENT_ID"); ok {
-		c.BackendClientID = backendClientId
-	}
-	if backendClientSecret, ok := os.LookupEnv("TIDEPOOL_KEYCLOAK_BACKEND_CLIENT_SECRET"); ok {
-		c.BackendClientSecret = backendClientSecret
-	}
-	if baseUrl, ok := os.LookupEnv("TIDEPOOL_KEYCLOAK_BASE_URL"); ok {
-		c.BaseUrl = baseUrl
-	}
-	if realm, ok := os.LookupEnv("TIDEPOOL_KEYCLOAK_REALM"); ok {
-		c.Realm = realm
-	}
-	if username, ok := os.LookupEnv("TIDEPOOL_KEYCLOAK_ADMIN_USERNAME"); ok {
-		c.AdminUsername = username
-	}
-	if password, ok := os.LookupEnv("TIDEPOOL_KEYCLOAK_ADMIN_PASSWORD"); ok {
-		c.AdminPassword = password
-	}
+func (c *Config) FromEnv() error {
+	return envconfig.Process("", c)
 }
 
 type client struct {
@@ -159,10 +139,18 @@ func NewClient(config *Config) Client {
 }
 
 func (c *client) Login(ctx context.Context, username, password string) (*oauth2.Token, error) {
+	return c.doLogin(ctx, c.cfg.ClientID, c.cfg.ClientSecret, username, password)
+}
+
+func (c *client) LoginLongLived(ctx context.Context, username, password string) (*oauth2.Token, error) {
+	return c.doLogin(ctx, c.cfg.LongTermLivedClientID, c.cfg.LongTermLivedClientSecret, username, password)
+}
+
+func (c *client) doLogin(ctx context.Context, clientId, clientSecret, username, password string) (*oauth2.Token, error) {
 	jwt, err := c.keycloak.Login(
 		ctx,
-		c.cfg.ClientID,
-		c.cfg.ClientSecret,
+		clientId,
+		clientSecret,
 		c.cfg.Realm,
 		username,
 		password,

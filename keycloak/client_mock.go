@@ -168,6 +168,21 @@ func (mr *MockClientMockRecorder) Login(ctx, username, password interface{}) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Login", reflect.TypeOf((*MockClient)(nil).Login), ctx, username, password)
 }
 
+// LoginLongLived mocks base method.
+func (m *MockClient) LoginLongLived(ctx context.Context, username, password string) (*oauth2.Token, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LoginLongLived", ctx, username, password)
+	ret0, _ := ret[0].(*oauth2.Token)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// LoginLongLived indicates an expected call of LoginLongLived.
+func (mr *MockClientMockRecorder) LoginLongLived(ctx, username, password interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LoginLongLived", reflect.TypeOf((*MockClient)(nil).LoginLongLived), ctx, username, password)
+}
+
 // RefreshToken mocks base method.
 func (m *MockClient) RefreshToken(ctx context.Context, token oauth2.Token) (*oauth2.Token, error) {
 	m.ctrl.T.Helper()

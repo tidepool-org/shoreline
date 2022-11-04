@@ -109,7 +109,10 @@ func main() {
 
 	config.Mongo.FromEnv()
 
-	config.Keycloak.FromEnv()
+	if err := config.Keycloak.FromEnv(); err != nil {
+		log.Fatalf("couldn't load keycloak config from env: %v", err)
+	}
+
 	if secret, found := os.LookupEnv("TIDEPOOL_KEYCLOAK_MIGRATION_SECRET"); found {
 		config.User.MigrationSecret = secret
 	}
