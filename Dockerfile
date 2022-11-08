@@ -1,5 +1,5 @@
 # Development
-FROM golang:1.15-alpine AS development
+FROM golang:1.19-alpine AS development
 WORKDIR /go/src/github.com/tidepool-org/shoreline
 RUN adduser -D tidepool && \
     apk add --no-cache git gcc musl-dev && \
