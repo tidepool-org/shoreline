@@ -416,7 +416,7 @@ func (c *client) DeleteUserSessions(ctx context.Context, id string) error {
 }
 
 func (c *client) getRealmURL(realm string, path ...string) string {
-	path = append([]string{c.cfg.BaseUrl, "auth", "realms", realm}, path...)
+	path = append([]string{c.cfg.BaseUrl, "realms", realm}, path...)
 	return strings.Join(path, "/")
 }
 
