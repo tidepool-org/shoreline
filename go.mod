@@ -3,13 +3,12 @@ module github.com/tidepool-org/shoreline
 go 1.15
 
 require (
-	github.com/Nerzal/gocloak/v7 v7.5.0
+	github.com/Nerzal/gocloak/v12 v12.0.0
 	github.com/Shopify/sarama v1.27.0
 	github.com/coocood/freecache v1.1.1
 	github.com/cpuguy83/go-md2man/v2 v2.0.0 // indirect
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
-	github.com/go-chi/chi v1.5.1 // indirect
-	github.com/go-resty/resty/v2 v2.3.0
+	github.com/go-resty/resty/v2 v2.7.0
 	github.com/golang/mock v1.5.0
 	github.com/gorilla/mux v1.8.0
 	github.com/kelseyhightower/envconfig v1.4.0
