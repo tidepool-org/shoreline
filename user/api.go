@@ -97,7 +97,8 @@ const (
 	STATUS_INVALID_QUERY_PARAM   = "Invalid query parameter: "
 	STATUS_INVALID_ROLE          = "The role specified is invalid"
 
-	TIDEPOOL_MOBILE_USER_AGENT = "axios/0.19.0"
+	TIDEPOOL_MOBILE_USER_AGENT           = "axios/0.19.0"
+	HEALTHKIT_UPLOADER_USER_AGENT_PREFIX = "Tidepool/"
 )
 
 func InitApi(cfg ApiConfig, logger *log.Logger, store Storage, keycloakClient keycloak.Client, userEventsNotifier EventsNotifier, seagull clients.Seagull, clinic api.ClientWithResponsesInterface) *Api {
@@ -578,9 +579,7 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 	var err error
 	var token *oauth2.Token
 
-	var userAgent string
-	userAgent = req.Header.Get("user-agent")
-	if userAgent == TIDEPOOL_MOBILE_USER_AGENT {
+	if isTidepoolMobileRequest(req) {
 		// Issue long-lived tokens to Tidepool mobile
 		// This is a temporary measure until we have native Keycloak support
 		token, err = a.keycloakClient.LoginLongLived(req.Context(), user.Username, password)
@@ -602,6 +601,11 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 		res.Header().Set(TP_SESSION_TOKEN, tidepoolSessionToken)
 		a.sendUser(res, user, false)
 	}
+}
+
+func isTidepoolMobileRequest(req *http.Request) bool {
+	userAgent := req.Header.Get("user-agent")
+	return strings.HasPrefix(userAgent, HEALTHKIT_UPLOADER_USER_AGENT_PREFIX) || userAgent == TIDEPOOL_MOBILE_USER_AGENT
 }
 
 // status: 200 TP_SESSION_TOKEN
