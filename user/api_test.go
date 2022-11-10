@@ -1031,6 +1031,16 @@ func Test_UpdateUser_Error_RemoveCustodians_UsersInGroupError(t *testing.T) {
 	mockNotifier.NotifyUserUpdatedResponses = []error{nil}
 	defer expectResponsablesEmpty(t)
 
+	mockCtrl := gomock.NewController(t)
+	mockClinic.Reset(mockCtrl)
+	mockClinic.EXPECT().ListClinicsForPatientWithResponse(gomock.Any(), gomock.Eq(clinicClient.UserId("1111111111")), gomock.Any()).Return(&clinicClient.ListClinicsForPatientResponse{
+		JSON200: &clinicClient.PatientClinicRelationships{},
+		HTTPResponse: &http.Response{
+			StatusCode: http.StatusOK,
+		},
+	}, nil)
+	defer mockCtrl.Finish()
+
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\"}}"
 	headers := http.Header{}
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
@@ -1054,8 +1064,17 @@ func Test_UpdateUser_Error_RemoveCustodians_SetPermissionsError(t *testing.T) {
 	responsableGatekeeper.UsersInGroupResponses = []UsersPermissionsResponse{{clients.UsersPermissions{"0000000000": {"custodian": clients.Allowed}}, nil}}
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, errors.New("ERROR")}}
 	mockNotifier.NotifyUserUpdatedResponses = []error{nil}
-
 	defer expectResponsablesEmpty(t)
+
+	mockCtrl := gomock.NewController(t)
+	mockClinic.Reset(mockCtrl)
+	mockClinic.EXPECT().ListClinicsForPatientWithResponse(gomock.Any(), gomock.Eq(clinicClient.UserId("1111111111")), gomock.Any()).Return(&clinicClient.ListClinicsForPatientResponse{
+		JSON200: &clinicClient.PatientClinicRelationships{},
+		HTTPResponse: &http.Response{
+			StatusCode: http.StatusOK,
+		},
+	}, nil)
+	defer mockCtrl.Finish()
 
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\"}}"
 	headers := http.Header{}
@@ -1106,8 +1125,17 @@ func Test_UpdateUser_Success_UserFromUrl(t *testing.T) {
 	responsableGatekeeper.UsersInGroupResponses = []UsersPermissionsResponse{{clients.UsersPermissions{"0000000000": {"custodian": clients.Allowed}}, nil}}
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
 	mockNotifier.NotifyUserUpdatedResponses = []error{nil}
-
 	defer expectResponsablesEmpty(t)
+
+	mockCtrl := gomock.NewController(t)
+	mockClinic.Reset(mockCtrl)
+	mockClinic.EXPECT().ListClinicsForPatientWithResponse(gomock.Any(), gomock.Eq(clinicClient.UserId("1111111111")), gomock.Any()).Return(&clinicClient.ListClinicsForPatientResponse{
+		JSON200: &clinicClient.PatientClinicRelationships{},
+		HTTPResponse: &http.Response{
+			StatusCode: http.StatusOK,
+		},
+	}, nil)
+	defer mockCtrl.Finish()
 
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"newpassword\", \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
 	headers := http.Header{}
@@ -1136,6 +1164,16 @@ func Test_UpdateUser_Success_UserFromToken(t *testing.T) {
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
 	mockNotifier.NotifyUserUpdatedResponses = []error{nil}
 	defer expectResponsablesEmpty(t)
+
+	mockCtrl := gomock.NewController(t)
+	mockClinic.Reset(mockCtrl)
+	mockClinic.EXPECT().ListClinicsForPatientWithResponse(gomock.Any(), gomock.Eq(clinicClient.UserId("1111111111")), gomock.Any()).Return(&clinicClient.ListClinicsForPatientResponse{
+		JSON200: &clinicClient.PatientClinicRelationships{},
+		HTTPResponse: &http.Response{
+			StatusCode: http.StatusOK,
+		},
+	}, nil)
+	defer mockCtrl.Finish()
 
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"newpassword\", \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
 	headers := http.Header{}
@@ -1191,6 +1229,16 @@ func Test_UpdateUser_Success_Server_WithPassword(t *testing.T) {
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
 	mockNotifier.NotifyUserUpdatedResponses = []error{nil}
 	defer expectResponsablesEmpty(t)
+
+	mockCtrl := gomock.NewController(t)
+	mockClinic.Reset(mockCtrl)
+	mockClinic.EXPECT().ListClinicsForPatientWithResponse(gomock.Any(), gomock.Eq(clinicClient.UserId("1111111111")), gomock.Any()).Return(&clinicClient.ListClinicsForPatientResponse{
+		JSON200: &clinicClient.PatientClinicRelationships{},
+		HTTPResponse: &http.Response{
+			StatusCode: http.StatusOK,
+		},
+	}, nil)
+	defer mockCtrl.Finish()
 
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"newpassword\", \"roles\": [\"clinic\"], \"emailVerified\": true, \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
 	headers := http.Header{}

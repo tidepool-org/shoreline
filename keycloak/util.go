@@ -2,7 +2,7 @@ package keycloak
 
 import (
 	"fmt"
-	"github.com/Nerzal/gocloak/v7"
+	"github.com/Nerzal/gocloak/v12"
 	"github.com/go-resty/resty/v2"
 	"github.com/pkg/errors"
 )

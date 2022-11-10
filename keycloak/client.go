@@ -2,14 +2,14 @@ package keycloak
 
 import (
 	"context"
+	"github.com/Nerzal/gocloak/v12"
+	"github.com/Nerzal/gocloak/v12/pkg/jwx"
 	"github.com/kelseyhightower/envconfig"
 	"golang.org/x/oauth2"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/Nerzal/gocloak/v7"
-	"github.com/Nerzal/gocloak/v7/pkg/jwx"
 	"github.com/pkg/errors"
 )
 
@@ -128,7 +128,7 @@ type client struct {
 	cfg                      *Config
 	adminToken               *oauth2.Token
 	adminTokenRefreshExpires time.Time
-	keycloak                 gocloak.GoCloak
+	keycloak                 *gocloak.GoCloak
 }
 
 func NewClient(config *Config) Client {
@@ -370,7 +370,6 @@ func (c *client) IntrospectToken(ctx context.Context, token oauth2.Token) (*Toke
 			ctx,
 			token.AccessToken,
 			c.cfg.Realm,
-			"",
 			customClaims,
 		)
 		if err != nil {
@@ -378,7 +377,7 @@ func (c *client) IntrospectToken(ctx context.Context, token oauth2.Token) (*Toke
 		}
 		result.Subject = customClaims.Subject
 		result.EmailVerified = customClaims.EmailVerified
-		result.ExpiresAt = customClaims.ExpiresAt.Unix()
+		result.ExpiresAt = customClaims.ExpiresAt
 		result.RealmAccess = RealmAccess{
 			Roles: customClaims.RealmAccess.Roles,
 		}
@@ -417,7 +416,7 @@ func (c *client) DeleteUserSessions(ctx context.Context, id string) error {
 }
 
 func (c *client) getRealmURL(realm string, path ...string) string {
-	path = append([]string{c.cfg.BaseUrl, "auth", "realms", realm}, path...)
+	path = append([]string{c.cfg.BaseUrl, "realms", realm}, path...)
 	return strings.Join(path, "/")
 }
 
@@ -456,7 +455,9 @@ func (c *client) updateRolesForUser(ctx context.Context, user *User) error {
 		return err
 	}
 
-	realmRoles, err := c.keycloak.GetRealmRoles(ctx, token.AccessToken, c.cfg.Realm)
+	realmRoles, err := c.keycloak.GetRealmRoles(ctx, token.AccessToken, c.cfg.Realm, gocloak.GetRoleParams{
+		Max: gocloak.IntP(1000),
+	})
 	if err != nil {
 		return err
 	}

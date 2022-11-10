@@ -595,7 +595,7 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_TOKEN, err)
 	} else if !introspectionResult.EmailVerified {
 		a.sendError(res, http.StatusForbidden, STATUS_NOT_VERIFIED)
-	} else if user, err := a.Store.FindUser(&User{Id: introspectionResult.Subject}); err != nil {
+	} else if user, err := a.Store.WithContext(req.Context()).FindUser(&User{Id: introspectionResult.Subject}); err != nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_ERR_FINDING_USR, err)
 	} else {
 		res.Header().Set(TP_SESSION_TOKEN, tidepoolSessionToken)
@@ -820,7 +820,7 @@ func (a *Api) DeleteUserSessions(res http.ResponseWriter, req *http.Request, var
 		return
 	}
 
-	if err := a.Store.RemoveTokensForUser(userId); err != nil {
+	if err := a.Store.WithContext(req.Context()).RemoveTokensForUser(userId); err != nil {
 		a.logger.Println(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN, err.Error())
 		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN), http.StatusInternalServerError)
 		return
