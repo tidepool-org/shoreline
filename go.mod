@@ -16,7 +16,7 @@ require (
 	github.com/tidepool-org/clinic/client v0.0.0-20220429180949-6bfb70438c3b
 	github.com/tidepool-org/go-common v0.8.2
 	github.com/urfave/cli v1.22.4
-	go.mongodb.org/mongo-driver v1.4.1
+	go.mongodb.org/mongo-driver v1.11.0
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
 )
 
@@ -36,6 +36,8 @@ require (
 	github.com/eapache/queue v1.1.0 // indirect
 	github.com/globalsign/mgo v0.0.0-20181015135952-eeefdecb41b8 // indirect
 	github.com/go-stack/stack v1.8.0 // indirect
+	github.com/gobuffalo/genny v0.1.1 // indirect
+	github.com/gobuffalo/gogen v0.1.1 // indirect
 	github.com/golang-jwt/jwt/v4 v4.4.2 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/golang/snappy v0.0.1 // indirect
@@ -44,10 +46,11 @@ require (
 	github.com/hashicorp/golang-lru v0.5.3 // indirect
 	github.com/jcmturner/gofork v1.0.0 // indirect
 	github.com/jmespath/go-jmespath v0.0.0-20180206201540-c2b33e8439af // indirect
-	github.com/klauspost/compress v1.11.1 // indirect
+	github.com/karrick/godirwalk v1.10.3 // indirect
 	github.com/lightstep/tracecontext.go v0.0.0-20181129014701-1757c391b1ac // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
+	github.com/pelletier/go-toml v1.4.0 // indirect
 	github.com/pierrec/lz4 v2.5.2+incompatible // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/prometheus/common v0.10.0 // indirect
