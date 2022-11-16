@@ -20,6 +20,8 @@ const (
 	serverRole          = "backend_service"
 )
 
+var shorelineManagedRoles = map[string]struct{}{"patient": {}, "clinic": {}, "clinician": {}, "custodial_account": {}}
+
 var ErrUserNotFound = errors.New("user not found")
 var ErrUserConflict = errors.New("user already exists")
 
@@ -490,7 +492,10 @@ func (c *client) updateRolesForUser(ctx context.Context, user *User) error {
 			}
 
 			if _, ok := targetRoles[*currentRole.Name]; !ok {
-				rolesToDelete = append(rolesToDelete, *currentRole)
+				// Only remove roles managed by shoreline
+				if _, ok := shorelineManagedRoles[*currentRole.Name]; ok {
+					rolesToDelete = append(rolesToDelete, *currentRole)
+				}
 			}
 		}
 	}

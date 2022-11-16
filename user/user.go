@@ -624,7 +624,7 @@ func (u *User) ToKeycloakUser() *keycloak.User {
 		ID:            u.Id,
 		Username:      strings.ToLower(u.Username),
 		Email:         strings.ToLower(u.Email()),
-		Enabled:       !u.IsDeleted(),
+		Enabled:       u.IsEnabled(),
 		EmailVerified: u.EmailVerified,
 		Roles:         u.Roles,
 		Attributes:    keycloak.UserAttributes{},
@@ -632,7 +632,7 @@ func (u *User) ToKeycloakUser() *keycloak.User {
 	if len(keycloakUser.Roles) == 0 {
 		keycloakUser.Roles = []string{RolePatient}
 	}
-	if u.PwHash != "" && !u.HasRole(RoleCustodialAccount) {
+	if !u.IsMigrated && u.PwHash == "" && !u.HasRole(RoleCustodialAccount) {
 		keycloakUser.Roles = append(keycloakUser.Roles, RoleCustodialAccount)
 	}
 	if termsAccepted, err := TimestampToUnixString(u.TermsAccepted); err == nil {
@@ -646,7 +646,7 @@ func (u *User) IsEnabled() bool {
 	if u.IsMigrated {
 		return u.Enabled
 	} else {
-		return u.PwHash != ""
+		return u.PwHash != "" && !u.IsDeleted()
 	}
 }
 

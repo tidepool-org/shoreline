@@ -856,7 +856,7 @@ func (a *Api) GetUserForMigration(res http.ResponseWriter, req *http.Request, va
 	if err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err.Error())
 		return
-	} else if len(users) != 1 || users[0].IsDeleted() || !users[0].EmailVerified {
+	} else if len(users) != 1 || users[0].IsDeleted() {
 		a.sendError(res, http.StatusNotFound, STATUS_USER_NOT_FOUND)
 		return
 	}
@@ -898,7 +898,6 @@ func (a *Api) userWithPasswordExists(ctx context.Context, userid, password strin
 	return err == nil &&
 		len(users) == 1 &&
 		!users[0].IsDeleted() &&
-		users[0].EmailVerified == true &&
 		users[0].PasswordsMatch(password, a.ApiConfig.Salt)
 }
 
