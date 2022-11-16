@@ -46,7 +46,7 @@ func (m *MigrationStore) EnsureIndexes() error {
 
 func (m *MigrationStore) CreateUser(details *NewUserDetails) (*User, error) {
 	keycloakUser := &keycloak.User{
-		Enabled:       true,
+		Enabled:       details.Password != nil && *details.Password != "",
 		EmailVerified: false,
 	}
 	// Users without roles should be treated as patients to prevent keycloak from displaying
@@ -143,6 +143,7 @@ func (m *MigrationStore) updateKeycloakUser(user *User, details *UpdateUserDetai
 			}
 		}
 		keycloakUser.Roles = newRoles
+		keycloakUser.Enabled = true
 	}
 	if details.Username != nil {
 		keycloakUser.Username = *details.Username

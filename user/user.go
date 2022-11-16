@@ -632,7 +632,7 @@ func (u *User) ToKeycloakUser() *keycloak.User {
 	if len(keycloakUser.Roles) == 0 {
 		keycloakUser.Roles = []string{RolePatient}
 	}
-	if u.PwHash == "" && !u.HasRole(RoleCustodialAccount) {
+	if !u.IsMigrated && u.PwHash == "" && !u.HasRole(RoleCustodialAccount) {
 		keycloakUser.Roles = append(keycloakUser.Roles, RoleCustodialAccount)
 	}
 	if termsAccepted, err := TimestampToUnixString(u.TermsAccepted); err == nil {
