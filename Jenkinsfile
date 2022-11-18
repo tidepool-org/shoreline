@@ -1,7 +1,9 @@
 @Library('mdblp-library') _
 def builderImage
 pipeline {
-    agent any
+    agent {
+        label 'blp'
+    }
     stages {
         stage('Initialization') {
             steps {
@@ -23,15 +25,20 @@ pipeline {
                 }
             }
         }
-        stage('Build ') {
+        stage('Build') {
             agent {
                 docker {
                     image env.buildImage
+                    label 'blp'
                 }
             }
             steps {
                 script {
-                    sh "$WORKSPACE/build.sh"
+                    withCredentials ([string(credentialsId: 'github-token', variable: 'GITHUB_TOKEN')]) {
+                        sh 'git config --global url."https://${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"'
+                        sh "$WORKSPACE/build.sh"
+                        sh 'git config --global --unset url."https://${GITHUB_TOKEN}@github.com/".insteadOf'
+                    }
                 }
             }
         }
@@ -41,7 +48,11 @@ pipeline {
                 sh 'docker network create shorelinetest${RUN_ID} && docker run --rm -d --net=shorelinetest${RUN_ID} --name=mongo4shoreline${RUN_ID} mongo:4.2'
                 script {
                     docker.image(env.buildImage).inside("--net=shorelinetest${RUN_ID}") {
-                        sh "TIDEPOOL_STORE_ADDRESSES=mongo4shoreline${RUN_ID}:27017  TIDEPOOL_STORE_DATABASE=shoreline_test $WORKSPACE/test.sh"
+                        withCredentials ([string(credentialsId: 'github-token', variable: 'GITHUB_TOKEN')]) {
+                            sh 'git config --global url."https://${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"'
+                            sh "TIDEPOOL_STORE_ADDRESSES=mongo4shoreline${RUN_ID}:27017  TIDEPOOL_STORE_DATABASE=shoreline_test $WORKSPACE/test.sh"
+                            sh 'git config --global --unset url."https://${GITHUB_TOKEN}@github.com/".insteadOf'
+                        }
                     }
                 }
             }
@@ -56,12 +67,16 @@ pipeline {
         }
         stage('Package') {
             steps {
-                pack()
+                withCredentials ([string(credentialsId: 'github-token', variable: 'GITHUB_TOKEN')]) {
+                    pack()
+                }
             }
         }
         stage('Documentation') {
             steps {
-                genDocumentation()
+                withCredentials ([string(credentialsId: 'github-token', variable: 'GITHUB_TOKEN')]) {
+                    genDocumentation()
+                }
             }
         }
         stage('Publish') {

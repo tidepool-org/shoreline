@@ -7,7 +7,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	goComMgo "github.com/mdblp/go-common/clients/mongo"
+	goComMgo "github.com/mdblp/go-db/mongo"
 	"github.com/mdblp/shoreline/common/logging"
 	"github.com/mdblp/shoreline/token"
 	"go.mongodb.org/mongo-driver/bson"

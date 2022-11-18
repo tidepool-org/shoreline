@@ -7,7 +7,9 @@ dockerPushToProduction : true
 dockerBuild: 
   platform: 'linux/arm64,linux/amd64'
   buildArgs:
-  - 'APP_VERSION=$version'
+    - 'APP_VERSION=$version'
+    - 'GOPRIVATE=$GOPRIVATE'
+    - 'GITHUB_TOKEN=$GITHUB_TOKEN'
 publishNpm: false
 publishS3: false
 publishOpenapiBucket: com.diabeloop.backloops.docs

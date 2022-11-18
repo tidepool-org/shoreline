@@ -8,7 +8,7 @@ import (
 
 	"github.com/sirupsen/logrus/hooks/test"
 
-	"github.com/mdblp/go-common/clients/mongo"
+	"github.com/mdblp/go-db/mongo"
 	"github.com/mdblp/shoreline/token"
 )
 

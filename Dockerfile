@@ -1,6 +1,8 @@
 # Development
 FROM --platform=$BUILDPLATFORM golang:1.17-alpine AS development
 ARG APP_VERSION
+ARG GOPRIVATE
+ARG GITHUB_TOKEN
 ENV GO111MODULE=on
 WORKDIR /go/src/github.com/mdblp/shoreline
 RUN adduser -D tidepool && \
@@ -10,6 +12,7 @@ USER tidepool
 COPY --chown=tidepool . .
 ARG TARGETPLATFORM
 ARG BUILDPLATFORM
+RUN git config --global url."https://${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
 RUN ./build.sh $TARGETPLATFORM
 CMD ["./dist/shoreline"]
 

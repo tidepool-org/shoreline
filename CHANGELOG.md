@@ -2,7 +2,12 @@
 
 Shoreline is the module that manages user accounts and authentication.
 
+## 1.9.8 - 2022-11-18
+### Engineering
+- Upgrade dependencies
+
 ## 1.9.7 - 2022-07-28
+### Fixed
 - YLP-1676: parse the sub field received from auth0 to extract the userid
 
 ## 1.9.6 - 2022-06-15
