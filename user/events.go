@@ -9,12 +9,14 @@ import (
 	sl "github.com/tidepool-org/go-common/clients/shoreline"
 	"github.com/tidepool-org/go-common/events"
 	"log"
+	"time"
 )
 
 const (
 	ShorelineUserEventHandlerName = "shoreline"
 	RemoveUserOperationName       = "remove_mongo_user"
 	RemoveUserTokensOperationName = "remove_mongo_user_tokens"
+	DefaultTimeout                = time.Second * 60
 )
 
 var failedEvents = promauto.NewCounterVec(prometheus.CounterOpts{
@@ -89,13 +91,16 @@ func NewUserEventsHandler(store Storage) (events.UserEventsHandler, error) {
 }
 
 func (u *eventsHandler) HandleDeleteUserEvent(payload events.DeleteUserEvent) error {
+	ctx, cancel := context.WithTimeout(context.Background(), DefaultTimeout)
+	defer cancel()
+	
 	var errs []error
-	if err := u.store.RemoveTokensForUser(payload.UserID); err != nil {
+	if err := u.store.WithContext(ctx).RemoveTokensForUser(payload.UserID); err != nil {
 		errs = append(errs, err)
 		log.Printf("Error deleteting user tokens for user %v: %v", payload.UserID, err)
 		failedEvents.WithLabelValues(payload.GetEventType(), ShorelineUserEventHandlerName, RemoveUserTokensOperationName)
 	}
-	if err := u.store.RemoveUser(&User{Id: payload.UserID}); err != nil {
+	if err := u.store.WithContext(ctx).RemoveUser(&User{Id: payload.UserID}); err != nil {
 		errs = append(errs, err)
 		log.Printf("Error deleteting user %v: %v", payload.UserID, err)
 		failedEvents.WithLabelValues(payload.GetEventType(), ShorelineUserEventHandlerName, RemoveUserOperationName)
