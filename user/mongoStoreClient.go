@@ -2,6 +2,7 @@ package user
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"sort"
@@ -138,19 +139,39 @@ func (msc *MongoStoreClient) Disconnect() error {
 	return msc.client.Disconnect(msc.context)
 }
 
-// UpsertUser - Update an existing user's details, or insert a new user if the user doesn't already exist.
-func (msc *MongoStoreClient) UpsertUser(user *User) error {
-	if user.Roles != nil {
+func (msc *MongoStoreClient) CreateUser(newUserDetails *NewUserDetails) (*User, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (msc *MongoStoreClient) UpdateUser(originalUser *User, updateUserDetails *UpdateUserDetails) (*User, error) {
+	user := originalUser.DeepClone()
+	if updateUserDetails.Username != nil {
+		user.Username = *updateUserDetails.Username
+	}
+	if updateUserDetails.Emails != nil {
+		user.Emails = updateUserDetails.Emails
+	}
+	if updateUserDetails.HashedPassword != nil {
+		user.PwHash = *updateUserDetails.HashedPassword
+	}
+	if updateUserDetails.Roles != nil {
 		sort.Strings(user.Roles)
+		user.Roles = updateUserDetails.Roles
+	}
+	if updateUserDetails.TermsAccepted != nil {
+		user.TermsAccepted = *updateUserDetails.TermsAccepted
+	}
+	if updateUserDetails.EmailVerified != nil {
+		user.EmailVerified = *updateUserDetails.EmailVerified
 	}
 
-	// if the user already exists we update otherwise we add
-	opts := options.FindOneAndUpdate().SetUpsert(true).SetCollation(usersCollation)
+	opts := options.FindOneAndUpdate().SetCollation(usersCollation)
 	result := usersCollection(msc).FindOneAndUpdate(msc.context, bson.M{"userid": user.Id}, bson.D{{Key: "$set", Value: user}}, opts)
-	if result.Err() != mongo.ErrNoDocuments {
-		return result.Err()
+	if result.Err() != nil {
+		return nil, result.Err()
 	}
-	return nil
+
+	return user, nil
 }
 
 // FindUser - find and return an existing user

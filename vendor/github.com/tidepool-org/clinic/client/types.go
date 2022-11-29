@@ -103,10 +103,12 @@ type Clinic struct {
 	CreatedTime time.Time `json:"createdTime"`
 
 	// Clinic identifier.
-	Id Id `json:"id"`
+	Id                    Id          `json:"id"`
+	LastDeletedPatientTag *PatientTag `json:"lastDeletedPatientTag,omitempty"`
 
 	// Name of the clinic.
-	Name string `json:"name"`
+	Name        string        `json:"name"`
+	PatientTags *[]PatientTag `json:"patientTags,omitempty"`
 
 	// An array of phone numbers.
 	PhoneNumbers *[]PhoneNumber `json:"phoneNumbers,omitempty"`
@@ -199,8 +201,8 @@ type Meta struct {
 
 // Migration defines model for Migration.
 type Migration struct {
-	AttestationTime time.Time `json:"attestationTime"`
-	CreatedTime     time.Time `json:"createdTime"`
+	AttestationTime *time.Time `json:"attestationTime,omitempty"`
+	CreatedTime     time.Time  `json:"createdTime"`
 
 	// The current status of the migration
 	Status      *MigrationStatus `json:"status,omitempty"`
@@ -240,6 +242,7 @@ type Patient struct {
 	Mrn           *string             `json:"mrn,omitempty"`
 	Permissions   *PatientPermissions `json:"permissions,omitempty"`
 	Summary       *PatientSummary     `json:"summary,omitempty"`
+	Tags          *[]string           `json:"tags"`
 	TargetDevices *[]string           `json:"targetDevices,omitempty"`
 	UpdatedTime   time.Time           `json:"updatedTime"`
 }
@@ -307,6 +310,15 @@ type PatientSummaryPeriods struct {
 	N14d *PatientSummaryPeriod `json:"14d,omitempty"`
 }
 
+// PatientTag defines model for PatientTag.
+type PatientTag struct {
+	// String representation of a resource id
+	Id string `json:"id"`
+
+	// The tag display name
+	Name string `json:"name"`
+}
+
 // Patients defines model for Patients.
 type Patients []Patient
 
@@ -330,7 +342,7 @@ type Tier string
 
 // TriggerMigration defines model for TriggerMigration.
 type TriggerMigration struct {
-	AttestationSubmitted bool `json:"attestationSubmitted"`
+	AttestationSubmitted *bool `json:"attestationSubmitted,omitempty"`
 }
 
 // UpdateTier defines model for UpdateTier.
@@ -369,6 +381,9 @@ type Offset int
 
 // PatientId defines model for patientId.
 type PatientId string
+
+// PatientTagId defines model for patientTagId.
+type PatientTagId string
 
 // Role defines model for role.
 type Role string
@@ -450,6 +465,12 @@ type MigrateLegacyClinicianPatientsJSONBody Migration
 // UpdateMigrationJSONBody defines parameters for UpdateMigration.
 type UpdateMigrationJSONBody MigrationUpdate
 
+// CreatePatientTagJSONBody defines parameters for CreatePatientTag.
+type CreatePatientTagJSONBody PatientTag
+
+// UpdatePatientTagJSONBody defines parameters for UpdatePatientTag.
+type UpdatePatientTagJSONBody PatientTag
+
 // ListPatientsParams defines parameters for ListPatients.
 type ListPatientsParams struct {
 	// Full text search query
@@ -483,6 +504,9 @@ type ListPatientsParams struct {
 
 	// Exclusive
 	SummaryLastUploadDateTo *time.Time `json:"summary.lastUploadDateTo,omitempty"`
+
+	// Comma-separated list of patient tag IDs
+	Tags *[]string `json:"tags,omitempty"`
 }
 
 // CreatePatientAccountJSONBody defines parameters for CreatePatientAccount.
@@ -535,6 +559,12 @@ type MigrateLegacyClinicianPatientsJSONRequestBody MigrateLegacyClinicianPatient
 
 // UpdateMigrationJSONRequestBody defines body for UpdateMigration for application/json ContentType.
 type UpdateMigrationJSONRequestBody UpdateMigrationJSONBody
+
+// CreatePatientTagJSONRequestBody defines body for CreatePatientTag for application/json ContentType.
+type CreatePatientTagJSONRequestBody CreatePatientTagJSONBody
+
+// UpdatePatientTagJSONRequestBody defines body for UpdatePatientTag for application/json ContentType.
+type UpdatePatientTagJSONRequestBody UpdatePatientTagJSONBody
 
 // CreatePatientAccountJSONRequestBody defines body for CreatePatientAccount for application/json ContentType.
 type CreatePatientAccountJSONRequestBody CreatePatientAccountJSONBody

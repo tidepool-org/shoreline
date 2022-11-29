@@ -31,11 +31,12 @@ func (d MockStoreClient) Ping() error {
 	return nil
 }
 
-func (d MockStoreClient) UpsertUser(user *User) error {
-	if d.doBad {
-		return errors.New("UpsertUser failure")
-	}
-	return nil
+func (d MockStoreClient) CreateUser(details *NewUserDetails) (*User, error) {
+	return nil, nil
+}
+
+func (d MockStoreClient) UpdateUser(user *User, details *UpdateUserDetails) (*User, error) {
+	return user, nil
 }
 
 func (d MockStoreClient) FindUsers(user *User) (found []*User, err error) {

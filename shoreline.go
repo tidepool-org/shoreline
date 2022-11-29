@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	clinics "github.com/tidepool-org/clinic/client"
+	"github.com/tidepool-org/shoreline/keycloak"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -28,9 +29,10 @@ import (
 type (
 	Config struct {
 		clients.Config
-		Service disc.ServiceListing `json:"service"`
-		Mongo   mongo.Config        `json:"mongo"`
-		User    user.ApiConfig      `json:"user"`
+		Service  disc.ServiceListing `json:"service"`
+		Mongo    mongo.Config        `json:"mongo"`
+		User     user.ApiConfig      `json:"user"`
+		Keycloak keycloak.Config     `json:"keycloak"`
 	}
 )
 
@@ -59,7 +61,7 @@ func main() {
 		}
 	}
 
-	config.User.TokenConfigs = make([]user.TokenConfig, 2)
+	config.User.TokenConfigs = make([]user.TokenConfig, 1)
 
 	current := &config.User.TokenConfigs[0]
 	privateKey, _ := os.LookupEnv("PRIVATE_KEY")
@@ -72,7 +74,7 @@ func main() {
 	current.Issuer = apiHost
 	current.DurationSecs = 60 * 60 * 24 * 30
 
-	previous := &config.User.TokenConfigs[1]
+	previous := user.TokenConfig{}
 	previousPrivateKey, _ := os.LookupEnv("PREVIOUS_PRIVATE_KEY")
 	previousPublicKey, _ := os.LookupEnv("PREVIOUS_PUBLIC_KEY")
 	previousApiHost, _ := os.LookupEnv("PREVIOUS_API_HOST")
@@ -82,6 +84,9 @@ func main() {
 	previous.Audience = previousApiHost
 	previous.Issuer = previousApiHost
 	previous.DurationSecs = 60 * 60 * 24 * 30
+	if previous.EncodeKey != "" {
+		config.User.TokenConfigs = append(config.User.TokenConfigs, previous)
+	}
 
 	longTermKey, found := os.LookupEnv("LONG_TERM_KEY")
 	if found {
@@ -103,6 +108,18 @@ func main() {
 	}
 
 	config.Mongo.FromEnv()
+
+	if err := config.Keycloak.FromEnv(); err != nil {
+		log.Fatalf("couldn't load keycloak config from env: %v", err)
+	}
+
+	if secret, found := os.LookupEnv("TIDEPOOL_KEYCLOAK_MIGRATION_SECRET"); found {
+		config.User.MigrationSecret = secret
+	}
+
+	if err := config.User.TokenCacheConfig.FromEnv(); err != nil {
+		log.Fatalf("couldn't load token cache config from env: %v", err)
+	}
 
 	/*
 	 * Hakken setup
@@ -140,6 +157,9 @@ func main() {
 	defer clientStore.Disconnect()
 	clientStore.EnsureIndexes()
 
+	keycloakClient := keycloak.NewClient(&config.Keycloak)
+	migrationStore := user.NewMigrationStore(clientStore, keycloakClient)
+
 	// Start logging kafka connection debug info
 	sarama.Logger = logger
 
@@ -151,7 +171,7 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	handler, err := user.NewUserEventsHandler(clientStore)
+	handler, err := user.NewUserEventsHandler(migrationStore)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -165,29 +185,23 @@ func main() {
 	sarama.Logger = log.New(ioutil.Discard, "[Sarama] ", log.LstdFlags)
 
 	var clinic clinics.ClientWithResponsesInterface
-	clinicServiceEnabled, found := os.LookupEnv("TIDEPOOL_CLINIC_SERVICE_ENABLED")
-	if found {
-		config.User.ClinicServiceEnabled = clinicServiceEnabled == "true"
-		clinicServiceAddress, addressFound := os.LookupEnv("TIDEPOOL_CLINIC_CLIENT_ADDRESS")
-		if config.User.ClinicServiceEnabled {
-			if !addressFound {
-				logger.Fatalln("Clinic service enabled in config, but service address is not set")
-			}
+	clinicServiceAddress, addressFound := os.LookupEnv("TIDEPOOL_CLINIC_CLIENT_ADDRESS")
+	if !addressFound {
+		logger.Fatalln("Clinic service address is not set")
+	}
 
-			opts := clinics.WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
-				token, err := user.GetServiceToken(config.User.TokenConfigs[0], clientStore)
-				if err != nil {
-					return err
-				}
-
-				req.Header.Add(user.TP_SESSION_TOKEN, token.ID)
-				return nil
-			})
-			clinic, err = clinics.NewClientWithResponses(clinicServiceAddress, opts)
-			if err != nil {
-				log.Fatalln(err)
-			}
+	opts := clinics.WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
+		token, err := user.GetServiceToken(config.User.TokenConfigs[0], clientStore)
+		if err != nil {
+			return err
 		}
+
+		req.Header.Add(user.TP_SESSION_TOKEN, token.ID)
+		return nil
+	})
+	clinic, err = clinics.NewClientWithResponses(clinicServiceAddress, opts)
+	if err != nil {
+		log.Fatalln(err)
 	}
 
 	logger.Print("creating seagull client")
@@ -196,7 +210,7 @@ func main() {
 		WithHttpClient(httpClient).
 		Build()
 
-	userapi := user.InitApi(config.User, logger, clientStore, notifier, seagull, clinic)
+	userapi := user.InitApi(config.User, logger, migrationStore, keycloakClient, notifier, seagull, clinic)
 	logger.Print("installing handlers")
 	userapi.SetHandlers("", rtr)
 

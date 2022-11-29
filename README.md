@@ -23,6 +23,13 @@ $ source ./build
 
 ## Running the Tests
 
+### Mock generation
+
+To (re)generate mocks which are used in tests:
+```
+go generate ./...
+```
+
 ### All tests
 
 To run all tests for this repo then in the root directory use:

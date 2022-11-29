@@ -3,38 +3,68 @@ package user
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"github.com/tidepool-org/shoreline/keycloak"
 	"io"
+	"math/rand"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
 
+const (
+	TimestampFormat      = "2006-01-02T15:04:05-07:00"
+	custodialEmailFormat = "unclaimed-custodial-automation+%020d@tidepool.org"
+	RoleClinic           = "clinic"
+	RoleClinician        = "clinician"
+	RoleCustodialAccount = "custodial_account"
+	RoleMigratedClinic   = "migrated_clinic"
+	RolePatient          = "patient"
+)
+
+var custodialAccountRegexp = regexp.MustCompile("unclaimed-custodial-automation\\+\\d+@tidepool\\.org")
+
+var validRoles = map[string]struct{}{
+	RoleClinic:           {},
+	RoleClinician:        {},
+	RoleCustodialAccount: {},
+	RoleMigratedClinic:   {},
+	RolePatient:          {},
+}
+
+var custodialAccountRoles = []string{RoleCustodialAccount, RolePatient}
+
 type User struct {
-	Id             string                 `json:"userid,omitempty" bson:"userid,omitempty"` // map userid to id
-	Username       string                 `json:"username,omitempty" bson:"username,omitempty"`
-	Emails         []string               `json:"emails,omitempty" bson:"emails,omitempty"`
-	Roles          []string               `json:"roles,omitempty" bson:"roles,omitempty"`
-	TermsAccepted  string                 `json:"termsAccepted,omitempty" bson:"termsAccepted,omitempty"`
-	EmailVerified  bool                   `json:"emailVerified" bson:"authenticated"` //tag is name `authenticated` for historical reasons
-	PwHash         string                 `json:"-" bson:"pwhash,omitempty"`
-	Hash           string                 `json:"-" bson:"userhash,omitempty"`
-	Private        map[string]*IdHashPair `json:"-" bson:"private"`
-	CreatedTime    string                 `json:"createdTime,omitempty" bson:"createdTime,omitempty"`
-	CreatedUserID  string                 `json:"createdUserId,omitempty" bson:"createdUserId,omitempty"`
-	ModifiedTime   string                 `json:"modifiedTime,omitempty" bson:"modifiedTime,omitempty"`
-	ModifiedUserID string                 `json:"modifiedUserId,omitempty" bson:"modifiedUserId,omitempty"`
-	DeletedTime    string                 `json:"deletedTime,omitempty" bson:"deletedTime,omitempty"`
-	DeletedUserID  string                 `json:"deletedUserId,omitempty" bson:"deletedUserId,omitempty"`
+	Id                   string                 `json:"userid,omitempty" bson:"userid,omitempty"` // map userid to id
+	Username             string                 `json:"username,omitempty" bson:"username,omitempty"`
+	Emails               []string               `json:"emails,omitempty" bson:"emails,omitempty"`
+	Roles                []string               `json:"roles,omitempty" bson:"roles,omitempty"`
+	TermsAccepted        string                 `json:"termsAccepted,omitempty" bson:"termsAccepted,omitempty"`
+	EmailVerified        bool                   `json:"emailVerified" bson:"authenticated"` //tag is name `authenticated` for historical reasons
+	PwHash               string                 `json:"-" bson:"pwhash,omitempty"`
+	Hash                 string                 `json:"-" bson:"userhash,omitempty"`
+	Private              map[string]*IdHashPair `json:"-" bson:"private"`
+	IsMigrated           bool                   `json:"-" bson:"-"`
+	IsUnclaimedCustodial bool                   `json:"-" bson:"-"`
+	Enabled              bool                   `json:"-" bson:"-"`
+	CreatedTime          string                 `json:"createdTime,omitempty" bson:"createdTime,omitempty"`
+	CreatedUserID        string                 `json:"createdUserId,omitempty" bson:"createdUserId,omitempty"`
+	ModifiedTime         string                 `json:"modifiedTime,omitempty" bson:"modifiedTime,omitempty"`
+	ModifiedUserID       string                 `json:"modifiedUserId,omitempty" bson:"modifiedUserId,omitempty"`
+	DeletedTime          string                 `json:"deletedTime,omitempty" bson:"deletedTime,omitempty"`
+	DeletedUserID        string                 `json:"deletedUserId,omitempty" bson:"deletedUserId,omitempty"`
 }
 
 /*
  * Incoming user details used to create or update a `User`
  */
 type NewUserDetails struct {
-	Username *string
-	Emails   []string
-	Password *string
-	Roles    []string
+	Username      *string
+	Emails        []string
+	Password      *string
+	Roles         []string
+	EmailVerified bool
 }
 
 type NewCustodialUserDetails struct {
@@ -43,12 +73,13 @@ type NewCustodialUserDetails struct {
 }
 
 type UpdateUserDetails struct {
-	Username      *string
-	Emails        []string
-	Password      *string
-	Roles         []string
-	TermsAccepted *string
-	EmailVerified *bool
+	Username       *string
+	Emails         []string
+	Password       *string
+	HashedPassword *string
+	Roles          []string
+	TermsAccepted  *string
+	EmailVerified  *bool
 }
 
 type Profile struct {
@@ -141,16 +172,8 @@ func IsValidPassword(password string) bool {
 }
 
 func IsValidRole(role string) bool {
-	switch role {
-	case "clinic":
-		return true
-	case "migrated_clinic":
-		return true
-	case "clinician":
-		return true
-	default:
-		return false
-	}
+	_, ok := validRoles[role]
+	return ok
 }
 
 func IsValidDate(date string) bool {
@@ -167,8 +190,36 @@ func ParseAndValidateDateParam(date string) (time.Time, error) {
 }
 
 func IsValidTimestamp(timestamp string) bool {
-	_, err := time.Parse("2006-01-02T15:04:05-07:00", timestamp)
+	_, err := ParseTimestamp(timestamp)
 	return err == nil
+}
+
+func ParseTimestamp(timestamp string) (time.Time, error) {
+	return time.Parse(TimestampFormat, timestamp)
+}
+
+func TimestampToUnixString(timestamp string) (unix string, err error) {
+	parsed, err := ParseTimestamp(timestamp)
+	if err != nil {
+		return
+	}
+	unix = fmt.Sprintf("%v", parsed.Unix())
+	return
+}
+
+func UnixStringToTimestamp(unixString string) (timestamp string, err error) {
+	i, err := strconv.ParseInt(unixString, 10, 64)
+	if err != nil {
+		return
+	}
+	t := time.Unix(i, 0)
+	timestamp = t.Format(TimestampFormat)
+	return
+}
+
+func IsValidUserID(id string) bool {
+	ok, _ := regexp.MatchString(`^([a-fA-F0-9]{10})$|^([a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12})$`, id)
+	return ok
 }
 
 func (details *NewUserDetails) ExtractFromJSON(reader io.Reader) error {
@@ -342,7 +393,10 @@ func NewCustodialUser(details *NewCustodialUserDetails, salt string) (user *User
 		username = *details.Username
 	}
 
-	user = &User{Username: username, Emails: details.Emails}
+	user = &User{
+		Username: username,
+		Emails:   details.Emails,
+	}
 
 	if user.Id, err = generateUniqueHash([]string{username}, 10); err != nil {
 		return nil, errors.New("User: error generating id")
@@ -352,6 +406,32 @@ func NewCustodialUser(details *NewCustodialUserDetails, salt string) (user *User
 	}
 
 	return user, nil
+}
+
+func NewUserDetailsFromCustodialUserDetails(details *NewCustodialUserDetails) (*NewUserDetails, error) {
+	var email string
+	if len(details.Emails) > 0 {
+		email = details.Emails[0]
+	} else if details.Username != nil {
+		email = *details.Username
+	} else {
+		email = GenerateTemporaryCustodialEmail()
+	}
+
+	return &NewUserDetails{
+		Username: &email,
+		Emails:   []string{email},
+		Roles:    custodialAccountRoles,
+	}, nil
+}
+
+func GenerateTemporaryCustodialEmail() string {
+	random := rand.Uint64()
+	return fmt.Sprintf(custodialEmailFormat, random)
+}
+
+func IsTemporaryCustodialEmail(email string) bool {
+	return custodialAccountRegexp.MatchString(email)
 }
 
 func (details *UpdateUserDetails) ExtractFromJSON(reader io.Reader) error {
@@ -473,7 +553,11 @@ func (u *User) HasRole(role string) bool {
 
 // IsClinic returns true if the user is legacy clinic Account
 func (u *User) IsClinic() bool {
-	return u.HasRole("clinic")
+	return u.HasRole(RoleClinic)
+}
+
+func (u *User) IsCustodialAccount() bool {
+	return u.HasRole(RoleCustodialAccount)
 }
 
 // IsClinician returns true if the user is a clinician
@@ -522,6 +606,7 @@ func (u *User) DeepClone() *User {
 		EmailVerified: u.EmailVerified,
 		PwHash:        u.PwHash,
 		Hash:          u.Hash,
+		IsMigrated:    u.IsMigrated,
 	}
 	if u.Emails != nil {
 		clonedUser.Emails = make([]string, len(u.Emails))
@@ -538,4 +623,65 @@ func (u *User) DeepClone() *User {
 		}
 	}
 	return clonedUser
+}
+
+func (u *User) ToKeycloakUser() *keycloak.User {
+	keycloakUser := &keycloak.User{
+		ID:            u.Id,
+		Username:      strings.ToLower(u.Username),
+		Email:         strings.ToLower(u.Email()),
+		Enabled:       u.IsEnabled(),
+		EmailVerified: u.EmailVerified,
+		Roles:         u.Roles,
+		Attributes:    keycloak.UserAttributes{},
+	}
+	if len(keycloakUser.Roles) == 0 {
+		keycloakUser.Roles = []string{RolePatient}
+	}
+	if !u.IsMigrated && u.PwHash == "" && !u.HasRole(RoleCustodialAccount) {
+		keycloakUser.Roles = append(keycloakUser.Roles, RoleCustodialAccount)
+	}
+	if termsAccepted, err := TimestampToUnixString(u.TermsAccepted); err == nil {
+		keycloakUser.Attributes.TermsAcceptedDate = []string{termsAccepted}
+	}
+
+	return keycloakUser
+}
+
+func (u *User) IsEnabled() bool {
+	if u.IsMigrated {
+		return u.Enabled
+	} else {
+		return u.PwHash != "" && !u.IsDeleted()
+	}
+}
+
+func NewUserFromKeycloakUser(keycloakUser *keycloak.User) *User {
+	termsAcceptedDate := ""
+	if len(keycloakUser.Attributes.TermsAcceptedDate) > 0 {
+		if ts, err := UnixStringToTimestamp(keycloakUser.Attributes.TermsAcceptedDate[0]); err == nil {
+			termsAcceptedDate = ts
+		}
+	}
+
+	user := &User{
+		Id:            keycloakUser.ID,
+		Username:      keycloakUser.Username,
+		Emails:        []string{keycloakUser.Email},
+		Roles:         keycloakUser.Roles,
+		TermsAccepted: termsAcceptedDate,
+		EmailVerified: keycloakUser.EmailVerified,
+		IsMigrated:    true,
+		Enabled:       keycloakUser.Enabled,
+	}
+
+	// All non-custodial users have a password and it's important to set the hash to a non-empty value.
+	// When users are serialized by this service, the payload contains a flag `passwordExists` that
+	// is computed based on the presence of a password hash in the user struct. This flag is used by
+	// other services (e.g. hydrophone) to determine whether the user is custodial or not.
+	if !user.IsCustodialAccount() {
+		user.PwHash = "true"
+	}
+
+	return user
 }

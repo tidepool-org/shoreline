@@ -3,6 +3,7 @@ package user
 import (
 	"crypto/rsa"
 	"errors"
+	"github.com/tidepool-org/shoreline/keycloak"
 	"log"
 	"net/http"
 	"strconv"
@@ -28,6 +29,7 @@ type (
 		IsServer     bool   `json:"isserver"`
 		UserId       string `json:"userid"`
 		DurationSecs int64  `json:"-"`
+		ExpiresAt    int64  `json:"expires_at"`
 	}
 
 	TokenConfig struct {
@@ -67,7 +69,8 @@ func CreateSessionToken(data *TokenData, config TokenConfig) (*SessionToken, err
 
 	now := time.Now()
 	createdAt := now.Unix()
-	expiresAt := now.Add(time.Duration(data.DurationSecs) * time.Second).Unix()
+	expiresIn := time.Duration(data.DurationSecs) * time.Second
+	expiresAt := now.Add(expiresIn).Unix()
 
 	var svrClaim string
 	if data.IsServer {
@@ -127,6 +130,7 @@ func CreateSessionToken(data *TokenData, config TokenConfig) (*SessionToken, err
 		return nil, err
 	}
 
+	data.ExpiresAt = expiresAt
 	sessionToken := &SessionToken{
 		ID:        tokenString,
 		IsServer:  data.IsServer,
@@ -201,7 +205,6 @@ func UnpackSessionTokenAndVerify(id string, tokenConfigs ...TokenConfig) (*Token
 		}
 	}
 	if jwtToken == nil || err != nil {
-		log.Printf("failed to Parse JWT: %v", err)
 		return nil, err
 	}
 	if !jwtToken.Valid {
@@ -216,11 +219,34 @@ func UnpackSessionTokenAndVerify(id string, tokenConfigs ...TokenConfig) (*Token
 		durationSecs = int64(claims["dur"].(float64))
 	}
 	userId := claims["usr"].(string)
+	expiresAt, ok := claims["exp"].(int64)
+	if !ok {
+		expiresAt = int64(claims["exp"].(float64))
+	}
 
 	return &TokenData{
 		IsServer:     isServer,
 		DurationSecs: durationSecs,
 		UserId:       userId,
+		ExpiresAt:    expiresAt,
+	}, nil
+}
+
+func TokenDataFromIntrospectionResult(introspectionResult *keycloak.TokenIntrospectionResult) (*TokenData, error) {
+	if !introspectionResult.Active {
+		return nil, errors.New("introspected token is inactive")
+	}
+
+	duration := introspectionResult.ExpiresAt - time.Now().Unix()
+	if duration <= 0 {
+		return nil, errors.New("token is expired")
+	}
+
+	return &TokenData{
+		IsServer:     introspectionResult.IsServerToken(),
+		UserId:       introspectionResult.Subject,
+		DurationSecs: duration,
+		ExpiresAt:    introspectionResult.ExpiresAt,
 	}, nil
 }
 

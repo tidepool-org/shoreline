@@ -35,19 +35,30 @@ type FindTokenByIDResponse struct {
 	Error        error
 }
 
+type CreateUserResponse struct {
+	User  *User
+	Error error
+}
+
+type UpdateUserResponse struct {
+	User  *User
+	Error error
+}
+
 type ResponsableMockStoreClient struct {
-	PingResponses                   []error
-	UpsertUserResponses             []error
-	FindUsersResponses              []FindUsersResponse
-	FindUsersByRoleResponses        []FindUsersByRoleResponse
+	PingResponses                []error
+	FindUsersResponses           []FindUsersResponse
+	FindUsersByRoleResponses     []FindUsersByRoleResponse
 	FindUsersByRoleAndDateResponses []FindUsersByRoleAndDateResponse
-	FindUsersWithIdsResponses       []FindUsersWithIdsResponse
-	FindUserResponses               []FindUserResponse
-	RemoveUserResponses             []error
-	AddTokenResponses               []error
-	FindTokenByIDResponses          []FindTokenByIDResponse
-	RemoveTokenByIDResponses        []error
-	RemoveTokensForUserResponses    []error
+	FindUsersWithIdsResponses    []FindUsersWithIdsResponse
+	FindUserResponses            []FindUserResponse
+	RemoveUserResponses          []error
+	AddTokenResponses            []error
+	FindTokenByIDResponses       []FindTokenByIDResponse
+	RemoveTokenByIDResponses     []error
+	RemoveTokensForUserResponses []error
+	CreateUserResponses          []CreateUserResponse
+	UpdateUserResponses          []UpdateUserResponse
 }
 
 func NewResponsableMockStoreClient() *ResponsableMockStoreClient {
@@ -56,7 +67,6 @@ func NewResponsableMockStoreClient() *ResponsableMockStoreClient {
 
 func (r *ResponsableMockStoreClient) HasResponses() bool {
 	return len(r.PingResponses) > 0 ||
-		len(r.UpsertUserResponses) > 0 ||
 		len(r.FindUsersResponses) > 0 ||
 		len(r.FindUsersByRoleResponses) > 0 ||
 		len(r.FindUsersByRoleAndDateResponses) > 0 ||
@@ -65,12 +75,13 @@ func (r *ResponsableMockStoreClient) HasResponses() bool {
 		len(r.RemoveUserResponses) > 0 ||
 		len(r.AddTokenResponses) > 0 ||
 		len(r.FindTokenByIDResponses) > 0 ||
-		len(r.RemoveTokenByIDResponses) > 0
+		len(r.RemoveTokenByIDResponses) > 0 ||
+		len(r.CreateUserResponses) > 0 ||
+		len(r.UpdateUserResponses) > 0
 }
 
 func (r *ResponsableMockStoreClient) Reset() {
 	r.PingResponses = nil
-	r.UpsertUserResponses = nil
 	r.FindUsersResponses = nil
 	r.FindUsersByRoleResponses = nil
 	r.FindUsersByRoleAndDateResponses = nil
@@ -80,6 +91,8 @@ func (r *ResponsableMockStoreClient) Reset() {
 	r.AddTokenResponses = nil
 	r.FindTokenByIDResponses = nil
 	r.RemoveTokenByIDResponses = nil
+	r.CreateUserResponses = nil
+	r.UpdateUserResponses = nil
 }
 
 func (r *ResponsableMockStoreClient) EnsureIndexes() error { return nil }
@@ -98,12 +111,22 @@ func (r *ResponsableMockStoreClient) Ping() (err error) {
 	panic("PingResponses unavailable")
 }
 
-func (r *ResponsableMockStoreClient) UpsertUser(user *User) (err error) {
-	if len(r.UpsertUserResponses) > 0 {
-		err, r.UpsertUserResponses = r.UpsertUserResponses[0], r.UpsertUserResponses[1:]
-		return err
+func (r *ResponsableMockStoreClient) CreateUser(details *NewUserDetails) (*User, error) {
+	if len(r.CreateUserResponses) > 0 {
+		var response CreateUserResponse
+		response, r.CreateUserResponses = r.CreateUserResponses[0], r.CreateUserResponses[1:]
+		return response.User, response.Error
 	}
-	panic("UpsertUserResponses unavailable")
+	panic("CreateUserResponse unavailable")
+}
+
+func (r *ResponsableMockStoreClient) UpdateUser(user *User, details *UpdateUserDetails) (*User, error) {
+	if len(r.UpdateUserResponses) > 0 {
+		var response UpdateUserResponse
+		response, r.UpdateUserResponses = r.UpdateUserResponses[0], r.UpdateUserResponses[1:]
+		return response.User, response.Error
+	}
+	panic("UpdateUserResponses unavailable")
 }
 
 func (r *ResponsableMockStoreClient) FindUsers(user *User) (found []*User, err error) {
