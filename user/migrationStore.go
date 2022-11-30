@@ -47,7 +47,7 @@ func (m *MigrationStore) EnsureIndexes() error {
 func (m *MigrationStore) CreateUser(details *NewUserDetails) (*User, error) {
 	keycloakUser := &keycloak.User{
 		Enabled:       details.Password != nil && *details.Password != "",
-		EmailVerified: false,
+		EmailVerified: details.EmailVerified,
 	}
 	// Users without roles should be treated as patients to prevent keycloak from displaying
 	// the role selection dialog
