@@ -186,7 +186,7 @@ func (c *client) jwtToAccessToken(jwt *gocloak.JWT) *oauth2.Token {
 }
 
 func (c *client) RevokeToken(ctx context.Context, token oauth2.Token) error {
-	clientId, clientSecret := c.getClientAndSecretFromToken(token)
+	clientId, clientSecret := c.getClientAndSecretFromToken(ctx, token)
 	return c.keycloak.Logout(
 		ctx,
 		clientId,
@@ -197,7 +197,7 @@ func (c *client) RevokeToken(ctx context.Context, token oauth2.Token) error {
 }
 
 func (c *client) RefreshToken(ctx context.Context, token oauth2.Token) (*oauth2.Token, error) {
-	clientId, clientSecret := c.getClientAndSecretFromToken(token)
+	clientId, clientSecret := c.getClientAndSecretFromToken(ctx, token)
 
 	jwt, err := c.keycloak.RefreshToken(
 		ctx,
@@ -348,7 +348,7 @@ func (c *client) FindUsersWithIds(ctx context.Context, ids []string) (users []*U
 }
 
 func (c *client) IntrospectToken(ctx context.Context, token oauth2.Token) (*TokenIntrospectionResult, error) {
-	clientId, clientSecret := c.getClientAndSecretFromToken(token)
+	clientId, clientSecret := c.getClientAndSecretFromToken(ctx, token)
 
 	rtr, err := c.keycloak.RetrospectToken(
 		ctx,
@@ -512,13 +512,23 @@ func (c *client) updateRolesForUser(ctx context.Context, user *User) error {
 	return nil
 }
 
-func (c *client) getClientAndSecretFromToken(token oauth2.Token) (string, string) {
+func (c *client) getClientAndSecretFromToken(ctx context.Context, token oauth2.Token) (string, string) {
 	clientId := c.cfg.ClientID
 	clientSecret := c.cfg.ClientSecret
-	if azp, ok := token.Extra("azp").(string); ok && azp == c.cfg.LongLivedClientID {
+
+	customClaims := &jwx.Claims{}
+	_, err := c.keycloak.DecodeAccessTokenCustomClaims(
+		ctx,
+		token.AccessToken,
+		c.cfg.Realm,
+		customClaims,
+	)
+
+	if err == nil && customClaims.Azp == c.cfg.LongLivedClientID {
 		clientId = c.cfg.LongLivedClientID
 		clientSecret = c.cfg.LongLivedClientSecret
 	}
+
 	return clientId, clientSecret
 }
 
