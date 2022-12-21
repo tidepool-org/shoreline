@@ -97,8 +97,9 @@ const (
 	STATUS_INVALID_QUERY_PARAM   = "Invalid query parameter: "
 	STATUS_INVALID_ROLE          = "The role specified is invalid"
 
-	TIDEPOOL_MOBILE_USER_AGENT           = "axios/0.19.0"
-	HEALTHKIT_UPLOADER_USER_AGENT_PREFIX = "Tidepool/"
+	TIDEPOOL_MOBILE_USER_AGENT_PREFIX         = "axios/"
+	TIDEPOOL_MOBILE_ANDROID_USER_AGENT_PREFIX = "okhttp/"
+	HEALTHKIT_UPLOADER_USER_AGENT_PREFIX      = "Tidepool/"
 )
 
 func InitApi(cfg ApiConfig, logger *log.Logger, store Storage, keycloakClient keycloak.Client, userEventsNotifier EventsNotifier, seagull clients.Seagull, clinic api.ClientWithResponsesInterface) *Api {
@@ -605,7 +606,9 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 
 func isTidepoolMobileRequest(req *http.Request) bool {
 	userAgent := req.Header.Get("user-agent")
-	return strings.HasPrefix(userAgent, HEALTHKIT_UPLOADER_USER_AGENT_PREFIX) || userAgent == TIDEPOOL_MOBILE_USER_AGENT
+	return strings.HasPrefix(userAgent, HEALTHKIT_UPLOADER_USER_AGENT_PREFIX) ||
+		strings.HasPrefix(userAgent, TIDEPOOL_MOBILE_USER_AGENT_PREFIX) ||
+		strings.HasPrefix(userAgent, TIDEPOOL_MOBILE_ANDROID_USER_AGENT_PREFIX)
 }
 
 // status: 200 TP_SESSION_TOKEN
