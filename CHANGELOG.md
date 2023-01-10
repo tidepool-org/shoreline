@@ -2,6 +2,10 @@
 
 Shoreline is the module that manages user accounts and authentication.
 
+## 1.10.0 - 2023-01-09
+### Engineering
+- YLP-1967 implement custom domain
+
 ## 1.9.8 - 2022-11-18
 ### Engineering
 - Upgrade dependencies

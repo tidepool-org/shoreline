@@ -59,10 +59,14 @@ type Auth0Client struct {
 // requires AUTH0_URL, AUTH0_SECRET and AUTH0_CLIENT_ID to be set
 func NewAuth0Client(logger *log.Logger) *Auth0Client {
 	auth0Url := os.Getenv("AUTH0_URL")
+	auth0Audience := os.Getenv("AUTH0_DOMAIN")
 	auth0Secret := os.Getenv("AUTH0_SECRET")
 	auth0ClientId := os.Getenv("AUTH0_CLIENT_ID")
 	if auth0Url == "" || auth0Secret == "" {
 		logger.Fatal("Auth0 configuration not provided")
+	}
+	if auth0Audience == "" {
+		logger.Fatal("Auth0 configuration not provided missing auth0Audience")
 	}
 	interval, _ := time.ParseDuration("1h")
 	usrUrl, err := url.Parse(auth0Url + "/api/v2/users")
@@ -70,7 +74,7 @@ func NewAuth0Client(logger *log.Logger) *Auth0Client {
 		logger.Fatal("Auth0 configuration incorrect, malformed URL: ", err.Error())
 	}
 	tokenUrl, _ := url.Parse(auth0Url + "/oauth/token")
-	audience, _ := url.Parse(auth0Url + "/api/v2/")
+	audience, _ := url.Parse(auth0Audience + "/api/v2/")
 
 	return &Auth0Client{
 		secret:          auth0Secret,
