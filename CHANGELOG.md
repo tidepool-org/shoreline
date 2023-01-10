@@ -2,6 +2,10 @@
 
 Shoreline is the module that manages user accounts and authentication.
 
+## UNRELEASED
+### Engineering
+- YLP-2019: Restrict access to GetUserInfo: only services or self can get user info
+
 ## 1.10.0 - 2023-01-09
 ### Engineering
 - YLP-1967 implement custom domain

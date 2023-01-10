@@ -65,7 +65,7 @@ type (
 		auditLogger  *log.Logger
 		loginLimiter LoginLimiter
 		provider     rp.RelyingParty
-		auth0Client  *auth0.Auth0Client
+		auth0Client  auth0.ClientInterface
 	}
 	Secret struct {
 		Secret string `json:"secret"`
@@ -706,7 +706,15 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 					a.logger.Error("Query to Auth0 failed: ", err)
 				} else if auth0Usr != nil {
 					foundUser := &User{Id: auth0Usr.UserID, Username: auth0Usr.Username, Roles: auth0Usr.Roles, Emails: auth0Usr.Emails}
+					if !a.isAuthorized(tokenData, foundUser.Id) {
+						a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, log)
+						return
+					}
 					a.sendUser(res, foundUser, tokenData.IsServer)
+					return
+				}
+				if !a.isAuthorized(tokenData, user.Id) {
+					a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, log)
 					return
 				}
 				auth0Usr, err = a.auth0Client.GetUserById(user.Id)

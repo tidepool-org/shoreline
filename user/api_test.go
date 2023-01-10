@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/mdblp/shoreline/schema"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -23,6 +24,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/mdblp/go-common/clients/version"
+	auth0Mocks "github.com/mdblp/shoreline/auth0/mocks"
 	"github.com/mdblp/shoreline/token"
 	"github.com/mdblp/shoreline/user/middlewares"
 )
@@ -40,6 +42,7 @@ func InitAPITest(cfg *ApiConfig, logger *log.Logger, store Storage) *Api {
 		ApiConfig:   cfg,
 		logger:      logger,
 		auditLogger: logger,
+		auth0Client: nil,
 	}
 	api.loginLimiter.usersInProgress = list.New()
 	return &api
@@ -666,7 +669,7 @@ func Test_UpdateUser_Error_MissingSessionToken(t *testing.T) {
 }
 
 func Test_UpdateUser_Error_MissingDetails(t *testing.T) {
-	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
+	sessionToken := T_CreateSessionToken(t, "0000000000", true, TOKEN_DURATION)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
@@ -678,7 +681,7 @@ func Test_UpdateUser_Error_MissingDetails(t *testing.T) {
 }
 
 func Test_UpdateUser_Error_InvalidDetails(t *testing.T) {
-	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
+	sessionToken := T_CreateSessionToken(t, "1111111111", false, TOKEN_DURATION)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	defer T_ExpectResponsablesEmpty(t)
 
@@ -690,7 +693,7 @@ func Test_UpdateUser_Error_InvalidDetails(t *testing.T) {
 }
 
 func Test_UpdateUser_Error_FindUsersError(t *testing.T) {
-	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
+	sessionToken := T_CreateSessionToken(t, "1111111111", false, TOKEN_DURATION)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{nil, errors.New("ERROR")}}
 	defer T_ExpectResponsablesEmpty(t)
@@ -703,7 +706,7 @@ func Test_UpdateUser_Error_FindUsersError(t *testing.T) {
 }
 
 func Test_UpdateUser_Error_FindUsersMissing(t *testing.T) {
-	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
+	sessionToken := T_CreateSessionToken(t, "0000000000", true, TOKEN_DURATION)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{nil, nil}}
 	defer T_ExpectResponsablesEmpty(t)
@@ -727,6 +730,20 @@ func Test_UpdateUser_Error_NoPermissions(t *testing.T) {
 	T_ExpectErrorResponse(t, response, 401, "Not authorized for requested operation")
 }
 
+func Test_UpdateUser_Error_NoPermissions2(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{nil, nil}}
+
+	defer T_ExpectResponsablesEmpty(t)
+
+	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"emailVerified\": true, \"password\": \"newpassword\", \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
+	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
+	T_ExpectErrorResponse(t, response, 401, "Not authorized for requested operation")
+}
+
 func Test_UpdateUser_Error_UnauthorizedRoles_Patient(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "1111111111", false, TOKEN_DURATION)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
@@ -734,19 +751,6 @@ func Test_UpdateUser_Error_UnauthorizedRoles_Patient(t *testing.T) {
 	defer T_ExpectResponsablesEmpty(t)
 
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"roles\": [\"hcp\"]}}"
-	headers := http.Header{}
-	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
-	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
-	T_ExpectErrorResponse(t, response, 401, "Not authorized for requested operation")
-}
-
-func Test_UpdateUser_Error_UnauthorizedRoles_Patient2(t *testing.T) {
-	sessionToken := T_CreateSessionToken(t, "1111111111", false, TOKEN_DURATION)
-	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
-	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111", Roles: []string{"patient"}}, nil}}
-	defer T_ExpectResponsablesEmpty(t)
-
-	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"roles\": [\"caregiver\"]}}"
 	headers := http.Header{}
 	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
 	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
@@ -869,6 +873,10 @@ func Test_UpdateUser_Success_Clinic_Password(t *testing.T) {
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUserResponses = []FindUserResponse{{user, nil}}
 	responsableStore.UpsertUserResponses = []error{nil}
+	auth0Mock := &auth0Mocks.ClientInterface{}
+	auth0Mock.On("GetUserById", user.Id).Return(nil, nil)
+	responsableShoreline.auth0Client = auth0Mock
+
 	defer T_ExpectResponsablesEmpty(t)
 
 	body := "{\"updates\": {\"password\": \"A-new-fancy-password\", \"currentPassword\": \"old-password\"}}"
@@ -892,6 +900,9 @@ func Test_UpdateUser_Success_UserFromUrl(t *testing.T) {
 	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
 	responsableStore.UpsertUserResponses = []error{nil}
+	auth0Mock := &auth0Mocks.ClientInterface{}
+	auth0Mock.On("GetUserById", "1111111111").Return(nil, nil)
+	responsableShoreline.auth0Client = auth0Mock
 	defer T_ExpectResponsablesEmpty(t)
 
 	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"newpassword\", \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
@@ -1013,6 +1024,7 @@ func Test_GetUserInfo_Error_FindUsersMissing(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
+	responsableShoreline.auth0Client = nil
 	defer T_ExpectResponsablesEmpty(t)
 
 	headers := http.Header{}
@@ -1033,10 +1045,45 @@ func Test_GetUserInfo_Error_FindUsersNil(t *testing.T) {
 	T_ExpectErrorResponse(t, response, 500, "Error finding user")
 }
 
-func Test_GetUserInfo_Error_NoPermissions(t *testing.T) {
+// User found in local DB but if not correct
+func Test_GetUserInfo_Error_NoPermissions1(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{{Id: "1111111111"}}, nil}}
+	defer T_ExpectResponsablesEmpty(t)
+
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
+	response := T_PerformRequestHeaders(t, "GET", "/user/1111111111", headers)
+	T_ExpectErrorResponse(t, response, 401, "Not authorized for requested operation")
+}
+
+// User not found in local DB and not found in Auth0 (using email) and id different
+func Test_GetUserInfo_Error_NoPermissions2(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{nil, nil}}
+	auth0Mock := &auth0Mocks.ClientInterface{}
+	auth0Mock.On("GetUser", "1111111111").Return(nil, nil)
+	responsableShoreline.auth0Client = auth0Mock
+
+	defer T_ExpectResponsablesEmpty(t)
+
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
+	response := T_PerformRequestHeaders(t, "GET", "/user/1111111111", headers)
+	T_ExpectErrorResponse(t, response, 401, "Not authorized for requested operation")
+}
+
+// User not found in local DB and found in Auth0 (using email) and id different
+func Test_GetUserInfo_Error_NoPermissions3(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{nil, nil}}
+	auth0Mock := &auth0Mocks.ClientInterface{}
+	auth0Mock.On("GetUser", "1111111111").Return(&schema.UserData{UserID: "1111111111"}, nil)
+	responsableShoreline.auth0Client = auth0Mock
+
 	defer T_ExpectResponsablesEmpty(t)
 
 	headers := http.Header{}
@@ -2072,7 +2119,7 @@ func Test_AuthenticateSessionToken_Success_Server(t *testing.T) {
 	}
 }
 
-////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////
 func Test_isAuthorized_Server(t *testing.T) {
 	tokenData := &token.TokenData{UserId: "abcdef1234", IsServer: true, DurationSecs: TOKEN_DURATION}
 	permissions := responsableShoreline.isAuthorized(tokenData, "1234567890")
