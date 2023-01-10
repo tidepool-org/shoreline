@@ -996,24 +996,9 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 	log.Info("processing a refresh session request")
 
 	if err != nil {
-		// Let's try with Auth0 token
-		if req.Header.Get("Authorization") != "" {
-			usr, err := a.auth0Client.GetUserInfo(sanitizeRequestHeader(req, "Authorization"))
-			if err != nil {
-				log.Error(http.StatusUnauthorized, err.Error())
-				res.WriteHeader(http.StatusUnauthorized)
-				return
-			}
-			td = &token.TokenData{
-				UserId: usr.UserID,
-				Email:  usr.Username,
-			}
-
-		} else {
-			log.Error(http.StatusUnauthorized, err.Error())
-			res.WriteHeader(http.StatusUnauthorized)
-			return
-		}
+		log.Error(http.StatusUnauthorized, err.Error())
+		res.WriteHeader(http.StatusUnauthorized)
+		return
 	}
 	log.Infof("processing a refresh session request for userid: %s", td.UserId)
 	log.Tracef("token data payload : %+v", *td)
