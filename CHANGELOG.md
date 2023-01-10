@@ -2,10 +2,11 @@
 
 Shoreline is the module that manages user accounts and authentication.
 
-## UNRELEASED
+## 1.11.0
 ### Engineering
 - YLP-2019: Restrict access to GetUserInfo: only services or self can get user info
 - YLP-1611: Revert YLP-1610: no longer need to delegate shoreline login to auth0.
+- YLP-2014: Add a new server id "auth0" with its specific secret
 
 ## 1.10.0 - 2023-01-09
 ### Engineering
