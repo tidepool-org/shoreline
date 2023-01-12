@@ -1033,6 +1033,22 @@ func Test_GetUserInfo_Error_FindUsersMissing(t *testing.T) {
 	T_ExpectErrorResponse(t, response, 404, "User not found")
 }
 
+func Test_GetUserInfo_Error_FindUsersMissing_auth0(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "auth0", true, TOKEN_DURATION)
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
+	auth0Mock := &auth0Mocks.ClientInterface{}
+	auth0Mock.On("GetUser", "1111111111").Return(&schema.UserData{UserID: "1111111111"}, nil)
+	responsableShoreline.auth0Client = auth0Mock
+	defer T_ExpectResponsablesEmpty(t)
+
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
+	response := T_PerformRequestHeaders(t, "GET", "/user/1111111111", headers)
+	T_ExpectErrorResponse(t, response, 404, "User not found")
+	auth0Mock.AssertNotCalled(t, "GetUser", "1111111111")
+}
+
 func Test_GetUserInfo_Error_FindUsersNil(t *testing.T) {
 	sessionToken := T_CreateSessionToken(t, "0000000000", false, TOKEN_DURATION)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
