@@ -296,12 +296,22 @@ func (c *client) CreateUser(ctx context.Context, user *User) (*User, error) {
 		return nil, err
 	}
 
-	user.ID, err = c.keycloak.CreateUser(ctx, token.AccessToken, c.cfg.Realm, gocloak.User{
-		Username:   &user.Username,
-		Email:      &user.Email,
-		Enabled:    &user.Enabled,
-		RealmRoles: &user.Roles,
-	})
+	model := gocloak.User{
+		Username:      &user.Username,
+		Email:         &user.Email,
+		EmailVerified: &user.EmailVerified,
+		Enabled:       &user.Enabled,
+		RealmRoles:    &user.Roles,
+	}
+
+	if len(user.Attributes.TermsAcceptedDate) > 0 {
+		attrs := map[string][]string{
+			"terms_and_conditions": user.Attributes.TermsAcceptedDate,
+		}
+		model.Attributes = &attrs
+	}
+	
+	user.ID, err = c.keycloak.CreateUser(ctx, token.AccessToken, c.cfg.Realm, model)
 	if err != nil {
 		if e, ok := err.(*gocloak.APIError); ok && e.Code == http.StatusConflict {
 			err = ErrUserConflict
