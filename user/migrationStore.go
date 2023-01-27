@@ -47,8 +47,17 @@ func (m *MigrationStore) EnsureIndexes() error {
 func (m *MigrationStore) CreateUser(details *NewUserDetails) (*User, error) {
 	keycloakUser := &keycloak.User{
 		Enabled:       details.Password != nil && *details.Password != "",
-		EmailVerified: false,
+		EmailVerified: details.EmailVerified,
 	}
+
+	if keycloakUser.EmailVerified {
+		// Automatically set terms accepted date when email is verified (i.e. internal usage only).
+		termsAccepted := fmt.Sprintf("%v", time.Now().Unix())
+		keycloakUser.Attributes = keycloak.UserAttributes{
+			TermsAcceptedDate: []string{termsAccepted},
+		}
+	}
+
 	// Users without roles should be treated as patients to prevent keycloak from displaying
 	// the role selection dialog
 	if len(details.Roles) == 0 {
