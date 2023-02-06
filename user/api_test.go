@@ -1014,6 +1014,19 @@ func Test_UpdateUser_Error_UpdateUserError(t *testing.T) {
 	expectErrorResponse(t, response, 500, "Error updating user")
 }
 
+func Test_UpdateUser_Error_UpdateUserBrokeredError(t *testing.T) {
+	sessionToken := createSessionToken(t, "0000000000", false, tokenDuration)
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111", Roles: []string{RoleBrokered}}, nil}}
+	defer expectResponsablesEmpty(t)
+
+	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}}"
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
+	response := performRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
+	expectErrorResponse(t, response, http.StatusUnauthorized, "Not authorized for requested operation")
+}
+
 func Test_UpdateUser_Error_RemoveCustodians_UsersInGroupError(t *testing.T) {
 	updatedUser := &User{
 		Id:            "1111111111",
