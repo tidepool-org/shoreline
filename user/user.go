@@ -21,11 +21,13 @@ const (
 	RoleCustodialAccount = "custodial_account"
 	RoleMigratedClinic   = "migrated_clinic"
 	RolePatient          = "patient"
+	RoleBrokered         = "brokered"
 )
 
 var custodialAccountRegexp = regexp.MustCompile("unclaimed-custodial-automation\\+\\d+@tidepool\\.org")
 
 var validRoles = map[string]struct{}{
+	RoleBrokered:         {},
 	RoleClinic:           {},
 	RoleClinician:        {},
 	RoleCustodialAccount: {},

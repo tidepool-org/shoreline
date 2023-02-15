@@ -388,6 +388,9 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 	} else if originalUser == nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, "User not found")
 
+	} else if originalUser.HasRole(RoleBrokered) {
+		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, "Updates to brokered users are not allowed")
+
 	} else if permissions, err := a.tokenUserHasRequestedPermissions(tokenData, originalUser.Id, clients.Permissions{"root": clients.Allowed, "custodian": clients.Allowed}); err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err)
 
@@ -399,7 +402,6 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 
 	} else if (updateUserDetails.Password != nil || updateUserDetails.TermsAccepted != nil) && permissions["root"] == nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, "User does not have permissions")
-
 	} else {
 		if updateUserDetails.Password != nil {
 			hash, err := GeneratePasswordHash(originalUser.Id, *updateUserDetails.Password, a.ApiConfig.Salt)
