@@ -400,10 +400,11 @@ func NewCustodialUser(details *NewCustodialUserDetails, salt string) (user *User
 		Emails:   details.Emails,
 	}
 
-	if user.Id, err = generateUniqueHash([]string{username}, 10); err != nil {
+	id, err := generateUniqueHash([]string{username}, 10)
+	if err != nil {
 		return nil, errors.New("User: error generating id")
 	}
-	if user.Hash, err = generateUniqueHash([]string{username, user.Id}, 24); err != nil {
+	if user.Hash, err = generateUniqueHash([]string{username, id}, 24); err != nil {
 		return nil, errors.New("User: error generating hash")
 	}
 
