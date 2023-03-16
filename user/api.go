@@ -347,10 +347,10 @@ func (a *Api) createCustodialUserAccount(res http.ResponseWriter, req *http.Requ
 	} else if newCustodialUser, err := NewCustodialUser(newCustodialUserDetails, a.ApiConfig.Salt); err != nil {
 		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, err)
 		return nil, err
-	} else if existingUsers, err := a.Store.WithContext(req.Context()).FindUsers(newCustodialUser); err != nil {
+	} else if existingUser, err := a.Store.WithContext(req.Context()).FindUser(newCustodialUser); err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
 		return nil, err
-	} else if len(existingUsers) > 0 {
+	} else if existingUser != nil && existingUser.Id != "" {
 		a.sendError(res, http.StatusConflict, STATUS_USR_ALREADY_EXISTS)
 		return nil, errors.New(STATUS_USR_ALREADY_EXISTS)
 	} else if newUserDetails, err := NewUserDetailsFromCustodialUserDetails(newCustodialUserDetails); err != nil {

@@ -697,7 +697,7 @@ func Test_CreateCustodialUser_Error_InvalidDetails(t *testing.T) {
 func Test_CreateCustodialUser_Error_FindUsersError(t *testing.T) {
 	sessionToken := createSessionToken(t, "abcdef1234", false, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
-	responsableStore.FindUsersResponses = []FindUsersResponse{{nil, errors.New("ERROR")}}
+	responsableStore.FindUserResponses = []FindUserResponse{{nil, errors.New("ERROR")}}
 	defer expectResponsablesEmpty(t)
 
 	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}"
@@ -710,7 +710,7 @@ func Test_CreateCustodialUser_Error_FindUsersError(t *testing.T) {
 func Test_CreateCustodialUser_Error_FindUsersDuplicate(t *testing.T) {
 	sessionToken := createSessionToken(t, "abcdef1234", false, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
-	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{&User{}}, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1234"}, nil}}
 	defer expectResponsablesEmpty(t)
 
 	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"]}"
@@ -723,7 +723,7 @@ func Test_CreateCustodialUser_Error_FindUsersDuplicate(t *testing.T) {
 func Test_CreateCustodialUser_Error_CreateUserError(t *testing.T) {
 	sessionToken := createSessionToken(t, "abcdef1234", false, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
-	responsableStore.FindUsersResponses = []FindUsersResponse{{nil, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{nil, nil}}
 	responsableStore.CreateUserResponses = []CreateUserResponse{{nil, errors.New("ERROR")}}
 	defer expectResponsablesEmpty(t)
 
@@ -737,7 +737,7 @@ func Test_CreateCustodialUser_Error_CreateUserError(t *testing.T) {
 func Test_CreateCustodialUser_Error_SetPermissionsError(t *testing.T) {
 	sessionToken := createSessionToken(t, "abcdef1234", false, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
-	responsableStore.FindUsersResponses = []FindUsersResponse{{nil, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{nil, nil}}
 	responsableStore.CreateUserResponses = []CreateUserResponse{{&User{}, nil}}
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, errors.New("ERROR")}}
 	defer expectResponsablesEmpty(t)
@@ -752,7 +752,7 @@ func Test_CreateCustodialUser_Error_SetPermissionsError(t *testing.T) {
 func Test_CreateCustodialUser_Success_Anonymous(t *testing.T) {
 	sessionToken := createSessionToken(t, "abcdef1234", false, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
-	responsableStore.FindUsersResponses = []FindUsersResponse{{nil, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{nil, nil}}
 	responsableStore.CreateUserResponses = []CreateUserResponse{{&User{Id: "1234567890"}, nil}}
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
 	defer expectResponsablesEmpty(t)
@@ -769,7 +769,7 @@ func Test_CreateCustodialUser_Success_Anonymous(t *testing.T) {
 func Test_CreateCustodialUser_Success_Anonymous_Server(t *testing.T) {
 	sessionToken := createSessionToken(t, "abcdef1234", true, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
-	responsableStore.FindUsersResponses = []FindUsersResponse{{nil, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{nil, nil}}
 	responsableStore.CreateUserResponses = []CreateUserResponse{{&User{Id: "1234567890"}, nil}}
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
 	defer expectResponsablesEmpty(t)
@@ -786,7 +786,7 @@ func Test_CreateCustodialUser_Success_Anonymous_Server(t *testing.T) {
 func Test_CreateCustodialUser_Success_Known(t *testing.T) {
 	sessionToken := createSessionToken(t, "abcdef1234", false, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
-	responsableStore.FindUsersResponses = []FindUsersResponse{{nil, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{nil, nil}}
 	responsableStore.CreateUserResponses = []CreateUserResponse{{&User{Id: "1234567890", Username: "a@z.co", Emails: []string{"a@z.co"}}, nil}}
 	responsableGatekeeper.SetPermissionsResponses = []PermissionsResponse{{clients.Permissions{}, nil}}
 	defer expectResponsablesEmpty(t)
@@ -803,7 +803,7 @@ func Test_CreateCustodialUser_Success_Known(t *testing.T) {
 func Test_CreateClinicCustodialUser_Success_Known(t *testing.T) {
 	sessionToken := createSessionToken(t, "clinic", true, tokenDuration)
 	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
-	responsableStore.FindUsersResponses = []FindUsersResponse{{nil, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{nil, nil}}
 	responsableStore.CreateUserResponses = []CreateUserResponse{{&User{Id: "1234567890", Username: "a@z.co", Emails: []string{"a@z.co"}}, nil}}
 	defer expectResponsablesEmpty(t)
 

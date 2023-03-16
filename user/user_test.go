@@ -718,7 +718,7 @@ func Test_NewCustodialUser_ValidAll(t *testing.T) {
 	if user.Username != *details.Username || !reflect.DeepEqual(user.Emails, details.Emails) {
 		t.Fatalf("Fields do not match on success")
 	}
-	if user.Id == "" || user.Hash == "" {
+	if user.Hash == "" {
 		t.Fatalf("Missing fields that should be present on success")
 	}
 	if user.PwHash != "" || user.TermsAccepted != "" || user.EmailVerified || len(user.Private) > 0 {
@@ -739,7 +739,7 @@ func Test_NewCustodialUser_ValidNone(t *testing.T) {
 	if user.Username != "" || len(user.Emails) != 0 {
 		t.Fatalf("Fields do not match on success")
 	}
-	if user.Id == "" || user.Hash == "" {
+	if user.Hash == "" {
 		t.Fatalf("Missing fields that should be present on success")
 	}
 	if user.PwHash != "" || user.TermsAccepted != "" || user.EmailVerified || len(user.Private) > 0 {
