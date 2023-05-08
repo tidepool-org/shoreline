@@ -86,11 +86,17 @@ func NewKeycloakUser(gocloakUser *gocloak.User) *User {
 }
 
 type TokenIntrospectionResult struct {
-	Active        bool        `json:"active"`
-	Subject       string      `json:"sub"`
-	EmailVerified bool        `json:"email_verified"`
-	ExpiresAt     int64       `json:"eat"`
-	RealmAccess   RealmAccess `json:"realm_access"`
+	Active           bool        `json:"active"`
+	Subject          string      `json:"sub"`
+	EmailVerified    bool        `json:"email_verified"`
+	ExpiresAt        int64       `json:"eat"`
+	RealmAccess      RealmAccess `json:"realm_access"`
+	IdentityProvider string      `json:"identityProvider"`
+}
+
+type AccessTokenCustomClaims struct {
+	jwx.Claims
+	IdentityProvider string `json:"identity_provider,omitempty"`
 }
 
 type RealmAccess struct {
@@ -310,7 +316,7 @@ func (c *client) CreateUser(ctx context.Context, user *User) (*User, error) {
 		}
 		model.Attributes = &attrs
 	}
-	
+
 	user.ID, err = c.keycloak.CreateUser(ctx, token.AccessToken, c.cfg.Realm, model)
 	if err != nil {
 		if e, ok := err.(*gocloak.APIError); ok && e.Code == http.StatusConflict {
@@ -375,7 +381,7 @@ func (c *client) IntrospectToken(ctx context.Context, token oauth2.Token) (*Toke
 		Active: safePBool(rtr.Active),
 	}
 	if result.Active {
-		customClaims := &jwx.Claims{}
+		customClaims := &AccessTokenCustomClaims{}
 		_, err := c.keycloak.DecodeAccessTokenCustomClaims(
 			ctx,
 			token.AccessToken,
@@ -391,6 +397,7 @@ func (c *client) IntrospectToken(ctx context.Context, token oauth2.Token) (*Toke
 		result.RealmAccess = RealmAccess{
 			Roles: customClaims.RealmAccess.Roles,
 		}
+		result.IdentityProvider = customClaims.IdentityProvider
 	}
 
 	return result, nil
