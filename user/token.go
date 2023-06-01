@@ -26,10 +26,11 @@ type (
 	}
 
 	TokenData struct {
-		IsServer     bool   `json:"isserver"`
-		UserId       string `json:"userid"`
-		DurationSecs int64  `json:"-"`
-		ExpiresAt    int64  `json:"expires_at"`
+		IsServer         bool   `json:"isserver"`
+		UserId           string `json:"userid"`
+		DurationSecs     int64  `json:"-"`
+		ExpiresAt        int64  `json:"expires_at"`
+		IdentityProvider string `json:"identityProvider,omitempty"`
 	}
 
 	TokenConfig struct {
@@ -50,8 +51,8 @@ var (
 	SessionToken_error_no_userid        = errors.New("SessionToken: userId not set")
 	SessionToken_invalid                = errors.New("SessionToken: is invalid")
 	SessionToken_error_duration_not_set = errors.New("SessionToken: duration not set")
-	sessionToken *SessionToken
-	tokenMutex = &sync.Mutex{}
+	sessionToken                        *SessionToken
+	tokenMutex                          = &sync.Mutex{}
 )
 
 func CreateSessionToken(data *TokenData, config TokenConfig) (*SessionToken, error) {
@@ -243,10 +244,11 @@ func TokenDataFromIntrospectionResult(introspectionResult *keycloak.TokenIntrosp
 	}
 
 	return &TokenData{
-		IsServer:     introspectionResult.IsServerToken(),
-		UserId:       introspectionResult.Subject,
-		DurationSecs: duration,
-		ExpiresAt:    introspectionResult.ExpiresAt,
+		IsServer:         introspectionResult.IsServerToken(),
+		UserId:           introspectionResult.Subject,
+		DurationSecs:     duration,
+		ExpiresAt:        introspectionResult.ExpiresAt,
+		IdentityProvider: introspectionResult.IdentityProvider,
 	}, nil
 }
 
@@ -275,7 +277,7 @@ func hasServerToken(tokenString string, tokenConfigs ...TokenConfig) bool {
 func GetServiceToken(cfg TokenConfig, store Storage) (*SessionToken, error) {
 	tokenMutex.Lock()
 	defer tokenMutex.Unlock()
-	if sessionToken != nil && sessionToken.ExpiresAt.After(time.Now().Add(time.Minute * 1)) {
+	if sessionToken != nil && sessionToken.ExpiresAt.After(time.Now().Add(time.Minute*1)) {
 		return sessionToken, nil
 	}
 
