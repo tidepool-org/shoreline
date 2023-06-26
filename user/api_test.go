@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/mdblp/shoreline/schema"
+	"github.com/stretchr/testify/mock"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -998,6 +999,90 @@ func Test_UpdateUser_Success_Server_WithPassword(t *testing.T) {
 	successResponse := T_ExpectSuccessResponseWithJSONMap(t, response, 200)
 	T_ExpectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
 	T_ExpectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": true, "emails": []interface{}{"a@z.co"}, "username": "a@z.co", "roles": []interface{}{"hcp"}, "termsAccepted": "2016-01-01T01:23:45-08:00", "passwordExists": true})
+}
+
+func Test_UpdateUser_Success_Auth_OK(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "1111111111", false, TOKEN_DURATION)
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
+	responsableStore.UpsertUserResponses = []error{nil}
+	auth0Mock := &auth0Mocks.ClientInterface{}
+	returnedUser := &schema.UserData{
+		UserID:   "1111111111",
+		Username: "test@ici.com",
+	}
+	auth0Mock.On("GetUserById", "1111111111").Return(returnedUser, nil)
+	auth0Mock.On("UpdateUser", "1111111111", mock.Anything).Return(nil)
+	responsableShoreline.auth0Client = auth0Mock
+	defer T_ExpectResponsablesEmpty(t)
+
+	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"newpassword\", \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
+	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
+	successResponse := T_ExpectSuccessResponseWithJSONMap(t, response, 200)
+	T_ExpectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
+	T_ExpectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": false, "emails": []interface{}{"a@z.co"}, "username": "a@z.co", "termsAccepted": "2016-01-01T01:23:45-08:00"})
+}
+
+func Test_UpdateUser_Success_Auth_OK_User_Not_In_Auth0(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "1111111111", false, TOKEN_DURATION)
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
+	responsableStore.UpsertUserResponses = []error{nil}
+	auth0Mock := &auth0Mocks.ClientInterface{}
+	auth0Mock.On("GetUserById", "1111111111").Return(nil, nil)
+	responsableShoreline.auth0Client = auth0Mock
+	defer T_ExpectResponsablesEmpty(t)
+
+	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"newpassword\", \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
+	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
+	successResponse := T_ExpectSuccessResponseWithJSONMap(t, response, 200)
+	T_ExpectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
+	T_ExpectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": false, "emails": []interface{}{"a@z.co"}, "username": "a@z.co", "termsAccepted": "2016-01-01T01:23:45-08:00"})
+}
+
+func Test_UpdateUser_Failure_Auth0_UpdateUser_Failure(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "1111111111", false, TOKEN_DURATION)
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
+	auth0Mock := &auth0Mocks.ClientInterface{}
+	returnedUser := &schema.UserData{
+		UserID:   "1111111111",
+		Username: "test@ici.com",
+	}
+	auth0Mock.On("GetUserById", "1111111111").Return(returnedUser, nil)
+	auth0Mock.On("UpdateUser", "1111111111", mock.Anything).Return(errors.New("ooops"))
+	responsableShoreline.auth0Client = auth0Mock
+	defer T_ExpectResponsablesEmpty(t)
+
+	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"newpassword\", \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
+	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
+	T_ExpectErrorResponse(t, response, 500, "Error updating user")
+}
+
+func Test_UpdateUser_Failure_Auth0_GetUser_Failure(t *testing.T) {
+	sessionToken := T_CreateSessionToken(t, "1111111111", false, TOKEN_DURATION)
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
+	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
+	auth0Mock := &auth0Mocks.ClientInterface{}
+	auth0Mock.On("GetUserById", "1111111111").Return(nil, errors.New("Ooops"))
+	responsableShoreline.auth0Client = auth0Mock
+	defer T_ExpectResponsablesEmpty(t)
+
+	body := "{\"updates\": {\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"newpassword\", \"termsAccepted\": \"2016-01-01T01:23:45-08:00\"}}"
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
+	response := T_PerformRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
+	T_ExpectErrorResponse(t, response, 500, "Error updating user")
 }
 
 ////////////////////////////////////////////////////////////////////////////////

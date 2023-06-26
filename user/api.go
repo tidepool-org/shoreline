@@ -598,22 +598,29 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 		if updateUserDetails.EmailVerified != nil {
 			updatedUser.EmailVerified = *updateUserDetails.EmailVerified
 		}
-
+		// Start by updating username on Auth0
+		if a.auth0Client != nil {
+			if usr, err := a.auth0Client.GetUserById(updatedUser.Id); err != nil {
+				log.Errorf("Failed to get user %s/%s from Auth0. Error: %s", updatedUser.Username, updatedUser.Id, err)
+				a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_USR, log, err)
+				return
+			} else if usr != nil {
+				if usr.Username == updatedUser.Username {
+					// no need to update with the same value
+					auth0User.Username = nil
+				}
+				if err := a.auth0Client.UpdateUser(updatedUser.Id, auth0User); err != nil {
+					log.Errorf("Failed to update user %s/%s on Auth0. Error: %s", updatedUser.Username, updatedUser.Id, err)
+					a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_USR, log, err)
+					return
+				}
+			}
+		}
+		// And finally update the local db
 		if err := a.Store.UpsertUser(req.Context(), updatedUser); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_USR, log, err)
 		} else {
-			if a.auth0Client != nil {
-				if usr, err := a.auth0Client.GetUserById(updatedUser.Id); err == nil && usr != nil {
-					if usr.Username == updatedUser.Username {
-						// no need to update with the same value
-						auth0User.Username = nil
-					}
-					if err := a.auth0Client.UpdateUser(updatedUser.Id, auth0User); err != nil {
-						a.logger.Error("Impossible to update user on Auth0: ", err)
-					}
-				}
-			}
-			a.logAudit(req, tokenData, "update request succedeed for username:%s, and is a clinician one{%t}", updatedUser.Username, updatedUser.IsClinic())
+			a.logAudit(req, tokenData, "update request succeeded for username:%s, and is a clinician one{%t}", updatedUser.Username, updatedUser.IsClinic())
 			log.Infof("update request succedeed for username:%s, and is a clinician one{%t}", updatedUser.Username, updatedUser.IsClinic())
 			a.sendUser(res, updatedUser, tokenData.IsServer)
 		}

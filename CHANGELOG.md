@@ -2,6 +2,10 @@
 
 Shoreline is the module that manages user accounts and authentication.
 
+## 1.11.1 - 2023-06-26
+### Fixed
+- YLP-2471: Bug on email change for patients
+
 ## 1.11.0 - 2023-01-10
 ### Engineering
 - YLP-2019: Restrict access to GetUserInfo: only services or self can get user info

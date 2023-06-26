@@ -70,7 +70,7 @@ func firstStringNotEmpty(strs ...string) string {
 	return ""
 }
 
-//Docode the http.Request parsing out the user details
+// Docode the http.Request parsing out the user details
 func getGivenDetail(req *http.Request) (d map[string]string) {
 	if req.ContentLength > 0 {
 		if err := json.NewDecoder(req.Body).Decode(&d); err != nil {
