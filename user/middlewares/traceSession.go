@@ -8,6 +8,7 @@ import (
 )
 
 type traceSessionIdKeyType int
+
 const traceSessionIdKey traceSessionIdKeyType = 1
 
 func GetTraceSessionIdCtx(ctx context.Context) (string, bool) {

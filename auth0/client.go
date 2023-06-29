@@ -159,7 +159,6 @@ func (client *Auth0Client) refreshTokenLoop() {
 	}
 }
 
-//
 func (client *Auth0Client) Close() {
 	twoWay := make(chan bool)
 	client.closed <- twoWay
@@ -256,6 +255,10 @@ func (client *Auth0Client) GetUserById(id string) (*schema.UserData, error) {
 		return nil, errors.Wrap(err, "Failure to get a user")
 	}
 	defer res.Body.Close()
+
+	if res.StatusCode == http.StatusNotFound {
+		return nil, nil
+	}
 
 	if res.StatusCode != http.StatusOK {
 		return nil, errors.New("Error while requesting Auth0: " + res.Status)

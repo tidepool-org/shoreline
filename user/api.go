@@ -16,7 +16,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/caos/oidc/pkg/client/rp"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/microcosm-cc/bluemonday"
@@ -64,19 +63,11 @@ type (
 		logger       *log.Logger
 		auditLogger  *log.Logger
 		loginLimiter LoginLimiter
-		provider     rp.RelyingParty
 		auth0Client  auth0.ClientInterface
 	}
 	Secret struct {
 		Secret string `json:"secret"`
 		Pass   string `json:"pass"`
-	}
-	OAuthConfig struct {
-		DiscoveryUrl string `json:"discoveryUrl"`
-		IssuerUri    string `json:"issuer"`
-		Secret       string `json:"secret"`
-		ClientId     string `json:"clientid"`
-		Key          string `json:"key"`
 	}
 	// ApiConfig for shoreline
 	ApiConfig struct {
@@ -97,8 +88,6 @@ type (
 		//used for token
 		Secret       string `json:"apiSecret"`
 		TokenSecrets map[string]string
-		//used to delegate auth to OAuth/OIDC server
-		OAuthAppConfig OAuthConfig
 		// Maximum number of consecutive failed login before a delay is set
 		MaxFailedLogin int `json:"maxFailedLogin"`
 		// Delay in minutes the user must wait 10min before attempting a new login if the number of
@@ -185,7 +174,6 @@ func NewConfigFromEnv(log *log.Logger) *ApiConfig {
 		ServerSecrets:               make(map[string]string),
 		TokenSecrets:                make(map[string]string),
 		Secret:                      "abcdefghijklmnopqrstuvwxyz",
-		OAuthAppConfig:              OAuthConfig{},
 	}
 	config.ServerSecrets["default"] = config.Secret
 	config.TokenSecrets["default"] = config.Secret
@@ -197,30 +185,6 @@ func NewConfigFromEnv(log *log.Logger) *ApiConfig {
 	frontUrl, found := os.LookupEnv("FRONT_BASE_URL")
 	if found {
 		config.FrontUrl = frontUrl
-	}
-	oidcDiscoveryUrl, found := os.LookupEnv("OIDC_DISCOVERY_URL")
-	if found {
-		config.OAuthAppConfig.DiscoveryUrl = oidcDiscoveryUrl
-	} else {
-		log.Fatal("Env var OIDC_DISCOVERY_URL must be provided")
-	}
-	oidcIssueUrl, found := os.LookupEnv("OIDC_ISSUER_URL")
-	if found {
-		config.OAuthAppConfig.IssuerUri = oidcIssueUrl
-	} else {
-		config.OAuthAppConfig.IssuerUri = strings.Split(oidcDiscoveryUrl, "/.")[0]
-	}
-	oidcClientId, found := os.LookupEnv("OIDC_CLIENT_ID")
-	if found {
-		config.OAuthAppConfig.ClientId = oidcClientId
-	}
-	oidcSecret, found := os.LookupEnv("OIDC_CLIENT_SECRET")
-	if found {
-		config.OAuthAppConfig.Secret = oidcSecret
-	}
-	cookieKey, found := os.LookupEnv("COOKIE_ENCRYPT_KEY")
-	if found {
-		config.OAuthAppConfig.Key = cookieKey
 	}
 
 	intValue, found, err = getIntFromEnvVar("USER_MAX_FAILED_LOGIN", 1, math.MaxInt16)
@@ -266,11 +230,6 @@ func NewConfigFromEnv(log *log.Logger) *ApiConfig {
 	serverSecret, found = os.LookupEnv("AUTH0_API_SECRET")
 	if found {
 		config.ServerSecrets["auth0"] = serverSecret
-	}
-	// extract the list of token secrets
-	zdkSecret, found := os.LookupEnv("ZENDESK_SECRET")
-	if found {
-		config.TokenSecrets["zendesk"] = zdkSecret
 	}
 
 	userSecret, found := os.LookupEnv("API_SECRET")
@@ -323,13 +282,11 @@ func NewConfigFromEnv(log *log.Logger) *ApiConfig {
 // New create a new shoreline API config
 func New(cfg *ApiConfig, logger *log.Logger, store Storage, auditLogger *log.Logger, auth0Client *auth0.Auth0Client) *Api {
 
-	provider := createOidcProvider(logger, cfg, strings.Join([]string{cfg.PublicApiURl, "oauth/callback"}, "/"))
 	api := Api{
 		Store:       store,
 		ApiConfig:   cfg,
 		logger:      logger,
 		auditLogger: auditLogger,
-		provider:    provider,
 		auth0Client: auth0Client,
 	}
 
@@ -340,36 +297,27 @@ func New(cfg *ApiConfig, logger *log.Logger, store Storage, auditLogger *log.Log
 
 // SetHandlers init the HTTP routes handlers
 func (a *Api) SetHandlers(prefix string, rtr *mux.Router) {
+	//Health checks and metrics
 	rtr.Handle("/metrics", promhttp.Handler())
-
 	rtr.HandleFunc("/status", a.GetStatus).Methods("GET")
 
+	//User management methods
 	rtr.HandleFunc("/users", a.GetUsers).Methods("GET")
 
 	rtr.Handle("/user", varsHandler(a.GetUserInfo)).Methods("GET")
 	rtr.Handle("/user/{userid}", varsHandler(a.GetUserInfo)).Methods("GET")
-
 	rtr.HandleFunc("/user", a.CreateUser).Methods("POST")
 	rtr.Handle("/user", varsHandler(a.UpdateUser)).Methods("PUT")
 	rtr.Handle("/user/{userid}", varsHandler(a.UpdateUser)).Methods("PUT")
 	rtr.Handle("/user/{userid}", varsHandler(a.DeleteUser)).Methods("DELETE")
 
+	//Login and token management methods
 	rtr.HandleFunc("/login", a.Login).Methods("POST")
+	rtr.HandleFunc("/logout", a.Logout).Methods("POST")
 	rtr.HandleFunc("/login", a.RefreshSession).Methods("GET")
-	rtr.Handle("/login/{longtermkey}", varsHandler(a.LongtermLogin)).Methods("POST")
-	rtr.HandleFunc("/oauth/login", rp.AuthURLHandler(state, a.provider))
-	rtr.HandleFunc("/oauth/callback", a.DelegatedLoginCallback)
-	rtr.HandleFunc("/oauth/merge", a.UpdateUserWithOauth).Methods("POST")
-
 	rtr.HandleFunc("/serverlogin", a.ServerLogin).Methods("POST")
-
 	rtr.Handle("/token/{token}", varsHandler(a.ServerCheckToken)).Methods("GET")
 
-	rtr.Handle("/ext-token/{service}", varsHandler(a.Get3rdPartyToken)).Methods("POST")
-
-	rtr.HandleFunc("/logout", a.Logout).Methods("POST")
-
-	rtr.HandleFunc("/private", a.AnonymousIdHashPair).Methods("GET")
 }
 
 func (h varsHandler) ServeHTTP(res http.ResponseWriter, req *http.Request) {
@@ -650,22 +598,29 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 		if updateUserDetails.EmailVerified != nil {
 			updatedUser.EmailVerified = *updateUserDetails.EmailVerified
 		}
-
+		// Start by updating username on Auth0
+		if a.auth0Client != nil {
+			if usr, err := a.auth0Client.GetUserById(updatedUser.Id); err != nil {
+				log.Errorf("Failed to get user %s/%s from Auth0. Error: %s", updatedUser.Username, updatedUser.Id, err)
+				a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_USR, log, err)
+				return
+			} else if usr != nil {
+				if usr.Username == updatedUser.Username {
+					// no need to update with the same value
+					auth0User.Username = nil
+				}
+				if err := a.auth0Client.UpdateUser(updatedUser.Id, auth0User); err != nil {
+					log.Errorf("Failed to update user %s/%s on Auth0. Error: %s", updatedUser.Username, updatedUser.Id, err)
+					a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_USR, log, err)
+					return
+				}
+			}
+		}
+		// And finally update the local db
 		if err := a.Store.UpsertUser(req.Context(), updatedUser); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_UPDATING_USR, log, err)
 		} else {
-			if a.auth0Client != nil {
-				if usr, err := a.auth0Client.GetUserById(updatedUser.Id); err == nil && usr != nil {
-					if usr.Username == updatedUser.Username {
-						// no need to update with the same value
-						auth0User.Username = nil
-					}
-					if err := a.auth0Client.UpdateUser(updatedUser.Id, auth0User); err != nil {
-						a.logger.Error("Impossible to update user on Auth0: ", err)
-					}
-				}
-			}
-			a.logAudit(req, tokenData, "update request succedeed for username:%s, and is a clinician one{%t}", updatedUser.Username, updatedUser.IsClinic())
+			a.logAudit(req, tokenData, "update request succeeded for username:%s, and is a clinician one{%t}", updatedUser.Username, updatedUser.IsClinic())
 			log.Infof("update request succedeed for username:%s, and is a clinician one{%t}", updatedUser.Username, updatedUser.IsClinic())
 			a.sendUser(res, updatedUser, tokenData.IsServer)
 		}
@@ -1047,43 +1002,6 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 	}
 }
 
-// @Summary Longterm login
-// @Description Longterm login
-// @ID shoreline-user-api-longtermlogin
-// @Accept  json
-// @Produce  json
-// @Param longtermkey path string true "long term key"
-// @Security BasicAuth
-// @Success 200 {object} user.User
-// @Header 200 {string} x-tidepool-session-token "authentication token"
-// @Failure 500 {object} status.Status "message returned:\"Error finding user\" or \"Error updating token\" "
-// @Failure 403 {object} status.Status "message returned:\"The user hasn't verified this account yet\" "
-// @Failure 401 {object} status.Status "message returned:\"No user matched the given details\" "
-// @Failure 400 {object} status.Status "message returned:\"Missing id and/or password\" "
-// @Router /login/{longtermkey} [post]
-// Set the longeterm duration and then process as per Login
-// note: see Login for return codes
-func (a *Api) LongtermLogin(res http.ResponseWriter, req *http.Request, vars map[string]string) {
-	duration := a.ApiConfig.LongTermsDuration
-	longtermkey := vars["longtermkey"]
-	log := middlewares.GetLogReq(req)
-	log.Info("processing a long term loging request")
-
-	if longtermkey == a.ApiConfig.LongTermKey {
-		log.Debug("token duration is ", fmt.Sprint(time.Duration(duration)*time.Second))
-		req.Header.Add(token.TOKEN_DURATION_KEY, strconv.FormatFloat(float64(duration), 'f', -1, 64))
-	} else {
-		// tell us there was no match
-		log.Warn("tried to login using the longtermkey but it didn't match the stored key")
-	}
-
-	// FIXME: Everybody can request a token with an arbitrary duration
-	// since, the key check is not done in the login, nor the refresh token
-	a.Login(res, req)
-
-	// TODO: Does not actually add the TOKEN_DURATION_KEY to the response on success (as the old unittests would imply)
-}
-
 // @Summary Check server token
 // @Description Check server token
 // @ID shoreline-user-api-serverchecktoken
@@ -1136,73 +1054,6 @@ func (a *Api) Logout(res http.ResponseWriter, req *http.Request) {
 	// otherwise all good
 	a.logAudit(req, nil, "logout request succeeded")
 	res.WriteHeader(http.StatusOK)
-}
-
-// @Summary AnonymousIdHashPair ?
-// @Description AnonymousIdHashPair ?
-// @ID shoreline-user-api-anonymousidhashpair
-// @Accept  json
-// @Produce  json
-// @Success 200 {object} user.AnonIdHashPair "AnonymousIdHashPair?"
-// @Router /private [get]
-func (a *Api) AnonymousIdHashPair(res http.ResponseWriter, req *http.Request) {
-	idHashPair := NewAnonIdHashPair([]string{a.ApiConfig.Salt}, req.URL.Query())
-	sendModelAsRes(res, idHashPair)
-}
-
-// @Summary Generate a 3rd party JWT
-// @Description Generate a token to authenticate the user to a 3rd party service
-// @ID shoreline-user-api-getToken
-// @Param service path string true "3rd party service name"
-// @Security TidepoolAuth
-// @Success 200 {object} status.Status
-// @Header 200 {string} x-external-session-token "3rd party token"
-// @Failure 500 {object} status.Status "message returned:\"Error generating the token" "
-// @Failure 401 {object} status.Status "message returned:\"Not authorized for requested operation\" "
-// @Failure 400 {object} status.Status "message returned:\"Unknown query parameter\" or \"Error generating the token\" "
-// @Router /ext-token/{service} [post]
-func (a *Api) Get3rdPartyToken(res http.ResponseWriter, req *http.Request, vars map[string]string) {
-	log := middlewares.GetLogReq(req)
-	log.Info("processing a 3rd party token generation request")
-
-	secret := ""
-	service := vars["service"]
-	if service == "" {
-		sendModelAsResWithStatus(res, status.NewStatus(http.StatusBadRequest, STATUS_PARAMETER_UNKNOWN), http.StatusBadRequest)
-		return
-	} else {
-		secret = a.ApiConfig.TokenSecrets[service]
-	}
-
-	if secret == "" {
-		// the secret is not defined for this service
-		log.Error(http.StatusBadRequest, "the service does not exist")
-		sendModelAsResWithStatus(res, status.NewStatus(http.StatusBadRequest, STATUS_ERR_GENERATING_TOKEN), http.StatusBadRequest)
-		return
-	}
-
-	td, err := a.authenticateSessionToken(req.Context(), sanitizeSessionToken(req))
-
-	if err != nil {
-		log.Error(http.StatusUnauthorized, err.Error())
-		res.WriteHeader(http.StatusUnauthorized)
-		return
-	}
-	td.Audience = service
-	//refresh
-	if sessionToken, err := token.CreateSessionToken(
-		td,
-		token.TokenConfig{DurationSecs: a.ApiConfig.UserTokenDurationSecs, Secret: secret},
-	); err != nil {
-		log.Error(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN, err.Error())
-		sendModelAsResWithStatus(res, status.NewStatus(http.StatusInternalServerError, STATUS_ERR_GENERATING_TOKEN), http.StatusInternalServerError)
-		return
-	} else {
-		a.logAudit(req, td, "GenerateExternalToken")
-		res.Header().Set(EXT_SESSION_TOKEN, sessionToken.ID)
-		sendModelAsRes(res, td)
-		return
-	}
 }
 
 func (a *Api) sendError(res http.ResponseWriter, statusCode int, reason string, log *log.Entry, extras ...interface{}) {
