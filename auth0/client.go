@@ -286,6 +286,7 @@ func (client *Auth0Client) UpdateUser(id string, user *schema.UserUpdate) error 
 	updUser.Connection = "Username-Password-Authentication"
 	if user.Username != nil && *user.Username != "" {
 		updUser.Email = *user.Username
+		updUser.EmailVerified = true
 	}
 	if user.Password != nil && *user.Password != "" {
 		updUser.Password = *user.Password

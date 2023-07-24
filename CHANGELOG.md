@@ -2,12 +2,13 @@
 
 Shoreline is the module that manages user accounts and authentication.
 
+## 2.0.1 - 2023-07-24
+### Fixed
+- YLP-2471: Bug on email change for patients
+
 ## 2.0.0 - 2023-06-26
 ### Changed
 - Cleanup old (unused) code related with the OIDC authent
-
-### Fixed
-- YLP-2471: Bug on email change for patients
 
 ## 1.11.0 - 2023-01-10
 ### Engineering
