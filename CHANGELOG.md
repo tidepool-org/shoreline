@@ -2,7 +2,7 @@
 
 Shoreline is the module that manages user accounts and authentication.
 
-## 2.0.1 - 2023-07-24
+## 2.0.2 - 2023-07-24
 ### Fixed
 - YLP-2471: Bug on email change for patients
 

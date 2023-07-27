@@ -29,6 +29,7 @@ type auth0User struct {
 	Password      string        `json:"password,omitempty"`
 	Connection    string        `json:"connection,omitempty"`
 	Subject       string        `json:"sub,omitempty"`
+	Name          string        `json:"name,omitempty"`
 }
 
 // http body content received from auth0 when requesting an access token (/oauth/token)
@@ -287,6 +288,7 @@ func (client *Auth0Client) UpdateUser(id string, user *schema.UserUpdate) error 
 	if user.Username != nil && *user.Username != "" {
 		updUser.Email = *user.Username
 		updUser.EmailVerified = true
+		updUser.Name = *user.Username
 	}
 	if user.Password != nil && *user.Password != "" {
 		updUser.Password = *user.Password
