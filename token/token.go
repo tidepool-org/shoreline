@@ -11,14 +11,15 @@ import (
 
 type (
 	SessionToken struct {
-		ID        string `json:"-" bson:"_id"`
-		IsServer  bool   `json:"isServer" bson:"isServer"`
-		ServerID  string `json:"-" bson:"serverId,omitempty"`
-		UserID    string `json:"userId,omitempty" bson:"userId,omitempty"`
-		Duration  int64  `json:"-" bson:"duration"`
-		ExpiresAt int64  `json:"-" bson:"expiresAt"`
-		CreatedAt int64  `json:"-" bson:"createdAt"`
-		Time      int64  `json:"-" bson:"time"`
+		ID          string    `json:"-" bson:"_id"`
+		IsServer    bool      `json:"isServer" bson:"isServer"`
+		ServerID    string    `json:"-" bson:"serverId,omitempty"`
+		UserID      string    `json:"userId,omitempty" bson:"userId,omitempty"`
+		Duration    int64     `json:"-" bson:"duration"`
+		ExpiresAt   int64     `json:"-" bson:"expiresAt"`
+		CreatedAt   int64     `json:"-" bson:"createdAt"`
+		Time        int64     `json:"-" bson:"time"`
+		ExpiresTime time.Time `json:"-" bson:"expiresTime"`
 	}
 
 	TokenData struct {
@@ -109,7 +110,8 @@ func CreateSessionToken(data *TokenData, config TokenConfig) (*SessionToken, err
 
 	now := time.Now()
 	createdAt := now.Unix()
-	expiresAt := now.Add(time.Duration(data.DurationSecs) * time.Second).Unix()
+	expiresTime := now.Add(time.Duration(data.DurationSecs) * time.Second)
+	expiresAt := expiresTime.Unix()
 
 	jwt_token := jwt.New(jwt.GetSigningMethod("HS256"))
 	claims := jwt_token.Claims.(jwt.MapClaims)
@@ -152,12 +154,13 @@ func CreateSessionToken(data *TokenData, config TokenConfig) (*SessionToken, err
 	}
 
 	sessionToken := &SessionToken{
-		ID:        tokenString,
-		IsServer:  data.IsServer,
-		Duration:  data.DurationSecs,
-		ExpiresAt: expiresAt,
-		CreatedAt: createdAt,
-		Time:      createdAt,
+		ID:          tokenString,
+		IsServer:    data.IsServer,
+		Duration:    data.DurationSecs,
+		ExpiresAt:   expiresAt,
+		CreatedAt:   createdAt,
+		Time:        createdAt,
+		ExpiresTime: expiresTime,
 	}
 	if data.IsServer {
 		sessionToken.ServerID = data.UserId

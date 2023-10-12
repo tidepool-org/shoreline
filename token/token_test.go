@@ -17,18 +17,31 @@ var tokenConfig = TokenConfig{
 	Secret:       "my secret",
 }
 
+func createAndCheckToken(t *testing.T, testData tokenTestData) *SessionToken {
+	token, _ := CreateSessionToken(testData.data, testData.config)
+
+	if token.ID == "" || token.Time == 0 {
+		t.Fatalf("should generate a session token")
+	}
+
+	if token.ExpiresAt != token.Time+token.Duration {
+		t.Fatalf("should set an expiration timestamp")
+	}
+	expireTime := time.Unix(token.ExpiresAt, 0).UTC()
+	diff := token.ExpiresTime.Sub(expireTime).Seconds()
+	if diff > 1 {
+		t.Fatalf("should set an expiration time")
+	}
+	return token
+}
+
 func Test_GenerateSessionToken(t *testing.T) {
 
 	testData := tokenTestData{
 		data:   &TokenData{UserId: "12-99-100", IsServer: false, DurationSecs: 3600},
 		config: tokenConfig,
 	}
-
-	token, _ := CreateSessionToken(testData.data, testData.config)
-
-	if token.ID == "" {
-		t.Fatalf("should generate a session token with an ID set")
-	}
+	token := createAndCheckToken(t, testData)
 
 	jwtToken, err := jwt.Parse(token.ID, func(t *jwt.Token) (interface{}, error) { return []byte(testData.config.Secret), nil })
 	if err != nil || !jwtToken.Valid {
@@ -64,12 +77,7 @@ func Test_GenerateSessionToken_DurationFromConfig(t *testing.T) {
 		config: tokenConfig,
 	}
 
-	//given duration seconds trump the configured duration
-	token, _ := CreateSessionToken(testData.data, testData.config)
-
-	if token.ID == "" || token.Time == 0 {
-		t.Fatalf("should generate a session token")
-	}
+	token := createAndCheckToken(t, testData)
 
 	td, _ := UnpackSessionTokenAndVerify(token.ID, tokenConfig.Secret)
 
@@ -85,11 +93,7 @@ func Test_GenerateSessionToken_DurationSecsTrumpConfig(t *testing.T) {
 		config: tokenConfig,
 	}
 
-	token, _ := CreateSessionToken(testData.data, testData.config)
-
-	if token.ID == "" || token.Time == 0 {
-		t.Fatalf("should generate a session token")
-	}
+	token := createAndCheckToken(t, testData)
 
 	td, _ := UnpackSessionTokenAndVerify(token.ID, tokenConfig.Secret)
 
@@ -106,11 +110,7 @@ func Test_GenerateSessionToken_Zendesk_Claims_Patient(t *testing.T) {
 		config: tokenConfig,
 	}
 
-	token, _ := CreateSessionToken(testData.data, testData.config)
-
-	if token.ID == "" || token.Time == 0 {
-		t.Fatalf("should generate a session token")
-	}
+	token := createAndCheckToken(t, testData)
 
 	jwtToken, err := jwt.Parse(token.ID, func(t *jwt.Token) (interface{}, error) { return []byte(testData.config.Secret), nil })
 	if err != nil || !jwtToken.Valid {
@@ -135,11 +135,7 @@ func Test_GenerateSessionToken_Zendesk_Claims_Caregiver(t *testing.T) {
 		config: tokenConfig,
 	}
 
-	token, _ := CreateSessionToken(testData.data, testData.config)
-
-	if token.ID == "" || token.Time == 0 {
-		t.Fatalf("should generate a session token")
-	}
+	token := createAndCheckToken(t, testData)
 
 	jwtToken, err := jwt.Parse(token.ID, func(t *jwt.Token) (interface{}, error) { return []byte(testData.config.Secret), nil })
 	if err != nil || !jwtToken.Valid {
@@ -164,11 +160,7 @@ func Test_GenerateSessionToken_Zendesk_Claims_Pro(t *testing.T) {
 		config: tokenConfig,
 	}
 
-	token, _ := CreateSessionToken(testData.data, testData.config)
-
-	if token.ID == "" || token.Time == 0 {
-		t.Fatalf("should generate a session token")
-	}
+	token := createAndCheckToken(t, testData)
 
 	jwtToken, err := jwt.Parse(token.ID, func(t *jwt.Token) (interface{}, error) { return []byte(testData.config.Secret), nil })
 	if err != nil || !jwtToken.Valid {
@@ -193,11 +185,7 @@ func Test_GenerateSessionToken_With_UserDetails(t *testing.T) {
 		config: tokenConfig,
 	}
 
-	token, _ := CreateSessionToken(testData.data, testData.config)
-
-	if token.ID == "" || token.Time == 0 {
-		t.Fatalf("should generate a session token")
-	}
+	token := createAndCheckToken(t, testData)
 
 	jwtToken, err := jwt.Parse(token.ID, func(t *jwt.Token) (interface{}, error) { return []byte(testData.config.Secret), nil })
 	if err != nil || !jwtToken.Valid {
@@ -236,12 +224,7 @@ func Test_GenerateSessionToken_Server(t *testing.T) {
 		config: tokenConfig,
 	}
 
-	token, _ := CreateSessionToken(testData.data, testData.config)
-
-	if token.ID == "" || token.Time == 0 {
-		t.Fatalf("should generate a session token")
-	}
-
+	token := createAndCheckToken(t, testData)
 	td, _ := UnpackSessionTokenAndVerify(token.ID, tokenConfig.Secret)
 
 	if td.IsServer != true {

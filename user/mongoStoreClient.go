@@ -30,6 +30,15 @@ type Client struct {
 // NewStore creates a new Client
 func NewStore(config *goComMgo.Config, logger *log.Logger) (*Client, error) {
 	client := Client{}
+	config.Indexes = map[string][]mongo.IndexModel{
+		TOKENS_COLLECTION: {{
+			Keys: bson.D{{Key: "expiresTime", Value: 1}},
+			Options: options.Index().
+				SetName("expiredToken_TTL").
+				SetUnique(false).
+				SetExpireAfterSeconds(0),
+		}},
+	}
 	store, err := goComMgo.NewStoreClient(config, logger)
 	client.StoreClient = store
 	return &client, err
