@@ -16,6 +16,7 @@ import (
 const (
 	TimestampFormat      = "2006-01-02T15:04:05-07:00"
 	custodialEmailFormat = "unclaimed-custodial-automation+%020d@tidepool.org"
+	RoleCareTeamMember   = "care_team_member"
 	RoleClinic           = "clinic"
 	RoleClinician        = "clinician"
 	RoleCustodialAccount = "custodial_account"
@@ -28,6 +29,7 @@ var custodialAccountRegexp = regexp.MustCompile("unclaimed-custodial-automation\
 
 var validRoles = map[string]struct{}{
 	RoleBrokered:         {},
+	RoleCareTeamMember:   {},
 	RoleClinic:           {},
 	RoleClinician:        {},
 	RoleCustodialAccount: {},
