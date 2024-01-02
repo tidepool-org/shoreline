@@ -283,7 +283,9 @@ func (c *client) UpdateUser(ctx context.Context, user *User) error {
 		maps.Copy(attrs, user.Attributes.Profile.ToAttributes())
 	}
 
-	gocloakUser.Attributes = &attrs
+	if len(attrs) > 0 {
+		gocloakUser.Attributes = &attrs
+	}
 
 	if err := c.keycloak.UpdateUser(ctx, token.AccessToken, c.cfg.Realm, gocloakUser); err != nil {
 		return err
