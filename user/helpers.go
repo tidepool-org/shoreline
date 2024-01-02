@@ -17,7 +17,7 @@ func firstStringNotEmpty(strs ...string) string {
 	return ""
 }
 
-//Docode the http.Request parsing out the user details
+// Docode the http.Request parsing out the user details
 func getGivenDetail(req *http.Request) (d map[string]string) {
 	if req.ContentLength > 0 {
 		if err := json.NewDecoder(req.Body).Decode(&d); err != nil {
@@ -63,7 +63,7 @@ func sendModelAsResWithStatus(res http.ResponseWriter, model interface{}, status
 	}
 }
 
-//send metric
+// send metric
 func (a *Api) logMetric(name, token string, params map[string]string) {
 	if token == "" {
 		a.logger.Println("Missing token so couldn't log metric")
@@ -75,7 +75,7 @@ func (a *Api) logMetric(name, token string, params map[string]string) {
 	return
 }
 
-//send metric
+// send metric
 func (a *Api) logMetricAsServer(name, token string, params map[string]string) {
 	if token == "" {
 		a.logger.Println("Missing token so couldn't log metric")
@@ -87,7 +87,7 @@ func (a *Api) logMetricAsServer(name, token string, params map[string]string) {
 	return
 }
 
-//send metric
+// send metric
 func (a *Api) logMetricForUser(id, name, token string, params map[string]string) {
 	if token == "" {
 		a.logger.Println("Missing token so couldn't log metric")
@@ -139,6 +139,9 @@ func (a *Api) asSerializableUser(user *User, isServerRequest bool) interface{} {
 	}
 	if isServerRequest {
 		serializable["passwordExists"] = (user.PwHash != "")
+	}
+	if user.Profile != nil {
+		serializable["profile"] = *user.Profile
 	}
 	return serializable
 }

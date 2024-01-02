@@ -4,8 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/tidepool-org/shoreline/keycloak"
 	"time"
+
+	"github.com/tidepool-org/shoreline/keycloak"
 )
 
 var ErrUserConflict = errors.New("user already exists")
@@ -54,7 +55,7 @@ func (m *MigrationStore) CreateUser(details *NewUserDetails) (*User, error) {
 		// Automatically set terms accepted date when email is verified (i.e. internal usage only).
 		termsAccepted := fmt.Sprintf("%v", time.Now().Unix())
 		keycloakUser.Attributes = keycloak.UserAttributes{
-			TermsAcceptedDate: []string{termsAccepted},
+			TermsAcceptedDate: termsAccepted,
 		}
 	}
 
@@ -165,7 +166,7 @@ func (m *MigrationStore) updateKeycloakUser(user *User, details *UpdateUserDetai
 	}
 	if details.TermsAccepted != nil && IsValidTimestamp(*details.TermsAccepted) {
 		if ts, err := TimestampToUnixString(*details.TermsAccepted); err == nil {
-			keycloakUser.Attributes.TermsAcceptedDate = []string{ts}
+			keycloakUser.Attributes.TermsAcceptedDate = ts
 		}
 	}
 

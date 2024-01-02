@@ -5,9 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	api "github.com/tidepool-org/clinic/client"
-	"github.com/tidepool-org/shoreline/keycloak"
-	"golang.org/x/oauth2"
 	"log"
 	"net/http"
 	"reflect"
@@ -15,6 +12,10 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	api "github.com/tidepool-org/clinic/client"
+	"github.com/tidepool-org/shoreline/keycloak"
+	"golang.org/x/oauth2"
 
 	"github.com/gorilla/mux"
 
@@ -401,7 +402,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 	} else if (updateUserDetails.Roles != nil || updateUserDetails.EmailVerified != nil) && !tokenData.IsServer {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, "User does not have permissions")
 
-	} else if (updateUserDetails.Password != nil || updateUserDetails.TermsAccepted != nil) && permissions["root"] == nil {
+	} else if (updateUserDetails.Password != nil || updateUserDetails.TermsAccepted != nil || updateUserDetails.Profile != nil) && permissions["root"] == nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, "User does not have permissions")
 	} else {
 		if updateUserDetails.Password != nil {

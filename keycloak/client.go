@@ -2,15 +2,18 @@ package keycloak
 
 import (
 	"context"
-	"github.com/Nerzal/gocloak/v12"
-	"github.com/Nerzal/gocloak/v12/pkg/jwx"
-	"github.com/kelseyhightower/envconfig"
-	"golang.org/x/oauth2"
+	"errors"
+	"maps"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/pkg/errors"
+	"github.com/Nerzal/gocloak/v12"
+	"github.com/Nerzal/gocloak/v12/pkg/jwx"
+	"github.com/kelseyhightower/envconfig"
+	"golang.org/x/oauth2"
+
+	"github.com/tidepool-org/shoreline/profile"
 )
 
 const (
@@ -56,7 +59,8 @@ type User struct {
 }
 
 type UserAttributes struct {
-	TermsAcceptedDate []string `json:"terms_and_conditions,omitempty"`
+	TermsAcceptedDate string               `json:"terms_and_conditions,omitempty"`
+	Profile           *profile.UserProfile `json:"profile,omitempty"`
 }
 
 func NewKeycloakUser(gocloakUser *gocloak.User) *User {
@@ -73,8 +77,12 @@ func NewKeycloakUser(gocloakUser *gocloak.User) *User {
 		Enabled:       safePBool(gocloakUser.Enabled),
 	}
 	if gocloakUser.Attributes != nil {
-		if ts, ok := (*gocloakUser.Attributes)["terms_and_conditions"]; ok {
-			user.Attributes.TermsAcceptedDate = ts
+		attrs := maps.Clone(*gocloakUser.Attributes)
+		if ts, ok := attrs["terms_and_conditions"]; ok && len(ts) > 0 {
+			user.Attributes.TermsAcceptedDate = ts[0]
+		}
+		if prof, ok := profile.FromAttributes(attrs); ok {
+			user.Attributes.Profile = prof
 		}
 	}
 
@@ -267,9 +275,15 @@ func (c *client) UpdateUser(ctx context.Context, user *User) error {
 		Email:         &user.Email,
 	}
 
-	gocloakUser.Attributes = &map[string][]string{
-		"terms_and_conditions": user.Attributes.TermsAcceptedDate,
+	attrs := map[string][]string{}
+	if len(user.Attributes.TermsAcceptedDate) > 0 {
+		attrs["terms_and_conditions"] = []string{user.Attributes.TermsAcceptedDate}
 	}
+	if user.Attributes.Profile != nil {
+		maps.Copy(attrs, user.Attributes.Profile.ToAttributes())
+	}
+
+	gocloakUser.Attributes = &attrs
 
 	if err := c.keycloak.UpdateUser(ctx, token.AccessToken, c.cfg.Realm, gocloakUser); err != nil {
 		return err
@@ -310,10 +324,14 @@ func (c *client) CreateUser(ctx context.Context, user *User) (*User, error) {
 		RealmRoles:    &user.Roles,
 	}
 
+	attrs := map[string][]string{}
 	if len(user.Attributes.TermsAcceptedDate) > 0 {
-		attrs := map[string][]string{
-			"terms_and_conditions": user.Attributes.TermsAcceptedDate,
-		}
+		attrs["terms_and_conditions"] = []string{user.Attributes.TermsAcceptedDate}
+	}
+	if user.Attributes.Profile != nil {
+		maps.Copy(attrs, user.Attributes.Profile.ToAttributes())
+	}
+	if len(attrs) > 0 {
 		model.Attributes = &attrs
 	}
 
