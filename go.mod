@@ -76,3 +76,9 @@ require (
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/protobuf v1.32.0 // indirect
 )
+
+replace (
+	golang.org/x/image v0.0.0-20220302094943-723b81ca9867 => golang.org/x/image v0.15.0 // Resolve GO-2023-1990, GO-2023-1989, GO-2023-1572
+	google.golang.org/grpc v1.20.1 => google.golang.org/grpc v1.60.1 // Resolve GO-2023-2153
+	google.golang.org/grpc v1.57.0 => google.golang.org/grpc v1.60.1 // Resolve GO-2023-2153
+)
