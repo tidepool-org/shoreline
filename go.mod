@@ -1,6 +1,6 @@
 module github.com/tidepool-org/shoreline
 
-go 1.21
+go 1.22
 
 require (
 	github.com/Nerzal/gocloak/v12 v12.0.0
@@ -13,7 +13,7 @@ require (
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.18.0
-	github.com/tidepool-org/clinic/client v0.0.0-20240119154138-fd88ad427641
+	github.com/tidepool-org/clinic/client v0.0.0-20240307005814-71ebe5953545
 	github.com/tidepool-org/go-common v0.8.2
 	github.com/urfave/cli v1.22.14
 	go.mongodb.org/mongo-driver v1.12.1
@@ -82,3 +82,6 @@ replace (
 	google.golang.org/grpc v1.20.1 => google.golang.org/grpc v1.60.1 // Resolve GO-2023-2153
 	google.golang.org/grpc v1.57.0 => google.golang.org/grpc v1.60.1 // Resolve GO-2023-2153
 )
+
+// Resolve GO-2024-2611
+replace google.golang.org/protobuf v1.32.0 => google.golang.org/protobuf v1.33.0
