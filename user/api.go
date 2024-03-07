@@ -5,9 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	api "github.com/tidepool-org/clinic/client"
-	"github.com/tidepool-org/shoreline/keycloak"
-	"golang.org/x/oauth2"
 	"log"
 	"net/http"
 	"reflect"
@@ -15,6 +12,10 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	api "github.com/tidepool-org/clinic/client"
+	"github.com/tidepool-org/shoreline/keycloak"
+	"golang.org/x/oauth2"
 
 	"github.com/gorilla/mux"
 
@@ -995,8 +996,8 @@ func (a *Api) removeClinicCustodianPermissions(userId string) error {
 	}
 
 	for _, relationship := range *perms.JSON200 {
-		if relationship.Patient.Permissions.Custodian != nil {
-			clinicId := api.ClinicId(relationship.Clinic.Id)
+		if relationship.Patient.Permissions.Custodian != nil && relationship.Clinic.Id != nil {
+			clinicId := api.ClinicId(*relationship.Clinic.Id)
 			patientId := api.PatientId(userId)
 			resp, err := a.clinic.DeletePatientPermissionWithResponse(ctx, clinicId, patientId, "custodian")
 			if err != nil {

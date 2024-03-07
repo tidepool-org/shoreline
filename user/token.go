@@ -3,14 +3,15 @@ package user
 import (
 	"crypto/rsa"
 	"errors"
-	"github.com/tidepool-org/shoreline/keycloak"
 	"log"
 	"net/http"
 	"strconv"
 	"sync"
 	"time"
 
-	jwt "github.com/dgrijalva/jwt-go"
+	"github.com/golang-jwt/jwt"
+
+	"github.com/tidepool-org/shoreline/keycloak"
 )
 
 type (
