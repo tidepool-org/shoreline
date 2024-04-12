@@ -210,7 +210,7 @@ github.com/russross/blackfriday/v2
 # github.com/segmentio/ksuid v1.0.4
 ## explicit; go 1.12
 github.com/segmentio/ksuid
-# github.com/tidepool-org/clinic/client v0.0.0-20240405005007-70f5eaa69633
+# github.com/tidepool-org/clinic/client v0.0.0-20240412024055-e6391b37e456
 ## explicit; go 1.22
 github.com/tidepool-org/clinic/client
 # github.com/tidepool-org/go-common v0.8.2
