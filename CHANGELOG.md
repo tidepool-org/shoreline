@@ -2,6 +2,10 @@
 
 Shoreline is the module that manages user accounts and authentication.
 
+## 2.0.4 - 2024-04-10
+### Engineering
+- Security fix
+
 ## 2.0.3 - 2023-10-11
 ### Engineering
 - YLP-657 Remove shoreline expired session token (user/token)
