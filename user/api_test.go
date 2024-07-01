@@ -8,8 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/mdblp/shoreline/schema"
-	"github.com/stretchr/testify/mock"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -18,6 +16,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/mdblp/shoreline/schema"
+	"github.com/stretchr/testify/mock"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
@@ -538,26 +539,6 @@ func Test_CreateUser_Error_InvalidUserDetailsWithDirty(t *testing.T) {
 	T_ExpectErrorResponse(t, response, 409, "Invalid user details were given")
 }
 
-func Test_CreateUser_Error_Empty_Role_Public(t *testing.T) {
-	defer T_ExpectResponsablesEmpty(t)
-
-	headers := http.Header{}
-	headers.Add(HEADER_REQUEST_SOURCE, "public")
-	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\", \"roles\": []}"
-	response := T_PerformRequestBodyHeaders(t, "POST", "/user", body, headers)
-	T_ExpectErrorResponse(t, response, 400, "Invalid user details were given")
-}
-
-func Test_CreateUser_Error_No_Role_Public(t *testing.T) {
-	defer T_ExpectResponsablesEmpty(t)
-
-	headers := http.Header{}
-	headers.Add(HEADER_REQUEST_SOURCE, "public")
-	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\"}"
-	response := T_PerformRequestBodyHeaders(t, "POST", "/user", body, headers)
-	T_ExpectErrorResponse(t, response, 400, "Invalid user details were given")
-}
-
 func Test_CreateUser_Error_Invalid_Role(t *testing.T) {
 	defer T_ExpectResponsablesEmpty(t)
 
@@ -607,14 +588,13 @@ func Test_CreateUser_Error_ErrorAddingToken(t *testing.T) {
 	T_ExpectErrorResponse(t, response, 500, "Error generating the token")
 }
 
-func Test_CreateUser_Success_Empty_Role_Private(t *testing.T) {
+func Test_CreateUser_Success_Empty_Role(t *testing.T) {
 	responsableStore.FindUsersResponses = []FindUsersResponse{{[]*User{}, nil}}
 	responsableStore.UpsertUserResponses = []error{nil}
 	responsableStore.AddTokenResponses = []error{nil}
 	defer T_ExpectResponsablesEmpty(t)
 
 	headers := http.Header{}
-	headers.Add(HEADER_REQUEST_SOURCE, "private")
 	body := "{\"username\": \"a@z.co\", \"emails\": [\"a@z.co\"], \"password\": \"12345678\", \"roles\": []}"
 	response := T_PerformRequestBodyHeaders(t, "POST", "/user", body, headers)
 	successResponse := T_ExpectSuccessResponseWithJSONMap(t, response, 201)

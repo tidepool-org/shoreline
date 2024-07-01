@@ -1,5 +1,5 @@
 # Development
-FROM --platform=$BUILDPLATFORM golang:1.17-alpine AS development
+FROM --platform=$BUILDPLATFORM golang:1.21-alpine AS development
 ARG APP_VERSION
 ARG GOPRIVATE
 ARG GITHUB_TOKEN

@@ -1,6 +1,9 @@
 # Shoreline
 
 Shoreline is the module that manages user accounts and authentication.
+## 2.1.0 - 2024-07-01
+### Changed
+- YLP-3116 Update shoreline to enable patient account creation if no role specified on public API
 
 ## 2.0.4 - 2024-04-10
 ### Engineering

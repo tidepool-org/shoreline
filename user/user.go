@@ -236,7 +236,7 @@ func (details *NewUserDetails) ExtractFromJSON(reader io.Reader) error {
 	return nil
 }
 
-func (details *NewUserDetails) Validate(requestSource string) error {
+func (details *NewUserDetails) Validate() error {
 	if details.Username == nil {
 		return ErrUserUsernameMissing
 	} else if !IsValidEmail(*details.Username) {
@@ -271,12 +271,9 @@ func (details *NewUserDetails) Validate(requestSource string) error {
 				return ErrUserRolesInvalid
 			}
 		}
-	} else if requestSource == "private" {
-		// Defaults to patient if no role is provided
-		// on private route only
-		details.Roles = []string{"patient"}
 	} else {
-		return ErrUserRolesMissing
+		// Defaults to patient if no role is provided
+		details.Roles = []string{"patient"}
 	}
 
 	return nil
@@ -290,10 +287,10 @@ func ParseNewUserDetails(reader io.Reader) (*NewUserDetails, error) {
 	return details, nil
 }
 
-func NewUser(details *NewUserDetails, salt string, requestSource string) (user *User, err error) {
+func NewUser(details *NewUserDetails, salt string) (user *User, err error) {
 	if details == nil {
 		return nil, errors.New("New user details is nil")
-	} else if err := details.Validate(requestSource); err != nil {
+	} else if err := details.Validate(); err != nil {
 		return nil, err
 	}
 

@@ -429,7 +429,6 @@ func (a *Api) GetUsers(res http.ResponseWriter, req *http.Request) {
 // @Failure 400 {object} status.Status "message returned:\"Invalid user details were given\" "
 // @Router /user [post]
 func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
-	requestSource := req.Header.Get(HEADER_REQUEST_SOURCE)
 	// Random sleep to avoid guessing accounts user.
 	time.Sleep(time.Millisecond * time.Duration(rand.Int63n(300)))
 	log := middlewares.GetLogReq(req)
@@ -437,7 +436,7 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 
 	if newUserDetails, err := ParseNewUserDetails(req.Body); err != nil {
 		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, log, err)
-	} else if err := newUserDetails.Validate(requestSource); err != nil { // TODO: Fix this duplicate work!
+	} else if err := newUserDetails.Validate(); err != nil { // TODO: Fix this duplicate work!
 		// fallback before returning an error
 		status := http.StatusBadRequest
 		if err == ErrUserUsernameInvalid {
@@ -449,7 +448,7 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 			}
 		}
 		a.sendError(res, status, STATUS_INVALID_USER_DETAILS, log, err)
-	} else if newUser, err := NewUser(newUserDetails, a.ApiConfig.Salt, requestSource); err != nil {
+	} else if newUser, err := NewUser(newUserDetails, a.ApiConfig.Salt); err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, log, err)
 	} else if existingUser, err := a.Store.FindUsers(req.Context(), newUser); err != nil {
 		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, log, err)
