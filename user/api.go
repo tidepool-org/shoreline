@@ -312,6 +312,16 @@ func (a *Api) CreateCustodialUser(res http.ResponseWriter, req *http.Request, va
 		return
 	} else {
 		permissions := clients.Permissions{"custodian": clients.Allowed, "view": clients.Allowed, "upload": clients.Allowed}
+		if custodianUserID != "" {
+			custodian, err := a.Store.WithContext(req.Context()).FindUser(&User{Id: custodianUserID})
+			if err != nil {
+				a.sendError(res, http.StatusNotFound, STATUS_USER_NOT_FOUND, err)
+				return
+			}
+			if custodian.HasRole(RoleCarePartner) {
+				permissions["care_partner"] = clients.Allowed
+			}
+		}
 		if _, err := a.perms.SetPermissions(custodianUserID, newCustodialUser.Id, permissions); err != nil {
 			a.sendError(res, http.StatusInternalServerError, STATUS_ERR_CREATING_USR, err)
 		} else {
