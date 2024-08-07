@@ -1,6 +1,6 @@
 module: shoreline
 type: golang
-goVersion: "1.21"
+goVersion: "1.22"
 runTests: false
 docker: true
 dockerPushToProduction : true
