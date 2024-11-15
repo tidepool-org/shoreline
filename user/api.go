@@ -21,7 +21,7 @@ import (
 	"github.com/microcosm-cc/bluemonday"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/mdblp/go-common/clients/status"
+	"github.com/mdblp/go-common/v2/clients/status"
 	"github.com/mdblp/shoreline/auth0"
 	"github.com/mdblp/shoreline/schema"
 	"github.com/mdblp/shoreline/token"

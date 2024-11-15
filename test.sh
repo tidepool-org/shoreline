@@ -4,6 +4,9 @@ go install github.com/jstemmer/go-junit-report@latest
 go install github.com/t-yuki/gocover-cobertura@latest
 go test -v -race -coverprofile=coverage.out ./... 2>&1 > testresults.txt
 testPass=$?
+cd client
+go test -v -race -coverprofile=coverage.out 2>&1 >> ../testresults.txt
+cd ..
 
 echo "Results:"
 cat testresults.txt

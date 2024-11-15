@@ -36,7 +36,7 @@ import (
 	"github.com/mdblp/shoreline/user"
 	"github.com/mdblp/shoreline/user/middlewares"
 
-	"github.com/mdblp/go-common/clients/version"
+	"github.com/mdblp/go-common/v2/clients/version"
 	"github.com/mdblp/go-db/mongo"
 )
 

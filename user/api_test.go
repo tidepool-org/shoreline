@@ -24,7 +24,7 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 
 	"github.com/gorilla/mux"
-	"github.com/mdblp/go-common/clients/version"
+	"github.com/mdblp/go-common/v2/clients/version"
 	auth0Mocks "github.com/mdblp/shoreline/auth0/mocks"
 	"github.com/mdblp/shoreline/token"
 	"github.com/mdblp/shoreline/user/middlewares"

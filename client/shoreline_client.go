@@ -1,9 +1,12 @@
-package shoreline
+package client
 
 import (
-	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"github.com/mdblp/go-common/v2/blperr"
+	"github.com/mdblp/go-common/v2/http/request"
 	"io"
 	"net/http"
 	"net/url"
@@ -12,33 +15,17 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mdblp/go-common/clients/status"
-	"github.com/mdblp/go-common/errors"
-	"github.com/mdblp/go-common/jepson"
-	"github.com/mdblp/shoreline/schema"
-	"github.com/mdblp/shoreline/token"
+	"github.com/mdblp/go-common/v2/clients/status"
 	log "github.com/sirupsen/logrus"
 )
 
+const serverAuthErrorKind = "shoreline-connection"
+
 type (
-	ClientInterface interface {
-		Start() error
-		Close()
-		Login(username, password string) (*schema.UserData, string, error)
-		Signup(username, password, email string) (*schema.UserData, error)
-		CheckToken(token string) *token.TokenData
-		TokenProvide() string
-		GetUser(userID, token string) (*schema.UserData, error)
-		UpdateUser(userID string, userUpdate schema.UserUpdate, token string) error
-		GetUnverifiedUsers(token string) ([]schema.UserData, error)
-		DeleteUser(userID string, token string) error
-	}
-
 	Client struct {
-		host       string        // host url
-		httpClient *http.Client  // store a reference to the http client so we can reuse it
-		config     *ClientConfig // Configuration for the client
-
+		host           string        // host url
+		httpClient     *http.Client  // store a reference to the http client so we can reuse it
+		config         *ClientConfig // Configuration for the client
 		mut            sync.Mutex
 		serverToken    string         // stores the most recently received server token
 		closed         chan chan bool // Channel to communicate that the object has been closed
@@ -53,17 +40,17 @@ type (
 	}
 
 	ClientConfig struct {
-		Name                 string          `json:"name"`                 // The name of this server for use in obtaining a server token
-		Secret               string          `json:"secret"`               // The secret used along with the name to obtain a server token
-		TokenRefreshInterval jepson.Duration `json:"tokenRefreshInterval"` // The amount of time between refreshes of the server token
-		TokenGetInterval     time.Duration   `json:"tokenGetInterval"`     // The amount of time between attempts to get the server token
+		Name                 string        `json:"name"`                 // The name of this server for use in obtaining a server token
+		Secret               string        `json:"secret"`               // The secret used along with the name to obtain a server token
+		TokenRefreshInterval time.Duration `json:"tokenRefreshInterval"` // The amount of time between refreshes of the server token
+		TokenGetInterval     time.Duration `json:"tokenGetInterval"`     // The amount of time between attempts to get the server token
 	}
 )
 
 func NewShorelineClientBuilder() *ClientBuilder {
 	return &ClientBuilder{
 		config: &ClientConfig{
-			TokenRefreshInterval: jepson.Duration(6 * time.Hour),
+			TokenRefreshInterval: 6 * time.Hour,
 		},
 	}
 }
@@ -94,7 +81,7 @@ func (b *ClientBuilder) WithSecret(val string) *ClientBuilder {
 
 // WithTokenRefreshInterval sets the duration interval for token refresh (config)
 func (b *ClientBuilder) WithTokenRefreshInterval(val time.Duration) *ClientBuilder {
-	b.config.TokenRefreshInterval = jepson.Duration(val)
+	b.config.TokenRefreshInterval = val
 	return b
 }
 
@@ -113,7 +100,7 @@ func (b *ClientBuilder) WithConfig(val *ClientConfig) *ClientBuilder {
 func (b *ClientBuilder) Build() *Client {
 
 	if b.host == "" {
-		panic("OpaClient requires a hostGetter to be set")
+		panic("Shoreline requires a hostGetter to be set")
 	}
 	if b.httpClient == nil {
 		b.httpClient = http.DefaultClient
@@ -167,9 +154,6 @@ func (client *Client) Start() error {
 	}
 	if client.config.Secret == "" {
 		panic("shorelineClient requires a secret to be set")
-	}
-	if err != nil {
-		return errors.New("No known user-api hosts")
 	}
 	if err = client.serverLogin(); err != nil {
 		log.Printf("Error on initial server token acquisition, [%v]", err)
@@ -260,9 +244,6 @@ func (client *Client) serverLogin() error {
 	if client.config.Secret == "" {
 		panic("shorelineClient requires a secret to be set")
 	}
-	if err != nil {
-		return errors.New("No known user-api hosts")
-	}
 
 	host.Path = path.Join(host.Path, "serverlogin")
 
@@ -272,7 +253,7 @@ func (client *Client) serverLogin() error {
 
 	res, err := client.httpClient.Do(req)
 	if err != nil {
-		return errors.Wrap(err, "Failure to obtain a server token")
+		return blperr.Newf(serverAuthErrorKind, "Failure to obtain a server token. Error = %s", err)
 	}
 	defer res.Body.Close()
 
@@ -281,7 +262,7 @@ func (client *Client) serverLogin() error {
 			Status: status.NewStatusf(res.StatusCode, "Unknown response code from service[%s]", req.URL),
 		}
 	}
-	token := res.Header.Get("x-tidepool-session-token")
+	token := res.Header.Get(request.LegacyTokenHeader)
 
 	client.mut.Lock()
 	defer client.mut.Unlock()
@@ -290,128 +271,23 @@ func (client *Client) serverLogin() error {
 	return nil
 }
 
-func extractUserData(r io.Reader) (*schema.UserData, error) {
-	var ud schema.UserData
+func extractUserData(r io.Reader) (*UserData, error) {
+	var ud UserData
 	if err := json.NewDecoder(r).Decode(&ud); err != nil {
 		return nil, err
 	}
 	return &ud, nil
 }
 
-func extractUsersData(r io.Reader) ([]schema.UserData, error) {
-	var ud []schema.UserData
+func extractUsersData(r io.Reader) ([]UserData, error) {
+	var ud []UserData
 	if err := json.NewDecoder(r).Decode(&ud); err != nil {
 		return nil, err
 	}
 	return ud, nil
 }
 
-// Signs up a new user
-// Returns a UserData object if successful
-func (client *Client) Signup(username, password, email string) (*schema.UserData, error) {
-	host, err := client.getHost()
-	if err != nil {
-		return nil, errors.New("No known user-api hosts.")
-	}
-
-	host.Path = path.Join(host.Path, "user")
-	data := []byte(fmt.Sprintf(`{"username": "%s", "password": "%s","emails":["%s"]}`, username, password, email))
-
-	req, _ := http.NewRequest("POST", host.String(), bytes.NewBuffer(data))
-
-	res, err := client.httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-
-	switch res.StatusCode {
-	case http.StatusCreated:
-		ud, err := extractUserData(res.Body)
-		if err != nil {
-			return nil, err
-		}
-
-		return ud, nil
-	default:
-		return nil, &status.StatusError{
-			Status: status.NewStatus(res.StatusCode, "There was an issue trying to signup a new user"),
-		}
-	}
-}
-
-// Login logs in a user with a username and password. Returns a UserData object if successful
-// and also stores the returned login token into ClientToken.
-func (client *Client) Login(username, password string) (*schema.UserData, string, error) {
-	host, err := client.getHost()
-	if err != nil {
-		return nil, "", errors.New("No known user-api hosts.")
-	}
-
-	host.Path = path.Join(host.Path, "login")
-
-	req, _ := http.NewRequest("POST", host.String(), nil)
-	req.SetBasicAuth(username, password)
-
-	res, err := client.httpClient.Do(req)
-	if err != nil {
-		return nil, "", err
-	}
-	defer res.Body.Close()
-
-	switch res.StatusCode {
-	case 200:
-		ud, err := extractUserData(res.Body)
-		if err != nil {
-			return nil, "", err
-		}
-
-		return ud, res.Header.Get("x-tidepool-session-token"), nil
-	case 404:
-		return nil, "", nil
-	default:
-		return nil, "", &status.StatusError{
-			Status: status.NewStatusf(res.StatusCode, "Unknown response code from service[%s]", req.URL),
-		}
-	}
-}
-
-// CheckToken tests a token with the user-api to make sure it's current;
-// if so, it returns the data encoded in the token.
-func (client *Client) CheckToken(tkn string) *token.TokenData {
-	host, err := client.getHost()
-	if err != nil {
-		return nil
-	}
-
-	host.Path = path.Join(host.Path, "token", tkn)
-
-	req, _ := http.NewRequest("GET", host.String(), nil)
-	req.Header.Add("x-tidepool-session-token", client.serverToken)
-
-	res, err := client.httpClient.Do(req)
-	if err != nil {
-		log.Println("Error checking token", err)
-		return nil
-	}
-	defer res.Body.Close()
-
-	switch res.StatusCode {
-	case 200:
-		var td token.TokenData
-		if err = json.NewDecoder(res.Body).Decode(&td); err != nil {
-			log.Println("Error parsing JSON results", err)
-			return nil
-		}
-		return &td
-	case 404:
-		return nil
-	default:
-		log.Printf("Unknown response code[%d] from service[%s]", res.StatusCode, host.String())
-		return nil
-	}
-}
-
+// Return a valid service token
 func (client *Client) TokenProvide() string {
 	client.mut.Lock()
 	defer client.mut.Unlock()
@@ -420,23 +296,15 @@ func (client *Client) TokenProvide() string {
 }
 
 // Get users with unverified email
-func (client *Client) GetUnverifiedUsers(token string) ([]schema.UserData, error) {
-	host, err := client.getHost()
-	if err != nil {
-		return nil, errors.New("no known user-api hosts.")
-	}
-
-	host.Path = path.Join(host.Path, "users")
-	q := host.Query()
-	q.Add("emailVerified", "false")
-	host.RawQuery = q.Encode()
-
-	req, _ := http.NewRequest("GET", host.String(), nil)
-	req.Header.Add("x-tidepool-session-token", token)
+func (client *Client) GetUnverifiedUsers(ctx context.Context, token string) ([]UserData, error) {
+	req, err := request.NewGetBuilder(client.host).
+		WithPath("user").
+		WithAuthToken(token).WithQueryParams(map[string]string{"emailVerified": "false"}).
+		Build(ctx)
 
 	res, err := client.httpClient.Do(req)
 	if err != nil {
-		return nil, errors.Wrap(err, "failure to get unverified users")
+		return nil, blperr.Newf(serverAuthErrorKind, "failure to get unverified users. Error = %v", err)
 	}
 	defer res.Body.Close()
 
@@ -448,7 +316,7 @@ func (client *Client) GetUnverifiedUsers(token string) ([]schema.UserData, error
 		}
 		return ud, nil
 	case http.StatusNoContent:
-		return []schema.UserData{}, nil
+		return []UserData{}, nil
 	default:
 		return nil, &status.StatusError{
 			Status: status.NewStatusf(res.StatusCode, "unknown response code from service[%s]", req.URL),
@@ -456,22 +324,19 @@ func (client *Client) GetUnverifiedUsers(token string) ([]schema.UserData, error
 	}
 }
 
-// Get user details for the given user
+// Get user details for the given user (from legacy auth system)
 // In this case the userID could be the actual ID or an email address
-func (client *Client) GetUser(userID, token string) (*schema.UserData, error) {
-	host, err := client.getHost()
+func (client *Client) GetUser(ctx context.Context, userId, token string) (*UserData, error) {
+	req, err := request.NewGetBuilder(client.host).
+		WithPath("user", userId).
+		WithAuthToken(token).Build(ctx)
+
 	if err != nil {
-		return nil, errors.New("No known user-api hosts.")
+		return nil, blperr.Newf(serverAuthErrorKind, "Failure to get a user. Error = %v", err)
 	}
-
-	host.Path = path.Join(host.Path, "user", userID)
-
-	req, _ := http.NewRequest("GET", host.String(), nil)
-	req.Header.Add("x-tidepool-session-token", token)
-
 	res, err := client.httpClient.Do(req)
 	if err != nil {
-		return nil, errors.Wrap(err, "Failure to get a user")
+		return nil, blperr.Newf(serverAuthErrorKind, "Failure to get a user. Error = %v", err)
 	}
 	defer res.Body.Close()
 
@@ -483,7 +348,7 @@ func (client *Client) GetUser(userID, token string) (*schema.UserData, error) {
 		}
 		return ud, nil
 	case http.StatusNoContent:
-		return &schema.UserData{}, nil
+		return &UserData{}, nil
 	default:
 		return nil, &status.StatusError{
 			Status: status.NewStatusf(res.StatusCode, "Unknown response code from service[%s]", req.URL),
@@ -491,66 +356,30 @@ func (client *Client) GetUser(userID, token string) (*schema.UserData, error) {
 	}
 }
 
-// Get user details for the given user
-// In this case the userID could be the actual ID or an email address
-func (client *Client) UpdateUser(userID string, userUpdate schema.UserUpdate, token string) error {
-	host, err := client.getHost()
-	if err != nil {
-		return errors.New("No known user-api hosts.")
-	}
-
+// Update a user in backloops legacy authentication db (shoreline)
+func (client *Client) UpdateUser(ctx context.Context, userId string, userUpdate UserUpdate, token string) error {
 	//structure that the update are given to us in
 	type updatesToApply struct {
-		Updates schema.UserUpdate `json:"updates"`
+		Updates UserUpdate `json:"updates"`
 	}
 
-	host.Path = path.Join(host.Path, "user", userID)
-	jsonUser, err := json.Marshal(updatesToApply{Updates: userUpdate})
+	req, err := request.NewPutBuilder(client.host).
+		WithPath("user", userId).
+		WithAuthToken(token).WithPayload(updatesToApply{Updates: userUpdate}).
+		Build(ctx)
+
 	if err != nil {
-		return &status.StatusError{
-			Status: status.NewStatusf(http.StatusInternalServerError, "Error getting user updates [%s]", err.Error()),
-		}
+		return blperr.Newf(serverAuthErrorKind, "Failure to update a user. Error = %v", err)
 	}
-
-	req, _ := http.NewRequest("PUT", host.String(), bytes.NewBuffer(jsonUser))
-	req.Header.Add("x-tidepool-session-token", token)
 
 	res, err := client.httpClient.Do(req)
 	if err != nil {
-		return errors.Wrap(err, "Failure to get a user")
+		return blperr.Newf(serverAuthErrorKind, "Failure to update a user. Error = %v", err)
 	}
 	defer res.Body.Close()
 
 	switch res.StatusCode {
 	case http.StatusOK:
-		return nil
-	default:
-		return &status.StatusError{
-			Status: status.NewStatusf(res.StatusCode, "Unknown response code from service[%s]", req.URL),
-		}
-	}
-}
-
-// Delete user
-func (client *Client) DeleteUser(userID string, token string) error {
-	host, err := client.getHost()
-	if err != nil {
-		return errors.New("No known user-api hosts.")
-	}
-
-	host.Path = path.Join(host.Path, "user", userID)
-
-	req, _ := http.NewRequest("DELETE", host.String(), nil)
-	req.Header.Add("x-tidepool-session-token", token)
-
-	res, err := client.httpClient.Do(req)
-	if err != nil {
-		return errors.Wrap(err, "Failure to delete user")
-	}
-	defer res.Body.Close()
-
-	switch res.StatusCode {
-	case http.StatusAccepted:
 		return nil
 	default:
 		return &status.StatusError{
