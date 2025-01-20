@@ -261,7 +261,7 @@ func NewConfigFromEnv(log *log.Logger) *ApiConfig {
 	} else if found {
 		config.UserTokenDurationSecs = int64(intValue)
 	}
-	log.Infof("User token duration: %v", time.Duration(config.UserTokenDurationSecs)*time.Second)
+	log.Debugf("User token duration: %v", time.Duration(config.UserTokenDurationSecs)*time.Second)
 
 	intValue, found, err = getIntFromEnvVar("SERVER_TOKEN_DURATION_SECS", 60, math.MaxInt32)
 	if err != nil {
@@ -269,7 +269,7 @@ func NewConfigFromEnv(log *log.Logger) *ApiConfig {
 	} else if found {
 		config.ServerTokenDurationSecs = int64(intValue)
 	}
-	log.Infof("Server token duration: %v", time.Duration(config.ServerTokenDurationSecs)*time.Second)
+	log.Debugf("Server token duration: %v", time.Duration(config.ServerTokenDurationSecs)*time.Second)
 
 	salt, found := os.LookupEnv("SALT")
 	if found && len(salt) > 0 {
@@ -368,7 +368,7 @@ func (a *Api) GetStatus(res http.ResponseWriter, req *http.Request) {
 // @Router /users [get]
 func (a *Api) GetUsers(res http.ResponseWriter, req *http.Request) {
 	log := middlewares.GetLogReq(req)
-	log.Info("processing a get users request")
+	log.Debug("processing a get users request")
 
 	sessionToken := sanitizeSessionToken(req)
 	if tokenData, err := a.authenticateSessionToken(req.Context(), sessionToken); err != nil {
@@ -432,7 +432,7 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 	// Random sleep to avoid guessing accounts user.
 	time.Sleep(time.Millisecond * time.Duration(rand.Int63n(300)))
 	log := middlewares.GetLogReq(req)
-	log.Info("processing a creation request")
+	log.Debug("processing a creation request")
 
 	if newUserDetails, err := ParseNewUserDetails(req.Body); err != nil {
 		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, log, err)
@@ -441,7 +441,7 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 		status := http.StatusBadRequest
 		if err == ErrUserUsernameInvalid {
 			if exist := a.Store.ExistDirtyUser(req.Context(), *newUserDetails.Username); exist {
-				log.Infof("username dirty: %s", *newUserDetails.Username)
+				log.Debugf("username dirty: %s", *newUserDetails.Username)
 				status = http.StatusConflict
 			} else {
 				log.Warnf("invalid username not managed: %s", *newUserDetails.Username)
@@ -490,7 +490,7 @@ func (a *Api) CreateUser(res http.ResponseWriter, req *http.Request) {
 // @Router /user/{userid} [put]
 func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 	log := middlewares.GetLogReq(req)
-	log.Info("processing a update user request")
+	log.Debug("processing a update user request")
 	sessionToken := sanitizeSessionToken(req)
 	var auth0User = &schema.UserUpdate{}
 	if tokenData, err := a.authenticateSessionToken(req.Context(), sessionToken); err != nil {
@@ -641,7 +641,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 	// retrieves logger from context
 	log := middlewares.GetLogReq(req)
-	log.Info("processing a user info request")
+	log.Debug("processing a user info request")
 	sessionToken := sanitizeSessionToken(req)
 	if tokenData, err := a.authenticateSessionToken(req.Context(), sessionToken); err != nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, log, err)
@@ -724,16 +724,16 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 		res.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	log.Infof("processing a deletion request for userid: %s", td.UserId)
+	log.Debugf("processing a deletion request for userid: %s", td.UserId)
 
 	var id string
 	if td.IsServer {
 		id = vars["userid"]
-		log.Info("processing a deletion request for server")
+		log.Debugf("processing a deletion request for server")
 		log.Debug("operating as server")
 	} else {
 		id = td.UserId
-		log.Infof("processing a deletion request for user id: %s", id)
+		log.Debugf("processing a deletion request for user id: %s", id)
 	}
 
 	pw := getGivenDetail(req)["password"]
@@ -791,7 +791,7 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	log.Infof("processing a login request for username: %s", user.Username)
+	log.Debugf("processing a login request for username: %s", user.Username)
 
 	// Random sleep to avoid guessing accounts user.
 	time.Sleep(time.Millisecond * time.Duration(rand.Int63n(100)))
@@ -838,7 +838,7 @@ func (a *Api) Login(res http.ResponseWriter, req *http.Request) {
 			log.Warnf("add default role to patient for username: %s", result.Username)
 		}
 		if requestSource == "private" && !result.HasRole("patient") {
-			log.Infof("Private route login: Adding patient role to user %v", result.Id)
+			log.Debugf("Private route login: Adding patient role to user %v", result.Id)
 			// Let's add the role patient:
 			result.Roles = append([]string{"patient"}, result.Roles...)
 			if err := a.Store.UpsertUser(req.Context(), result); err != nil {
@@ -880,7 +880,7 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 	// which server is knocking at the door and what password is it using to enter?
 	server, pw := sanitizeRequestHeader(req, TP_SERVER_NAME), req.Header.Get(TP_SERVER_SECRET)
 	log := middlewares.GetLogReq(req)
-	log.Infof("processing a server login request for server: %s", server)
+	log.Debugf("processing a server login request for server: %s", server)
 	// the expected secret is the secret that the requesting server is supposed to give to be delivered the token
 	expectedSecret := ""
 
@@ -951,14 +951,14 @@ func (a *Api) ServerLogin(res http.ResponseWriter, req *http.Request) {
 func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 	td, err := a.authenticateSessionToken(req.Context(), sanitizeSessionToken(req))
 	log := middlewares.GetLogReq(req)
-	log.Info("processing a refresh session request")
+	log.Debug("processing a refresh session request")
 
 	if err != nil {
 		log.Error(http.StatusUnauthorized, err.Error())
 		res.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	log.Infof("processing a refresh session request for userid: %s", td.UserId)
+	log.Debugf("processing a refresh session request for userid: %s", td.UserId)
 	log.Tracef("token data payload : %+v", *td)
 	// retrieve User in Db for having last information (role)
 	users, errUser := a.Store.FindUsers(req.Context(), &User{Id: td.UserId, Username: td.Email})
@@ -994,7 +994,7 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 		return
 	} else {
 		a.logAudit(req, td, "Refresh session token with last user information")
-		log.Info("Refresh session token with last user information")
+		log.Debug("Refresh session token with last user information")
 		res.Header().Set(TP_SESSION_TOKEN, sessionToken.ID)
 		sendModelAsRes(res, user)
 		return
@@ -1013,7 +1013,7 @@ func (a *Api) RefreshSession(res http.ResponseWriter, req *http.Request) {
 // @Router /token/{token} [get]
 func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars map[string]string) {
 	log := middlewares.GetLogReq(req)
-	log.Info("processing a server check request")
+	log.Debug("processing a server check request")
 
 	if hasServerToken(req.Header.Get(TP_SESSION_TOKEN), a.ApiConfig.Secret) {
 		td, err := a.authenticateSessionToken(req.Context(), vars["token"])
@@ -1042,7 +1042,7 @@ func (a *Api) ServerCheckToken(res http.ResponseWriter, req *http.Request, vars 
 // @Router /logout [post]
 func (a *Api) Logout(res http.ResponseWriter, req *http.Request) {
 	log := middlewares.GetLogReq(req)
-	log.Info("processing a logout request")
+	log.Debug("processing a logout request")
 
 	if id := sanitizeSessionToken(req); id != "" {
 		if err := a.Store.RemoveTokenByID(req.Context(), id); err != nil {

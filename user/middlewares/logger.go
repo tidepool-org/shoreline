@@ -2,6 +2,7 @@ package middlewares
 
 import (
 	"net/http"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 
@@ -32,8 +33,23 @@ func (h handler) LoggingMiddleware(next http.Handler) http.Handler {
 		}
 
 		ctx = logging.WithLogger(ctx, h.Log)
+		startTime := time.Now()
 
 		next.ServeHTTP(w, r.WithContext(ctx))
+
+		duration := time.Since(startTime).Milliseconds()
+		reqMethod := r.Method
+		reqUri := r.URL.Path
+		statusCode := "NA" // not available in handlers...jsut created the field
+		if reqUri != "/status" {
+			log := log.Fields{
+				"method":     reqMethod,
+				"uri":        reqUri,
+				"statusCode": statusCode,
+				"duration":   duration,
+			}
+			h.Log.WithFields(log).Info()
+		}
 	}
 
 	return http.HandlerFunc(fn)
