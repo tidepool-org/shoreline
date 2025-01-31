@@ -5,7 +5,7 @@ RUN adduser -D tidepool && \
     apk add --no-cache git gcc musl-dev && \
     chown -R tidepool /go/src/github.com/tidepool-org/shoreline
 USER tidepool
-RUN go install github.com/cosmtrek/air@latest
+RUN go install github.com/air-verse/air@v1.52.2
 COPY --chown=tidepool . .
 RUN ./build.sh
 CMD ["air"]
