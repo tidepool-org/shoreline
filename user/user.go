@@ -294,7 +294,7 @@ func NewUser(details *NewUserDetails, salt string) (user *User, err error) {
 		return nil, err
 	}
 
-	user = &User{Username: *details.Username, Emails: details.Emails, Roles: details.Roles}
+	user = &User{Username: strings.ToLower(*details.Username), Emails: details.Emails, Roles: details.Roles}
 
 	if user.Id, err = generateUniqueHash([]string{*details.Username, *details.Password}, 10); err != nil {
 		return nil, errors.New("User: error generating id")

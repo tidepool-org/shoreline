@@ -254,8 +254,8 @@ github.com/mattn/go-runewidth v0.0.2/go.mod h1:LwmH8dsx7+W8Uxz3IHJYH5QSwggIsqBzp
 github.com/matttproud/golang_protobuf_extensions v1.0.1/go.mod h1:D8He9yQNgCq6Z5Ld7szi9bcBfOoFv/3dc6xSMkL2PC0=
 github.com/matttproud/golang_protobuf_extensions v1.0.4 h1:mmDVorXM7PCGKw94cs5zkfA9PSy5pEvNWRP0ET0TIVo=
 github.com/matttproud/golang_protobuf_extensions v1.0.4/go.mod h1:BSXmuO+STAnVfrANrmjBb36TMTDstsz7MSK+HVaYKv4=
-github.com/mdblp/go-common/v2 v2.1.0 h1:6oKmgCKdcq6H6059gywYjwlCJLyblwtKxaNv2JGOVQY=
-github.com/mdblp/go-common/v2 v2.1.0/go.mod h1:o1J64DoP7XtPckrDnqGdm7nmXwEr7ln5uk/Rfyj759A=
+github.com/mdblp/go-common/v2 v2.1.1 h1:uZBFb7R8TY7j6tt1BXX4mHteU9M9ZcNEG2DbMANxMmc=
+github.com/mdblp/go-common/v2 v2.1.1/go.mod h1:o1J64DoP7XtPckrDnqGdm7nmXwEr7ln5uk/Rfyj759A=
 github.com/mdblp/go-db v1.3.0 h1:D3G8+PSvxFAzMNOlpI9uYZqU8eGrHeBLJc2ViGU36UM=
 github.com/mdblp/go-db v1.3.0/go.mod h1:FItFgXuoiGJe9rNz/6xGGXoqriDlvrSSlvHny3HHlR8=
 github.com/microcosm-cc/bluemonday v1.0.26 h1:xbqSvqzQMeEHCqMi64VAs4d8uy6Mequs3rQ0k/Khz58=

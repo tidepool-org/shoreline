@@ -513,6 +513,23 @@ func Test_NewUser_Valid(t *testing.T) {
 	}
 }
 
+func Test_NewUser_ForceEmailToLowerCase(t *testing.T) {
+	username := "AzerTy@z.co"
+	password := "12345678"
+	details := &NewUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Password: &password, Roles: []string{"hcp"}}
+	salt := "abc"
+	user, err := NewUser(details, salt)
+	if err != nil {
+		t.Fatalf("Unexpected error for valid: %#v", err)
+	}
+	if user == nil {
+		t.Fatalf("User is nil for valid")
+	}
+	if user.Username != "azerty@z.co" {
+		t.Fatalf("Fields do not match on success")
+	}
+}
+
 func Test_NewCustodialUserDetails_ExtractFromJSON_InvalidJSON(t *testing.T) {
 	source := ""
 	details := &NewCustodialUserDetails{}

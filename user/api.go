@@ -22,6 +22,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/mdblp/go-common/v2/clients/status"
+
 	"github.com/mdblp/shoreline/auth0"
 	"github.com/mdblp/shoreline/schema"
 	"github.com/mdblp/shoreline/token"
@@ -555,9 +556,10 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 		if updateUserDetails.Username != nil || updateUserDetails.Emails != nil {
 			dupCheck := &User{}
 			if updateUserDetails.Username != nil {
-				updatedUser.Username = *updateUserDetails.Username
-				auth0User.Username = updateUserDetails.Username
-				dupCheck.Username = updatedUser.Username
+				lowerCaseUser := strings.ToLower(*updateUserDetails.Username)
+				updatedUser.Username = lowerCaseUser
+				auth0User.Username = &lowerCaseUser
+				dupCheck.Username = lowerCaseUser
 			}
 			if updateUserDetails.Emails != nil {
 				updatedUser.Emails = updateUserDetails.Emails

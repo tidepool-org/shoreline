@@ -6,7 +6,7 @@ require (
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/mux v1.8.0
-	github.com/mdblp/go-common/v2 v2.1.0
+	github.com/mdblp/go-common/v2 v2.1.1
 	github.com/mdblp/go-db v1.3.0
 	github.com/microcosm-cc/bluemonday v1.0.26
 	github.com/prometheus/client_golang v1.14.0

@@ -4,16 +4,18 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 
 	goComMgo "github.com/mdblp/go-db/mongo"
-	"github.com/mdblp/shoreline/common/logging"
-	"github.com/mdblp/shoreline/token"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+
+	"github.com/mdblp/shoreline/common/logging"
+	"github.com/mdblp/shoreline/token"
 )
 
 const (
@@ -38,15 +40,23 @@ func NewStore(config *goComMgo.Config, logger *log.Logger) (*Client, error) {
 				SetUnique(false).
 				SetExpireAfterSeconds(0),
 		}},
-		USERS_COLLECTION: {{
-			Keys: bson.D{{Key: "userid", Value: 1}},
-			Options: options.Index().
-				SetName("UserId"),
-		}, {
-			Keys: bson.D{{Key: "emails", Value: 1}},
-			Options: options.Index().
-				SetName("Emails"),
-		}},
+		USERS_COLLECTION: {
+			{
+				Keys: bson.D{{Key: "userid", Value: 1}},
+				Options: options.Index().
+					SetName("UserId"),
+			},
+			{
+				Keys: bson.D{{Key: "username", Value: 1}},
+				Options: options.Index().
+					SetName("Username"),
+			},
+			{
+				Keys: bson.D{{Key: "emails", Value: 1}},
+				Options: options.Index().
+					SetName("Emails"),
+			},
+		},
 	}
 	store, err := goComMgo.NewStoreClient(config, logger)
 	client.StoreClient = store
@@ -149,14 +159,25 @@ func (c *Client) ExistDirtyUser(ctx context.Context, username string) (res bool)
 
 func (c *Client) FindUsers(ctx context.Context, user *User) (results []*User, err error) {
 
-	fieldsToMatch := []bson.M{}
-
+	//Start the search by userId
 	if user.Id != "" {
-		fieldsToMatch = append(fieldsToMatch, bson.M{"userid": user.Id})
+		if results, err = c.findUsers(ctx, bson.M{"userid": user.Id}, fmt.Sprintf("no users found: query: (Id = %v)", user.Id)); err != nil {
+			return results, err
+		} else if len(results) > 0 {
+			return results, nil
+		}
 	}
-	if user.FrProId != "" {
-		fieldsToMatch = append(fieldsToMatch, bson.M{"frProId": user.FrProId})
+	//Then by userName lower case
+	if user.Username != "" {
+		if results, err = c.findUsers(ctx, bson.M{"username": strings.ToLower(user.Username)}, fmt.Sprintf("no users found: query: (Username = %v)", strings.ToLower(user.Username))); err != nil {
+			return results, err
+		} else if len(results) > 0 {
+			return results, nil
+		}
 	}
+
+	//Finally try another strategy (not using indexes)
+	fieldsToMatch := []bson.M{}
 	if user.Username != "" {
 		regexFilter := primitive.Regex{Pattern: fmt.Sprintf(`^%s$`, regexp.QuoteMeta(user.Username)), Options: "i"}
 		fieldsToMatch = append(fieldsToMatch, bson.M{"username": bson.M{"$regex": regexFilter}})
@@ -164,12 +185,11 @@ func (c *Client) FindUsers(ctx context.Context, user *User) (results []*User, er
 	if len(user.Emails) > 0 {
 		fieldsToMatch = append(fieldsToMatch, bson.M{"emails": bson.M{"$in": user.Emails}})
 	}
-
 	if len(fieldsToMatch) == 0 {
 		return []*User{}, nil
 	}
-	noUserMessage := fmt.Sprintf("no users found: query: (Id = %v) OR (Name ~= %v) OR (Emails IN %v)", user.Id, user.Username, user.Emails)
-	return c.findUsers(ctx, bson.M{"$or": fieldsToMatch}, noUserMessage)
+
+	return c.findUsers(ctx, bson.M{"$or": fieldsToMatch}, fmt.Sprintf("no users found: query: (Username = %v)", user.Username))
 }
 
 func (c *Client) FindUsersByRole(ctx context.Context, role string) (results []*User, err error) {

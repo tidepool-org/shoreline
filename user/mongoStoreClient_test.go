@@ -9,6 +9,7 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 
 	"github.com/mdblp/go-db/mongo"
+
 	"github.com/mdblp/shoreline/token"
 )
 
@@ -41,11 +42,12 @@ func mgoTestSetup() (*Client, error) {
 func TestMongoStoreUserOperations(t *testing.T) {
 
 	var (
-		usernameOriginal     = "test@foo.bar"
+		usernameOriginal     = "Test@foo.bar"
 		usernameOther        = "other@foo.bar"
 		password             = "myT35ter"
 		original_user_detail = &NewUserDetails{Username: &usernameOriginal, Emails: []string{usernameOriginal}, Password: &password, Roles: []string{"caregiver"}}
 		other_user_detail    = &NewUserDetails{Username: &usernameOther, Emails: original_user_detail.Emails, Password: &password}
+		user                 = &User{Id: "someId1234", Username: usernameOriginal, Emails: []string{usernameOriginal}, Roles: []string{"caregiver"}}
 	)
 
 	const tests_fake_salt = "some fake salt for the tests"
@@ -59,11 +61,6 @@ func TestMongoStoreUserOperations(t *testing.T) {
 	 * THE TESTS
 	 */
 	ctx := context.Background()
-	user, err := NewUser(original_user_detail, tests_fake_salt)
-	if err != nil {
-		t.Fatalf("we could not create the user %v", err)
-	}
-
 	if err := mc.UpsertUser(ctx, user); err != nil {
 		t.Fatalf("we could not upsert the user %v", err)
 	}
@@ -149,6 +146,17 @@ func TestMongoStoreUserOperations(t *testing.T) {
 
 	//By Id
 	toFindById := &User{Id: user.Id}
+
+	if result, err := mc.FindUsers(ctx, toFindById); err != nil {
+		t.Fatalf("we could not find the the user by id err[%v]", err)
+	} else {
+		if len(result) != 1 {
+			t.Fatalf("no user found by id")
+		}
+		if result[0].Id != toFindById.Id {
+			t.Fatalf("the user we found doesn't match what we asked for %v", result[0])
+		}
+	}
 
 	if found, err := mc.FindUser(ctx, toFindById); err != nil {
 		t.Fatalf("we could not find the the user by id err[%v]", err)
