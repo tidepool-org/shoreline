@@ -1,10 +1,10 @@
 module: shoreline
 type: golang
-goVersion: "1.22"
+goVersion: "1.24"
 runTests: false
 docker: true
 dockerPushToProduction : true
-dockerBuild: 
+dockerBuild:
   platform: 'linux/arm64,linux/amd64'
   buildArgs:
     - 'APP_VERSION=$version'
