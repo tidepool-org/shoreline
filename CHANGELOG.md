@@ -2,6 +2,10 @@
 
 Shoreline is the module that manages user accounts and authentication.
 
+## 2.2.3 - 2025-04-15
+### Engineering
+- Fix CVE
+
 ## 2.2.2 - 2025-02-14
 ### Engineering
 - YLP-3278 Add an index on the username and make sure it is used during the search
