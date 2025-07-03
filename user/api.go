@@ -74,8 +74,6 @@ type (
 	ApiConfig struct {
 		//base url which (publicly) exposes shoreline service
 		PublicApiURl string
-		//base url of front-end, used for oidc login redirect
-		FrontUrl string
 		//used for services
 		ServerSecrets     map[string]string
 		LongTermKey       string `json:"longTermKey"`
@@ -163,7 +161,6 @@ func NewConfigFromEnv(log *log.Logger) *ApiConfig {
 	var found bool
 	config := &ApiConfig{
 		PublicApiURl:                "http://localhost:9107",
-		FrontUrl:                    "http://localhost:3001",
 		MaxFailedLogin:              5,
 		DelayBeforeNextLoginAttempt: 10, // 10 Minutes
 		MaxConcurrentLogin:          100,
@@ -182,10 +179,6 @@ func NewConfigFromEnv(log *log.Logger) *ApiConfig {
 	baseUrl, found := os.LookupEnv("AUTH_BASE_URL")
 	if found {
 		config.PublicApiURl = baseUrl
-	}
-	frontUrl, found := os.LookupEnv("FRONT_BASE_URL")
-	if found {
-		config.FrontUrl = frontUrl
 	}
 
 	intValue, found, err = getIntFromEnvVar("USER_MAX_FAILED_LOGIN", 1, math.MaxInt16)
