@@ -2,8 +2,8 @@ package keycloak
 
 import (
 	"context"
-	"github.com/Nerzal/gocloak/v12"
-	"github.com/Nerzal/gocloak/v12/pkg/jwx"
+	"github.com/Nerzal/gocloak/v13"
+	"github.com/Nerzal/gocloak/v13/pkg/jwx"
 	"github.com/kelseyhightower/envconfig"
 	"golang.org/x/oauth2"
 	"net/http"
@@ -393,7 +393,7 @@ func (c *client) IntrospectToken(ctx context.Context, token oauth2.Token) (*Toke
 		}
 		result.Subject = customClaims.Subject
 		result.EmailVerified = customClaims.EmailVerified
-		result.ExpiresAt = customClaims.ExpiresAt
+		result.ExpiresAt = customClaims.ExpiresAt.Unix()
 		result.RealmAccess = RealmAccess{
 			Roles: customClaims.RealmAccess.Roles,
 		}
