@@ -5,7 +5,7 @@ import (
 	"crypto/tls"
 	clinics "github.com/tidepool-org/clinic/client"
 	"github.com/tidepool-org/shoreline/keycloak"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -175,14 +175,17 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	consumer, err := events.NewFaultTolerantCloudEventsConsumer(kafkaConfig)
+	handlers := []events.EventHandler{events.NewUserEventsHandler(handler)}
+	consumer, err := events.NewFaultTolerantConsumerGroup(kafkaConfig, func() (events.MessageConsumer, error) {
+		return events.NewCloudEventsMessageHandler(handlers)
+	})
+
 	if err != nil {
 		log.Fatalln(err)
 	}
-	consumer.RegisterHandler(events.NewUserEventsHandler(handler))
 
 	// Stop logging kafka connection debug info
-	sarama.Logger = log.New(ioutil.Discard, "[Sarama] ", log.LstdFlags)
+	sarama.Logger = log.New(io.Discard, "[Sarama] ", log.LstdFlags)
 
 	var clinic clinics.ClientWithResponsesInterface
 	clinicServiceAddress, addressFound := os.LookupEnv("TIDEPOOL_CLINIC_CLIENT_ADDRESS")
