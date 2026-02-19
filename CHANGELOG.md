@@ -2,6 +2,10 @@
 
 Shoreline is the module that manages user accounts and authentication.
 
+## 2.2.7 - 2026-02-19
+### Security
+- Update libraries (to fix CVE)
+
 ## 2.2.6 - 2025-11-25
 ### Security
 - Update libraries (to fix CVE)
