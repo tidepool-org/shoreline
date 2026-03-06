@@ -3,7 +3,7 @@ module github.com/tidepool-org/shoreline
 go 1.22
 
 require (
-	github.com/Nerzal/gocloak/v12 v12.0.0
+	github.com/Nerzal/gocloak/v13 v13.9.0
 	github.com/Shopify/sarama v1.38.1
 	github.com/coocood/freecache v1.2.4
 	github.com/go-resty/resty/v2 v2.11.0
@@ -33,7 +33,7 @@ require (
 	github.com/eapache/go-xerial-snappy v0.0.0-20230731223053-c322873962e3 // indirect
 	github.com/eapache/queue v1.1.0 // indirect
 	github.com/globalsign/mgo v0.0.0-20181015135952-eeefdecb41b8 // indirect
-	github.com/golang-jwt/jwt/v4 v4.5.1 // indirect
+	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/uuid v1.5.0 // indirect
