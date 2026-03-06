@@ -4,13 +4,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/tidepool-org/shoreline/keycloak"
 	"io"
 	"math/rand"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/tidepool-org/shoreline/keycloak"
 )
 
 const (
@@ -56,6 +58,13 @@ type User struct {
 	ModifiedUserID       string                 `json:"modifiedUserId,omitempty" bson:"modifiedUserId,omitempty"`
 	DeletedTime          string                 `json:"deletedTime,omitempty" bson:"deletedTime,omitempty"`
 	DeletedUserID        string                 `json:"deletedUserId,omitempty" bson:"deletedUserId,omitempty"`
+}
+
+func (u *User) SanitizeTemporaryCustodialEmails() {
+	if IsTemporaryCustodialEmail(u.Username) {
+		u.Username = ""
+	}
+	u.Emails = slices.DeleteFunc(u.Emails, IsTemporaryCustodialEmail)
 }
 
 /*
@@ -124,6 +133,8 @@ func ExtractString(data map[string]interface{}, key string) (*string, bool) {
 func ExtractArray(data map[string]interface{}, key string) ([]interface{}, bool) {
 	if raw, ok := data[key]; !ok {
 		return nil, true
+	} else if raw == nil {
+		return []interface{}{}, true
 	} else if extractedArray, ok := raw.([]interface{}); !ok {
 		return nil, false
 	} else if len(extractedArray) == 0 {
@@ -491,7 +502,7 @@ func (details *UpdateUserDetails) ExtractFromJSON(reader io.Reader) error {
 }
 
 func (details *UpdateUserDetails) Validate() error {
-	if details.Username != nil {
+	if details.Username != nil && *details.Username != "" {
 		if !IsValidEmail(*details.Username) {
 			return User_error_username_invalid
 		}
@@ -502,6 +513,16 @@ func (details *UpdateUserDetails) Validate() error {
 			if !IsValidEmail(email) {
 				return User_error_emails_invalid
 			}
+		}
+	}
+
+	if details.Username != nil && details.Emails != nil {
+		var firstEmail string
+		if len(details.Emails) > 0 {
+			firstEmail = details.Emails[0]
+		}
+		if *details.Username != firstEmail {
+			return User_error_username_invalid
 		}
 	}
 
