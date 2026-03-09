@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/golang-jwt/jwt"
+	"github.com/golang-jwt/jwt/v5"
 
 	"github.com/tidepool-org/shoreline/keycloak"
 )
