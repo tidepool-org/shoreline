@@ -18,7 +18,7 @@ CMD ["./dist/shoreline"]
 
 # Production
 FROM gcr.io/distroless/static:nonroot AS production
-WORKDIR /home/nonroot
+WORKDIR /home/mdblp
 USER nonroot
 COPY --from=development --chown=nonroot /go/src/github.com/mdblp/shoreline/dist/shoreline .
 CMD ["./shoreline"]

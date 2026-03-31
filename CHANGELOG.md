@@ -2,6 +2,10 @@
 
 Shoreline is the module that manages user accounts and authentication.
 
+## 2.4.0 - 2026-03-31
+### Changed
+- Fix permission errors
+
 ## 2.3.0 - 2026-03-27
 ### Changed
 - Update Go version to 1.26
