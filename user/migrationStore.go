@@ -4,8 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/tidepool-org/shoreline/keycloak"
 	"time"
+
+	"github.com/tidepool-org/shoreline/keycloak"
 )
 
 var ErrUserConflict = errors.New("user already exists")
@@ -154,12 +155,15 @@ func (m *MigrationStore) updateKeycloakUser(user *User, details *UpdateUserDetai
 		keycloakUser.Roles = newRoles
 		keycloakUser.Enabled = true
 	}
-	if details.Username != nil {
+	if details.Username == nil || *details.Username == "" {
+		custodialEmail := GenerateTemporaryCustodialEmail()
+		keycloakUser.Email = custodialEmail
+		keycloakUser.Username = custodialEmail
+	} else {
+		keycloakUser.Email = *details.Username
 		keycloakUser.Username = *details.Username
 	}
-	if details.Emails != nil && len(details.Emails) > 0 {
-		keycloakUser.Email = details.Emails[0]
-	}
+
 	if details.EmailVerified != nil {
 		keycloakUser.EmailVerified = *details.EmailVerified
 	}

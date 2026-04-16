@@ -404,6 +404,10 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 
 	} else if (updateUserDetails.Password != nil || updateUserDetails.TermsAccepted != nil) && permissions["root"] == nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, "User does not have permissions")
+
+	} else if _, isCustodial := permissions["custodian"]; !isCustodial && updateUserDetails.Emails != nil && len(updateUserDetails.Emails) == 0 {
+		a.sendError(res, http.StatusBadRequest, STATUS_INVALID_USER_DETAILS, "Removing email is only allowed for custodial accounts")
+
 	} else {
 		if updateUserDetails.Password != nil {
 			hash, err := GeneratePasswordHash(originalUser.Id, *updateUserDetails.Password, a.ApiConfig.Salt)
@@ -428,6 +432,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 				}
 			}
 
+			updatedUser.SanitizeTemporaryCustodialEmails()
 			if e := a.userEventsNotifier.NotifyUserUpdated(req.Context(), *originalUser, *updatedUser); e != nil {
 				a.logger.Println(http.StatusInternalServerError, e.Error())
 				errs = append(errs, e)
