@@ -1,13 +1,11 @@
 package user
 
 import (
-	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"math"
-	"math/big"
+	"math/rand"
 	"regexp"
 	"slices"
 	"strconv"
@@ -442,9 +440,8 @@ func NewUserDetailsFromCustodialUserDetails(details *NewCustodialUserDetails) (*
 }
 
 func GenerateTemporaryCustodialEmail() string {
-	// Int cannot return an error when using rand.Reader.
-	random, _ := rand.Int(rand.Reader, big.NewInt(math.MaxInt64))
-	return fmt.Sprintf(custodialEmailFormat, random.Int64())
+	random := rand.Uint64()
+	return fmt.Sprintf(custodialEmailFormat, random)
 }
 
 func IsTemporaryCustodialEmail(email string) bool {
