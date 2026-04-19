@@ -2,15 +2,15 @@ package keycloak
 
 import (
 	"context"
-	"github.com/Nerzal/gocloak/v13"
-	"github.com/Nerzal/gocloak/v13/pkg/jwx"
-	"github.com/kelseyhightower/envconfig"
-	"golang.org/x/oauth2"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/pkg/errors"
+	"github.com/Nerzal/gocloak/v13"
+	"github.com/Nerzal/gocloak/v13/pkg/jwx"
+	"github.com/kelseyhightower/envconfig"
+	"golang.org/x/oauth2"
 )
 
 const (
@@ -77,7 +77,6 @@ func NewKeycloakUser(gocloakUser *gocloak.User) *User {
 			user.Attributes.TermsAcceptedDate = ts
 		}
 	}
-
 	if gocloakUser.RealmRoles != nil {
 		user.Roles = *gocloakUser.RealmRoles
 	}
@@ -266,11 +265,9 @@ func (c *client) UpdateUser(ctx context.Context, user *User) error {
 		LastName:      &user.LastName,
 		Email:         &user.Email,
 	}
-
-	gocloakUser.Attributes = &map[string][]string{
-		"terms_and_conditions": user.Attributes.TermsAcceptedDate,
-	}
-
+	// Do not set/update any user attributes (gocloak.User.Attributes) here to prevent
+	// race conditions with user profile updates due to read modify writes of
+	// profile updqtes in clinic-worker and others.
 	if err := c.keycloak.UpdateUser(ctx, token.AccessToken, c.cfg.Realm, gocloakUser); err != nil {
 		return err
 	}
@@ -309,7 +306,6 @@ func (c *client) CreateUser(ctx context.Context, user *User) (*User, error) {
 		Enabled:       &user.Enabled,
 		RealmRoles:    &user.Roles,
 	}
-
 	if len(user.Attributes.TermsAcceptedDate) > 0 {
 		attrs := map[string][]string{
 			"terms_and_conditions": user.Attributes.TermsAcceptedDate,
