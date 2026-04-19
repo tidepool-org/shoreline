@@ -402,7 +402,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 	} else if (updateUserDetails.Roles != nil || updateUserDetails.EmailVerified != nil) && !tokenData.IsServer {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, "User does not have permissions")
 
-	} else if (updateUserDetails.Password != nil || updateUserDetails.TermsAccepted != nil) && permissions["root"] == nil {
+	} else if (updateUserDetails.Password != nil || updateUserDetails.TermsAccepted != nil || updateUserDetails.Profile != nil) && permissions["root"] == nil {
 		a.sendError(res, http.StatusUnauthorized, STATUS_UNAUTHORIZED, "User does not have permissions")
 	} else {
 		if updateUserDetails.Password != nil {

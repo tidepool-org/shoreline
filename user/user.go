@@ -4,13 +4,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/tidepool-org/shoreline/keycloak"
 	"io"
 	"math/rand"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/tidepool-org/shoreline/keycloak"
+	"github.com/tidepool-org/shoreline/profile"
 )
 
 const (
@@ -56,6 +58,7 @@ type User struct {
 	ModifiedUserID       string                 `json:"modifiedUserId,omitempty" bson:"modifiedUserId,omitempty"`
 	DeletedTime          string                 `json:"deletedTime,omitempty" bson:"deletedTime,omitempty"`
 	DeletedUserID        string                 `json:"deletedUserId,omitempty" bson:"deletedUserId,omitempty"`
+	Profile              *profile.UserProfile   `json:"-" bson:"-"`
 }
 
 /*
@@ -82,6 +85,7 @@ type UpdateUserDetails struct {
 	Roles          []string
 	TermsAccepted  *string
 	EmailVerified  *bool
+	Profile        *profile.UserProfile
 }
 
 type Profile struct {
@@ -645,7 +649,7 @@ func (u *User) ToKeycloakUser() *keycloak.User {
 		keycloakUser.Roles = append(keycloakUser.Roles, RoleCustodialAccount)
 	}
 	if termsAccepted, err := TimestampToUnixString(u.TermsAccepted); err == nil {
-		keycloakUser.Attributes.TermsAcceptedDate = []string{termsAccepted}
+		keycloakUser.Attributes.TermsAcceptedDate = termsAccepted
 	}
 
 	return keycloakUser
@@ -662,7 +666,7 @@ func (u *User) IsEnabled() bool {
 func NewUserFromKeycloakUser(keycloakUser *keycloak.User) *User {
 	termsAcceptedDate := ""
 	if len(keycloakUser.Attributes.TermsAcceptedDate) > 0 {
-		if ts, err := UnixStringToTimestamp(keycloakUser.Attributes.TermsAcceptedDate[0]); err == nil {
+		if ts, err := UnixStringToTimestamp(keycloakUser.Attributes.TermsAcceptedDate); err == nil {
 			termsAcceptedDate = ts
 		}
 	}
