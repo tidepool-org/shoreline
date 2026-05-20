@@ -4,13 +4,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/tidepool-org/shoreline/keycloak"
 	"io"
 	"math/rand"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/tidepool-org/shoreline/keycloak"
 )
 
 const (

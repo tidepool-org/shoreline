@@ -4,8 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/tidepool-org/shoreline/keycloak"
 	"time"
+
+	"github.com/tidepool-org/shoreline/keycloak"
 )
 
 var ErrUserConflict = errors.New("user already exists")
@@ -162,11 +163,6 @@ func (m *MigrationStore) updateKeycloakUser(user *User, details *UpdateUserDetai
 	}
 	if details.EmailVerified != nil {
 		keycloakUser.EmailVerified = *details.EmailVerified
-	}
-	if details.TermsAccepted != nil && IsValidTimestamp(*details.TermsAccepted) {
-		if ts, err := TimestampToUnixString(*details.TermsAccepted); err == nil {
-			keycloakUser.Attributes.TermsAcceptedDate = []string{ts}
-		}
 	}
 
 	err := m.keycloakClient.UpdateUser(m.ctx, keycloakUser)
