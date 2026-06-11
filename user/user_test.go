@@ -4,6 +4,9 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/tidepool-org/shoreline/keycloak"
 )
 
 func Test_ExtractBool_Missing(t *testing.T) {
@@ -1291,5 +1294,51 @@ func Test_User_DeepClone(t *testing.T) {
 	clonedUser := user.DeepClone()
 	if !reflect.DeepEqual(user, clonedUser) {
 		t.Fatalf("The clone user is not exactly equal to the original user")
+	}
+}
+
+func Test_NewUserFromKeycloakUser_ParsesLastLoginTime(t *testing.T) {
+	keycloakUser := &keycloak.User{
+		ID:       "0000000000",
+		Username: "test@example.com",
+		Attributes: keycloak.UserAttributes{
+			LastLoginTime: []string{"1700000000000"},
+		},
+	}
+
+	user := NewUserFromKeycloakUser(keycloakUser)
+	if user.LastLoginTime == nil {
+		t.Fatal("Expected last login time to be parsed")
+	}
+	if expected := time.UnixMilli(1700000000000).UTC(); !user.LastLoginTime.Equal(expected) {
+		t.Fatalf("Expected last login time %v, got %v", expected, *user.LastLoginTime)
+	}
+}
+
+func Test_NewUserFromKeycloakUser_IgnoresInvalidLastLoginTime(t *testing.T) {
+	keycloakUser := &keycloak.User{
+		ID:       "0000000000",
+		Username: "test@example.com",
+		Attributes: keycloak.UserAttributes{
+			LastLoginTime: []string{"not-a-number"},
+		},
+	}
+
+	if user := NewUserFromKeycloakUser(keycloakUser); user.LastLoginTime != nil {
+		t.Fatal("Expected invalid last login time to be ignored")
+	}
+}
+
+func Test_ToKeycloakUser_RoundTripsLastLoginTime(t *testing.T) {
+	lastLogin := time.UnixMilli(1700000000000).UTC()
+	user := &User{
+		Id:            "0000000000",
+		Username:      "test@example.com",
+		LastLoginTime: &lastLogin,
+	}
+
+	keycloakUser := user.ToKeycloakUser()
+	if len(keycloakUser.Attributes.LastLoginTime) != 1 || keycloakUser.Attributes.LastLoginTime[0] != "1700000000000" {
+		t.Fatalf("Expected last login attribute to round-trip, got %v", keycloakUser.Attributes.LastLoginTime)
 	}
 }

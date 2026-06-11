@@ -138,6 +138,21 @@ func (mr *MockClientMockRecorder) GetUserById(ctx, id interface{}) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserById", reflect.TypeOf((*MockClient)(nil).GetUserById), ctx, id)
 }
 
+// GetUserSecurityProfile mocks base method.
+func (m *MockClient) GetUserSecurityProfile(ctx context.Context, userID string) (*UserSecurityProfile, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserSecurityProfile", ctx, userID)
+	ret0, _ := ret[0].(*UserSecurityProfile)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserSecurityProfile indicates an expected call of GetUserSecurityProfile.
+func (mr *MockClientMockRecorder) GetUserSecurityProfile(ctx, userID interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserSecurityProfile", reflect.TypeOf((*MockClient)(nil).GetUserSecurityProfile), ctx, userID)
+}
+
 // IntrospectToken mocks base method.
 func (m *MockClient) IntrospectToken(ctx context.Context, token oauth2.Token) (*TokenIntrospectionResult, error) {
 	m.ctrl.T.Helper()
