@@ -50,6 +50,7 @@ type User struct {
 	IsMigrated           bool                   `json:"-" bson:"-"`
 	IsUnclaimedCustodial bool                   `json:"-" bson:"-"`
 	Enabled              bool                   `json:"-" bson:"-"`
+	LastLoginTime        *time.Time             `json:"-" bson:"-"` // from the keycloak last_login_time attribute; migrated users only
 	CreatedTime          string                 `json:"createdTime,omitempty" bson:"createdTime,omitempty"`
 	CreatedUserID        string                 `json:"createdUserId,omitempty" bson:"createdUserId,omitempty"`
 	ModifiedTime         string                 `json:"modifiedTime,omitempty" bson:"modifiedTime,omitempty"`
@@ -647,6 +648,11 @@ func (u *User) ToKeycloakUser() *keycloak.User {
 	if termsAccepted, err := TimestampToUnixString(u.TermsAccepted); err == nil {
 		keycloakUser.Attributes.TermsAcceptedDate = []string{termsAccepted}
 	}
+	// Round-trip the last login attribute: keycloak replaces the whole attribute map on update,
+	// so dropping it here would wipe the value maintained by the user-activity listener.
+	if u.LastLoginTime != nil {
+		keycloakUser.Attributes.LastLoginTime = []string{strconv.FormatInt(u.LastLoginTime.UnixMilli(), 10)}
+	}
 
 	return keycloakUser
 }
@@ -667,6 +673,15 @@ func NewUserFromKeycloakUser(keycloakUser *keycloak.User) *User {
 		}
 	}
 
+	// Epoch milliseconds maintained by the keycloak-extensions user-activity listener.
+	var lastLoginTime *time.Time
+	if len(keycloakUser.Attributes.LastLoginTime) > 0 {
+		if millis, err := strconv.ParseInt(keycloakUser.Attributes.LastLoginTime[0], 10, 64); err == nil {
+			t := time.UnixMilli(millis).UTC()
+			lastLoginTime = &t
+		}
+	}
+
 	user := &User{
 		Id:            keycloakUser.ID,
 		Username:      keycloakUser.Username,
@@ -676,6 +691,7 @@ func NewUserFromKeycloakUser(keycloakUser *keycloak.User) *User {
 		EmailVerified: keycloakUser.EmailVerified,
 		IsMigrated:    true,
 		Enabled:       keycloakUser.Enabled,
+		LastLoginTime: lastLoginTime,
 	}
 
 	// All non-custodial users have a password and it's important to set the hash to a non-empty value.
