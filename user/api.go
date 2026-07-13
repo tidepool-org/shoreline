@@ -523,6 +523,11 @@ func (a *Api) DeleteUser(res http.ResponseWriter, req *http.Request, vars map[st
 		res.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+	if user == nil {
+		// Handle if user already deleted.
+		res.WriteHeader(http.StatusNoContent)
+		return
+	}
 
 	if user.IsClinic() || user.IsClinician() {
 		res.WriteHeader(http.StatusUnauthorized)
