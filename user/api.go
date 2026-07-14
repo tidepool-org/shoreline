@@ -432,7 +432,7 @@ func (a *Api) UpdateUser(res http.ResponseWriter, req *http.Request, vars map[st
 				}
 			}
 
-			updatedUser.SanitizeTemporaryCustodialEmails()
+			updatedUser.RemoveTemporaryCustodialEmails()
 			if e := a.userEventsNotifier.NotifyUserUpdated(req.Context(), *originalUser, *updatedUser); e != nil {
 				a.logger.Println(http.StatusInternalServerError, e.Error())
 				errs = append(errs, e)

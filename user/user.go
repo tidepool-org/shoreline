@@ -60,7 +60,7 @@ type User struct {
 	DeletedUserID        string                 `json:"deletedUserId,omitempty" bson:"deletedUserId,omitempty"`
 }
 
-func (u *User) SanitizeTemporaryCustodialEmails() {
+func (u *User) RemoveTemporaryCustodialEmails() {
 	if IsTemporaryCustodialEmail(u.Username) {
 		u.Username = ""
 	}
