@@ -2,14 +2,16 @@ package keycloak
 
 import (
 	"context"
+	"net/http"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/Nerzal/gocloak/v13"
 	"github.com/Nerzal/gocloak/v13/pkg/jwx"
 	"github.com/kelseyhightower/envconfig"
 	"golang.org/x/oauth2"
-	"net/http"
-	"sort"
-	"strings"
-	"time"
 
 	"github.com/pkg/errors"
 )
@@ -27,12 +29,9 @@ var shorelineManagedRoles = map[string]struct{}{"patient": {}, "clinic": {}, "cl
 // user-activity listener: epoch milliseconds of the user's last recorded login.
 const lastLoginTimeAttribute = "last_login_time"
 
-// mfaCredentialTypes mirrors the second-factor classification of the keycloak-extensions
-// user-activity listener (OTP, WebAuthn 2FA, and WebAuthn passwordless).
+// mfaCredentialTypes lists the credential types considered a second factor.
 var mfaCredentialTypes = map[string]struct{}{
-	"otp":                   {},
-	"webauthn":              {},
-	"webauthn-passwordless": {},
+	"otp": {},
 }
 
 var ErrUserNotFound = errors.New("user not found")
@@ -71,14 +70,10 @@ type User struct {
 
 type UserAttributes struct {
 	TermsAcceptedDate []string `json:"terms_and_conditions,omitempty"`
-	// LastLoginTime is set by the keycloak-extensions user-activity listener on each login
-	// (epoch milliseconds as a string).
-	LastLoginTime []string `json:"last_login_time,omitempty"`
 }
 
-// UserSecurityProfile is a user's current security posture. MfaEnabled and IdentityProviders are
-// computed live from Keycloak by GetUserSecurityProfile; LastLoginTime is populated by the caller
-// from the user's last_login_time attribute (see UserAttributes).
+// UserSecurityProfile is a user's current security posture, computed live from Keycloak by
+// GetUserSecurityProfile.
 type UserSecurityProfile struct {
 	MfaEnabled        bool                   `json:"mfaEnabled"`
 	IdentityProviders []IdentityProviderLink `json:"identityProviders"`
@@ -107,9 +102,6 @@ func NewKeycloakUser(gocloakUser *gocloak.User) *User {
 	if gocloakUser.Attributes != nil {
 		if ts, ok := (*gocloakUser.Attributes)["terms_and_conditions"]; ok {
 			user.Attributes.TermsAcceptedDate = ts
-		}
-		if lastLogin, ok := (*gocloakUser.Attributes)[lastLoginTimeAttribute]; ok {
-			user.Attributes.LastLoginTime = lastLogin
 		}
 	}
 
@@ -286,17 +278,29 @@ func (c *client) GetUserByEmail(ctx context.Context, email string) (*User, error
 	return c.GetUserById(ctx, *users[0].ID)
 }
 
-// GetUserSecurityProfile computes the user's current MFA state and identity-provider links live
-// from Keycloak. LastLoginTime is left nil — the caller populates it from the user's
-// last_login_time attribute, which is fetched with the user representation.
+// GetUserSecurityProfile computes the user's current security posture live from Keycloak: MFA
+// state from the user's credentials, linked identity providers, and last login from the
+// last_login_time attribute maintained by the user-activity listener.
 func (c *client) GetUserSecurityProfile(ctx context.Context, userID string) (*UserSecurityProfile, error) {
 	token, err := c.getAdminToken(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	profile := &UserSecurityProfile{
-		IdentityProviders: []IdentityProviderLink{},
+	profile := &UserSecurityProfile{}
+
+	user, err := c.keycloak.GetUserByID(ctx, token.AccessToken, c.cfg.Realm, userID)
+	if err != nil {
+		return nil, err
+	}
+	if user != nil && user.Attributes != nil {
+		if values := (*user.Attributes)[lastLoginTimeAttribute]; len(values) > 0 {
+			// Epoch milliseconds, as written by the user-activity listener.
+			if millis, err := strconv.ParseInt(values[0], 10, 64); err == nil {
+				t := time.UnixMilli(millis).UTC()
+				profile.LastLoginTime = &t
+			}
+		}
 	}
 
 	credentials, err := c.keycloak.GetCredentials(ctx, token.AccessToken, c.cfg.Realm, userID)
@@ -318,6 +322,7 @@ func (c *client) GetUserSecurityProfile(ctx context.Context, userID string) (*Us
 		return nil, err
 	}
 	if len(identities) > 0 {
+		profile.IdentityProviders = make([]IdentityProviderLink, 0, len(identities))
 		displayNames, err := c.getIdentityProviderDisplayNames(ctx, token.AccessToken)
 		if err != nil {
 			return nil, err
@@ -391,15 +396,20 @@ func (c *client) UpdateUser(ctx context.Context, user *User) error {
 		Email:         &user.Email,
 	}
 
-	// Keycloak replaces the whole attribute map on update, so every attribute we know about must
-	// be carried over — otherwise updates would wipe values written by other components (e.g. the
-	// user-activity listener's last_login_time).
-	attributes := map[string][]string{
-		"terms_and_conditions": user.Attributes.TermsAcceptedDate,
+	// Keycloak replaces the whole attribute map on update, and other components maintain their
+	// own attributes (e.g. the user-activity listener's last_login_time). Read the current map
+	// and overlay only the attributes shoreline manages, so everything else survives the update.
+	current, err := c.keycloak.GetUserByID(ctx, token.AccessToken, c.cfg.Realm, user.ID)
+	if err != nil {
+		return err
 	}
-	if len(user.Attributes.LastLoginTime) > 0 {
-		attributes[lastLoginTimeAttribute] = user.Attributes.LastLoginTime
+	attributes := map[string][]string{}
+	if current != nil && current.Attributes != nil {
+		for k, v := range *current.Attributes {
+			attributes[k] = v
+		}
 	}
+	attributes["terms_and_conditions"] = user.Attributes.TermsAcceptedDate
 	gocloakUser.Attributes = &attributes
 
 	if err := c.keycloak.UpdateUser(ctx, token.AccessToken, c.cfg.Realm, gocloakUser); err != nil {

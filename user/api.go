@@ -488,10 +488,9 @@ func (a *Api) GetUserInfo(res http.ResponseWriter, req *http.Request, vars map[s
 	}
 }
 
-// getUserSecurityProfile returns the user's current security posture (MFA state and IdP links
-// computed live from keycloak, last login from the last_login_time attribute), or nil for
-// unmigrated users or when the lookup fails — the get-user response then simply omits the
-// securityProfile section rather than failing entirely.
+// getUserSecurityProfile returns the user's current security posture computed live from keycloak,
+// or nil for unmigrated users or when the lookup fails — the get-user response then simply omits
+// the securityProfile section rather than failing entirely.
 func (a *Api) getUserSecurityProfile(ctx context.Context, user *User) *keycloak.UserSecurityProfile {
 	if !user.IsMigrated {
 		return nil
@@ -501,10 +500,6 @@ func (a *Api) getUserSecurityProfile(ctx context.Context, user *User) *keycloak.
 		a.logger.Printf("error fetching security profile for user %v: %v", user.Id, err)
 		return nil
 	}
-	if profile == nil {
-		return nil
-	}
-	profile.LastLoginTime = user.LastLoginTime
 	return profile
 }
 
