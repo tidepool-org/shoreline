@@ -204,9 +204,10 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	logger.Print("creating seagull client")
+	// User profiles now handled by platform-auth so use auth's host
+	logger.Print("creating user profiles client")
 	seagull := clients.NewSeagullClientBuilder().
-		WithHostGetter(disc.NewStaticHostGetterFromString("http://seagull:9120")).
+		WithHostGetter(disc.NewStaticHostGetterFromString("http://auth:9222/metadata")).
 		WithHttpClient(httpClient).
 		Build()
 
