@@ -155,12 +155,15 @@ func (m *MigrationStore) updateKeycloakUser(user *User, details *UpdateUserDetai
 		keycloakUser.Roles = newRoles
 		keycloakUser.Enabled = true
 	}
-	if details.Username != nil {
+	if details.Username == nil && details.Emails != nil && len(details.Emails) == 0 {
+		custodialEmail := GenerateTemporaryCustodialEmail()
+		keycloakUser.Email = custodialEmail
+		keycloakUser.Username = custodialEmail
+	} else if details.Username != nil {
+		keycloakUser.Email = *details.Username
 		keycloakUser.Username = *details.Username
 	}
-	if details.Emails != nil && len(details.Emails) > 0 {
-		keycloakUser.Email = details.Emails[0]
-	}
+
 	if details.EmailVerified != nil {
 		keycloakUser.EmailVerified = *details.EmailVerified
 	}
