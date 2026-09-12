@@ -1325,3 +1325,4 @@ func Test_User_DeepClone(t *testing.T) {
 		t.Fatalf("The clone user is not exactly equal to the original user")
 	}
 }
+

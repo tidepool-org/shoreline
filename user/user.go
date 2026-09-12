@@ -668,7 +668,6 @@ func (u *User) ToKeycloakUser() *keycloak.User {
 	if termsAccepted, err := TimestampToUnixString(u.TermsAccepted); err == nil {
 		keycloakUser.Attributes.TermsAcceptedDate = []string{termsAccepted}
 	}
-
 	return keycloakUser
 }
 
