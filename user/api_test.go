@@ -1121,6 +1121,44 @@ func Test_UpdateUser_Success_Custodian(t *testing.T) {
 	expectEqualsMap(t, successResponse, map[string]interface{}{"emailVerified": false, "emails": []interface{}{"a@z.co"}, "username": "a@z.co"})
 }
 
+func Test_UpdateUser_Success_Custodian_RemovesTemporaryCustodialEmails(t *testing.T) {
+	temporaryEmail := GenerateTemporaryCustodialEmail()
+	updatedUser := &User{
+		Id:            "1111111111",
+		Username:      temporaryEmail,
+		Emails:        []string{temporaryEmail},
+		EmailVerified: false,
+		Enabled:       true,
+	}
+	sessionToken := createSessionToken(t, "0000000000", false, tokenDuration)
+	responsableStore.FindTokenByIDResponses = []FindTokenByIDResponse{{sessionToken, nil}}
+	responsableStore.FindUserResponses = []FindUserResponse{{&User{Id: "1111111111"}, nil}}
+	responsableGatekeeper.UserInGroupResponses = []PermissionsResponse{{clients.Permissions{"custodian": clients.Allowed}, nil}}
+	responsableStore.UpdateUserResponses = []UpdateUserResponse{{updatedUser, nil}}
+	mockNotifier.NotifyUserUpdatedResponses = []error{nil}
+	mockNotifier.NotifyUserUpdatedInvocations = nil
+	defer expectResponsablesEmpty(t)
+
+	body := "{\"updates\": {\"emails\": []}}"
+	headers := http.Header{}
+	headers.Add(TP_SESSION_TOKEN, sessionToken.ID)
+	response := performRequestBodyHeaders(t, "PUT", "/user/1111111111", body, headers)
+	successResponse := expectSuccessResponseWithJSONMap(t, response, 200)
+	expectElementMatch(t, successResponse, "userid", `\A[0-9a-f]{10}\z`, true)
+	expectEqualsMap(t, successResponse, map[string]interface{}{})
+
+	if count := len(mockNotifier.NotifyUserUpdatedInvocations); count != 1 {
+		t.Fatalf("Expected exactly one NotifyUserUpdated invocation, got %d", count)
+	}
+	after := mockNotifier.NotifyUserUpdatedInvocations[0].After
+	if after.Username != "" {
+		t.Fatalf("Expected temporary custodial username to be removed from updated user, got '%s'", after.Username)
+	}
+	if len(after.Emails) != 0 {
+		t.Fatalf("Expected temporary custodial emails to be removed from updated user, got %v", after.Emails)
+	}
+}
+
 func Test_UpdateUser_Success_UserFromUrl(t *testing.T) {
 	updatedUser := &User{
 		Id:            "1111111111",

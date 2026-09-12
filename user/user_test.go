@@ -975,7 +975,7 @@ func Test_UpdateUserDetails_Validate_Emails_Invalid(t *testing.T) {
 }
 
 func Test_UpdateUserDetails_Validate_Password_Missing(t *testing.T) {
-	username := "a@z.co"
+	username := "b@y.co"
 	termsAccepted := "2016-01-01T12:00:00-08:00"
 	emailVerified := true
 	details := &UpdateUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Roles: []string{"clinic"}, TermsAccepted: &termsAccepted, EmailVerified: &emailVerified}
@@ -986,7 +986,7 @@ func Test_UpdateUserDetails_Validate_Password_Missing(t *testing.T) {
 }
 
 func Test_UpdateUserDetails_Validate_Password_Invalid(t *testing.T) {
-	username := "a@z.co"
+	username := "b@y.co"
 	password := "1234567"
 	termsAccepted := "2016-01-01T12:00:00-08:00"
 	emailVerified := true
@@ -1022,7 +1022,7 @@ func Test_UpdateUserDetails_Validate_Roles_Invalid(t *testing.T) {
 }
 
 func Test_UpdateUserDetails_Validate_TermsAccepted_Missing(t *testing.T) {
-	username := "a@z.co"
+	username := "b@y.co"
 	password := "12345678"
 	emailVerified := true
 	details := &UpdateUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Password: &password, Roles: []string{"clinic"}, EmailVerified: &emailVerified}
@@ -1033,7 +1033,7 @@ func Test_UpdateUserDetails_Validate_TermsAccepted_Missing(t *testing.T) {
 }
 
 func Test_UpdateUserDetails_Validate_TermsAccepted_Invalid(t *testing.T) {
-	username := "a@z.co"
+	username := "b@y.co"
 	password := "12345678"
 	termsAccepted := "2016-13-32T24:65:65-24:30"
 	emailVerified := true
@@ -1045,7 +1045,7 @@ func Test_UpdateUserDetails_Validate_TermsAccepted_Invalid(t *testing.T) {
 }
 
 func Test_UpdateUserDetails_Validate_EmailVerified_Missing(t *testing.T) {
-	username := "a@z.co"
+	username := "b@y.co"
 	password := "12345678"
 	termsAccepted := "2016-01-01T12:00:00-08:00"
 	details := &UpdateUserDetails{Username: &username, Emails: []string{"b@y.co", "c@x.co"}, Password: &password, Roles: []string{"clinic"}, TermsAccepted: &termsAccepted}
@@ -1056,7 +1056,7 @@ func Test_UpdateUserDetails_Validate_EmailVerified_Missing(t *testing.T) {
 }
 
 func Test_UpdateUserDetails_Validate_Valid(t *testing.T) {
-	username := "a@z.co"
+	username := "b@y.co"
 	password := "12345678"
 	termsAccepted := "2016-01-01T12:00:00-08:00"
 	emailVerified := true
@@ -1089,6 +1089,38 @@ func Test_ParseUpdateUserDetails_ValidAll(t *testing.T) {
 	}
 	if *details.Username != "a@z.co" || !reflect.DeepEqual(details.Emails, []string{"b@y.co"}) || *details.Password != "12345678" || *details.TermsAccepted != "2016-01-01T12:00:00-08:00" || !*details.EmailVerified {
 		t.Fatalf("Missing fields that should be present on success with all")
+	}
+}
+
+func Test_UpdateUserDetails_ExtractFromJSON_NullEmails(t *testing.T) {
+	source := `{"updates": {"emails": null}}`
+	details := &UpdateUserDetails{}
+	err := details.ExtractFromJSON(strings.NewReader(source))
+	if err != nil {
+		t.Fatalf("Unexpected error for null emails: %#v", err)
+	}
+	if !reflect.DeepEqual(details.Emails, []string{}) {
+		t.Fatalf("Expected empty emails array for null emails, got: %#v", details.Emails)
+	}
+}
+
+func Test_UpdateUserDetails_ExtractFromJSON_EmptyEmails(t *testing.T) {
+	source := `{"updates": {"emails": []}}`
+	details := &UpdateUserDetails{}
+	err := details.ExtractFromJSON(strings.NewReader(source))
+	if err != nil {
+		t.Fatalf("Unexpected error for empty emails: %#v", err)
+	}
+	if !reflect.DeepEqual(details.Emails, []string{}) {
+		t.Fatalf("Expected empty emails array for empty emails, got: %#v", details.Emails)
+	}
+}
+
+func Test_UpdateUserDetails_Validate_Emails_Empty(t *testing.T) {
+	details := &UpdateUserDetails{Emails: []string{}}
+	err := details.Validate()
+	if err != nil {
+		t.Fatalf("Unexpected error for empty emails: %#v", err)
 	}
 }
 
