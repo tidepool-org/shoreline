@@ -899,6 +899,20 @@ func (a *Api) GetUserForMigration(res http.ResponseWriter, req *http.Request, va
 	}
 
 	user := users[0]
+
+	// Keycloak only asks for a user it could not find locally by username or email. If a Keycloak
+	// user with this id already exists, the account was migrated and its username/email has since
+	// changed in Keycloak, so this legacy record is stale. Keycloak is the source of truth for
+	// migrated users: serving the stale record would let keycloak-user-migration (6.2.4+, which
+	// matches by id and copies the username/email over) revert the change.
+	if migrated, err := a.Store.WithContext(req.Context()).FindUser(&User{Id: user.Id}); err != nil {
+		a.sendError(res, http.StatusInternalServerError, STATUS_ERR_FINDING_USR, err.Error())
+		return
+	} else if migrated != nil && migrated.IsMigrated {
+		a.sendError(res, http.StatusNotFound, STATUS_USER_NOT_FOUND)
+		return
+	}
+
 	keycloakUser := user.ToKeycloakUser()
 
 	sendModelAsRes(res, keycloakUser)
