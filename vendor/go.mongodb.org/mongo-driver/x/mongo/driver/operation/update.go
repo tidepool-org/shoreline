@@ -15,6 +15,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/bsontype"
 	"go.mongodb.org/mongo-driver/event"
+	"go.mongodb.org/mongo-driver/internal/driverutil"
 	"go.mongodb.org/mongo-driver/internal/logger"
 	"go.mongodb.org/mongo-driver/mongo/description"
 	"go.mongodb.org/mongo-driver/mongo/writeconcern"
@@ -25,6 +26,7 @@ import (
 
 // Update performs an update operation.
 type Update struct {
+	authenticator            driver.Authenticator
 	bypassDocumentValidation *bool
 	comment                  bsoncore.Value
 	ordered                  *bool
@@ -45,6 +47,7 @@ type Update struct {
 	serverAPI                *driver.ServerAPIOptions
 	let                      bsoncore.Document
 	timeout                  *time.Duration
+	bypassEmptyTsReplacement *bool
 	logger                   *logger.Logger
 }
 
@@ -165,6 +168,8 @@ func (u *Update) Execute(ctx context.Context) error {
 		ServerAPI:         u.serverAPI,
 		Timeout:           u.timeout,
 		Logger:            u.logger,
+		Name:              driverutil.UpdateOp,
+		Authenticator:     u.authenticator,
 	}.Execute(ctx)
 
 }
@@ -199,6 +204,9 @@ func (u *Update) command(dst []byte, desc description.SelectedServer) ([]byte, e
 	}
 	if u.let != nil {
 		dst = bsoncore.AppendDocumentElement(dst, "let", u.let)
+	}
+	if u.bypassEmptyTsReplacement != nil {
+		dst = bsoncore.AppendBooleanElement(dst, "bypassEmptyTsReplacement", *u.bypassEmptyTsReplacement)
 	}
 
 	return dst, nil
@@ -410,5 +418,25 @@ func (u *Update) Logger(logger *logger.Logger) *Update {
 	}
 
 	u.logger = logger
+	return u
+}
+
+// Authenticator sets the authenticator to use for this operation.
+func (u *Update) Authenticator(authenticator driver.Authenticator) *Update {
+	if u == nil {
+		u = new(Update)
+	}
+
+	u.authenticator = authenticator
+	return u
+}
+
+// BypassEmptyTsReplacement sets the bypassEmptyTsReplacement to use for this operation.
+func (u *Update) BypassEmptyTsReplacement(bypassEmptyTsReplacement bool) *Update {
+	if u == nil {
+		u = new(Update)
+	}
+
+	u.bypassEmptyTsReplacement = &bypassEmptyTsReplacement
 	return u
 }
